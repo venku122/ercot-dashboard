@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  receiver:
+    image: ghcr.io/venku122/ercot-receiver:latest
+    container_name: ercot-receiver
+    ports:
+      - "8080:8080"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+      # METRICS_API_KEY: "your-local-key"
+    volumes:
+      - ./ercot-receiver/data:/app/data
+    restart: unless-stopped
+
+  collector:
+    image: ghcr.io/venku122/ercot-collector:latest
+    container_name: ercot-collector
+    environment:
+      METRICS_ENDPOINT: http://receiver:8080/api/ingest
+      # METRICS_API_KEY: "your-local-key"
+      # POWEROUTAGE_US_KEY: "your_poweroutage_key"
+    depends_on:
+      - receiver
+    restart: unless-stopped
