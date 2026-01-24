@@ -730,8 +730,16 @@ async function renderDashboard() {
     }
   }
 
-  const seriesResponse = await fetchSeriesBatch([...seriesQueries.values()]);
-  const latestResponse = await fetchLatestBatch([...latestQueries.values()]);
+  let seriesResponse = { series: [] };
+  let latestResponse = { latest: [] };
+  try {
+    seriesResponse = await fetchSeriesBatch([...seriesQueries.values()]);
+    latestResponse = await fetchLatestBatch([...latestQueries.values()]);
+  } catch (err) {
+    // Keep dashboard visible even if batch calls fail
+    seriesResponse = { series: [] };
+    latestResponse = { latest: [] };
+  }
 
   const seriesMap = new Map();
   for (const entry of seriesResponse.series || []) {

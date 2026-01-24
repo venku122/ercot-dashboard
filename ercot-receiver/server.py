@@ -12,6 +12,7 @@ DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
 WEB_DIR = os.path.join(BASE_DIR, "web")
 API_KEY = os.environ.get("METRICS_API_KEY")
 CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", "10"))
+DB_LOCAL = threading.local()
 
 
 def init_db(conn: sqlite3.Connection) -> None:
@@ -41,6 +42,17 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_metric_tags_tag ON metric_tags(tag)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_metric_tags_metric ON metric_tags(metric_id)")
     conn.commit()
+
+
+def get_db() -> sqlite3.Connection:
+    conn = getattr(DB_LOCAL, "conn", None)
+    if conn is None:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        DB_LOCAL.conn = conn
+    return conn
 
 
 def now_ts() -> int:
@@ -178,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "expected_list"})
                 return
 
-            conn = self.server.db
+            conn = get_db()
             inserted = 0
             ts_now = now_ts()
             for item in payload:
@@ -224,8 +236,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/series/batch":
-            if not self._require_api_key():
-                return
+            # Public read endpoint for dashboard
             try:
                 payload = self._read_json()
             except json.JSONDecodeError:
@@ -240,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, cached)
                 return
 
-            conn = self.server.db
+            conn = get_db()
             result = []
             for entry in payload.get("queries", []):
                 metric = entry.get("metric")
@@ -258,8 +269,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/latest/batch":
-            if not self._require_api_key():
-                return
+            # Public read endpoint for dashboard
             try:
                 payload = self._read_json()
             except json.JSONDecodeError:
@@ -274,7 +284,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, cached)
                 return
 
-            conn = self.server.db
+            conn = get_db()
             result = []
             for entry in payload.get("queries", []):
                 metric = entry.get("metric")
@@ -294,12 +304,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/status":
-            conn = self.server.db
+            conn = get_db()
             total = conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0]
             self._send_json(200, {"rows": total})
             return
         if parsed.path == "/api/metrics":
-            conn = self.server.db
+            conn = get_db()
             rows = conn.execute("SELECT DISTINCT metric_name FROM metrics ORDER BY metric_name").fetchall()
             self._send_json(200, {"metrics": [r[0] for r in rows]})
             return
@@ -315,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
             if cached is not None:
                 self._send_json(200, cached)
                 return
-            conn = self.server.db
+            conn = get_db()
             point = self._latest_query(conn, metric, tags)
             payload_out = {"metric": metric, "point": point}
             self.server.cache.set(cache_key, payload_out)
@@ -335,7 +345,7 @@ class Handler(BaseHTTPRequestHandler):
             if cached is not None:
                 self._send_json(200, cached)
                 return
-            conn = self.server.db
+            conn = get_db()
             points = self._series_query(conn, metric, since, until, tags)
             payload_out = {"metric": metric, "points": points}
             self.server.cache.set(cache_key, payload_out)
@@ -371,8 +381,9 @@ class Handler(BaseHTTPRequestHandler):
 class Server(ThreadingHTTPServer):
     def __init__(self, addr):
         super().__init__(addr, Handler)
-        self.db = sqlite3.connect(DB_PATH, check_same_thread=False)
-        init_db(self.db)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        init_db(conn)
+        conn.close()
         self.cache = Cache(CACHE_TTL_SECONDS)
 
 
