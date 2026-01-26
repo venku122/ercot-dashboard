@@ -1,4 +1,10 @@
-const charts = [];
+const chartsById = new Map();
+const cardsById = new Map();
+const seriesCache = new Map();
+let dashboardBuilt = false;
+let lastRangeSec = null;
+const sharedHover = { ts: null, active: false };
+const labelMode = { legend: true, inline: true };
 
 const PRICING_REGIONS = [
   "HB_BUSAVG",
@@ -402,6 +408,16 @@ function keyFor(metric, since, tags, until) {
   return JSON.stringify({ metric, since, until, tags: tags || [] });
 }
 
+function seriesKey(metric, tags) {
+  return JSON.stringify({ metric, tags: tags || [] });
+}
+
+function maxPointsForRange(rangeSec) {
+  if (rangeSec <= 21600) return null;
+  const target = Math.floor(rangeSec / 60);
+  return Math.max(300, Math.min(1200, target));
+}
+
 async function fetchSeriesBatch(queries) {
   return fetchJson("/api/series/batch", {
     method: "POST",
@@ -522,45 +538,219 @@ function createCard(config) {
   card.appendChild(value);
 
   let canvas = null;
+  let legend = null;
   if (!config.type || config.type === "multi") {
+    legend = document.createElement("div");
+    legend.className = "chart-legend";
+    if (config.id) legend.dataset.chartId = `chart-${config.id}`;
+    card.appendChild(legend);
+
     const canvasWrap = document.createElement("div");
     canvasWrap.className = "canvas-wrap";
     canvas = document.createElement("canvas");
+    if (config.id) canvas.id = `chart-${config.id}`;
     canvasWrap.appendChild(canvas);
     card.appendChild(canvasWrap);
   }
 
-  return { card, canvas, value };
+  return { card, canvas, value, legend };
 }
 
-function createChart(ctx, seriesList, unit, showXAxis) {
+function valueFromCtx(ctx) {
+  if (ctx && ctx.parsed && typeof ctx.parsed.y === "number") return ctx.parsed.y;
+  if (ctx && ctx.raw && typeof ctx.raw.y === "number") return ctx.raw.y;
+  if (ctx && typeof ctx.raw === "number") return ctx.raw;
+  return null;
+}
+
+function labelColor(value) {
+  if (!value) return "#9fb3c8";
+  return value;
+}
+
+function nearestIndexByTs(points, ts) {
+  if (!points.length) return null;
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (points[mid].x < ts) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  if (lo === 0) return 0;
+  const prev = points[lo - 1];
+  const curr = points[lo];
+  return Math.abs(prev.x - ts) <= Math.abs(curr.x - ts) ? lo - 1 : lo;
+}
+
+function applySharedHover(ts) {
+  sharedHover.ts = ts;
+  sharedHover.active = ts !== null;
+  for (const chart of chartsById.values()) {
+    if (!chart) continue;
+    const active = [];
+    for (let di = 0; di < chart.data.datasets.length; di += 1) {
+      const data = chart.data.datasets[di].data || [];
+      if (!data.length) continue;
+      const idx = nearestIndexByTs(data, ts);
+      if (idx === null) continue;
+      active.push({ datasetIndex: di, index: idx });
+    }
+    if (active.length) {
+      const x = chart.scales.x.getPixelForValue(ts);
+      chart.tooltip.setActiveElements(active, { x, y: chart.chartArea.top });
+    } else {
+      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    }
+    chart.draw();
+  }
+}
+
+function clearSharedHover() {
+  sharedHover.ts = null;
+  sharedHover.active = false;
+  for (const chart of chartsById.values()) {
+    if (!chart) continue;
+    chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    chart.draw();
+  }
+}
+
+const inlineLabelPlugin = {
+  id: "inlineSeriesLabels",
+  afterDatasetsDraw(chart) {
+    if (!labelMode.inline) return;
+    if (sharedHover.active && chart.tooltip && chart.tooltip.getActiveElements().length) return;
+    const { ctx, chartArea } = chart;
+    const { right, top, bottom } = chartArea;
+    ctx.save();
+    ctx.font = "600 11px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+
+    chart.data.datasets.forEach((dataset, idx) => {
+      const meta = chart.getDatasetMeta(idx);
+      if (!meta || meta.hidden || !meta.data.length) return;
+      const point = meta.data[meta.data.length - 1];
+      if (!point) return;
+      const x = Math.min(point.x + 8, right - 60);
+      const y = Math.min(Math.max(point.y, top + 8), bottom - 8);
+      ctx.fillStyle = labelColor(dataset.borderColor);
+      ctx.fillText(dataset.label || "", x, y);
+    });
+    ctx.restore();
+  },
+};
+
+const htmlLegendPlugin = {
+  id: "htmlLegend",
+  afterUpdate(chart, args, options) {
+    const container = options && options.container;
+    if (!container) return;
+    if (!labelMode.legend) {
+      container.style.display = "none";
+      container.innerHTML = "";
+      return;
+    }
+    container.style.display = "flex";
+    container.innerHTML = "";
+    const items = chart.options.plugins.legend.labels.generateLabels(chart);
+    for (const item of items) {
+      const label = document.createElement("div");
+      label.className = "legend-item";
+      const swatch = document.createElement("span");
+      swatch.className = "legend-swatch";
+      swatch.style.background = item.strokeStyle;
+      if (item.lineDash && item.lineDash.length) {
+        swatch.style.borderStyle = "dashed";
+      }
+      const text = document.createElement("span");
+      text.className = "legend-text";
+      text.textContent = item.text;
+      label.appendChild(swatch);
+      label.appendChild(text);
+      container.appendChild(label);
+    }
+  },
+};
+
+const crosshairPlugin = {
+  id: "sharedCrosshair",
+  afterDraw(chart) {
+    if (!sharedHover.active || sharedHover.ts === null) return;
+    const x = chart.scales.x.getPixelForValue(sharedHover.ts);
+    if (Number.isNaN(x)) return;
+    const { top, bottom } = chart.chartArea;
+    if (x < chart.chartArea.left || x > chart.chartArea.right) return;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+    ctx.restore();
+  },
+};
+
+function attachHoverHandlers(canvas, chart) {
+  if (canvas.dataset.hoverBound === "true") return;
+  canvas.dataset.hoverBound = "true";
+  canvas.addEventListener("mousemove", (event) => {
+    const points = chart.getElementsAtEventForMode(event, "nearest", { intersect: false }, false);
+    if (!points || !points.length) return;
+    const { datasetIndex, index } = points[0];
+    const data = chart.data.datasets[datasetIndex].data;
+    const datum = data && data[index];
+    if (!datum || typeof datum.x !== "number") return;
+    applySharedHover(datum.x);
+  });
+  canvas.addEventListener("mouseleave", () => {
+    clearSharedHover();
+  });
+}
+
+function buildDatasets(seriesList) {
   const palette = ["#5de4c7", "#ffb347", "#ff6b6b", "#7f9cf5", "#f472b6"];
-  const datasets = seriesList.map((series, idx) => {
+  return seriesList.map((series, idx) => {
     const primary = !series.secondary && idx === 0;
     const borderColor = series.color || palette[idx % palette.length];
     const dataset = {
       label: series.label,
-      data: series.points.map(([ts, value]) => ({ x: ts * 1000, y: value })),
+      data: series.points,
       borderColor,
       backgroundColor: "rgba(93, 228, 199, 0.08)",
       fill: true,
       tension: 0.25,
       pointRadius: 0,
+      pointHitRadius: 8,
       borderWidth: primary ? 2 : 1,
       borderDash: primary ? [] : [6, 4],
+      parsing: false,
+      normalized: true,
     };
     if (series.fillBySign) {
-      dataset.backgroundColor = (ctx) => (ctx.parsed.y >= 0 ? "rgba(93, 228, 199, 0.15)" : "rgba(255, 107, 107, 0.18)");
-      dataset.borderColor = (ctx) => (ctx.parsed.y >= 0 ? "#5de4c7" : "#ff6b6b");
+      dataset.backgroundColor = (ctx) => (valueFromCtx(ctx) >= 0 ? "rgba(93, 228, 199, 0.15)" : "rgba(255, 107, 107, 0.18)");
+      dataset.borderColor = (ctx) => (valueFromCtx(ctx) >= 0 ? "#5de4c7" : "#ff6b6b");
     }
     return dataset;
   });
+}
+
+function createChart(ctx, seriesList, unit, showXAxis) {
+  const datasets = buildDatasets(seriesList);
   return new Chart(ctx, {
     type: "line",
     data: { datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: "index", intersect: false },
       scales: {
         x: {
           type: "time",
@@ -577,22 +767,50 @@ function createChart(ctx, seriesList, unit, showXAxis) {
         },
       },
       plugins: {
-        legend: { display: false },
+        legend: { display: false, labels: { color: "#9fb3c8" } },
+        decimation: {
+          enabled: true,
+          algorithm: "min-max",
+        },
         tooltip: {
+          position: "nearest",
+          padding: 8,
           callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} ${unit || ""}`.trim(),
+            label: (ctx) => {
+              const value = valueFromCtx(ctx);
+              if (value === null) return `${ctx.dataset.label}`;
+              return `${ctx.dataset.label}: ${value} ${unit || ""}`.trim();
+            },
           },
         },
+        htmlLegend: { container: null },
       },
     },
+    plugins: [inlineLabelPlugin, crosshairPlugin, htmlLegendPlugin],
   });
 }
 
-function collectSeriesQueries(config, since, queries, labels) {
+function updateChart(chart, seriesList, unit, showXAxis) {
+  chart.data.datasets = buildDatasets(seriesList);
+  chart.options.scales.x.ticks.display = showXAxis;
+  chart.options.scales.x.grid.display = showXAxis;
+  chart.options.plugins.tooltip.callbacks.label = (ctx) => {
+    const value = valueFromCtx(ctx);
+    if (value === null) return `${ctx.dataset.label}`;
+    return `${ctx.dataset.label}: ${value} ${unit || ""}`.trim();
+  };
+  chart.update("none");
+}
+
+function collectSeriesQueries(config, queries, labels, allowDownsample) {
   if (config.metric) {
-    const id = keyFor(config.metric, since, config.tag ? [config.tag] : []);
+    const tags = config.tag ? [config.tag] : [];
+    const id = seriesKey(config.metric, tags);
     if (!queries.has(id)) {
-      queries.set(id, { id, metric: config.metric, since, tags: config.tag ? [config.tag] : [] });
+      queries.set(id, { id, metric: config.metric, tags, allowDownsample });
+    } else if (allowDownsample === false) {
+      const existing = queries.get(id);
+      existing.allowDownsample = false;
     }
     labels.set(id, config);
     return;
@@ -600,20 +818,20 @@ function collectSeriesQueries(config, since, queries, labels) {
   if (config.compute) {
     const op = config.compute.op;
     if (op === "minus") {
-      collectSeriesQueries(config.compute.left, since, queries, labels);
-      collectSeriesQueries(config.compute.right, since, queries, labels);
+      collectSeriesQueries(config.compute.left, queries, labels, false);
+      collectSeriesQueries(config.compute.right, queries, labels, false);
       return;
     }
     if (op === "sum") {
-      config.compute.series.forEach((s) => collectSeriesQueries(s, since, queries, labels));
+      config.compute.series.forEach((s) => collectSeriesQueries(s, queries, labels, false));
       return;
     }
     if (op === "clip_positive") {
-      collectSeriesQueries(config.compute.source, since, queries, labels);
+      collectSeriesQueries(config.compute.source, queries, labels, false);
       return;
     }
     if (op === "sum_all") {
-      collectSeriesQueries(config.compute.source, since, queries, labels);
+      collectSeriesQueries(config.compute.source, queries, labels, false);
       return;
     }
   }
@@ -648,7 +866,7 @@ function collectLatestQueries(config, queries, labels) {
 
 function computeSeriesFromMap(config, since, seriesMap) {
   if (config.metric) {
-    const key = keyFor(config.metric, since, config.tag ? [config.tag] : []);
+    const key = seriesKey(config.metric, config.tag ? [config.tag] : []);
     return seriesMap.get(key) || [];
   }
   if (config.compute) {
@@ -706,11 +924,34 @@ function computeLatestFromMap(config, latestMap) {
   return null;
 }
 
+function buildDashboardSkeleton() {
+  if (dashboardBuilt) return;
+  const cards = document.getElementById("cards");
+  cards.innerHTML = "";
+  for (const config of CHART_CONFIGS) {
+    if (config.type === "header") {
+      const section = document.createElement("div");
+      section.className = "section-card";
+      section.textContent = config.title;
+      cards.appendChild(section);
+      continue;
+    }
+    const { card, canvas, value, legend } = createCard(config);
+    cards.appendChild(card);
+    cardsById.set(config.id, { card, canvas, value, legend });
+  }
+  dashboardBuilt = true;
+}
+
 async function renderDashboard() {
   const range = document.getElementById("range");
-  const cards = document.getElementById("cards");
-  const since = nowSec() - parseInt(range.value, 10);
-  cards.innerHTML = "";
+  const rangeSec = parseInt(range.value, 10);
+  const since = nowSec() - rangeSec;
+  if (lastRangeSec !== rangeSec) {
+    seriesCache.clear();
+    lastRangeSec = rangeSec;
+  }
+  buildDashboardSkeleton();
 
   const seriesQueries = new Map();
   const seriesLabels = new Map();
@@ -723,17 +964,40 @@ async function renderDashboard() {
       collectLatestQueries(config, latestQueries, latestLabels);
     } else {
       if (config.type === "multi") {
-        config.series.forEach((series) => collectSeriesQueries(series, since, seriesQueries, seriesLabels));
+        config.series.forEach((series) => collectSeriesQueries(series, seriesQueries, seriesLabels, true));
       } else {
-        collectSeriesQueries(config, since, seriesQueries, seriesLabels);
+        collectSeriesQueries(config, seriesQueries, seriesLabels, !config.compute);
       }
     }
+  }
+
+  const now = nowSec();
+  const seriesRequestById = new Map();
+  const seriesRequestList = [];
+  for (const entry of seriesQueries.values()) {
+    const maxPoints = entry.allowDownsample ? maxPointsForRange(rangeSec) : null;
+    if (maxPoints) {
+      const query = { id: entry.id, metric: entry.metric, since, until: now, tags: entry.tags, max_points: maxPoints };
+      seriesRequestList.push(query);
+      seriesRequestById.set(entry.id, { query, maxPoints, since });
+      continue;
+    }
+
+    let fetchSince = since;
+    const cached = seriesCache.get(entry.id);
+    if (cached && cached.points.length) {
+      const lastTs = cached.points[cached.points.length - 1][0];
+      fetchSince = Math.max(lastTs + 1, since);
+    }
+    const query = { id: entry.id, metric: entry.metric, since: fetchSince, until: now, tags: entry.tags };
+    seriesRequestList.push(query);
+    seriesRequestById.set(entry.id, { query, maxPoints: null, since });
   }
 
   let seriesResponse = { series: [] };
   let latestResponse = { latest: [] };
   try {
-    seriesResponse = await fetchSeriesBatch([...seriesQueries.values()]);
+    seriesResponse = await fetchSeriesBatch(seriesRequestList);
     latestResponse = await fetchLatestBatch([...latestQueries.values()]);
   } catch (err) {
     // Keep dashboard visible even if batch calls fail
@@ -742,8 +1006,31 @@ async function renderDashboard() {
   }
 
   const seriesMap = new Map();
+  const responseById = new Map();
   for (const entry of seriesResponse.series || []) {
-    seriesMap.set(entry.id, entry.points || []);
+    responseById.set(entry.id, entry.points || []);
+  }
+
+  for (const [id, requestMeta] of seriesRequestById.entries()) {
+    const points = responseById.get(id) || [];
+    if (requestMeta && requestMeta.maxPoints) {
+      seriesMap.set(id, points);
+      continue;
+    }
+
+    const cached = seriesCache.get(id);
+    let merged = points;
+    if (cached && cached.points.length) {
+      const fetchSince = requestMeta?.query?.since ?? since;
+      if (fetchSince > since && points.length) {
+        merged = cached.points.concat(points);
+      } else if (!points.length) {
+        merged = cached.points;
+      }
+    }
+    const trimmed = merged.filter(([ts]) => ts >= since);
+    seriesCache.set(id, { points: trimmed });
+    seriesMap.set(id, trimmed);
   }
 
   const latestMap = new Map();
@@ -752,15 +1039,10 @@ async function renderDashboard() {
   }
 
   for (const config of CHART_CONFIGS) {
-    if (config.type === "header") {
-      const section = document.createElement("div");
-      section.className = "section-card";
-      section.textContent = config.title;
-      cards.appendChild(section);
-      continue;
-    }
-    const { card, canvas, value } = createCard(config);
-    cards.appendChild(card);
+    if (config.type === "header") continue;
+    const entry = cardsById.get(config.id);
+    if (!entry) continue;
+    const { canvas, value, legend } = entry;
 
     try {
       if (config.type === "single" || config.type === "single-compute") {
@@ -772,25 +1054,44 @@ async function renderDashboard() {
 
       let seriesList = [];
       if (config.type === "multi") {
-        seriesList = config.series.map((series) => ({
-          label: series.label || series.metric,
-          points: computeSeriesFromMap(series, since, seriesMap),
-          secondary: series.secondary,
-          fillBySign: series.fillBySign,
-        }));
+        seriesList = config.series.map((series) => {
+          const points = computeSeriesFromMap(series, since, seriesMap).map(([ts, val]) => ({
+            x: ts * 1000,
+            y: val,
+          }));
+          return {
+            label: series.label || series.metric,
+            points,
+            secondary: series.secondary,
+            fillBySign: series.fillBySign,
+          };
+        });
       } else {
-        const points = computeSeriesFromMap(config, since, seriesMap);
+        const points = computeSeriesFromMap(config, since, seriesMap).map(([ts, val]) => ({
+          x: ts * 1000,
+          y: val,
+        }));
         seriesList = [{ label: config.title, points }];
       }
 
       const lastSeries = seriesList.find((series) => series.points.length > 0);
       const lastPoint = lastSeries?.points[lastSeries.points.length - 1];
-      const formatted = lastPoint ? formatValue(lastPoint[1], config.unit) : null;
+      const formatted = lastPoint ? formatValue(lastPoint.y, config.unit) : null;
       setValue(value, config, formatted);
 
       if (canvas) {
-        const chart = createChart(canvas.getContext("2d"), seriesList, config.unit, config.showXAxis);
-        charts.push(chart);
+        const chartId = canvas.id || config.id;
+        const existing = chartsById.get(chartId);
+        if (existing) {
+          updateChart(existing, seriesList, config.unit, config.showXAxis);
+        } else {
+          const chart = createChart(canvas.getContext("2d"), seriesList, config.unit, config.showXAxis);
+          if (legend) {
+            chart.options.plugins.htmlLegend.container = legend;
+          }
+          chartsById.set(chartId, chart);
+          attachHoverHandlers(canvas, chart);
+        }
       }
     } catch (err) {
       value.textContent = "No data in window";
@@ -799,28 +1100,48 @@ async function renderDashboard() {
   }
 }
 
-function destroyCharts() {
-  while (charts.length) {
-    const chart = charts.pop();
-    if (chart) chart.destroy();
+const refreshButton = document.getElementById("refresh");
+const rangeSelect = document.getElementById("range");
+const legendToggle = document.getElementById("toggle-legend");
+const inlineToggle = document.getElementById("toggle-inline");
+
+function syncLabelMode() {
+  labelMode.legend = legendToggle ? legendToggle.checked : true;
+  labelMode.inline = inlineToggle ? inlineToggle.checked : true;
+  for (const chart of chartsById.values()) {
+    if (!chart) continue;
+    const container = chart.options.plugins.htmlLegend?.container;
+    if (container) {
+      container.style.display = labelMode.legend ? "flex" : "none";
+    }
+    chart.update("none");
   }
 }
 
-const refreshButton = document.getElementById("refresh");
-const rangeSelect = document.getElementById("range");
-
 refreshButton.addEventListener("click", () => {
-  destroyCharts();
   renderDashboard();
 });
 
 rangeSelect.addEventListener("change", () => {
-  destroyCharts();
   renderDashboard();
 });
 
+if (legendToggle) {
+  legendToggle.addEventListener("change", () => {
+    syncLabelMode();
+    renderDashboard();
+  });
+}
+
+if (inlineToggle) {
+  inlineToggle.addEventListener("change", () => {
+    syncLabelMode();
+    renderDashboard();
+  });
+}
+
+syncLabelMode();
 renderDashboard();
 setInterval(() => {
-  destroyCharts();
   renderDashboard();
 }, 60000);

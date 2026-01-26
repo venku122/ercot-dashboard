@@ -54,6 +54,7 @@ body {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 13px;
   color: var(--muted);
+  flex-wrap: wrap;
 }
 
 .controls select,
@@ -64,6 +65,28 @@ body {
   padding: 8px 10px;
   border-radius: 8px;
   font-family: inherit;
+}
+
+.toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(15, 20, 24, 0.35);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  accent-color: var(--warn);
 }
 
 .controls button {
@@ -172,6 +195,39 @@ body {
 .canvas-wrap {
   position: relative;
   height: 180px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 20, 24, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.legend-text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
 }
 
 .section-card {

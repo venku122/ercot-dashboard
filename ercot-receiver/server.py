@@ -71,6 +71,15 @@ def parse_timestamp(value):
     return ts
 
 
+def parse_int(value):
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def normalize_tags(tags):
     if not tags:
         return []
@@ -85,6 +94,51 @@ def tags_filter_clause(tags):
     placeholders = ",".join("?" for _ in tags)
     clause = f"AND m.id IN (SELECT metric_id FROM metric_tags WHERE tag IN ({placeholders}) GROUP BY metric_id HAVING COUNT(DISTINCT tag) = {len(tags)})"
     return clause, tags
+
+
+def downsample_minmax(points, max_points):
+    if not points or not max_points or max_points <= 0:
+        return points
+    if len(points) <= max_points:
+        return points
+    start_ts = points[0][0]
+    end_ts = points[-1][0]
+    if end_ts <= start_ts:
+        return points
+    bucket_size = int((end_ts - start_ts) / max_points) + 1
+    output = []
+    bucket_start = start_ts
+    bucket_end = bucket_start + bucket_size
+    min_point = None
+    max_point = None
+
+    def flush_bucket():
+        nonlocal min_point, max_point
+        if min_point is None:
+            return
+        if max_point is None or max_point[0] == min_point[0]:
+            output.append(min_point)
+        else:
+            if min_point[0] <= max_point[0]:
+                output.append(min_point)
+                output.append(max_point)
+            else:
+                output.append(max_point)
+                output.append(min_point)
+        min_point = None
+        max_point = None
+
+    for ts, value in points:
+        while ts > bucket_end:
+            flush_bucket()
+            bucket_start = bucket_end
+            bucket_end = bucket_start + bucket_size
+        if min_point is None or value < min_point[1]:
+            min_point = [ts, value]
+        if max_point is None or value > max_point[1]:
+            max_point = [ts, value]
+    flush_bucket()
+    return output
 
 
 class Cache:
@@ -261,7 +315,10 @@ class Handler(BaseHTTPRequestHandler):
                 tags = normalize_tags(entry.get("tags") or [])
                 since = parse_timestamp(entry.get("since"))
                 until = parse_timestamp(entry.get("until"))
+                max_points = parse_int(entry.get("max_points"))
                 points = self._series_query(conn, metric, since, until, tags)
+                if max_points:
+                    points = downsample_minmax(points, max_points)
                 result.append({"id": entry.get("id"), "metric": metric, "points": points})
             payload_out = {"series": result}
             self.server.cache.set(cache_key, payload_out)
@@ -340,13 +397,16 @@ class Handler(BaseHTTPRequestHandler):
             since = parse_timestamp((qs.get("since") or [None])[0])
             until = parse_timestamp((qs.get("until") or [None])[0])
             tags = normalize_tags(qs.get("tag", []))
-            cache_key = self._cache_key("series", {"metric": metric, "since": since, "until": until, "tags": tags})
+            max_points = parse_int((qs.get("max_points") or [None])[0])
+            cache_key = self._cache_key("series", {"metric": metric, "since": since, "until": until, "tags": tags, "max_points": max_points})
             cached = self.server.cache.get(cache_key)
             if cached is not None:
                 self._send_json(200, cached)
                 return
             conn = get_db()
             points = self._series_query(conn, metric, since, until, tags)
+            if max_points:
+                points = downsample_minmax(points, max_points)
             payload_out = {"metric": metric, "points": points}
             self.server.cache.set(cache_key, payload_out)
             self._send_json(200, payload_out)
