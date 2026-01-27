@@ -10,6 +10,15 @@ services:
       HOST: 0.0.0.0
       PORT: 8080
       # METRICS_API_KEY: "your-local-key"
+      # CACHE_TTL_SECONDS: 10
+      # CACHE_CONTROL_MAX_AGE: 30
+      # CORS_ORIGINS_EXTRA: "https://example.com,https://other.example.com"
+      # TRUST_PROXY: "1"
+      # RATE_LIMIT_INGEST_RPM: 600
+      # RATE_LIMIT_SERIES_RPM: 300
+      # RATE_LIMIT_LATEST_RPM: 300
+      # RATE_LIMIT_STATUS_RPM: 120
+      # RATE_LIMIT_METRICS_RPM: 120
     volumes:
       - ./ercot-receiver/data:/app/data
     restart: unless-stopped
@@ -21,6 +30,8 @@ services:
       METRICS_ENDPOINT: http://receiver:8080/api/ingest
       # METRICS_API_KEY: "your-local-key"
       # POWEROUTAGE_US_KEY: "your_poweroutage_key"
+      # DATADOG_API_KEY: "optional-datadog-key"
+      # DATADOG_APP_KEY: "optional-datadog-app-key"
     depends_on:
       - receiver
     restart: unless-stopped
