@@ -5,6 +5,7 @@ let dashboardBuilt = false;
 let lastRangeSec = null;
 const sharedHover = { ts: null, active: false };
 const labelMode = { legend: true, inline: true };
+let weatherToggleBound = false;
 
 const PRICING_REGIONS = [
   "HB_BUSAVG",
@@ -32,13 +33,14 @@ const CHART_CONFIGS = [
     id: "capacity_demand",
     title: "Capacity & Demand",
     type: "multi",
-    unit: "MW",
+    unit: "GW",
+    unitScale: 0.001,
     subtitle: "Real-time (60s) · Source: ERCOT",
     description:
       "Demand is ERCOT system load. Available capacity is currently available generation capacity. Unused capacity is capacity minus demand.",
-    yLabel: "Power (MW)",
+    yLabel: "Power (GW)",
     ySuggestedMin: 0,
-    ySuggestedMax: 120000,
+    ySuggestedMax: 120,
     tooltipTimestamp: true,
     tooltipFooter: (items) => {
       const demandItem = items.find((item) => item.dataset.label?.includes("Demand"));
@@ -48,29 +50,30 @@ const CHART_CONFIGS = [
       const capacity = valueFromCtx(capacityItem);
       if (demand === null || capacity === null) return null;
       const unused = capacity - demand;
-      return `Unused Capacity: ${formatDisplayValue(unused, { unit: "MW" })}`;
+      return `Unused Capacity: ${formatDisplayValue(unused, { unit: "GW" })}`;
     },
     series: [
-      { label: "Demand (MW)", metric: "ercot.Real_Time_Data.Actual_System_Demand" },
-      { label: "Available Capacity (MW)", metric: "ercot.Real_Time_Data.Total_System_Capacity", secondary: true },
+      { label: "Demand (GW)", metric: "ercot.Real_Time_Data.Actual_System_Demand" },
+      { label: "Available Capacity (GW)", metric: "ercot.Real_Time_Data.Total_System_Capacity", secondary: true },
     ],
   },
   {
     id: "unused_capacity",
     title: "Unused Capacity & Operating Reserves",
     type: "multi",
-    unit: "MW",
+    unit: "GW",
+    unitScale: 0.001,
     subtitle: "Real-time (60s) · Source: ERCOT",
     description:
       "Unused capacity is headroom between available capacity and demand. Operating reserves may differ depending on ERCOT definition.",
-    yLabel: "Headroom (MW)",
+    yLabel: "Headroom (GW)",
     ySuggestedMin: 0,
-    ySuggestedMax: 50000,
+    ySuggestedMax: 50,
     tooltipTimestamp: true,
     referenceLines: [{ value: 0, color: "rgba(255,255,255,0.35)" }],
     series: [
       {
-        label: "Unused Capacity (MW)",
+        label: "Unused Capacity (GW)",
         fillBySign: true,
         compute: {
           op: "minus",
@@ -78,7 +81,7 @@ const CHART_CONFIGS = [
           right: { metric: "ercot.Real_Time_Data.Actual_System_Demand" },
         },
       },
-      { label: "Operating Reserves (MW)", metric: "ercot_ancillary.prc", secondary: true },
+      { label: "Operating Reserves (GW)", metric: "ercot_ancillary.prc", secondary: true },
     ],
   },
   {
@@ -92,91 +95,104 @@ const CHART_CONFIGS = [
     yLabel: "Frequency (Hz)",
     yMin: 59.9,
     yMax: 60.1,
+    band: { min: 59.975, max: 60.025, color: "rgba(46, 204, 113, 0.12)" },
     tooltipTimestamp: true,
     referenceLines: [{ value: 60, color: "rgba(255,255,255,0.4)" }],
   },
   {
     id: "time_error_delta",
-    title: "Time Error (Raw)",
+    title: "Time \"Error\" / Offset from ideal 60Hz clock - DELTA",
+    unit: "sec",
+    subtitle: "Real-time (60s) · Source: ERCOT",
+    description:
+      "Change in instantaneous time error between 60-second samples.",
+    yLabel: "Offset delta (sec)",
+    yMin: -1,
+    yMax: 1,
+    tooltipTimestamp: true,
+    referenceLines: [{ value: 0, color: "rgba(255,255,255,0.35)" }],
+    compute: {
+      op: "diff",
+      source: { metric: "ercot.Frequency.Instantaneous_Time_Error" },
+    },
+  },
+  {
+    id: "time_error_late",
+    title: "Time \"Error\" / Offset from ideal 60Hz clock - LATEST",
     metric: "ercot.Frequency.Instantaneous_Time_Error",
     unit: "sec",
     subtitle: "Real-time (60s) · Source: ERCOT",
     description:
-      "Cumulative offset from ideal 60 Hz over time. This is an integrated measure of frequency deviation.",
-    yLabel: "Time Error (sec)",
-    yMin: -60,
-    yMax: 60,
+      "Instantaneous time error at the latest sample.",
+    yLabel: "Offset (sec)",
+    yMin: -15,
+    yMax: 0,
     tooltipTimestamp: true,
     referenceLines: [{ value: 0, color: "rgba(255,255,255,0.35)" }],
-  },
-  {
-    id: "time_error_late",
-    title: "Time Error (Filtered)",
-    unit: "sec",
-    subtitle: "Real-time (60s) · Source: ERCOT",
-    description:
-      "Filtered view highlighting late-only deviations. This is derived from instantaneous time error.",
-    yLabel: "Time Error (sec)",
-    yMin: 0,
-    yMax: 60,
-    tooltipTimestamp: true,
-    referenceLines: [{ value: 0, color: "rgba(255,255,255,0.35)" }],
-    compute: {
-      op: "clip_positive",
-      source: { metric: "ercot.Frequency.Instantaneous_Time_Error" },
-    },
   },
   {
     id: "wind_solar",
     title: "Wind & Solar Generation",
     type: "multi",
-    unit: "MW",
+    unit: "GW",
+    unitScale: 0.001,
     subtitle: "Real-time (60s) · Source: ERCOT",
     description: "Real-time generation output by fuel type (wind and solar).",
-    yLabel: "Generation (MW)",
+    yLabel: "Generation (GW)",
     ySuggestedMin: 0,
-    ySuggestedMax: 80000,
+    ySuggestedMax: 50,
     tooltipTimestamp: true,
     series: [
-      { label: "Wind (MW)", metric: "ercot.Real_Time_Data.Total_Wind_Output" },
-      { label: "Solar (MW)", metric: "ercot.Real_Time_Data.Total_PVGR_Output", secondary: true },
+      { label: "Wind (GW)", metric: "ercot.Real_Time_Data.Total_Wind_Output" },
+      { label: "Solar (GW)", metric: "ercot.Real_Time_Data.Total_PVGR_Output", secondary: true },
     ],
   },
   {
     id: "inertia",
     title: "System Inertia",
     metric: "ercot.Real_Time_Data.Current_System_Inertia",
-    unit: "MW·s",
+    unit: "GW·s",
+    unitScale: 0.001,
     subtitle: "Real-time (60s) · Source: ERCOT",
     description:
       "Inertia is a system stability proxy reflecting rotational energy available to resist frequency changes.",
-    yLabel: "Inertia (MW·s)",
+    yLabel: "Inertia (GW·s)",
     ySuggestedMin: 0,
-    ySuggestedMax: 600000,
+    ySuggestedMax: 600,
     tooltipTimestamp: true,
   },
   {
     id: "dc_ties",
     title: "Net Interchange",
+    type: "multi",
     unit: "MW",
     subtitle: "Real-time (60s) · Source: ERCOT",
     description: "Net interchange across ERCOT ties. Positive = Imports into ERCOT; Negative = Exports.",
     yLabel: "Power Flow (MW)",
-    yMin: -10000,
-    yMax: 10000,
+    yMin: -1000,
+    yMax: 1000,
     tooltipTimestamp: true,
     referenceLines: [{ value: 0, color: "rgba(255,255,255,0.35)" }],
-    seriesLabel: "Net Flow (MW)",
-    compute: {
-      op: "sum",
-      series: [
-        { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_E" },
-        { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_N" },
-        { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_L" },
-        { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_R" },
-        { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_S" },
-      ],
-    },
+    series: [
+      {
+        label: "Total Net Flow (MW)",
+        compute: {
+          op: "sum",
+          series: [
+            { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_E" },
+            { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_N" },
+            { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_L" },
+            { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_R" },
+            { metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_S" },
+          ],
+        },
+      },
+      { label: "DC_E (MW)", metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_E" },
+      { label: "DC_N (MW)", metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_N" },
+      { label: "DC_L (MW)", metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_L" },
+      { label: "DC_R (MW)", metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_R" },
+      { label: "DC_S (MW)", metric: "ercot.DC_Tie_Flows", tag: "ercot_dc_tie:DC_S" },
+    ],
   },
 
   { type: "header", title: "Big Honkin' Numbers" },
@@ -184,7 +200,9 @@ const CHART_CONFIGS = [
     id: "big_capacity",
     title: "Generation Capacity",
     metric: "ercot.Real_Time_Data.Total_System_Capacity",
-    unit: "MW",
+    unit: "GW",
+    unitScale: 0.001,
+    format: "1dp",
     type: "single",
     emphasize: true,
     subtitle: "Real-time (60s) · Source: ERCOT",
@@ -194,6 +212,7 @@ const CHART_CONFIGS = [
     title: "Grid Frequency",
     metric: "ercot.Frequency.Current_Frequency",
     unit: "Hz",
+    format: "3dp",
     type: "single",
     emphasize: true,
     severity: "frequency",
@@ -202,7 +221,9 @@ const CHART_CONFIGS = [
   {
     id: "big_unused",
     title: "Unused System Capacity",
-    unit: "MW",
+    unit: "GW",
+    unitScale: 0.001,
+    format: "2dp",
     type: "single-compute",
     emphasize: true,
     severity: "unused_capacity",
@@ -271,10 +292,10 @@ const CHART_CONFIGS = [
     unit: "MW",
     subtitle: "Real-time (60s) · Source: ERCOT Ancillary",
     description:
-      "Regulation services balance short-term frequency deviations. Specify whether the metric is requirement, procurement, supply, or deployment.",
+      'Reg-Up/Reg-Down awards (sum of all awards). See ERCOT definitions for <a href="http://www.ercot.com/content/cdr/html/as_capacity_monitor.html" target="_blank" rel="noopener noreferrer">Ancillary Service Capacity Monitor</a>.',
     yLabel: "Regulation (MW)",
     ySuggestedMin: 0,
-    ySuggestedMax: 3000,
+    ySuggestedMax: 1000,
     tooltipTimestamp: true,
     series: [
       { label: "Reg-Up (MW)", metric: "ercot_ancillary.regUpAwd" },
@@ -289,7 +310,7 @@ const CHART_CONFIGS = [
     description: "Generation capacity currently offline, excluding quick-start resources (per ERCOT definition).",
     yLabel: "Offline Generation (MW)",
     ySuggestedMin: 0,
-    ySuggestedMax: 80000,
+    ySuggestedMax: 2700,
     tooltipTimestamp: true,
     compute: {
       op: "minus",
@@ -308,6 +329,8 @@ const CHART_CONFIGS = [
     ySuggestedMin: 0,
     ySuggestedMax: 15000,
     tooltipTimestamp: true,
+    hideIfEmpty: true,
+    hideIfZero: true,
   },
   {
     id: "ancillary_reserve_offline",
@@ -316,6 +339,8 @@ const CHART_CONFIGS = [
     unit: "MW",
     subtitle: "Real-time (60s) · Source: ERCOT Ancillary",
     tooltipTimestamp: true,
+    hideIfEmpty: true,
+    hideIfZero: true,
     series: [
       { label: "Online", metric: "ercot_ancillary.rtReserveOnline" },
       { label: "Offline", metric: "ercot_ancillary.rtReserveOnOffline", secondary: true },
@@ -331,7 +356,7 @@ const CHART_CONFIGS = [
     subtitle: "Updates every 15 minutes · Source: ERCOT SPP",
     description:
       "Top settlement points by latest price. Prices may be negative and may spike during scarcity events.",
-    tableColumns: ["Settlement Point", "Price ($/MWh)", "Timestamp"],
+    tableColumns: ["Settlement Point", "Price ($/MWh)"],
     topN: 10,
     series: PRICING_REGIONS.map((region) => ({
       metric: "ercot.pricing",
@@ -373,137 +398,104 @@ const CHART_CONFIGS = [
     ySuggestedMin: 0,
     ySuggestedMax: 2000000,
     tooltipTimestamp: true,
+    hideIfEmpty: true,
     compute: {
       op: "sum_all",
       source: { metric: "poweroutageus.customers" },
     },
   },
 
-  { type: "header", title: "Nearby Weather (METAR)" },
+  { type: "header", id: "weather_header", title: "Nearby Weather (METAR)", weatherToggle: true },
   {
     id: "metar_temp",
     title: "Temperature (by Airport)",
     type: "multi",
-    unit: "°C",
+    weatherType: "temp",
     tone: "muted",
     subtitle: "Updates ~hourly · Source: METAR",
     description: "Airport METAR observations near ERCOT load/generation centers.",
-    yLabel: "Temperature (°C)",
-    yMin: -20,
-    yMax: 45,
     tooltipTimestamp: true,
     series: METAR_STATIONS.map((code) => ({
       label: code,
       metric: "metar.temperature",
       tag: `metar_code:${code}`,
       secondary: true,
+      weatherType: "temp",
     })),
   },
   {
     id: "metar_winds",
     title: "Wind Speed (by Airport)",
     type: "multi",
-    unit: "mph",
+    weatherType: "wind",
     tone: "muted",
     subtitle: "Updates ~hourly · Source: METAR",
     description: "Observed sustained wind speed. Gusts may not be shown unless explicitly ingested.",
-    yLabel: "Wind Speed (mph)",
-    yMin: 0,
-    yMax: 80,
     tooltipTimestamp: true,
     series: METAR_STATIONS.map((code) => ({
       label: code,
       metric: "metar.winds.speed",
       tag: `metar_code:${code}`,
       secondary: true,
+      weatherType: "wind",
     })),
   },
   {
     id: "metar_dewpoint",
     title: "Dewpoint (by Airport)",
     type: "multi",
-    unit: "°C",
+    weatherType: "dewpoint",
     tone: "muted",
     subtitle: "Updates ~hourly · Source: METAR",
     description: "Dewpoint is a proxy for humidity and impacts load via comfort cooling demand.",
-    yLabel: "Dewpoint (°C)",
-    yMin: -30,
-    yMax: 30,
     tooltipTimestamp: true,
     series: METAR_STATIONS.map((code) => ({
       label: code,
       metric: "metar.dewpoint",
       tag: `metar_code:${code}`,
       secondary: true,
+      weatherType: "dewpoint",
     })),
   },
   {
     id: "metar_pressure",
     title: "Observed Air Pressure",
     type: "multi",
-    unit: "inHg",
+    weatherType: "pressure",
     tone: "muted",
     subtitle: "Updates ~hourly · Source: METAR",
     description: "Barometric pressure observations from METAR stations.",
-    yLabel: "Pressure (inHg)",
-    yMin: 28,
-    yMax: 31.5,
     tooltipTimestamp: true,
     series: METAR_STATIONS.map((code) => ({
       label: code,
       metric: "metar.pressure",
       tag: `metar_code:${code}`,
       secondary: true,
+      weatherType: "pressure",
     })),
   },
   {
     id: "metar_wind_temp_combined",
     title: "Wind Speed & Temperature",
     type: "multi",
-    unit: "°C",
+    weatherCombined: true,
     tone: "muted",
     subtitle: "Updates ~hourly · Source: METAR",
     description: "Combined view to correlate weather and grid behavior. Dual-axis must be labeled to avoid misleading scaling.",
-    yLabel: "Temperature (°C)",
-    yMin: -20,
-    yMax: 45,
     tooltipTimestamp: true,
-    scales: {
-      y: {
-        position: "left",
-        title: { display: true, text: "Temperature (°C)" },
-        min: -20,
-        max: 45,
-        ticks: {
-          color: "#9fb3c8",
-          callback: (value) => `${value} °C`,
-        },
-      },
-      y1: {
-        position: "right",
-        title: { display: true, text: "Wind Speed (mph)" },
-        min: 0,
-        max: 80,
-        grid: { drawOnChartArea: false },
-        ticks: {
-          color: "#9fb3c8",
-          callback: (value) => `${value} mph`,
-        },
-      },
-    },
     series: [
       {
-        label: "Temp (°C)",
+        label: "Temp",
         metric: "metar.temperature",
         tag: `metar_code:${METAR_STATIONS[0]}`,
-        unit: "°C",
+        weatherType: "temp",
         yAxisID: "y",
       },
       {
-        label: "Wind (mph)",
+        label: "Wind",
         metric: "metar.winds.speed",
         tag: `metar_code:${METAR_STATIONS[0]}`,
-        unit: "mph",
+        weatherType: "wind",
         yAxisID: "y1",
         secondary: true,
       },
@@ -656,20 +648,57 @@ function alignSeries(left, right) {
   return merged;
 }
 
+function formatNumber(value, format) {
+  if (format === "integer") return Math.round(value).toFixed(0);
+  if (format === "1dp") return value.toFixed(1);
+  if (format === "2dp") return value.toFixed(2);
+  if (format === "3dp") return value.toFixed(3);
+  return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(2);
+}
+
+function applyUnitScale(value, config) {
+  const scale = config?.unitScale ?? 1;
+  return value * scale;
+}
+
 function formatValue(value, unit, config) {
   if (value === null || value === undefined || Number.isNaN(value)) return null;
-  const rounded = config?.format === "integer" ? Math.round(value).toFixed(0) : Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(2);
+  const rounded = formatNumber(value, config?.format);
   return { value: rounded, unit: unit || "" };
 }
 
 function formatDisplayValue(value, config) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  const rounded = config?.format === "integer" ? Math.round(value).toFixed(0) : Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(2);
+  const rounded = formatNumber(value, config?.format);
   if (config?.unit === "$/MWh") {
     return `$${rounded} /MWh`;
   }
   return `${rounded}${config?.unit ? ` ${config.unit}` : ""}`.trim();
 }
+
+function wrapText(text, maxLen) {
+  if (!text || text.length <= maxLen) return [text];
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    if (!line) {
+      line = word;
+      continue;
+    }
+    if ((line + " " + word).length > maxLen) {
+      lines.push(line);
+      line = word;
+    } else {
+      line += ` ${word}`;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [text];
+}
+
+let tooltipTimezone = "local";
+let weatherUnits = "imperial";
 
 function formatTimestamp(ts) {
   if (!ts) return "—";
@@ -677,9 +706,74 @@ function formatTimestamp(ts) {
   return date.toLocaleString();
 }
 
-function formatTimestampUtc(ts) {
+function formatTooltipTimestamp(ts) {
   if (!ts) return "—";
-  return new Date(ts).toUTCString();
+  const date = new Date(ts);
+  const options = { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" };
+  if (tooltipTimezone === "utc") {
+    return `${date.toLocaleString(undefined, { ...options, timeZone: "UTC" })} UTC`;
+  }
+  return date.toLocaleString(undefined, options);
+}
+
+function weatherMeta(type) {
+  const metric = {
+    temp: { unit: "°C", yMin: -20, yMax: 45, label: "Temperature (°C)", convert: (v) => v },
+    dewpoint: { unit: "°C", yMin: -30, yMax: 30, label: "Dewpoint (°C)", convert: (v) => v },
+    wind: { unit: "km/h", yMin: 0, yMax: 130, label: "Wind Speed (km/h)", convert: (v) => v * 1.60934 },
+    pressure: { unit: "hPa", yMin: 948, yMax: 1067, label: "Pressure (hPa)", convert: (v) => v * 33.8639 },
+  };
+  const imperial = {
+    temp: { unit: "°F", yMin: -4, yMax: 113, label: "Temperature (°F)", convert: (v) => v * 9 / 5 + 32 },
+    dewpoint: { unit: "°F", yMin: -22, yMax: 86, label: "Dewpoint (°F)", convert: (v) => v * 9 / 5 + 32 },
+    wind: { unit: "mph", yMin: 0, yMax: 80, label: "Wind Speed (mph)", convert: (v) => v },
+    pressure: { unit: "inHg", yMin: 28, yMax: 31.5, label: "Pressure (inHg)", convert: (v) => v },
+  };
+  return (weatherUnits === "metric" ? metric : imperial)[type];
+}
+
+function resolveWeatherConfig(config) {
+  if (!config.weatherType && !config.weatherCombined) return config;
+  const resolved = { ...config };
+  if (config.weatherType) {
+    const meta = weatherMeta(config.weatherType);
+    resolved.unit = meta.unit;
+    resolved.yLabel = meta.label;
+    resolved.yMin = meta.yMin;
+    resolved.yMax = meta.yMax;
+  }
+  if (config.weatherCombined) {
+    const tempMeta = weatherMeta("temp");
+    const windMeta = weatherMeta("wind");
+    resolved.unit = tempMeta.unit;
+    resolved.yLabel = tempMeta.label;
+    resolved.yMin = tempMeta.yMin;
+    resolved.yMax = tempMeta.yMax;
+    resolved.scales = {
+      y: {
+        position: "left",
+        title: { display: true, text: tempMeta.label },
+        min: tempMeta.yMin,
+        max: tempMeta.yMax,
+        ticks: {
+          color: "#9fb3c8",
+          callback: (value) => `${value} ${tempMeta.unit}`,
+        },
+      },
+      y1: {
+        position: "right",
+        title: { display: true, text: windMeta.label },
+        min: windMeta.yMin,
+        max: windMeta.yMax,
+        grid: { drawOnChartArea: false },
+        ticks: {
+          color: "#9fb3c8",
+          callback: (value) => `${value} ${windMeta.unit}`,
+        },
+      },
+    };
+  }
+  return resolved;
 }
 
 function severityFor(config, value) {
@@ -736,38 +830,54 @@ function createCard(config) {
   if (config.emphasize) card.classList.add("card-emphasis");
   if (config.tone === "muted") card.classList.add("card-muted");
 
+  const header = document.createElement("div");
+  header.className = "card-header";
   const title = document.createElement("h2");
   title.textContent = config.title;
-  card.appendChild(title);
+  header.appendChild(title);
+  card.appendChild(header);
 
-  const subtitle = document.createElement("div");
-  subtitle.className = "card-subtitle";
-  subtitle.textContent = config.subtitle || "";
-  if (!config.subtitle) {
-    subtitle.style.display = "none";
+  const pills = document.createElement("div");
+  pills.className = "card-pills";
+  if (config.subtitle) {
+    config.subtitle
+      .split("·")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => {
+        const isSource = part.toLowerCase().startsWith("source:");
+        if (isSource) {
+          const pillLink = document.createElement("a");
+          pillLink.className = "pill pill-link";
+          pillLink.href = "https://gist.github.com/danopia/c0c4313b4809d565af7c7738bcdbeec7";
+          pillLink.target = "_blank";
+          pillLink.rel = "noopener noreferrer";
+          pillLink.textContent = part;
+          pills.appendChild(pillLink);
+        } else {
+          const pill = document.createElement("span");
+          pill.className = "pill";
+          pill.textContent = part;
+          pills.appendChild(pill);
+        }
+      });
   }
-  card.appendChild(subtitle);
 
   const meta = document.createElement("div");
   meta.className = "meta";
   meta.textContent = config.metric ? `Metric: ${config.metric}` : "Metric: derived";
-  card.appendChild(meta);
 
   const value = document.createElement("div");
   value.className = "value";
   value.textContent = "—";
   card.appendChild(value);
 
-  const updated = document.createElement("div");
-  updated.className = "updated";
-  updated.textContent = "Last updated: —";
-  card.appendChild(updated);
-
+  const updated = null;
+  let help = null;
   if (config.description) {
-    const help = document.createElement("div");
+    help = document.createElement("div");
     help.className = "help-text";
-    help.textContent = config.description;
-    card.appendChild(help);
+    help.innerHTML = config.description;
   }
 
   let canvas = null;
@@ -793,6 +903,9 @@ function createCard(config) {
   if (config.type === "table") {
     table = document.createElement("table");
     table.className = "data-table";
+    if (config.id === "settlement_top") {
+      table.classList.add("price-bar-table");
+    }
     const header = document.createElement("thead");
     const headerRow = document.createElement("tr");
     (config.tableColumns || []).forEach((label) => {
@@ -806,6 +919,18 @@ function createCard(config) {
     table.appendChild(body);
     card.appendChild(table);
   }
+
+  if (help) {
+    card.appendChild(help);
+  }
+
+  const footer = document.createElement("div");
+  footer.className = "card-footer";
+  if (pills.childElementCount > 0) {
+    footer.appendChild(pills);
+  }
+  footer.appendChild(meta);
+  card.appendChild(footer);
 
   return { card, canvas, value, legend, table, updated };
 }
@@ -889,6 +1014,24 @@ const referenceLinePlugin = {
       ctx.lineTo(chart.chartArea.right, y);
       ctx.stroke();
     });
+    ctx.restore();
+  },
+};
+
+const bandPlugin = {
+  id: "band",
+  beforeDatasetsDraw(chart, args, opts) {
+    const band = opts?.band;
+    if (!band) return;
+    const scale = chart.scales.y;
+    if (!scale) return;
+    const top = scale.getPixelForValue(band.max);
+    const bottom = scale.getPixelForValue(band.min);
+    const { left, right } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.fillStyle = band.color || "rgba(46, 204, 113, 0.12)";
+    ctx.fillRect(left, top, right - left, bottom - top);
     ctx.restore();
   },
 };
@@ -1074,27 +1217,41 @@ function createChart(ctx, seriesList, config) {
           callbacks: {
             title: (items) => {
               if (!config.tooltipTimestamp || !items.length) return items[0]?.label || "";
-              const ts = items[0].parsed?.x;
-              return [`Local: ${formatTimestamp(ts)}`, `UTC: ${formatTimestampUtc(ts)}`];
+              return "";
             },
             label: (ctx) => {
               const value = valueFromCtx(ctx);
-              if (value === null) return `${ctx.dataset.label}`;
+              const label = ctx.dataset.label || "";
               const unitLabel = ctx.dataset.unit || unit || "";
               const labelValue = formatDisplayValue(value, { unit: unitLabel, format: config.format });
-              return `${ctx.dataset.label}: ${labelValue}`.trim();
+              const lines = wrapText(label, 28);
+              lines.push(labelValue);
+              return lines;
             },
             footer: (items) => {
-              if (!config.tooltipFooter) return "";
-              return config.tooltipFooter(items) || "";
+              const lines = [];
+              if (config.tooltipFooter) {
+                const extra = config.tooltipFooter(items);
+                if (Array.isArray(extra)) {
+                  lines.push(...extra.filter(Boolean));
+                } else if (extra) {
+                  lines.push(extra);
+                }
+              }
+              if (config.tooltipTimestamp && items.length) {
+                const ts = items[0].parsed?.x;
+                lines.push(formatTooltipTimestamp(ts));
+              }
+              return lines;
             },
           },
         },
         htmlLegend: { container: null },
         referenceLines: { lines: config.referenceLines || [] },
+        band: { band: config.band || null },
       },
     },
-    plugins: [inlineLabelPlugin, crosshairPlugin, htmlLegendPlugin, referenceLinePlugin],
+    plugins: [inlineLabelPlugin, crosshairPlugin, htmlLegendPlugin, referenceLinePlugin, bandPlugin],
   });
 }
 
@@ -1103,21 +1260,35 @@ function updateChart(chart, seriesList, config) {
   chart.options.scales = buildScales(config, config.unit, config.showXAxis);
   chart.options.plugins.tooltip.callbacks.label = (ctx) => {
     const value = valueFromCtx(ctx);
-    if (value === null) return `${ctx.dataset.label}`;
+    const label = ctx.dataset.label || "";
     const unitLabel = ctx.dataset.unit || config.unit || "";
     const labelValue = formatDisplayValue(value, { unit: unitLabel, format: config.format });
-    return `${ctx.dataset.label}: ${labelValue}`.trim();
+    const lines = wrapText(label, 28);
+    lines.push(labelValue);
+    return lines;
   };
   chart.options.plugins.tooltip.callbacks.title = (items) => {
     if (!config.tooltipTimestamp || !items.length) return items[0]?.label || "";
-    const ts = items[0].parsed?.x;
-    return [`Local: ${formatTimestamp(ts)}`, `UTC: ${formatTimestampUtc(ts)}`];
+    return "";
   };
   chart.options.plugins.tooltip.callbacks.footer = (items) => {
-    if (!config.tooltipFooter) return "";
-    return config.tooltipFooter(items) || "";
+    const lines = [];
+    if (config.tooltipFooter) {
+      const extra = config.tooltipFooter(items);
+      if (Array.isArray(extra)) {
+        lines.push(...extra.filter(Boolean));
+      } else if (extra) {
+        lines.push(extra);
+      }
+    }
+    if (config.tooltipTimestamp && items.length) {
+      const ts = items[0].parsed?.x;
+      lines.push(formatTooltipTimestamp(ts));
+    }
+    return lines;
   };
   chart.options.plugins.referenceLines.lines = config.referenceLines || [];
+  chart.options.plugins.band.band = config.band || null;
   chart.update("none");
 }
 
@@ -1146,6 +1317,10 @@ function collectSeriesQueries(config, queries, labels, allowDownsample) {
       return;
     }
     if (op === "clip_positive") {
+      collectSeriesQueries(config.compute.source, queries, labels, false);
+      return;
+    }
+    if (op === "diff") {
       collectSeriesQueries(config.compute.source, queries, labels, false);
       return;
     }
@@ -1203,6 +1378,16 @@ function computeSeriesFromMap(config, since, seriesMap) {
       const raw = computeSeriesFromMap(config.compute.source, since, seriesMap);
       return raw.map(([ts, value]) => [ts, Math.max(0, value)]);
     }
+    if (op === "diff") {
+      const raw = computeSeriesFromMap(config.compute.source, since, seriesMap);
+      const output = [];
+      for (let i = 1; i < raw.length; i += 1) {
+        const [ts, value] = raw[i];
+        const prev = raw[i - 1][1];
+        output.push([ts, value - prev]);
+      }
+      return output;
+    }
     if (op === "sum_all") {
       return computeSeriesFromMap(config.compute.source, since, seriesMap);
     }
@@ -1251,7 +1436,35 @@ function buildDashboardSkeleton() {
     if (config.type === "header") {
       const section = document.createElement("div");
       section.className = "section-card";
-      section.textContent = config.title;
+      const sectionId = config.id || config.title;
+      if (sectionId) {
+        section.id = `section-${sectionId}`;
+      }
+      if (config.weatherToggle) {
+        const wrap = document.createElement("div");
+        wrap.className = "section-header";
+        const title = document.createElement("div");
+        title.textContent = config.title;
+        wrap.appendChild(title);
+        const control = document.createElement("label");
+        control.className = "section-toggle";
+        control.textContent = "Units";
+        const select = document.createElement("select");
+        select.id = "weather-units";
+        const optImp = document.createElement("option");
+        optImp.value = "imperial";
+        optImp.textContent = "Imperial";
+        const optMet = document.createElement("option");
+        optMet.value = "metric";
+        optMet.textContent = "Metric";
+        select.appendChild(optImp);
+        select.appendChild(optMet);
+        control.appendChild(select);
+        wrap.appendChild(control);
+        section.appendChild(wrap);
+      } else {
+        section.textContent = config.title;
+      }
       cards.appendChild(section);
       continue;
     }
@@ -1271,23 +1484,26 @@ async function renderDashboard() {
     lastRangeSec = rangeSec;
   }
   buildDashboardSkeleton();
+  bindWeatherToggle();
 
   const seriesQueries = new Map();
   const seriesLabels = new Map();
   const latestQueries = new Map();
   const latestLabels = new Map();
 
+  const headerConfigs = new Map();
   for (const config of CHART_CONFIGS) {
     if (config.type === "header") continue;
-    if (config.type === "single" || config.type === "single-compute") {
-      collectLatestQueries(config, latestQueries, latestLabels);
-    } else if (config.type === "table") {
-      config.series.forEach((series) => collectLatestQueries(series, latestQueries, latestLabels));
+    const resolvedConfig = resolveWeatherConfig(config);
+    if (resolvedConfig.type === "single" || resolvedConfig.type === "single-compute") {
+      collectLatestQueries(resolvedConfig, latestQueries, latestLabels);
+    } else if (resolvedConfig.type === "table") {
+      resolvedConfig.series.forEach((series) => collectLatestQueries(series, latestQueries, latestLabels));
     } else {
-      if (config.type === "multi") {
-        config.series.forEach((series) => collectSeriesQueries(series, seriesQueries, seriesLabels, true));
+      if (resolvedConfig.type === "multi") {
+        resolvedConfig.series.forEach((series) => collectSeriesQueries(series, seriesQueries, seriesLabels, true));
       } else {
-        collectSeriesQueries(config, seriesQueries, seriesLabels, !config.compute);
+        collectSeriesQueries(resolvedConfig, seriesQueries, seriesLabels, !resolvedConfig.compute);
       }
     }
   }
@@ -1359,25 +1575,60 @@ async function renderDashboard() {
     latestMap.set(entry.id, entry.point);
   }
 
+  let currentHeaderId = null;
   for (const config of CHART_CONFIGS) {
+    if (config.type === "header") {
+      currentHeaderId = config.id || config.title;
+      if (currentHeaderId) {
+        headerConfigs.set(currentHeaderId, { config, hasVisible: false });
+      }
+      continue;
+    }
     if (config.type === "header") continue;
-    const entry = cardsById.get(config.id);
+    const resolvedConfig = resolveWeatherConfig(config);
+    const entry = cardsById.get(resolvedConfig.id);
     if (!entry) continue;
-    const { canvas, value, legend, table, updated } = entry;
+    if (currentHeaderId && headerConfigs.has(currentHeaderId)) {
+      headerConfigs.get(currentHeaderId).lastEntry = entry;
+    }
+    const { canvas, value, legend, table } = entry;
 
     try {
-      if (config.type === "single" || config.type === "single-compute") {
-        const latest = computeLatestFromMap(config, latestMap);
-        const formatted = latest ? formatValue(latest.value, config.unit, config) : null;
-        setValue(value, config, formatted);
-        if (updated) {
-          updated.textContent = latest ? `Last updated: ${formatTimestamp(latest.ts * 1000)}` : "Last updated: —";
+      if (resolvedConfig.type === "single" || resolvedConfig.type === "single-compute") {
+        const latest = computeLatestFromMap(resolvedConfig, latestMap);
+        if (resolvedConfig.hideIfEmpty) {
+          const hasData = Boolean(latest && typeof latest.value === "number");
+          entry.card.style.display = hasData ? "" : "none";
+          if (!hasData) continue;
         }
+        if (resolvedConfig.hideIfZero) {
+          const isZero = latest && typeof latest.value === "number" && latest.value === 0;
+          entry.card.style.display = isZero ? "none" : "";
+          if (isZero) continue;
+        }
+        if (currentHeaderId && headerConfigs.has(currentHeaderId)) {
+          headerConfigs.get(currentHeaderId).hasVisible = true;
+        }
+        const scaled = latest ? applyUnitScale(latest.value, resolvedConfig) : null;
+        const formatted = latest ? formatValue(scaled, resolvedConfig.unit, resolvedConfig) : null;
+        setValue(value, resolvedConfig, formatted);
         continue;
       }
 
-      if (config.type === "table" && table) {
-        const rows = config.series
+      if (resolvedConfig.type === "table" && table) {
+        const zoneTooltips = {
+          LZ_WEST: "ERCOT West Load Zone",
+          HB_WEST: "ERCOT West (345 kV) Trading Hub",
+          LZ_CPS: "CPS Energy load zone (San Antonio municipal utility area)",
+          HB_SOUTH: "ERCOT South (345 kV) Trading Hub",
+          LZ_LCRA: "LCRA (Lower Colorado River Authority) load zone (Central Texas region served by LCRA)",
+          LZ_SOUTH: "ERCOT South Load Zone",
+          LZ_AEN: "Austin Energy load zone",
+          HB_HUBAVG: "ERCOT Hub Average = simple average of HB_NORTH, HB_SOUTH, HB_HOUSTON, HB_WEST",
+          HB_HOUSTON: "ERCOT Houston (345 kV) Trading Hub",
+          LZ_HOUSTON: "ERCOT Houston Load Zone",
+        };
+        const rows = resolvedConfig.series
           .map((series) => {
             const latest = computeLatestFromMap(series, latestMap);
             if (!latest) return null;
@@ -1389,69 +1640,135 @@ async function renderDashboard() {
           })
           .filter(Boolean)
           .sort((a, b) => b.value - a.value)
-          .slice(0, config.topN || 10);
+          .slice(0, resolvedConfig.topN || 10);
+        if (resolvedConfig.hideIfEmpty) {
+          const hasData = rows.length > 0;
+          entry.card.style.display = hasData ? "" : "none";
+          if (!hasData) continue;
+        }
+        if (currentHeaderId && headerConfigs.has(currentHeaderId)) {
+          headerConfigs.get(currentHeaderId).hasVisible = true;
+        }
         const body = table.querySelector("tbody");
         body.innerHTML = "";
-        rows.forEach((row) => {
-          const tr = document.createElement("tr");
-          const tdLabel = document.createElement("td");
-          tdLabel.textContent = row.label;
-          const tdValue = document.createElement("td");
-          tdValue.textContent = formatDisplayValue(row.value, { unit: config.unit });
-          const tdTime = document.createElement("td");
-          tdTime.textContent = formatTimestamp(row.ts * 1000);
-          tr.appendChild(tdLabel);
-          tr.appendChild(tdValue);
-          tr.appendChild(tdTime);
-          body.appendChild(tr);
-        });
-        if (updated) {
-          const latestTs = rows.length ? Math.max(...rows.map((row) => row.ts)) : null;
-          updated.textContent = latestTs ? `Last updated: ${formatTimestamp(latestTs * 1000)}` : "Last updated: —";
+        if (resolvedConfig.id === "settlement_top") {
+          const maxValue = rows.length ? Math.max(...rows.map((row) => Math.abs(row.value))) : 1;
+          rows.forEach((row) => {
+            const tr = document.createElement("tr");
+            const tdLabel = document.createElement("td");
+            tdLabel.className = "price-bar-label";
+            tdLabel.textContent = row.label;
+            const tooltip = zoneTooltips[row.label];
+            if (tooltip) {
+              tdLabel.classList.add("has-tooltip");
+              tdLabel.dataset.tooltip = tooltip;
+            }
+            const tdValue = document.createElement("td");
+            tdValue.className = "price-bar-cell";
+            const wrap = document.createElement("div");
+            wrap.className = "price-bar";
+            const fill = document.createElement("div");
+            fill.className = "price-bar-fill";
+            const pct = maxValue > 0 ? Math.min(100, (Math.abs(row.value) / maxValue) * 100) : 0;
+            fill.style.width = `${pct}%`;
+            if (row.value < 0) fill.classList.add("negative");
+            const value = document.createElement("span");
+            value.className = "price-bar-value";
+            value.textContent = formatDisplayValue(row.value, { unit: resolvedConfig.unit });
+            wrap.appendChild(fill);
+            wrap.appendChild(value);
+            if (tooltip) {
+              wrap.classList.add("has-tooltip");
+              wrap.dataset.tooltip = tooltip;
+            }
+            tdValue.appendChild(wrap);
+            tr.appendChild(tdLabel);
+            tr.appendChild(tdValue);
+            body.appendChild(tr);
+          });
+        } else {
+          rows.forEach((row) => {
+            const tr = document.createElement("tr");
+            const tdLabel = document.createElement("td");
+            tdLabel.textContent = row.label;
+            const tdValue = document.createElement("td");
+            tdValue.textContent = formatDisplayValue(row.value, { unit: resolvedConfig.unit });
+            const tdTime = document.createElement("td");
+            tdTime.textContent = formatTimestamp(row.ts * 1000);
+            tr.appendChild(tdLabel);
+            tr.appendChild(tdValue);
+            tr.appendChild(tdTime);
+            body.appendChild(tr);
+          });
         }
-        setValue(value, config, null, "");
+        setValue(value, resolvedConfig, null, "");
         continue;
       }
 
       let seriesList = [];
-      if (config.type === "multi") {
-        seriesList = config.series.map((series) => {
-          const points = computeSeriesFromMap(series, since, seriesMap).map(([ts, val]) => ({
-            x: ts * 1000,
-            y: val,
-          }));
+      if (resolvedConfig.type === "multi") {
+        seriesList = resolvedConfig.series.map((series) => {
+          const scale = series.unitScale ?? resolvedConfig.unitScale ?? 1;
+          const meta = series.weatherType ? weatherMeta(series.weatherType) : null;
+          const points = computeSeriesFromMap(series, since, seriesMap).map(([ts, val]) => {
+            const baseValue = val * scale;
+            const converted = meta ? meta.convert(baseValue) : baseValue;
+            return { x: ts * 1000, y: converted };
+          });
           return {
             label: series.label || series.metric,
             points,
             secondary: series.secondary,
             fillBySign: series.fillBySign,
-            unit: series.unit,
+            unit: meta ? meta.unit : series.unit,
             yAxisID: series.yAxisID,
           };
         });
       } else {
-        const points = computeSeriesFromMap(config, since, seriesMap).map(([ts, val]) => ({
+        const scale = resolvedConfig.unitScale ?? 1;
+        const meta = resolvedConfig.weatherType ? weatherMeta(resolvedConfig.weatherType) : null;
+        const points = computeSeriesFromMap(resolvedConfig, since, seriesMap).map(([ts, val]) => ({
           x: ts * 1000,
-          y: val,
+          y: meta ? meta.convert(val * scale) : val * scale,
         }));
-        seriesList = [{ label: config.seriesLabel || config.title, points, unit: config.unit }];
+        seriesList = [{ label: resolvedConfig.seriesLabel || resolvedConfig.title, points, unit: meta ? meta.unit : resolvedConfig.unit }];
       }
 
+      if (resolvedConfig.hideIfEmpty) {
+        const hasData = seriesList.some((series) => series.points && series.points.length);
+        entry.card.style.display = hasData ? "" : "none";
+        if (!hasData) continue;
+      }
+      if (resolvedConfig.hideIfZero) {
+        let anyNonZero = false;
+        for (const series of seriesList) {
+          for (const point of series.points || []) {
+            if (point.y !== 0) {
+              anyNonZero = true;
+              break;
+            }
+          }
+          if (anyNonZero) break;
+        }
+        entry.card.style.display = anyNonZero ? "" : "none";
+        if (!anyNonZero) continue;
+      }
+
+      if (currentHeaderId && headerConfigs.has(currentHeaderId)) {
+        headerConfigs.get(currentHeaderId).hasVisible = true;
+      }
       const lastSeries = seriesList.find((series) => series.points.length > 0);
       const lastPoint = lastSeries?.points[lastSeries.points.length - 1];
-      const formatted = lastPoint ? formatValue(lastPoint.y, config.unit, config) : null;
-      setValue(value, config, formatted);
-      if (updated) {
-        updated.textContent = lastPoint ? `Last updated: ${formatTimestamp(lastPoint.x)}` : "Last updated: —";
-      }
+      const formatted = lastPoint ? formatValue(lastPoint.y, resolvedConfig.unit, resolvedConfig) : null;
+      setValue(value, resolvedConfig, formatted);
 
       if (canvas) {
-        const chartId = canvas.id || config.id;
+        const chartId = canvas.id || resolvedConfig.id;
         const existing = chartsById.get(chartId);
         if (existing) {
-          updateChart(existing, seriesList, config);
+          updateChart(existing, seriesList, resolvedConfig);
         } else {
-          const chart = createChart(canvas.getContext("2d"), seriesList, config);
+          const chart = createChart(canvas.getContext("2d"), seriesList, resolvedConfig);
           if (legend) {
             chart.options.plugins.htmlLegend.container = legend;
           }
@@ -1464,10 +1781,20 @@ async function renderDashboard() {
       value.className = "value value-muted";
     }
   }
+
+  for (const entry of headerConfigs.values()) {
+    const headerId = entry.config.id || entry.config.title;
+    if (!headerId) continue;
+    const headerEl = document.getElementById(`section-${headerId}`);
+    if (!headerEl) continue;
+    headerEl.style.display = entry.hasVisible ? "" : "none";
+  }
+
 }
 
 const refreshButton = document.getElementById("refresh");
 const rangeSelect = document.getElementById("range");
+const timezoneSelect = document.getElementById("timezone");
 const legendToggle = document.getElementById("toggle-legend");
 const inlineToggle = document.getElementById("toggle-inline");
 
@@ -1504,6 +1831,28 @@ if (inlineToggle) {
     syncLabelMode();
     renderDashboard();
   });
+}
+
+if (timezoneSelect) {
+  tooltipTimezone = timezoneSelect.value || "local";
+  timezoneSelect.addEventListener("change", () => {
+    tooltipTimezone = timezoneSelect.value || "local";
+    for (const chart of chartsById.values()) {
+      if (chart) chart.update("none");
+    }
+  });
+}
+
+function bindWeatherToggle() {
+  if (weatherToggleBound) return;
+  const weatherSelect = document.getElementById("weather-units");
+  if (!weatherSelect) return;
+  weatherUnits = weatherSelect.value || "imperial";
+  weatherSelect.addEventListener("change", () => {
+    weatherUnits = weatherSelect.value || "imperial";
+    renderDashboard();
+  });
+  weatherToggleBound = true;
 }
 
 syncLabelMode();
