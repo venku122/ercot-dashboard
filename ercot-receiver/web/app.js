@@ -953,7 +953,11 @@ function buildScales(config, unit, showXAxis) {
     ticks: {
       color: "#9fb3c8",
       stepSize: config.stepSize,
-      callback: (value) => `${value}${unit ? " " + unit : ""}`,
+      callback: (value) => {
+        const numeric = Number(value);
+        const formatted = Number.isNaN(numeric) ? value : formatNumber(numeric, config?.format);
+        return `${formatted}${unit ? " " + unit : ""}`;
+      },
     },
     grid: { color: "rgba(255,255,255,0.035)" },
     title: yTitle ? { display: true, text: yTitle, color: "#9fb3c8", font: { size: 11 } } : undefined,

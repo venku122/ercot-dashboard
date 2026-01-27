@@ -1,5 +1,7 @@
 # runtime data
 /ercot-receiver/data/metrics.db
+/ercot-receiver/data/metrics.db-wal
+/ercot-receiver/data/metrics.db-shm
 
 # local files
 .DS_Store
