@@ -267,6 +267,27 @@ body {
   color: var(--muted);
 }
 
+.value-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.value-pair {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.value-sep {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 6px;
+}
+
 .value-muted {
   color: var(--muted);
   font-weight: 500;

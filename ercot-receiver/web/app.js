@@ -41,6 +41,7 @@ const CHART_CONFIGS = [
     yLabel: "Power (GW)",
     ySuggestedMin: 0,
     ySuggestedMax: 120,
+    valueSummary: { op: "pair", labels: ["Demand", "Capacity"] },
     tooltipTimestamp: true,
     tooltipFooter: (items) => {
       const demandItem = items.find((item) => item.dataset.label?.includes("Demand"));
@@ -141,6 +142,7 @@ const CHART_CONFIGS = [
     yLabel: "Generation (GW)",
     ySuggestedMin: 0,
     ySuggestedMax: 50,
+    valueSummary: { op: "sum" },
     tooltipTimestamp: true,
     series: [
       { label: "Wind (GW)", metric: "ercot.Real_Time_Data.Total_Wind_Output" },
@@ -676,6 +678,46 @@ function formatDisplayValue(value, config) {
   return `${rounded}${config?.unit ? ` ${config.unit}` : ""}`.trim();
 }
 
+function latestPointValue(series) {
+  if (!series || !series.points || !series.points.length) return null;
+  return series.points[series.points.length - 1].y;
+}
+
+function summaryValueForSeries(config, seriesList) {
+  const summary = config?.valueSummary;
+  if (!summary) return null;
+  if (summary.op === "sum") {
+    const values = seriesList.map((series) => latestPointValue(series)).filter((val) => val !== null);
+    if (!values.length) return null;
+    const total = values.reduce((acc, val) => acc + val, 0);
+    return formatValue(total, config.unit, config);
+  }
+  if (summary.op === "pair") {
+    const left = latestPointValue(seriesList[0]);
+    const right = latestPointValue(seriesList[1]);
+    if (left === null || right === null) return null;
+    const leftText = formatNumber(left, config.format);
+    const rightText = formatNumber(right, config.format);
+    const labels = summary.labels || [];
+    const leftLabel = labels.length >= 2 ? labels[0] : "Left";
+    const rightLabel = labels.length >= 2 ? labels[1] : "Right";
+    const unit = config.unit || "";
+    const html = `
+      <span class="value-pair">
+        <span class="value-label">${leftLabel}</span>
+        <span class="value-number">${leftText}</span>
+        <span class="value-unit">${unit}</span>
+        <span class="value-sep">/</span>
+        <span class="value-label">${rightLabel}</span>
+        <span class="value-number">${rightText}</span>
+        <span class="value-unit">${unit}</span>
+      </span>
+    `;
+    return { html, value: leftText, unit, numericValue: left };
+  }
+  return null;
+}
+
 function wrapText(text, maxLen) {
   if (!text || text.length <= maxLen) return [text];
   const words = text.split(" ");
@@ -820,7 +862,16 @@ function setValue(el, config, valueObj, emptyLabel) {
     el.className = "value value-muted";
     return;
   }
-  applyValueState(el, config, parseFloat(valueObj.value));
+  const numeric = typeof valueObj.numericValue === "number" ? valueObj.numericValue : parseFloat(valueObj.value);
+  if (Number.isNaN(numeric)) {
+    el.className = "value value-neutral";
+  } else {
+    applyValueState(el, config, numeric);
+  }
+  if (valueObj.html) {
+    el.innerHTML = valueObj.html;
+    return;
+  }
   el.innerHTML = `<span class="value-number">${valueObj.value}</span><span class="value-unit">${valueObj.unit}</span>`;
 }
 
@@ -1761,10 +1812,15 @@ async function renderDashboard() {
       if (currentHeaderId && headerConfigs.has(currentHeaderId)) {
         headerConfigs.get(currentHeaderId).hasVisible = true;
       }
-      const lastSeries = seriesList.find((series) => series.points.length > 0);
-      const lastPoint = lastSeries?.points[lastSeries.points.length - 1];
-      const formatted = lastPoint ? formatValue(lastPoint.y, resolvedConfig.unit, resolvedConfig) : null;
-      setValue(value, resolvedConfig, formatted);
+      const summary = summaryValueForSeries(resolvedConfig, seriesList);
+      if (summary) {
+        setValue(value, resolvedConfig, summary);
+      } else {
+        const lastSeries = seriesList.find((series) => series.points.length > 0);
+        const lastPoint = lastSeries?.points[lastSeries.points.length - 1];
+        const formatted = lastPoint ? formatValue(lastPoint.y, resolvedConfig.unit, resolvedConfig) : null;
+        setValue(value, resolvedConfig, formatted);
+      }
 
       if (canvas) {
         const chartId = canvas.id || resolvedConfig.id;
