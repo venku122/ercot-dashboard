@@ -4,8 +4,10 @@ import os
 import sqlite3
 import threading
 import time
+from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+from typing import cast
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -54,9 +56,13 @@ def init_db(conn: sqlite3.Connection) -> None:
         )
         """
     )
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_metrics_name_ts ON metrics(metric_name, ts)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_metrics_name_ts ON metrics(metric_name, ts)"
+    )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_metric_tags_tag ON metric_tags(tag)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_metric_tags_metric ON metric_tags(metric_id)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_metric_tags_metric ON metric_tags(metric_id)"
+    )
     conn.commit()
 
 
@@ -94,6 +100,13 @@ def parse_int(value):
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def parse_positive_int(value):
+    parsed = parse_int(value)
+    if parsed is None or parsed <= 0:
+        return None
+    return parsed
 
 
 def normalize_tags(tags):
@@ -157,6 +170,75 @@ def downsample_minmax(points, max_points):
     return output
 
 
+def infer_bucket_seconds(points, seasonal_period):
+    if not points:
+        return seasonal_period
+    min_delta = None
+    prev_ts = None
+    for ts, _value in points:
+        if prev_ts is not None:
+            delta = ts - prev_ts
+            if delta > 0 and (min_delta is None or delta < min_delta):
+                min_delta = delta
+        prev_ts = ts
+    if min_delta is None:
+        return seasonal_period
+    return min(min_delta, seasonal_period)
+
+
+def bucket_average(points, bucket_seconds):
+    if bucket_seconds <= 0:
+        raise ValueError("bucket_seconds_must_be_positive")
+    if not points:
+        return []
+    buckets = defaultdict(lambda: [0.0, 0])
+    for ts, value in points:
+        bucket_ts = (int(ts) // bucket_seconds) * bucket_seconds
+        buckets[bucket_ts][0] += value
+        buckets[bucket_ts][1] += 1
+    output = []
+    for bucket_ts in sorted(buckets):
+        total, count = buckets[bucket_ts]
+        output.append([bucket_ts, total / count])
+    return output
+
+
+def seasonal_average(points, seasonal_period, bucket_seconds):
+    if seasonal_period <= 0:
+        raise ValueError("seasonal_period_must_be_positive")
+    if bucket_seconds <= 0:
+        raise ValueError("bucket_seconds_must_be_positive")
+    if bucket_seconds > seasonal_period:
+        raise ValueError("bucket_seconds_exceeds_seasonal_period")
+    if not points:
+        return []
+
+    bucketed = bucket_average(points, bucket_seconds)
+    seasonal_buckets = defaultdict(lambda: [0.0, 0])
+    for ts, value in bucketed:
+        phase = ts % seasonal_period
+        seasonal_buckets[phase][0] += value
+        seasonal_buckets[phase][1] += 1
+
+    seasonal_profile = {}
+    for phase, (total, count) in seasonal_buckets.items():
+        seasonal_profile[phase] = total / count
+
+    return [[ts, seasonal_profile[ts % seasonal_period]] for ts, _value in bucketed]
+
+
+def transform_series(points, bucket_seconds=None, seasonal_period=None):
+    output = points
+    if seasonal_period is not None:
+        resolved_bucket_seconds = bucket_seconds or infer_bucket_seconds(
+            points, seasonal_period
+        )
+        output = seasonal_average(output, seasonal_period, resolved_bucket_seconds)
+    elif bucket_seconds is not None:
+        output = bucket_average(output, bucket_seconds)
+    return output
+
+
 class Cache:
     def __init__(self, ttl_seconds: int):
         self.ttl = ttl_seconds
@@ -208,6 +290,9 @@ class RateLimiter:
 class Handler(BaseHTTPRequestHandler):
     server_version = "ERCOTReceiver/0.2"
 
+    def _app_server(self) -> "Server":
+        return cast("Server", self.server)
+
     def _send_json(self, status, payload, cache_control=None):
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
@@ -220,7 +305,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_text(self, status, body, content_type="text/plain; charset=utf-8", cache_control=None):
+    def _send_text(
+        self, status, body, content_type="text/plain; charset=utf-8", cache_control=None
+    ):
         data = body.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -253,7 +340,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _rate_limit(self, route_label, rpm):
         key = f"{self._client_ip()}:{route_label}"
-        if not self.server.limiter.allow(key, rpm):
+        if not self._app_server().limiter.allow(key, rpm):
             self._send_json(429, {"error": "rate_limited"}, cache_control="no-store")
             return False
         return True
@@ -285,14 +372,41 @@ class Handler(BaseHTTPRequestHandler):
             clauses.append("m.ts <= ?")
             params.append(int(until))
         tag_clause, tag_params = tags_filter_clause(tags)
-        query = "SELECT m.ts, m.value FROM metrics m WHERE " + " AND ".join(clauses) + " " + tag_clause + " ORDER BY m.ts"
+        query = (
+            "SELECT m.ts, m.value FROM metrics m WHERE "
+            + " AND ".join(clauses)
+            + " "
+            + tag_clause
+            + " ORDER BY m.ts"
+        )
         rows = conn.execute(query, params + tag_params).fetchall()
         return [[r[0], r[1]] for r in rows]
+
+    def _series_params(self, payload):
+        bucket_raw = payload.get("bucket_seconds")
+        seasonal_raw = payload.get("seasonal_period")
+        bucket_seconds = parse_positive_int(bucket_raw)
+        seasonal_period = parse_positive_int(seasonal_raw)
+
+        if bucket_raw is not None and bucket_seconds is None:
+            raise ValueError("invalid_bucket_seconds")
+        if seasonal_raw is not None and seasonal_period is None:
+            raise ValueError("invalid_seasonal_period")
+        if (
+            bucket_seconds is not None
+            and seasonal_period is not None
+            and bucket_seconds > seasonal_period
+        ):
+            raise ValueError("bucket_seconds_exceeds_seasonal_period")
+
+        return bucket_seconds, seasonal_period
 
     def _latest_query(self, conn, metric, tags):
         tag_clause, tag_params = tags_filter_clause(tags)
         row = conn.execute(
-            "SELECT m.ts, m.value, m.tags FROM metrics m WHERE m.metric_name = ? " + tag_clause + " ORDER BY m.ts DESC LIMIT 1",
+            "SELECT m.ts, m.value, m.tags FROM metrics m WHERE m.metric_name = ? "
+            + tag_clause
+            + " ORDER BY m.ts DESC LIMIT 1",
             [metric, *tag_params],
         ).fetchone()
         if not row:
@@ -311,10 +425,14 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 payload = self._read_json()
             except json.JSONDecodeError:
-                self._send_json(400, {"error": "invalid_json"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "invalid_json"}, cache_control="no-store"
+                )
                 return
             if not isinstance(payload, list):
-                self._send_json(400, {"error": "expected_list"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "expected_list"}, cache_control="no-store"
+                )
                 return
 
             conn = get_db()
@@ -348,7 +466,14 @@ class Handler(BaseHTTPRequestHandler):
                         INSERT INTO metrics (metric_name, ts, value, interval, metric_type, tags)
                         VALUES (?, ?, ?, ?, ?, ?)
                         """,
-                        (metric_name, int(ts), float(value), interval, metric_type, json.dumps(tags)),
+                        (
+                            metric_name,
+                            int(ts),
+                            float(value),
+                            interval,
+                            metric_type,
+                            json.dumps(tags),
+                        ),
                     )
                     metric_id = cur.lastrowid
                     if tags:
@@ -358,7 +483,7 @@ class Handler(BaseHTTPRequestHandler):
                         )
                     inserted += 1
             conn.commit()
-            self.server.cache.clear()
+            self._app_server().cache.clear()
             self._send_json(200, {"inserted": inserted}, cache_control="no-store")
             return
 
@@ -369,15 +494,23 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 payload = self._read_json()
             except json.JSONDecodeError:
-                self._send_json(400, {"error": "invalid_json"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "invalid_json"}, cache_control="no-store"
+                )
                 return
             if not isinstance(payload, dict) or "queries" not in payload:
-                self._send_json(400, {"error": "expected_queries"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "expected_queries"}, cache_control="no-store"
+                )
                 return
             cache_key = self._cache_key("series_batch", payload)
-            cached = self.server.cache.get(cache_key)
+            cached = self._app_server().cache.get(cache_key)
             if cached is not None:
-                self._send_json(200, cached, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+                self._send_json(
+                    200,
+                    cached,
+                    cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+                )
                 return
 
             conn = get_db()
@@ -391,13 +524,31 @@ class Handler(BaseHTTPRequestHandler):
                 since = parse_timestamp(entry.get("since"))
                 until = parse_timestamp(entry.get("until"))
                 max_points = parse_int(entry.get("max_points"))
+                try:
+                    bucket_seconds, seasonal_period = self._series_params(entry)
+                except ValueError as exc:
+                    result.append(
+                        {"id": entry.get("id"), "metric": metric, "error": str(exc)}
+                    )
+                    continue
                 points = self._series_query(conn, metric, since, until, tags)
+                points = transform_series(
+                    points,
+                    bucket_seconds=bucket_seconds,
+                    seasonal_period=seasonal_period,
+                )
                 if max_points:
                     points = downsample_minmax(points, max_points)
-                result.append({"id": entry.get("id"), "metric": metric, "points": points})
+                result.append(
+                    {"id": entry.get("id"), "metric": metric, "points": points}
+                )
             payload_out = {"series": result}
-            self.server.cache.set(cache_key, payload_out)
-            self._send_json(200, payload_out, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+            self._app_server().cache.set(cache_key, payload_out)
+            self._send_json(
+                200,
+                payload_out,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+            )
             return
 
         if self.path == "/api/latest/batch":
@@ -407,15 +558,23 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 payload = self._read_json()
             except json.JSONDecodeError:
-                self._send_json(400, {"error": "invalid_json"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "invalid_json"}, cache_control="no-store"
+                )
                 return
             if not isinstance(payload, dict) or "queries" not in payload:
-                self._send_json(400, {"error": "expected_queries"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "expected_queries"}, cache_control="no-store"
+                )
                 return
             cache_key = self._cache_key("latest_batch", payload)
-            cached = self.server.cache.get(cache_key)
+            cached = self._app_server().cache.get(cache_key)
             if cached is not None:
-                self._send_json(200, cached, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+                self._send_json(
+                    200,
+                    cached,
+                    cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+                )
                 return
 
             conn = get_db()
@@ -429,8 +588,12 @@ class Handler(BaseHTTPRequestHandler):
                 point = self._latest_query(conn, metric, tags)
                 result.append({"id": entry.get("id"), "metric": metric, "point": point})
             payload_out = {"latest": result}
-            self.server.cache.set(cache_key, payload_out)
-            self._send_json(200, payload_out, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+            self._app_server().cache.set(cache_key, payload_out)
+            self._send_json(
+                200,
+                payload_out,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+            )
             return
 
         self._send_json(404, {"error": "not_found"}, cache_control="no-store")
@@ -448,8 +611,12 @@ class Handler(BaseHTTPRequestHandler):
             if not self._rate_limit("metrics", RATE_LIMIT_METRICS_RPM):
                 return
             conn = get_db()
-            rows = conn.execute("SELECT DISTINCT metric_name FROM metrics ORDER BY metric_name").fetchall()
-            self._send_json(200, {"metrics": [r[0] for r in rows]}, cache_control="no-store")
+            rows = conn.execute(
+                "SELECT DISTINCT metric_name FROM metrics ORDER BY metric_name"
+            ).fetchall()
+            self._send_json(
+                200, {"metrics": [r[0] for r in rows]}, cache_control="no-store"
+            )
             return
         if parsed.path == "/api/latest":
             if not self._rate_limit("latest", RATE_LIMIT_LATEST_RPM):
@@ -457,19 +624,29 @@ class Handler(BaseHTTPRequestHandler):
             qs = parse_qs(parsed.query)
             metric = (qs.get("metric") or [None])[0]
             if not metric:
-                self._send_json(400, {"error": "missing_metric"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "missing_metric"}, cache_control="no-store"
+                )
                 return
             tags = normalize_tags(qs.get("tag", []))
             cache_key = self._cache_key("latest", {"metric": metric, "tags": tags})
-            cached = self.server.cache.get(cache_key)
+            cached = self._app_server().cache.get(cache_key)
             if cached is not None:
-                self._send_json(200, cached, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+                self._send_json(
+                    200,
+                    cached,
+                    cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+                )
                 return
             conn = get_db()
             point = self._latest_query(conn, metric, tags)
             payload_out = {"metric": metric, "point": point}
-            self.server.cache.set(cache_key, payload_out)
-            self._send_json(200, payload_out, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+            self._app_server().cache.set(cache_key, payload_out)
+            self._send_json(
+                200,
+                payload_out,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+            )
             return
         if parsed.path == "/api/series":
             if not self._rate_limit("series", RATE_LIMIT_SERIES_RPM):
@@ -477,24 +654,57 @@ class Handler(BaseHTTPRequestHandler):
             qs = parse_qs(parsed.query)
             metric = (qs.get("metric") or [None])[0]
             if not metric:
-                self._send_json(400, {"error": "missing_metric"}, cache_control="no-store")
+                self._send_json(
+                    400, {"error": "missing_metric"}, cache_control="no-store"
+                )
                 return
             since = parse_timestamp((qs.get("since") or [None])[0])
             until = parse_timestamp((qs.get("until") or [None])[0])
             tags = normalize_tags(qs.get("tag", []))
             max_points = parse_int((qs.get("max_points") or [None])[0])
-            cache_key = self._cache_key("series", {"metric": metric, "since": since, "until": until, "tags": tags, "max_points": max_points})
-            cached = self.server.cache.get(cache_key)
+            bucket_raw = (qs.get("bucket_seconds") or [None])[0]
+            seasonal_raw = (qs.get("seasonal_period") or [None])[0]
+            try:
+                bucket_seconds, seasonal_period = self._series_params(
+                    {"bucket_seconds": bucket_raw, "seasonal_period": seasonal_raw}
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            cache_key = self._cache_key(
+                "series",
+                {
+                    "metric": metric,
+                    "since": since,
+                    "until": until,
+                    "tags": tags,
+                    "max_points": max_points,
+                    "bucket_seconds": bucket_seconds,
+                    "seasonal_period": seasonal_period,
+                },
+            )
+            cached = self._app_server().cache.get(cache_key)
             if cached is not None:
-                self._send_json(200, cached, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+                self._send_json(
+                    200,
+                    cached,
+                    cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+                )
                 return
             conn = get_db()
             points = self._series_query(conn, metric, since, until, tags)
+            points = transform_series(
+                points, bucket_seconds=bucket_seconds, seasonal_period=seasonal_period
+            )
             if max_points:
                 points = downsample_minmax(points, max_points)
             payload_out = {"metric": metric, "points": points}
-            self.server.cache.set(cache_key, payload_out)
-            self._send_json(200, payload_out, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}")
+            self._app_server().cache.set(cache_key, payload_out)
+            self._send_json(
+                200,
+                payload_out,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+            )
             return
 
         path = parsed.path
