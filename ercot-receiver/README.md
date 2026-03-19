@@ -11,6 +11,7 @@ python3 server.py
 Defaults to `http://0.0.0.0:8080`.
 
 Environment variables:
+
 - `PORT` (default `8080`)
 - `HOST` (default `0.0.0.0`)
 - `METRICS_API_KEY` (required for `/api/ingest`, sent as `X-API-Key`)
@@ -32,7 +33,7 @@ POST metrics to `http://localhost:8080/api/ingest` with a JSON array of:
 [
   {
     "metric_name": "ercot.Real-Time_Data.Actual_System_Demand",
-    "points": [{"value": 12345}],
+    "points": [{ "value": 12345 }],
     "tags": ["source:ercot"],
     "interval": 60,
     "metric_type": "gauge"
@@ -52,3 +53,12 @@ export METRICS_API_KEY="local-key"
 ## Dashboard
 
 Open `http://localhost:8080/`.
+
+The dashboard assets are built from the repo root with:
+
+```bash
+pnpm install
+pnpm run build
+```
+
+The production image builds the React frontend during the receiver Docker build, then serves the resulting static assets from `/app/web` with the existing Python server.

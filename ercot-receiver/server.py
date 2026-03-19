@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import mimetypes
 import os
 import sqlite3
 import threading
@@ -717,13 +718,15 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.exists(fs_path) or os.path.isdir(fs_path):
             self._send_text(404, "not_found")
             return
-        content_type = "text/plain; charset=utf-8"
-        if fs_path.endswith(".html"):
-            content_type = "text/html; charset=utf-8"
-        elif fs_path.endswith(".css"):
-            content_type = "text/css; charset=utf-8"
-        elif fs_path.endswith(".js"):
-            content_type = "application/javascript; charset=utf-8"
+        content_type, _encoding = mimetypes.guess_type(fs_path)
+        if content_type is None:
+            content_type = "text/plain; charset=utf-8"
+        elif content_type.startswith("text/") or content_type in {
+            "application/javascript",
+            "application/json",
+            "image/svg+xml",
+        }:
+            content_type = f"{content_type}; charset=utf-8"
         with open(fs_path, "rb") as f:
             data = f.read()
         self.send_response(200)
