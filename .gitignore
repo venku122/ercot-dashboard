@@ -8,3 +8,4 @@
 node_modules/
 frontend/node_modules/
 ercot-receiver/web/assets/
+ercot-receiver/__pycache__/
