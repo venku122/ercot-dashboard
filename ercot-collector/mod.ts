@@ -5,10 +5,8 @@ import { start as startMetar } from "./metar.ts";
 import { start as startOutages } from "./outages.ts";
 import { start as startPrices } from "./prices.ts";
 
-import {
-  runMetricsServer, replaceGlobalFetch,
-} from './deps.ts';
-if (Deno.args.includes('--serve-metrics')) {
+import { runMetricsServer } from "./deps.ts";
+if (Deno.args.includes("--serve-metrics")) {
   runMetricsServer({ port: 9090 });
   console.log("Now serving OpenMetrics @ :9090/metrics");
 }
@@ -18,7 +16,7 @@ if (import.meta.main) {
     // 60s loops
     // run these offset from each other for better utilization
     startGrid(),
-    new Promise(ok => setTimeout(ok, 30*1000)).then(startAncillary),
+    new Promise((ok) => setTimeout(ok, 30 * 1000)).then(startAncillary),
 
     // 10+ minute loops, they can overlap, it's ok
     startEea(),
