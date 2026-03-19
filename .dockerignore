@@ -1,0 +1,11 @@
+*
+!package.json
+!pnpm-lock.yaml
+!tsconfig.json
+!vite.config.ts
+!oxlint.config.ts
+!frontend/
+!frontend/**
+!ercot-receiver/
+ercot-receiver/*
+!ercot-receiver/server.py

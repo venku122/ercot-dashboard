@@ -24,6 +24,23 @@ The dashboard will be available at:
 http://localhost:8080
 ```
 
+## Frontend development
+
+The dashboard frontend now uses React, TypeScript, Vite, `oxlint`, `oxfmt`, and `tsgo` while still being served by the existing Python receiver in production.
+
+```bash
+pnpm install
+pnpm run build
+python3 ercot-receiver/server.py
+```
+
+For a separate Vite dev server with `/api` proxied to the local receiver:
+
+```bash
+python3 ercot-receiver/server.py
+pnpm run dev
+```
+
 ## Attribution and sources
 
 Original Datadog dashboard:
