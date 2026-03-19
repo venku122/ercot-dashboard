@@ -11,7 +11,9 @@
     "lint:type-aware": "oxlint . --type-aware --type-check",
     "format": "oxfmt .dockerignore .github/workflows/build-push-images.yml .gitignore frontend oxlint.config.ts package.json README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --write",
     "format:check": "oxfmt .dockerignore .github/workflows/build-push-images.yml .gitignore frontend oxlint.config.ts package.json README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --check",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check"
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
+    "test:receiver": "python3 -m unittest discover -s ercot-receiver -p 'test*.py'",
+    "validate:commit": "pnpm run check && pnpm run test:receiver"
   },
   "dependencies": {
     "@radix-ui/react-separator": "^1.1.7",
