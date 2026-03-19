@@ -41,6 +41,20 @@ python3 ercot-receiver/server.py
 pnpm run dev
 ```
 
+## Pre-commit hook
+
+This repo includes a lightweight pre-commit hook at `.githooks/pre-commit` that runs:
+
+```bash
+pnpm run validate:commit
+```
+
+Enable it once per clone with:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Attribution and sources
 
 Original Datadog dashboard:
