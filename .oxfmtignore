@@ -1,0 +1,3 @@
+ercot-receiver/web/**
+frontend/public/vendor/**
+node_modules/**

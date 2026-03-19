@@ -1,0 +1,37 @@
+{
+  "name": "ercot-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint .",
+    "lint:type-aware": "oxlint . --type-aware --type-check",
+    "format": "oxfmt .dockerignore .github/workflows/build-push-images.yml .gitignore frontend oxlint.config.ts package.json README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --write",
+    "format:check": "oxfmt .dockerignore .github/workflows/build-push-images.yml .gitignore frontend oxlint.config.ts package.json README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --check",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check"
+  },
+  "dependencies": {
+    "@radix-ui/react-separator": "^1.1.7",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260301.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.50.0",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.7"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

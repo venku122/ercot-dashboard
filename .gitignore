@@ -5,3 +5,6 @@
 
 # local files
 .DS_Store
+node_modules/
+frontend/node_modules/
+ercot-receiver/web/assets/
