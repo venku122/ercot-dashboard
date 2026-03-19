@@ -1,102 +1,30 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ERCOT Grid Monitor — Live Texas Power Grid Status</title>
-  <meta property="og:title" content="ERCOT Grid Monitor — Live Texas Power Grid Status" />
-  <meta property="og:description" content="Live ERCOT grid metrics with real-time demand, capacity, pricing, outages, and weather to track Texas grid health at a glance." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://ercot.tarazevits.io/" />
-  <meta property="og:image" content="https://ercot.tarazevits.io/og-image.jpg" />
-  <meta property="og:site_name" content="ERCOT Grid Monitor" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <header class="site-header">
-    <div>
-      <h1>ERCOT Local Dashboard</h1>
-      <p class="subtitle">Live metrics from the local receiver</p>
-    </div>
-    <div class="controls">
-      <label>
-        Range
-        <select id="range">
-          <option value="3600">Last 1 hour</option>
-          <option value="21600" selected>Last 6 hours</option>
-          <option value="43200">Last 12 hours</option>
-          <option value="86400">Last 24 hours</option>
-          <option value="259200">Last 3 days</option>
-          <option value="604800">Last 7 days</option>
-          <option value="2592000">Last 30 days</option>
-          <option value="15552000">Last 6 months</option>
-          <option value="31536000">Last 12 months</option>
-        </select>
-      </label>
-      <label>
-        Timezone
-        <select id="timezone">
-          <option value="local" selected>Local</option>
-          <option value="utc">UTC</option>
-        </select>
-      </label>
-      <div class="toggle-group" role="group" aria-label="Series labels">
-        <label class="toggle">
-          <input type="checkbox" id="toggle-legend" checked />
-          Legend
-        </label>
-        <label class="toggle">
-          <input type="checkbox" id="toggle-inline" checked />
-          Inline labels
-        </label>
-      </div>
-      <button id="refresh" type="button">Refresh</button>
-    </div>
-  </header>
-
-  <section class="grid" id="cards"></section>
-  <footer class="site-footer">
-    <div class="attribution">
-      <span class="label">Attribution</span>
-      <p class="attribution-copy">
-        Hello, I am a Texas resident and the health and status of the Texas power grid is of immense importance to me and my family.
-        This project was originally created by @danopia and visualized in Datadog. This is a fork of that with self-hosted data
-        collection and dashboards. Ironically, this site is hosted in Texas and if the Texas power grid goes down, so will this site!
-      </p>
-      <div class="attribution-links">
-        <a href="https://p.datadoghq.com/sb/5c2fc00be-393be929c9c55c3b80b557d08c30787a" target="_blank" rel="noopener noreferrer">
-          Original Datadog dashboard
-        </a>
-        <a href="https://github.com/venku122/ercot-dashboard" target="_blank" rel="noopener noreferrer">
-          Source code
-        </a>
-        <a href="http://www.ercot.com/content/cdr/html/real_time_system_conditions.html" target="_blank" rel="noopener noreferrer">
-          Grid metrics
-        </a>
-        <a href="http://www.ercot.com/content/cdr/html/as_capacity_monitor.html" target="_blank" rel="noopener noreferrer">
-          Ancillary services
-        </a>
-        <a href="http://www.ercot.com/content/cdr/html/real_time_spp" target="_blank" rel="noopener noreferrer">
-          Pricing metrics
-        </a>
-        <a href="http://www.ercot.com/content/alerts/conservation_state.js" target="_blank" rel="noopener noreferrer">
-          EEA level
-        </a>
-        <a href="https://www.aviationweather.gov/metar/data" target="_blank" rel="noopener noreferrer">
-          Weather (METAR)
-        </a>
-        <a href="https://poweroutage.us" target="_blank" rel="noopener noreferrer">
-          Outage reports
-        </a>
-      </div>
-    </div>
-  </footer>
-
-  <script src="/vendor/chart.umd.js"></script>
-  <script src="/vendor/date-fns.min.js"></script>
-  <script src="/vendor/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <script src="/app.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ERCOT Grid Monitor — Live Texas Power Grid Status</title>
+    <meta property="og:title" content="ERCOT Grid Monitor — Live Texas Power Grid Status" />
+    <meta
+      property="og:description"
+      content="Live ERCOT grid metrics with real-time demand, capacity, pricing, outages, and weather to track Texas grid health at a glance."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ercot.tarazevits.io/" />
+    <meta property="og:image" content="https://ercot.tarazevits.io/og-image.jpg" />
+    <meta property="og:site_name" content="ERCOT Grid Monitor" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E"
+    />
+    <script src="/vendor/chart.umd.js"></script>
+    <script src="/vendor/date-fns.min.js"></script>
+    <script src="/vendor/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script type="module" crossorigin src="/assets/index-D14bR6ah.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D74lQS3O.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
 </html>
