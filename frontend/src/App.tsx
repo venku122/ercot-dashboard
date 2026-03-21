@@ -30,8 +30,8 @@ export function App() {
             ERCOT Local Dashboard
           </h1>
           <p className="max-w-3xl text-sm text-slate-300">
-            Live metrics from the local receiver, migrated onto a React and TypeScript frontend
-            while keeping the existing ERCOT APIs and deployment model intact.
+            Live ERCOT grid metrics with demand, capacity, pricing, outages, and weather in one
+            dashboard.
           </p>
         </div>
 
@@ -86,11 +86,6 @@ export function App() {
               </div>
             </div>
             <Separator />
-            <p className="text-xs leading-6 text-slate-400">
-              The seasonal selector remains hidden for now. The legacy metrics rendering engine is
-              bridged into this React shell to preserve current dashboard behavior while the
-              frontend stack moves to Vite, TypeScript, and modern tooling.
-            </p>
           </CardContent>
         </Card>
       </header>
