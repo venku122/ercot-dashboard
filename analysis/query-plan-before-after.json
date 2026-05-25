@@ -1,0 +1,139 @@
+{
+  "note": "SQLite CLI here does not accept EXPLAIN ANALYZE; results use EXPLAIN QUERY PLAN plus measured fetchall timings.",
+  "before": {
+    "untagged_raw_series_12mo": {
+      "rows": 168738,
+      "best_ms": 363.54,
+      "avg_ms": 1482.99,
+      "plan": [
+        "4 | 0 | 191 | SEARCH m USING INDEX idx_metrics_name_ts (metric_name=? AND ts>? AND ts<?)"
+      ]
+    },
+    "single_tag_raw_series_12mo": {
+      "rows": 168708,
+      "best_ms": 409.98,
+      "avg_ms": 566.63,
+      "plan": [
+        "3 | 0 | 92 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "7 | 0 | 0 | LIST SUBQUERY 1",
+        "15 | 7 | 184 | SEARCH metric_tags USING INDEX idx_metric_tags_tag (tag=?)",
+        "22 | 7 | 0 | USE TEMP B-TREE FOR GROUP BY",
+        "59 | 7 | 0 | CREATE BLOOM FILTER",
+        "63 | 7 | 0 | USE TEMP B-TREE FOR count(DISTINCT)",
+        "84 | 0 | 0 | USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    "untagged_hour_bucket_12mo": {
+      "rows": 168738,
+      "best_ms": 179.87,
+      "avg_ms": 180.93,
+      "plan": [
+        "4 | 0 | 191 | SEARCH m USING INDEX idx_metrics_name_ts (metric_name=? AND ts>? AND ts<?)"
+      ]
+    },
+    "single_tag_max_points_bucket_12mo": {
+      "rows": 168708,
+      "best_ms": 400.88,
+      "avg_ms": 513.19,
+      "plan": [
+        "3 | 0 | 92 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "7 | 0 | 0 | LIST SUBQUERY 1",
+        "15 | 7 | 184 | SEARCH metric_tags USING INDEX idx_metric_tags_tag (tag=?)",
+        "22 | 7 | 0 | USE TEMP B-TREE FOR GROUP BY",
+        "59 | 7 | 0 | CREATE BLOOM FILTER",
+        "63 | 7 | 0 | USE TEMP B-TREE FOR count(DISTINCT)",
+        "84 | 0 | 0 | USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    "single_tag_latest": {
+      "rows": 1,
+      "best_ms": 291.93,
+      "avg_ms": 294.68,
+      "plan": [
+        "4 | 0 | 92 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "8 | 0 | 0 | LIST SUBQUERY 1",
+        "16 | 8 | 184 | SEARCH metric_tags USING INDEX idx_metric_tags_tag (tag=?)",
+        "23 | 8 | 0 | USE TEMP B-TREE FOR GROUP BY",
+        "60 | 8 | 0 | CREATE BLOOM FILTER",
+        "64 | 8 | 0 | USE TEMP B-TREE FOR count(DISTINCT)",
+        "87 | 0 | 0 | USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    "multi_tag_raw_series_metar_30d": {
+      "rows": 1431,
+      "best_ms": 49.38,
+      "avg_ms": 98.03,
+      "plan": [
+        "3 | 0 | 92 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "7 | 0 | 0 | LIST SUBQUERY 1",
+        "15 | 7 | 176 | SEARCH metric_tags USING INDEX idx_metric_tags_tag (tag=?)",
+        "34 | 7 | 0 | USE TEMP B-TREE FOR GROUP BY",
+        "72 | 7 | 0 | CREATE BLOOM FILTER",
+        "76 | 7 | 0 | USE TEMP B-TREE FOR count(DISTINCT)",
+        "97 | 0 | 0 | USE TEMP B-TREE FOR ORDER BY"
+      ]
+    }
+  },
+  "after": {
+    "untagged_raw_series_12mo": {
+      "rows": 168738,
+      "best_ms": 64.0,
+      "avg_ms": 68.32,
+      "plan": [
+        "3 | 0 | 150 | SEARCH m USING COVERING INDEX idx_metrics_name_ts_value_id (metric_name=? AND ts>? AND ts<?)"
+      ]
+    },
+    "single_tag_raw_series_12mo": {
+      "rows": 168708,
+      "best_ms": 215.17,
+      "avg_ms": 224.19,
+      "plan": [
+        "4 | 0 | 189 | SEARCH mt USING COVERING INDEX idx_metric_tags_tag_metric (tag=?)",
+        "10 | 0 | 46 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "25 | 0 | 0 | USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    "untagged_hour_bucket_12mo": {
+      "rows": 2820,
+      "best_ms": 56.35,
+      "avg_ms": 57.95,
+      "plan": [
+        "7 | 0 | 150 | SEARCH m USING COVERING INDEX idx_metrics_name_ts_value_id (metric_name=? AND ts>? AND ts<?)",
+        "18 | 0 | 0 | USE TEMP B-TREE FOR GROUP BY"
+      ]
+    },
+    "single_tag_max_points_bucket_12mo": {
+      "rows": 390,
+      "best_ms": 169.38,
+      "avg_ms": 185.9,
+      "plan": [
+        "8 | 0 | 189 | SEARCH mt USING COVERING INDEX idx_metric_tags_tag_metric (tag=?)",
+        "14 | 0 | 46 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "23 | 0 | 0 | USE TEMP B-TREE FOR GROUP BY"
+      ]
+    },
+    "single_tag_latest": {
+      "rows": 1,
+      "best_ms": 147.18,
+      "avg_ms": 150.8,
+      "plan": [
+        "5 | 0 | 189 | SEARCH mt USING COVERING INDEX idx_metric_tags_tag_metric (tag=?)",
+        "11 | 0 | 46 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "28 | 0 | 0 | USE TEMP B-TREE FOR ORDER BY"
+      ]
+    },
+    "multi_tag_raw_series_metar_30d": {
+      "rows": 1431,
+      "best_ms": 27.31,
+      "avg_ms": 27.53,
+      "plan": [
+        "3 | 0 | 92 | SEARCH m USING INTEGER PRIMARY KEY (rowid=?)",
+        "7 | 0 | 0 | LIST SUBQUERY 1",
+        "14 | 7 | 166 | SEARCH metric_tags USING COVERING INDEX idx_metric_tags_tag_metric (tag=?)",
+        "32 | 7 | 0 | USE TEMP B-TREE FOR GROUP BY",
+        "69 | 7 | 0 | CREATE BLOOM FILTER",
+        "94 | 0 | 0 | USE TEMP B-TREE FOR ORDER BY"
+      ]
+    }
+  }
+}

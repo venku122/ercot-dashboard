@@ -703,6 +703,13 @@ function maxPointsForRange(rangeSec) {
   return Math.max(300, Math.min(1200, target));
 }
 
+function bucketSecondsForActualRange(rangeSec) {
+  if (rangeSec <= 604800) return null;
+  if (rangeSec <= 2592000) return 900;
+  if (rangeSec <= 31536000) return 3600;
+  return 21600;
+}
+
 function trendModeLabel(mode) {
   if (mode === "auto") return "Seasonal auto";
   if (mode === "daily") return "Seasonal daily";
@@ -1741,11 +1748,13 @@ async function renderDashboard() {
   }
 
   const now = nowSec();
+  const computedBucketSeconds = bucketSecondsForActualRange(rangeSec);
   const seriesRequestById = new Map();
   const seriesRequestList = [];
   for (const entry of seriesQueries.values()) {
     const maxPoints = entry.allowDownsample ? maxPointsForRange(rangeSec) : null;
     const transform = entry.transform || null;
+    const bucketSeconds = !transform && !entry.allowDownsample ? computedBucketSeconds : null;
     const baseQuery = {
       id: entry.id,
       metric: entry.metric,
@@ -1756,11 +1765,13 @@ async function renderDashboard() {
     if (transform) {
       if (transform.bucket_seconds) baseQuery.bucket_seconds = transform.bucket_seconds;
       if (transform.seasonal_period) baseQuery.seasonal_period = transform.seasonal_period;
+    } else if (bucketSeconds) {
+      baseQuery.bucket_seconds = bucketSeconds;
     }
-    if (maxPoints || transform) {
+    if (maxPoints || transform || bucketSeconds) {
       const query = maxPoints ? { ...baseQuery, max_points: maxPoints } : baseQuery;
       seriesRequestList.push(query);
-      seriesRequestById.set(entry.id, { query, maxPoints, since, transform });
+      seriesRequestById.set(entry.id, { query, maxPoints, since, transform, bucketSeconds });
       continue;
     }
 
@@ -1805,7 +1816,10 @@ async function renderDashboard() {
 
   for (const [id, requestMeta] of seriesRequestById.entries()) {
     const points = responseById.get(id) || [];
-    if (requestMeta && (requestMeta.maxPoints || requestMeta.transform)) {
+    if (
+      requestMeta &&
+      (requestMeta.maxPoints || requestMeta.transform || requestMeta.bucketSeconds)
+    ) {
       seriesMap.set(id, points);
       continue;
     }

@@ -64,6 +64,18 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_metric_tags_metric ON metric_tags(metric_id)"
     )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_metric_tags_tag_metric
+        ON metric_tags(tag, metric_id)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_metrics_name_ts_value_id
+        ON metrics(metric_name, ts, value, id)
+        """
+    )
     conn.commit()
 
 
@@ -124,6 +136,16 @@ def tags_filter_clause(tags):
     placeholders = ",".join("?" for _ in tags)
     clause = f"AND m.id IN (SELECT metric_id FROM metric_tags WHERE tag IN ({placeholders}) GROUP BY metric_id HAVING COUNT(DISTINCT tag) = {len(tags)})"
     return clause, tags
+
+
+def series_filter_sql(tags):
+    if len(tags) == 1:
+        return (
+            "metrics m JOIN metric_tags mt ON mt.metric_id = m.id",
+            ["m.metric_name = ?", "mt.tag = ?"],
+            lambda metric: [metric, tags[0]],
+        )
+    return "metrics m", ["m.metric_name = ?"], lambda metric: [metric]
 
 
 def downsample_minmax(points, max_points):
@@ -363,18 +385,38 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
-    def _series_query(self, conn, metric, since, until, tags):
-        clauses = ["m.metric_name = ?"]
-        params = [metric]
+    def _series_query(self, conn, metric, since, until, tags, bucket_seconds=None):
+        source, clauses, params_for_metric = series_filter_sql(tags)
+        clauses = list(clauses)
+        params = params_for_metric(metric)
         if since is not None:
             clauses.append("m.ts >= ?")
             params.append(int(since))
         if until is not None:
             clauses.append("m.ts <= ?")
             params.append(int(until))
-        tag_clause, tag_params = tags_filter_clause(tags)
+        tag_clause = ""
+        tag_params = []
+        if len(tags) > 1:
+            tag_clause, tag_params = tags_filter_clause(tags)
+
+        if bucket_seconds is not None:
+            bucket_seconds = int(bucket_seconds)
+            query = (
+                "SELECT (m.ts / ?) * ? AS bucket_ts, AVG(m.value) "
+                f"FROM {source} WHERE "
+                + " AND ".join(clauses)
+                + " "
+                + tag_clause
+                + " GROUP BY bucket_ts ORDER BY bucket_ts"
+            )
+            rows = conn.execute(
+                query, [bucket_seconds, bucket_seconds, *params, *tag_params]
+            ).fetchall()
+            return [[r[0], r[1]] for r in rows]
+
         query = (
-            "SELECT m.ts, m.value FROM metrics m WHERE "
+            f"SELECT m.ts, m.value FROM {source} WHERE "
             + " AND ".join(clauses)
             + " "
             + tag_clause
@@ -382,6 +424,17 @@ class Handler(BaseHTTPRequestHandler):
         )
         rows = conn.execute(query, params + tag_params).fetchall()
         return [[r[0], r[1]] for r in rows]
+
+    def _query_bucket_seconds(self, since, until, max_points, bucket_seconds):
+        if bucket_seconds is not None:
+            return bucket_seconds
+        if not max_points or since is None:
+            return None
+        end_ts = until if until is not None else now_ts()
+        span = int(end_ts) - int(since)
+        if span <= 0:
+            return None
+        return max(1, int(span / int(max_points)) + 1)
 
     def _series_params(self, payload):
         bucket_raw = payload.get("bucket_seconds")
@@ -403,12 +456,21 @@ class Handler(BaseHTTPRequestHandler):
         return bucket_seconds, seasonal_period
 
     def _latest_query(self, conn, metric, tags):
-        tag_clause, tag_params = tags_filter_clause(tags)
+        source, clauses, params_for_metric = series_filter_sql(tags)
+        params = params_for_metric(metric)
+        tag_clause = ""
+        tag_params = []
+        if len(tags) > 1:
+            tag_clause, tag_params = tags_filter_clause(tags)
         row = conn.execute(
-            "SELECT m.ts, m.value, m.tags FROM metrics m WHERE m.metric_name = ? "
+            "SELECT m.ts, m.value, m.tags FROM "
+            + source
+            + " WHERE "
+            + " AND ".join(clauses)
+            + " "
             + tag_clause
             + " ORDER BY m.ts DESC LIMIT 1",
-            [metric, *tag_params],
+            [*params, *tag_params],
         ).fetchone()
         if not row:
             return None
@@ -532,13 +594,22 @@ class Handler(BaseHTTPRequestHandler):
                         {"id": entry.get("id"), "metric": metric, "error": str(exc)}
                     )
                     continue
-                points = self._series_query(conn, metric, since, until, tags)
+                query_bucket_seconds = self._query_bucket_seconds(
+                    since, until, max_points, bucket_seconds
+                )
+                points = self._series_query(
+                    conn, metric, since, until, tags, query_bucket_seconds
+                )
                 points = transform_series(
                     points,
-                    bucket_seconds=bucket_seconds,
+                    bucket_seconds=(
+                        bucket_seconds
+                        if query_bucket_seconds is None or seasonal_period is not None
+                        else None
+                    ),
                     seasonal_period=seasonal_period,
                 )
-                if max_points:
+                if max_points and query_bucket_seconds is None:
                     points = downsample_minmax(points, max_points)
                 result.append(
                     {"id": entry.get("id"), "metric": metric, "points": points}
@@ -693,11 +764,22 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             conn = get_db()
-            points = self._series_query(conn, metric, since, until, tags)
-            points = transform_series(
-                points, bucket_seconds=bucket_seconds, seasonal_period=seasonal_period
+            query_bucket_seconds = self._query_bucket_seconds(
+                since, until, max_points, bucket_seconds
             )
-            if max_points:
+            points = self._series_query(
+                conn, metric, since, until, tags, query_bucket_seconds
+            )
+            points = transform_series(
+                points,
+                bucket_seconds=(
+                    bucket_seconds
+                    if query_bucket_seconds is None or seasonal_period is not None
+                    else None
+                ),
+                seasonal_period=seasonal_period,
+            )
+            if max_points and query_bucket_seconds is None:
                 points = downsample_minmax(points, max_points)
             payload_out = {"metric": metric, "points": points}
             self._app_server().cache.set(cache_key, payload_out)

@@ -13,4 +13,4 @@ RUN --mount=type=cache,target=/deno-cache DENO_DIR=/deno-cache deno cache --allo
     && mkdir -p /deno-dir \
     && cp -a /deno-cache/. /deno-dir/
 
-ENTRYPOINT ["deno", "run", "--unstable", "--allow-net", "--allow-hrtime", "--allow-env", "--cached-only", "--no-check", "mod.ts"]
+ENTRYPOINT ["deno", "run", "--allow-net", "--allow-env", "--cached-only", "--no-check", "mod.ts"]
