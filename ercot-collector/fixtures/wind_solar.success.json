@@ -1,0 +1,38 @@
+{
+  "lastUpdated": "2026-07-21 04:55:29-0500",
+  "currentDay": {
+    "data": {
+      "1784613600000": {
+        "hourEnding": 1,
+        "dstFlag": "N",
+        "actualWind": 17473,
+        "copHslWind": 16162,
+        "stwpf": 16902,
+        "copHslWindDayAhead": 15926,
+        "stwpfDayAhead": 16491,
+        "timestamp": "2026-07-21 01:00:00-0500",
+        "epoch": 1784613600000,
+        "actualSolar": 0,
+        "copHslSolar": 0,
+        "stppf": 0,
+        "copHslSolarDayAhead": 0,
+        "stppfDayAhead": 0
+      }
+    }
+  },
+  "nextDay": {
+    "data": {
+      "1784700000000": {
+        "hourEnding": 1,
+        "dstFlag": "N",
+        "actualWind": null,
+        "copHslWind": 10435,
+        "stwpf": 10993,
+        "timestamp": "2026-07-22 01:00:00-0500",
+        "epoch": 1784700000000,
+        "copHslSolar": 0,
+        "stppf": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "lastUpdated": "2026-07-21 05:11:00-0500",
+  "types": ["Dispatchable", "Renewable"],
+  "days": { "previous": ["2026-07-20"], "current": ["2026-07-21"] },
+  "currentOutages": 13636,
+  "current": {
+    "1784610060000": {
+      "deliveryTime": "2026-07-21 00:01:00-0500",
+      "dstFlag": "N",
+      "Combined": { "unplanned": 12867, "planned": 787, "total": 13654 },
+      "Dispatchable": { "unplanned": 7787, "planned": 320, "total": 8107 },
+      "Renewable": { "unplanned": 5080, "planned": 467, "total": 5547 }
+    }
+  },
+  "previous": {
+    "1784523660000": {
+      "deliveryTime": "2026-07-20 00:01:00-0500",
+      "dstFlag": "N",
+      "Combined": { "unplanned": 12000, "planned": 700, "total": 12700 },
+      "Dispatchable": { "unplanned": 7000, "planned": 300, "total": 7300 },
+      "Renewable": { "unplanned": 5000, "planned": 400, "total": 5400 }
+    }
+  }
+}
