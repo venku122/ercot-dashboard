@@ -45,6 +45,11 @@ Committed visual baselines cover normal supply/demand, price spike, negative pri
 charging, stale storage source, an operations event, the full analytical dashboard, and the mobile
 dashboard. The suite contains 12 browser tests.
 
+Pixel baselines are strict and environment-specific: local Linux baselines remain available for
+developer runs, while CI uses separately inspected `ubuntu-24.04` baselines. The workflow pins that
+runner version instead of depending on `ubuntu-latest` font and rasterization drift; no screenshot
+threshold was loosened.
+
 ## Before and after
 
 Current production before this branch (read-only capture, 2026-07-21):
