@@ -11,3 +11,8 @@ ercot-receiver/web/assets/
 ercot-receiver/__pycache__/
 analysis/db/
 analysis/local-data/
+
+# local browser-test output (committed snapshots live beside the specs)
+test-results/
+playwright-report/
+artifacts/playwright-report/
