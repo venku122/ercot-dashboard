@@ -96,6 +96,7 @@ export const adapter: SourceAdapter = {
   sourceId: SOURCE_ID,
   displayName: "ERCOT Operations Messages",
   expectedIntervalSeconds: 180,
+  publicationMode: "event",
   gather,
 };
 

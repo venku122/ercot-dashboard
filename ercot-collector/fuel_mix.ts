@@ -79,6 +79,7 @@ export const adapter: SourceAdapter = {
   sourceId: SOURCE_ID,
   displayName: "ERCOT Fuel Mix",
   expectedIntervalSeconds: 300,
+  overlapSeconds: 3600,
   gather,
 };
 

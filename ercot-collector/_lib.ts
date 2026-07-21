@@ -44,7 +44,18 @@ export type SourceAdapter = {
   displayName: string;
   expectedIntervalSeconds: number;
   gather: () => Promise<SourceResult>;
+  mutableMetricNames?: string[];
+  overlapSeconds?: number;
+  publicationIntervalSeconds?: number;
+  publicationMode?: "event" | "polling";
   sourceId: string;
+};
+
+export type SourceCheckpoint = {
+  events?: Record<string, string>;
+  high_water_ts: number;
+  values: Record<string, number>;
+  version: 1;
 };
 
 type SourceAttempt = {
@@ -52,7 +63,10 @@ type SourceAttempt = {
   display_name: string;
   error?: string;
   expected_interval_seconds: number;
+  checkpoint?: SourceCheckpoint;
   payload_hash?: string;
+  publication_interval_seconds?: number;
+  publication_mode?: "event" | "polling";
   row_count: number;
   source_id: string;
   source_timestamp_ts?: number;
@@ -132,34 +146,109 @@ function jsonBytes(value: unknown): number {
 }
 
 export function metricBatches(data: NormalizedMetric[], maximumBytes = 400 * 1024) {
-  const split = data.flatMap((entry) => {
-    const output: NormalizedMetric[] = [];
+  const encoder = new TextEncoder();
+  const split: Array<{ bytes: number; entry: NormalizedMetric }> = [];
+  for (const entry of data) {
+    const metadata = { ...entry, points: [] };
+    const emptyBytes = encoder.encode(JSON.stringify(metadata)).byteLength;
+    const baseBytes = emptyBytes - 2;
     let points: MetricPoint[] = [];
+    let pointsBytes = 0;
     for (const point of entry.points) {
-      const candidate = [...points, point];
-      if (points.length && jsonBytes({ ...entry, points: candidate }) > maximumBytes) {
-        output.push({ ...entry, points });
-        points = [point];
-      } else {
-        points = candidate;
+      const pointBytes = encoder.encode(JSON.stringify(point)).byteLength;
+      const candidateBytes = baseBytes + 2 + pointsBytes + (points.length ? 1 : 0) + pointBytes;
+      if (points.length && candidateBytes > maximumBytes - 2) {
+        split.push({ entry: { ...entry, points }, bytes: baseBytes + 2 + pointsBytes });
+        points = [];
+        pointsBytes = 0;
       }
+      points.push(point);
+      pointsBytes += (points.length > 1 ? 1 : 0) + pointBytes;
     }
-    if (points.length) output.push({ ...entry, points });
-    return output;
-  });
+    if (points.length) {
+      const bytes = baseBytes + 2 + pointsBytes;
+      if (bytes > maximumBytes - 2) throw new Error("metric_point_exceeds_batch_limit");
+      split.push({ entry: { ...entry, points }, bytes });
+    }
+  }
   const batches: NormalizedMetric[][] = [];
   let batch: NormalizedMetric[] = [];
-  for (const entry of split) {
-    const candidate = [...batch, entry];
-    if (batch.length && jsonBytes(candidate) > maximumBytes) {
+  let batchBytes = 2;
+  for (const item of split) {
+    const candidateBytes = batchBytes + (batch.length ? 1 : 0) + item.bytes;
+    if (batch.length && candidateBytes > maximumBytes) {
       batches.push(batch);
-      batch = [entry];
+      batch = [item.entry];
+      batchBytes = 2 + item.bytes;
     } else {
-      batch = candidate;
+      batch.push(item.entry);
+      batchBytes = candidateBytes;
     }
   }
   if (batch.length) batches.push(batch);
   return batches;
+}
+
+export function incrementalMetrics(
+  metrics: NormalizedMetric[],
+  checkpoint: SourceCheckpoint | null,
+  mutableMetricNames: string[] = [],
+  overlapSeconds = 3600,
+): { checkpoint: SourceCheckpoint; metrics: NormalizedMetric[] } {
+  const mutable = new Set(mutableMetricNames);
+  const priorValues = checkpoint?.values ?? {};
+  const previousHighWater = checkpoint?.high_water_ts ?? 0;
+  let highWater = previousHighWater;
+  for (const entry of metrics) {
+    for (const point of entry.points) highWater = Math.max(highWater, point.timestamp ?? 0);
+  }
+  const retainedValues: Record<string, number> = {};
+  const output: NormalizedMetric[] = [];
+  const cutoff = Math.max(0, highWater - Math.max(0, overlapSeconds));
+  for (const entry of metrics) {
+    const isMutable = mutable.has(entry.metric_name);
+    const changed: MetricPoint[] = [];
+    for (const point of entry.points) {
+      const identity = point.dedupe_key;
+      const timestamp = point.timestamp ?? 0;
+      if (!identity) {
+        changed.push(point);
+        continue;
+      }
+      if (isMutable || timestamp >= cutoff) retainedValues[identity] = point.value;
+      const isCandidate =
+        !checkpoint ||
+        isMutable ||
+        timestamp > previousHighWater ||
+        timestamp >= previousHighWater - overlapSeconds;
+      if (isCandidate && priorValues[identity] !== point.value) changed.push(point);
+    }
+    if (changed.length) output.push({ ...entry, points: changed });
+  }
+  return {
+    metrics: output,
+    checkpoint: {
+      version: 1,
+      high_water_ts: highWater,
+      values: retainedValues,
+      events: checkpoint?.events ?? {},
+    },
+  };
+}
+
+function incrementalEvents(
+  events: NormalizedEvent[],
+  checkpoint: SourceCheckpoint,
+): { checkpoint: SourceCheckpoint; events: NormalizedEvent[] } {
+  const previous = checkpoint.events ?? {};
+  const next: Record<string, string> = {};
+  const changed: NormalizedEvent[] = [];
+  for (const event of events) {
+    const fingerprint = JSON.stringify(stableValue(event));
+    next[event.dedupe_key] = fingerprint;
+    if (previous[event.dedupe_key] !== fingerprint) changed.push(event);
+  }
+  return { events: changed, checkpoint: { ...checkpoint, events: next } };
 }
 
 export async function submitMetrics(data: NormalizedMetric[]) {
@@ -188,14 +277,16 @@ async function submitEvents(data: NormalizedEvent[]) {
   const endpoint = receiverEndpoint("/api/events/ingest");
   if (!endpoint) return;
   let batch: NormalizedEvent[] = [];
+  let bytes = 2;
   for (const event of data) {
-    const candidate = [...batch, event];
-    if (batch.length && jsonBytes(candidate) > 400 * 1024) {
+    const eventBytes = jsonBytes(event);
+    if (batch.length && bytes + 1 + eventBytes > 400 * 1024) {
       await submitJson(endpoint, batch);
-      batch = [event];
-    } else {
-      batch = candidate;
+      batch = [];
+      bytes = 2;
     }
+    batch.push(event);
+    bytes += (batch.length > 1 ? 1 : 0) + eventBytes;
   }
   if (batch.length) await submitJson(endpoint, batch);
 }
@@ -204,6 +295,27 @@ async function submitSourceAttempt(attempt: SourceAttempt) {
   const endpoint = receiverEndpoint("/api/source-health");
   if (!endpoint) return;
   await submitJson(endpoint, attempt);
+}
+
+async function loadSourceCheckpoint(sourceId: string): Promise<{
+  checkpoint: SourceCheckpoint | null;
+  payloadHash: string | null;
+}> {
+  const endpoint = receiverEndpoint("/api/source-checkpoint");
+  if (!endpoint) return { checkpoint: null, payloadHash: null };
+  const url = new URL(endpoint);
+  url.searchParams.set("source_id", sourceId);
+  const response = await fetch(url, {
+    headers: metricsApiKey ? { "X-API-Key": metricsApiKey } : {},
+  });
+  const payload = (await response.json()) as {
+    checkpoint?: SourceCheckpoint | null;
+    payload_hash?: string | null;
+  };
+  return {
+    checkpoint: payload.checkpoint ?? null,
+    payloadHash: payload.payload_hash ?? null,
+  };
 }
 
 export function headers(accept = "text/html") {
@@ -303,7 +415,15 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
   if (offsetSeconds > 0) {
     await new Promise((resolve) => setTimeout(resolve, offsetSeconds * 1000));
   }
+  let checkpoint: SourceCheckpoint | null = null;
   let previousHash: string | null = null;
+  try {
+    const recovered = await loadSourceCheckpoint(adapter.sourceId);
+    checkpoint = recovered.checkpoint;
+    previousHash = recovered.payloadHash;
+  } catch (error) {
+    console.error(new Date().toISOString(), adapter.sourceId, "checkpoint", error);
+  }
   for await (const dutyCycle of fixedInterval(adapter.expectedIntervalSeconds * 1000)) {
     const attemptedAt = Math.floor(Date.now() / 1000);
     try {
@@ -313,10 +433,15 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         result.events.length;
       if (rowCount === 0) throw new Error("zero_core_rows");
       const unchanged = previousHash === result.payloadHash;
-      if (!unchanged) {
-        await submitMetrics(result.metrics);
-        await submitEvents(result.events);
-      }
+      const incremental = incrementalMetrics(
+        result.metrics,
+        checkpoint,
+        adapter.mutableMetricNames,
+        adapter.overlapSeconds,
+      );
+      const incrementalEventResult = incrementalEvents(result.events, incremental.checkpoint);
+      await submitMetrics(incremental.metrics);
+      await submitEvents(incrementalEventResult.events);
       await submitMetrics([
         metric(
           adapter.sourceId,
@@ -336,13 +461,20 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         source_timestamp_ts: result.sourceTimestamp,
         payload_hash: result.payloadHash,
         row_count: rowCount,
+        checkpoint: incrementalEventResult.checkpoint,
+        publication_mode: adapter.publicationMode ?? "polling",
+        publication_interval_seconds: adapter.publicationIntervalSeconds,
       });
+      checkpoint = incrementalEventResult.checkpoint;
       previousHash = result.payloadHash;
       console.log(
         new Date().toISOString(),
         adapter.sourceId,
-        unchanged ? "unchanged" : "submitted",
-        rowCount,
+        unchanged && !incremental.metrics.length && !incrementalEventResult.events.length
+          ? "unchanged"
+          : "submitted",
+        incremental.metrics.reduce((total, entry) => total + entry.points.length, 0) +
+          incrementalEventResult.events.length,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -356,6 +488,8 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
           success: false,
           row_count: 0,
           error: message,
+          publication_mode: adapter.publicationMode ?? "polling",
+          publication_interval_seconds: adapter.publicationIntervalSeconds,
         });
       } catch (healthError) {
         console.error(new Date().toISOString(), adapter.sourceId, "health", healthError);
@@ -370,23 +504,57 @@ export async function runMetricsLoop(
   loopName: string,
 ) {
   for await (const dutyCycle of fixedInterval(intervalMinutes * 60 * 1000)) {
+    const attemptedAt = Math.floor(Date.now() / 1000);
     try {
       const data = await gather();
-      data.push({
-        metric_name: "ercot.app.duty_cycle",
-        points: [{ value: dutyCycle * 100 }],
-        tags: [`app:${loopName}`],
-        interval: 60,
-        metric_type: "gauge",
-      });
+      if (!data.length) throw new Error("zero_core_rows");
+      const pointTimestamps = data.flatMap((entry) =>
+        entry.points.flatMap((point) => (point.timestamp ? [point.timestamp] : [])),
+      );
+      const sourceTimestamp = pointTimestamps.length ? Math.max(...pointTimestamps) : attemptedAt;
+      data.push(
+        metric(
+          loopName,
+          "ercot.app.duty_cycle",
+          attemptedAt,
+          dutyCycle * 100,
+          [`app:${loopName}`],
+          60,
+        ),
+      );
       try {
         await submitMetrics(data);
       } catch (error) {
         console.error(new Date().toISOString(), loopName, "retry", error);
         await submitMetrics(data);
       }
+      await submitSourceAttempt({
+        source_id: loopName,
+        display_name: loopName.replaceAll("_", " "),
+        expected_interval_seconds: intervalMinutes * 60,
+        attempted_at: attemptedAt,
+        success: true,
+        source_timestamp_ts: sourceTimestamp,
+        payload_hash: await payloadHash(data),
+        row_count: data.reduce((total, entry) => total + entry.points.length, 0),
+        publication_mode: "polling",
+      });
     } catch (error) {
       console.error(new Date().toISOString(), loopName, error);
+      try {
+        await submitSourceAttempt({
+          source_id: loopName,
+          display_name: loopName.replaceAll("_", " "),
+          expected_interval_seconds: intervalMinutes * 60,
+          attempted_at: attemptedAt,
+          success: false,
+          row_count: 0,
+          error: error instanceof Error ? error.message : String(error),
+          publication_mode: "polling",
+        });
+      } catch (healthError) {
+        console.error(new Date().toISOString(), loopName, "health", healthError);
+      }
     }
   }
 }

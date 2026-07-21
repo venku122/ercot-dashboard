@@ -87,6 +87,13 @@ export const adapter: SourceAdapter = {
   sourceId: SOURCE_ID,
   displayName: "ERCOT Combined Wind and Solar",
   expectedIntervalSeconds: 300,
+  mutableMetricNames: [
+    "ercot.renewables.forecast_mw",
+    "ercot.renewables.hsl_mw",
+    "ercot.renewables.forecast_day_ahead_mw",
+    "ercot.renewables.hsl_day_ahead_mw",
+  ],
+  overlapSeconds: 7200,
   gather,
 };
 

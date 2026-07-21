@@ -71,6 +71,11 @@ export const adapter: SourceAdapter = {
   sourceId: SOURCE_ID,
   displayName: "ERCOT Supply and Demand",
   expectedIntervalSeconds: 300,
+  mutableMetricNames: [
+    "ercot.supply_demand.forecast_demand_mw",
+    "ercot.supply_demand.forecast_available_capacity_mw",
+  ],
+  overlapSeconds: 3600,
   gather,
 };
 

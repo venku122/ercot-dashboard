@@ -1,4 +1,4 @@
-import { metricBatches, payloadHash } from "./_lib.ts";
+import { incrementalMetrics, metricBatches, payloadHash } from "./_lib.ts";
 import { parseFuelMix } from "./fuel_mix.ts";
 import { parseGenerationOutages } from "./generation_outages.ts";
 import { parseOperationsMessages, parseOperationsTimestamp } from "./operations_messages.ts";
@@ -137,4 +137,45 @@ Deno.test("large historical payloads are split below the receiver body bound", (
     batches.every((batch) => new TextEncoder().encode(JSON.stringify(batch)).byteLength <= 100_000),
     "bounded batch bytes",
   );
+});
+
+Deno.test("rolling ingestion resumes from a persisted checkpoint and submits only changes", () => {
+  const initial = [
+    {
+      metric_name: "ercot.actual",
+      points: [
+        { timestamp: 100, value: 10, dedupe_key: "actual:100" },
+        { timestamp: 200, value: 20, dedupe_key: "actual:200" },
+      ],
+    },
+    {
+      metric_name: "ercot.forecast",
+      points: [
+        { timestamp: 300, value: 30, dedupe_key: "forecast:300" },
+        { timestamp: 400, value: 40, dedupe_key: "forecast:400" },
+      ],
+    },
+  ];
+  const first = incrementalMetrics(initial, null, ["ercot.forecast"], 120);
+  assert(first.metrics.flatMap((entry) => entry.points).length === 4, "initial full submit");
+
+  const restartedCheckpoint = JSON.parse(JSON.stringify(first.checkpoint));
+  const revised = structuredClone(initial);
+  revised[0]!.points.push({ timestamp: 300, value: 25, dedupe_key: "actual:300" });
+  revised[1]!.points[0]!.value = 31;
+  const second = incrementalMetrics(revised, restartedCheckpoint, ["ercot.forecast"], 120);
+  const submitted = second.metrics.flatMap((entry) => entry.points);
+
+  assert(submitted.length === 2, "only new actual and revised forecast");
+  assert(
+    submitted.some((point) => point.dedupe_key === "actual:300"),
+    "new actual",
+  );
+  assert(
+    submitted.some((point) => point.dedupe_key === "forecast:300"),
+    "forecast revision",
+  );
+
+  const unchanged = incrementalMetrics(revised, second.checkpoint, ["ercot.forecast"], 120);
+  assert(unchanged.metrics.length === 0, "steady-state identical replay is empty");
 });
