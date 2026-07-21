@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "./components/ui/button";
 import { ChartCard } from "./dashboard/ChartCard";
-import { loadEvents, loadSeries, loadSourceHealth } from "./dashboard/api";
+import {
+  loadEvents,
+  loadLatest,
+  loadPriceRanking,
+  loadSeries,
+  loadSourceHealth,
+  type RankingRow,
+} from "./dashboard/api";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
+import { chartCoordinator } from "./dashboard/chart-coordinator";
 import {
   tickLive,
   navigateWindow,
@@ -13,32 +21,51 @@ import {
   togglePause,
   zoomTo,
 } from "./dashboard/time-state";
-import type { DashboardState, EventRecord, LoadedSeries, SourceHealth } from "./dashboard/types";
+import type {
+  DashboardState,
+  EventRecord,
+  LoadedSeries,
+  SourceHealth,
+  TimeState,
+} from "./dashboard/types";
 import { dashboardStateFromUrl, dashboardStateToUrl } from "./dashboard/url-state";
 import { formatAge, formatValue } from "./dashboard/units";
+import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./dashboard/zoned-time";
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
-function localInputValue(timestamp: number) {
-  const date = new Date(timestamp * 1000);
-  const local = new Date(date.valueOf() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
-}
-
-function latestValue(data: Map<string, LoadedSeries>, chartId: string, seriesId: string) {
-  return data.get(seriesKey(chartId, seriesId))?.points.at(-1)?.[1] ?? null;
-}
+const overviewQueries = [
+  { id: "demand", metric: "ercot.supply_demand.demand_mw" },
+  { id: "capacity", metric: "ercot.supply_demand.available_capacity_mw" },
+  { id: "frequency", metric: "ercot.Frequency.Current_Frequency" },
+  { id: "storage", metric: "ercot.storage.net_output_mw" },
+  { id: "grid-demand", metric: "ercot.Real_Time_Data.Actual_System_Demand" },
+  { id: "grid-capacity", metric: "ercot.Real_Time_Data.Total_System_Capacity" },
+  { id: "inertia", metric: "ercot.Real_Time_Data.Current_System_Inertia" },
+] as const;
 
 export function App() {
   const [state, setState] = useState<DashboardState>(() =>
     dashboardStateFromUrl(new URL(window.location.href), nowSeconds()),
   );
   const [seriesData, setSeriesData] = useState<Map<string, LoadedSeries>>(new Map());
+  const seriesDataRef = useRef(seriesData);
+  const zoomOriginRef = useRef<TimeState | null>(null);
   const [sourceHealth, setSourceHealth] = useState<SourceHealth[]>([]);
+  const [latest, setLatest] = useState<Map<string, { ts: number; value: number } | null>>(
+    new Map(),
+  );
+  const [priceRanking, setPriceRanking] = useState<RankingRow[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [activeChartIds, setActiveChartIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    seriesDataRef.current = seriesData;
+  }, [seriesData]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -57,23 +84,22 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const requestedCharts = chartDefinitions.filter(
+      (chart) => activeChartIds.has(chart.id) && !collapsedGroups.has(chart.group),
+    );
+    if (!requestedCharts.length) return () => controller.abort();
     setLoading(true);
     setRequestError(null);
-    void Promise.all([
-      loadSeries(
-        chartDefinitions,
-        state.time,
-        state.compare,
-        state.customCompareSeconds,
-        controller.signal,
-      ),
-      loadSourceHealth(controller.signal),
-      state.events ? loadEvents(state.time, controller.signal) : Promise.resolve([]),
-    ])
-      .then(([nextSeries, nextHealth, nextEvents]) => {
-        setSeriesData(nextSeries);
-        setSourceHealth(nextHealth);
-        setEvents(nextEvents);
+    void loadSeries(
+      requestedCharts,
+      state.time,
+      state.compare,
+      state.customCompareSeconds,
+      controller.signal,
+      seriesDataRef.current,
+    )
+      .then((nextSeries) => {
+        setSeriesData((current) => new Map([...current, ...nextSeries]));
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -83,11 +109,44 @@ export function App() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [state.compare, state.customCompareSeconds, state.events, state.time.end, state.time.start]);
+  }, [
+    activeChartIds,
+    collapsedGroups,
+    state.compare,
+    state.customCompareSeconds,
+    state.time.end,
+    state.time.start,
+  ]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.all([
+      loadSourceHealth(controller.signal),
+      loadLatest([...overviewQueries], controller.signal),
+      loadPriceRanking(controller.signal),
+      state.events ? loadEvents(state.time, controller.signal) : Promise.resolve([]),
+    ])
+      .then(([nextHealth, nextLatest, nextRanking, nextEvents]) => {
+        setSourceHealth(nextHealth);
+        setLatest(nextLatest);
+        setPriceRanking(nextRanking);
+        setEvents(nextEvents);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setRequestError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setOverviewLoading(false);
+      });
+    return () => controller.abort();
+  }, [state.events, state.time.end, state.time.start]);
 
   useEffect(() => {
     const closeInspect = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      chartCoordinator.clearPin();
       setState((current) => ({ ...current, expandedChart: null }));
     };
     window.addEventListener("keydown", closeInspect);
@@ -105,7 +164,19 @@ export function App() {
   }, [sourceHealth]);
 
   const onZoom = useCallback((start: number, end: number) => {
-    setState((current) => ({ ...current, time: zoomTo(current.time, start, end) }));
+    setState((current) => {
+      zoomOriginRef.current ??= current.time;
+      return { ...current, time: zoomTo(current.time, start, end) };
+    });
+  }, []);
+
+  const setChartVisible = useCallback((chartId: string, visible: boolean) => {
+    setActiveChartIds((current) => {
+      const next = new Set(current);
+      if (visible) next.add(chartId);
+      else next.delete(chartId);
+      return next;
+    });
   }, []);
 
   const toggleSeries = useCallback((key: string) => {
@@ -137,23 +208,36 @@ export function App() {
   const overview = [
     {
       label: "Demand",
-      value: latestValue(seriesData, "supply-demand", "demand"),
+      value: latest.get("demand")?.value ?? null,
       unit: "MW",
     },
     {
       label: "Available capacity",
-      value: latestValue(seriesData, "supply-demand", "available-capacity"),
+      value: latest.get("capacity")?.value ?? null,
       unit: "MW",
     },
     {
       label: "Frequency",
-      value: latestValue(seriesData, "frequency", "frequency"),
+      value: latest.get("frequency")?.value ?? null,
       unit: "Hz",
     },
     {
       label: "Storage net output",
-      value: latestValue(seriesData, "storage", "net-output"),
+      value: latest.get("storage")?.value ?? null,
       unit: "MW",
+    },
+    {
+      label: "Unused capacity",
+      value:
+        latest.get("grid-capacity") && latest.get("grid-demand")
+          ? latest.get("grid-capacity")!.value - latest.get("grid-demand")!.value
+          : null,
+      unit: "MW",
+    },
+    {
+      label: "System inertia",
+      value: latest.get("inertia")?.value ?? null,
+      unit: "GW·s",
     },
   ];
 
@@ -237,12 +321,13 @@ export function App() {
           {state.time.mode === "fixed" ? "Resume live" : state.time.paused ? "Resume" : "Pause"}
         </Button>
         <Button
-          onClick={() =>
+          onClick={() => {
+            zoomOriginRef.current = null;
             setState((current) => ({
               ...current,
               time: resetLive(current.time, nowSeconds()),
-            }))
-          }
+            }));
+          }}
         >
           Reset to live
         </Button>
@@ -252,9 +337,9 @@ export function App() {
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
-              const start = Date.parse(String(form.get("start"))) / 1000;
-              const end = Date.parse(String(form.get("end"))) / 1000;
               try {
+                const start = parseChicagoDateTime(String(form.get("start")));
+                const end = parseChicagoDateTime(String(form.get("end")));
                 setState((current) => ({ ...current, time: setCustomRange(start, end) }));
               } catch {
                 setRequestError("invalid_time_range");
@@ -264,7 +349,7 @@ export function App() {
             <label>
               <span>From</span>
               <input
-                defaultValue={localInputValue(state.time.start)}
+                defaultValue={formatChicagoDateTimeInput(state.time.start)}
                 name="start"
                 type="datetime-local"
               />
@@ -272,7 +357,7 @@ export function App() {
             <label>
               <span>To</span>
               <input
-                defaultValue={localInputValue(state.time.end)}
+                defaultValue={formatChicagoDateTimeInput(state.time.end)}
                 name="end"
                 type="datetime-local"
               />
@@ -357,7 +442,9 @@ export function App() {
           {overview.map((item) => (
             <article className="overview-card" key={item.label}>
               <span>{item.label}</span>
-              <strong>{loading ? "Loading…" : formatValue(item.value, item.unit, true)}</strong>
+              <strong>
+                {overviewLoading ? "Loading…" : formatValue(item.value, item.unit, true)}
+              </strong>
             </article>
           ))}
           <article className="overview-card source-overview">
@@ -380,7 +467,8 @@ export function App() {
             ) : null}
             {sourceHealth.map((source) => (
               <span className={`source-health-item status-${source.state}`} key={source.source_id}>
-                {source.display_name}: {source.state} · {formatAge(source.age_seconds)}
+                {source.display_name}: collection {source.collection_state} · data{" "}
+                {source.freshness_state} · {formatAge(source.data_age_seconds)}
                 {source.source_timestamp_ts
                   ? ` · source ${new Date(source.source_timestamp_ts * 1000).toLocaleString()}`
                   : ""}
@@ -413,6 +501,35 @@ export function App() {
             )}
           </section>
         ) : null}
+
+        <section aria-label="Settlement price ranking" className="events-panel ranking-panel">
+          <div>
+            <p className="eyebrow">Market ranking</p>
+            <h2>Latest settlement point prices</h2>
+          </div>
+          {priceRanking.length ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Settlement point</th>
+                  <th>Price</th>
+                  <th>Observed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {priceRanking.map((row) => (
+                  <tr key={row.tag}>
+                    <td>{row.tag.replace("ercot_region:", "")}</td>
+                    <td>{formatValue(row.value, "$/MWh")}</td>
+                    <td>{new Date(row.ts * 1000).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p>No settlement prices have been reported yet.</p>
+          )}
+        </section>
 
         {chartGroups.map((group) => {
           const collapsed = collapsedGroups.has(group);
@@ -454,15 +571,17 @@ export function App() {
                           }))
                         }
                         onResetZoom={() =>
-                          setState((current) => ({
-                            ...current,
-                            time: resetLive(current.time, nowSeconds()),
-                          }))
+                          setState((current) => {
+                            const origin = zoomOriginRef.current;
+                            zoomOriginRef.current = null;
+                            return { ...current, time: origin ?? current.time };
+                          })
                         }
                         onSetCompare={(compare) => setState((current) => ({ ...current, compare }))}
                         onSoloSeries={soloSeries}
                         onToggleSeries={toggleSeries}
                         onZoom={onZoom}
+                        onVisibilityChange={setChartVisible}
                         seriesData={seriesData}
                         sourceHealth={
                           chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null

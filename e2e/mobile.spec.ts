@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 test("mobile controls and keyboard-reachable chart menu remain usable", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-07-21T18:00:00-05:00"));
   await page.route("**/api/series/batch", (route) => route.fulfill({ json: { series: [] } }));
+  await page.route("**/api/latest/batch", (route) => route.fulfill({ json: { latest: [] } }));
+  await page.route("**/api/v1/ranking**", (route) => route.fulfill({ json: { rows: [] } }));
   await page.route("**/api/v1/source-health", (route) => route.fulfill({ json: { sources: [] } }));
   await page.route("**/api/v1/events**", (route) => route.fulfill({ json: { events: [] } }));
   await page.goto("/");

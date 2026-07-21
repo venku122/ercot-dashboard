@@ -59,6 +59,7 @@ type Props = {
   onSetCompare: (mode: CompareMode) => void;
   onSoloSeries: (chartId: string, key: string) => void;
   onToggleSeries: (key: string) => void;
+  onVisibilityChange: (chartId: string, visible: boolean) => void;
   onZoom: (start: number, end: number) => void;
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
@@ -105,6 +106,7 @@ export function ChartCard({
   onSetCompare,
   onSoloSeries,
   onToggleSeries,
+  onVisibilityChange,
   onZoom,
   seriesData,
   sourceHealth,
@@ -131,6 +133,11 @@ export function ChartCard({
       instance.draw();
     }
   }, [visible]);
+
+  useEffect(() => {
+    onVisibilityChange(chart.id, visible);
+    return () => onVisibilityChange(chart.id, false);
+  }, [chart.id, onVisibilityChange, visible]);
 
   const datasets = useMemo<Array<ChartDataset<"line", ScatterDataPoint[]>>>(() => {
     const output: Array<ChartDataset<"line", ScatterDataPoint[]>> = [];
@@ -169,6 +176,9 @@ export function ChartCard({
     }
     return output;
   }, [chart, compare, hiddenSeries, seriesData]);
+
+  const dynamic = useRef({ datasets, events, onZoom, seriesData, time });
+  dynamic.current = { datasets, events, onZoom, seriesData, time };
 
   useEffect(() => {
     if (!mounted || !canvasRef.current) return;
@@ -211,11 +221,11 @@ export function ChartCard({
             context.restore();
           }
         }
-        if (events.length) {
+        if (dynamic.current.events.length) {
           context.save();
           context.strokeStyle = "rgba(248, 113, 113, 0.58)";
           context.setLineDash([3, 3]);
-          for (const event of events) {
+          for (const event of dynamic.current.events) {
             const x = instance.scales["x"].getPixelForValue(event.starts_at * 1000);
             if (x < area.left || x > area.right) continue;
             if (event.ends_at) {
@@ -233,7 +243,9 @@ export function ChartCard({
           context.restore();
         }
         const partial = chart.series.some(
-          (series) => seriesData.get(seriesKey(chart.id, series.id))?.meta.partial_current_bucket,
+          (series) =>
+            dynamic.current.seriesData.get(seriesKey(chart.id, series.id))?.meta
+              .partial_current_bucket,
         );
         if (partial) {
           context.save();
@@ -245,7 +257,7 @@ export function ChartCard({
     };
     const instance = new ChartJs(canvasRef.current, {
       type: "line",
-      data: { datasets },
+      data: { datasets: dynamic.current.datasets },
       plugins: [overlayPlugin],
       options: {
         animation: false,
@@ -278,7 +290,7 @@ export function ChartCard({
                 const minimum = panned.scales["x"].min;
                 const maximum = panned.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
-                  onZoom(minimum / 1000, maximum / 1000);
+                  dynamic.current.onZoom(minimum / 1000, maximum / 1000);
                 }
               },
             },
@@ -291,7 +303,7 @@ export function ChartCard({
                 const minimum = zoomed.scales["x"].min;
                 const maximum = zoomed.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
-                  onZoom(minimum / 1000, maximum / 1000);
+                  dynamic.current.onZoom(minimum / 1000, maximum / 1000);
                 }
               },
             },
@@ -300,8 +312,8 @@ export function ChartCard({
         scales: {
           x: {
             type: "time",
-            min: time.start * 1000,
-            max: time.end * 1000,
+            min: dynamic.current.time.start * 1000,
+            max: dynamic.current.time.end * 1000,
             time: { tooltipFormat: "MMM d, yyyy HH:mm:ss" },
             ticks: { color: "#94a3b8", maxRotation: 0, sampleSize: 8 },
             grid: { color: "rgba(148, 163, 184, 0.08)" },
@@ -316,6 +328,8 @@ export function ChartCard({
         },
       },
     });
+    window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
+    window.__ercotChartLifecycle.constructed += 1;
     chartRef.current = instance;
     const initialCursor = chartCoordinator.snapshot();
     cursorTimestamp.current = initialCursor.timestamp;
@@ -337,9 +351,24 @@ export function ChartCard({
       cursorByChart.delete(instance);
       pinnedByChart.delete(instance);
       instance.destroy();
+      window.__ercotChartLifecycle!.destroyed += 1;
       chartRef.current = null;
     };
-  }, [chart, datasets, events, mounted, onZoom, seriesData, time.end, time.start]);
+  }, [chart, mounted]);
+
+  useEffect(() => {
+    const instance = chartRef.current;
+    if (!instance) return;
+    instance.data.datasets = datasets;
+    const xScale = instance.options.scales?.["x"];
+    if (xScale) {
+      xScale.min = time.start * 1000;
+      xScale.max = time.end * 1000;
+    }
+    instance.update("none");
+    window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
+    window.__ercotChartLifecycle.updated += 1;
+  }, [datasets, events, seriesData, time.end, time.start]);
 
   const allPoints = chart.series.flatMap(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.points ?? [],
@@ -419,7 +448,8 @@ export function ChartCard({
       <div className="chart-status-row" aria-live="polite">
         {sourceHealth ? (
           <span className={`status-chip status-${sourceHealth.state}`}>
-            {sourceHealth.state} · {formatAge(sourceHealth.age_seconds)}
+            poll {sourceHealth.collection_state} · data {sourceHealth.freshness_state} ·{" "}
+            {formatAge(sourceHealth.data_age_seconds)}
           </span>
         ) : null}
         {partial ? <span className="status-chip status-partial">partial bucket</span> : null}
@@ -466,7 +496,15 @@ export function ChartCard({
         {chart.series.map((series) => {
           const key = seriesKey(chart.id, series.id);
           const loaded = seriesData.get(key);
-          const stats = seriesStats(loaded?.points ?? []);
+          const sampledStats = seriesStats(loaded?.points ?? []);
+          const stats = loaded?.meta.stats ?? {
+            average: sampledStats.average,
+            count: loaded?.points.length ?? 0,
+            energy_mwh: null,
+            latest: sampledStats.latest,
+            maximum: sampledStats.maximum,
+            minimum: sampledStats.minimum,
+          };
           const hidden = hiddenSeries.has(key);
           return (
             <div className={`legend-row ${hidden ? "legend-row-hidden" : ""}`} key={key}>
@@ -491,8 +529,10 @@ export function ChartCard({
                 <span className="legend-stats">
                   min {formatValue(stats.minimum, chart.unit)} · max{" "}
                   {formatValue(stats.maximum, chart.unit)} · avg{" "}
-                  {formatValue(stats.average, chart.unit)} · sum{" "}
-                  {formatValue(stats.sum, chart.unit)}
+                  {formatValue(stats.average, chart.unit)}
+                  {chart.unit === "MW" && stats.energy_mwh !== null
+                    ? ` · energy ${formatValue(stats.energy_mwh, "MWh")}`
+                    : ""}
                 </span>
               ) : null}
             </div>

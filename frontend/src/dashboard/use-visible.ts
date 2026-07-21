@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export function useVisible<T extends HTMLElement>(rootMargin = "320px") {
+export function useVisible<T extends HTMLElement>(rootMargin = "100px") {
   const ref = useRef<T>(null);
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);

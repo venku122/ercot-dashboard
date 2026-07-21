@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { alignComparison, compareOffset, compareWindow } from "./compare";
+import { liveQuerySince, mergePoints } from "./api";
+import { alignComparison, alignComparisonForMode, compareOffset, compareWindow } from "./compare";
 import { freshnessState } from "./freshness";
 import { seriesStats } from "./stats";
 import {
@@ -12,6 +13,7 @@ import {
   togglePause,
   zoomTo,
 } from "./time-state";
+import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./zoned-time";
 import { dashboardStateFromUrl, dashboardStateToUrl } from "./url-state";
 import { formatAge, formatValue } from "./units";
 
@@ -87,6 +89,29 @@ describe("comparison alignment", () => {
       ),
     ).toBe("172800");
   });
+
+  it("uses America/Chicago calendar arithmetic across DST transitions", () => {
+    const springCurrent = Date.parse("2026-03-09T12:00:00-05:00") / 1000;
+    const springPrevious = Date.parse("2026-03-08T12:00:00-05:00") / 1000;
+    const fallCurrent = Date.parse("2026-11-02T12:00:00-06:00") / 1000;
+    const fallPrevious = Date.parse("2026-11-01T12:00:00-06:00") / 1000;
+
+    expect(
+      alignComparisonForMode([[springPrevious, 1]], "day", springCurrent - springPrevious),
+    ).toEqual([[springCurrent, 1]]);
+    expect(alignComparisonForMode([[fallPrevious, 1]], "day", fallCurrent - fallPrevious)).toEqual([
+      [fallCurrent, 1],
+    ]);
+  });
+
+  it("parses and formats custom ranges in America/Chicago regardless of browser timezone", () => {
+    expect(parseChicagoDateTime("2026-07-21T18:30")).toBe(
+      Date.parse("2026-07-21T18:30:00-05:00") / 1000,
+    );
+    expect(formatChicagoDateTimeInput(Date.parse("2026-07-21T23:30:00Z") / 1000)).toBe(
+      "2026-07-21T18:30",
+    );
+  });
 });
 
 describe("statistics, freshness, and units", () => {
@@ -106,5 +131,33 @@ describe("statistics, freshness, and units", () => {
     expect(freshnessState(1300, 300)).toBe("stale");
     expect(formatValue(-1234.5, "$/MWh")).toContain("-1,234.5");
     expect(formatAge(3700)).toBe("1h old");
+  });
+});
+
+describe("live request planning", () => {
+  it("fetches only the unseen tail and timestamp-dedupes the rolling window", () => {
+    const time = { mode: "live", paused: false, start: 100, end: 400, rangeSeconds: 300 } as const;
+    const previous: Array<[number, number]> = [
+      [100, 1],
+      [200, 2],
+      [300, 3],
+    ];
+
+    expect(liveQuerySince(time, previous)).toBe(301);
+    expect(
+      mergePoints(
+        previous,
+        [
+          [300, 30],
+          [400, 4],
+        ],
+        150,
+        400,
+      ),
+    ).toEqual([
+      [200, 2],
+      [300, 30],
+      [400, 4],
+    ]);
   });
 });

@@ -24,9 +24,14 @@ export type DashboardState = {
 
 export type SeriesDefinition = {
   color: string;
+  derive?: {
+    from: string[];
+    operation: import("./derived").DerivedOperation;
+  };
   id: string;
   label: string;
-  metric: string;
+  metric?: string;
+  rollup?: "sum";
   tags?: string[];
 };
 
@@ -48,6 +53,14 @@ export type SeriesMeta = {
   partial_current_bucket?: boolean;
   since?: number;
   until?: number | null;
+  stats?: {
+    average: number | null;
+    count: number;
+    energy_mwh: number | null;
+    latest: number | null;
+    maximum: number | null;
+    minimum: number | null;
+  };
 };
 
 export type LoadedSeries = {
@@ -79,5 +92,11 @@ export type SourceHealth = {
   last_success_ts: number | null;
   source_id: string;
   source_timestamp_ts: number | null;
+  collection_age_seconds: number | null;
+  collection_state: "delayed" | "failed" | "healthy";
+  data_age_seconds: number | null;
+  freshness_state: "delayed" | "event_driven" | "fresh" | "stale" | "unknown";
+  publication_interval_seconds: number | null;
+  publication_mode: "event" | "polling";
   state: "delayed" | "failed" | "healthy" | "stale";
 };
