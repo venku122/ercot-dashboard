@@ -106,10 +106,26 @@ def init_db(conn: sqlite3.Connection) -> None:
             last_row_count INTEGER,
             consecutive_failures INTEGER NOT NULL DEFAULT 0,
             last_error TEXT,
+            publication_mode TEXT NOT NULL DEFAULT 'polling',
+            publication_interval_seconds INTEGER,
+            checkpoint_json TEXT,
             updated_at INTEGER NOT NULL
         )
         """
     )
+    source_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(collector_sources)")
+    }
+    if "publication_mode" not in source_columns:
+        conn.execute(
+            "ALTER TABLE collector_sources ADD COLUMN publication_mode TEXT NOT NULL DEFAULT 'polling'"
+        )
+    if "publication_interval_seconds" not in source_columns:
+        conn.execute(
+            "ALTER TABLE collector_sources ADD COLUMN publication_interval_seconds INTEGER"
+        )
+    if "checkpoint_json" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN checkpoint_json TEXT")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS events (
@@ -214,9 +230,23 @@ def validate_query_window(since, until, max_points, bucket_seconds):
         raise ValueError("raw_span_exceeds_limit")
 
 
+def normalize_query_window(
+    since, until, max_points=None, bucket_seconds=None, current_ts=None
+):
+    end_ts = until if until is not None else (
+        current_ts if current_ts is not None else now_ts()
+    )
+    bounded_since = since
+    if bounded_since is None:
+        bounded_since = end_ts - MAX_RAW_SPAN_SECONDS
+    validate_query_window(bounded_since, end_ts, max_points, bucket_seconds)
+    return bounded_since, end_ts
+
+
 def ingest_metrics(conn, payload, current_ts=None):
     inserted = 0
-    duplicate = 0
+    updated = 0
+    unchanged = 0
     invalid = 0
     dependencies = set()
     ts_now = current_ts if current_ts is not None else now_ts()
@@ -265,32 +295,57 @@ def ingest_metrics(conn, payload, current_ts=None):
                     dedupe_key = f"{dedupe_key}:{point_index}"
                 if dedupe_key is not None:
                     dedupe_key = str(dedupe_key)[:500]
-                cur = conn.execute(
-                    """
-                    INSERT OR IGNORE INTO metrics
-                    (metric_name, ts, value, interval, metric_type, tags, dedupe_key)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        metric_name,
-                        int(ts),
-                        numeric_value,
-                        interval,
-                        metric_type,
-                        json.dumps(tags),
-                        dedupe_key,
-                    ),
+                tags_json = json.dumps(tags)
+                existing = None
+                if dedupe_key is not None:
+                    existing = conn.execute(
+                        """
+                        SELECT id, metric_name, ts, value, interval, metric_type, tags
+                        FROM metrics WHERE dedupe_key = ?
+                        """,
+                        (dedupe_key,),
+                    ).fetchone()
+                values = (
+                    metric_name,
+                    int(ts),
+                    numeric_value,
+                    interval,
+                    metric_type,
+                    tags_json,
                 )
-                if cur.rowcount == 0:
-                    duplicate += 1
-                    continue
-                metric_id = cur.lastrowid
+                if existing is not None:
+                    metric_id = existing[0]
+                    if tuple(existing[1:]) == values:
+                        unchanged += 1
+                        continue
+                    conn.execute(
+                        """
+                        UPDATE metrics
+                        SET metric_name = ?, ts = ?, value = ?, interval = ?,
+                            metric_type = ?, tags = ?
+                        WHERE id = ?
+                        """,
+                        (*values, metric_id),
+                    )
+                    conn.execute("DELETE FROM metric_tags WHERE metric_id = ?", (metric_id,))
+                    updated += 1
+                    dependencies.add(existing[1])
+                else:
+                    cur = conn.execute(
+                        """
+                        INSERT INTO metrics
+                        (metric_name, ts, value, interval, metric_type, tags, dedupe_key)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (*values, dedupe_key),
+                    )
+                    metric_id = cur.lastrowid
+                    inserted += 1
                 if tags:
                     conn.executemany(
                         "INSERT INTO metric_tags (metric_id, tag) VALUES (?, ?)",
                         [(metric_id, tag) for tag in tags],
                     )
-                inserted += 1
                 dependencies.add(metric_name)
         conn.commit()
     except Exception:
@@ -298,7 +353,8 @@ def ingest_metrics(conn, payload, current_ts=None):
         raise
     return {
         "inserted": inserted,
-        "duplicate": duplicate,
+        "updated": updated,
+        "unchanged": unchanged,
         "invalid": invalid,
         "dependencies": dependencies,
     }
@@ -395,6 +451,18 @@ def update_source_health(conn, attempt, current_ts=None):
     updated_at = current_ts if current_ts is not None else now_ts()
     attempted_at = attempted_at or updated_at
     success = attempt.get("success") is True
+    publication_mode = str(attempt.get("publication_mode") or "polling")
+    if publication_mode not in ("polling", "event"):
+        raise ValueError("invalid_publication_mode")
+    publication_interval = parse_positive_int(
+        attempt.get("publication_interval_seconds")
+    )
+    checkpoint = attempt.get("checkpoint")
+    checkpoint_json = None
+    if checkpoint is not None:
+        checkpoint_json = json.dumps(checkpoint, sort_keys=True, separators=(",", ":"))
+        if len(checkpoint_json.encode("utf-8")) > MAX_BODY_BYTES:
+            raise ValueError("checkpoint_too_large")
     previous = conn.execute(
         "SELECT consecutive_failures, last_success_ts FROM collector_sources WHERE source_id = ?",
         (str(source_id),),
@@ -407,7 +475,8 @@ def update_source_health(conn, attempt, current_ts=None):
             source_id, display_name, expected_interval_seconds, last_attempt_ts,
             last_success_ts, source_timestamp_ts, last_payload_hash,
             last_row_count, consecutive_failures, last_error, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            , publication_mode, publication_interval_seconds, checkpoint_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_id) DO UPDATE SET
             display_name = excluded.display_name,
             expected_interval_seconds = excluded.expected_interval_seconds,
@@ -426,6 +495,13 @@ def update_source_health(conn, attempt, current_ts=None):
             last_row_count = excluded.last_row_count,
             consecutive_failures = excluded.consecutive_failures,
             last_error = excluded.last_error,
+            publication_mode = excluded.publication_mode,
+            publication_interval_seconds = excluded.publication_interval_seconds,
+            checkpoint_json = CASE
+                WHEN excluded.checkpoint_json IS NULL
+                THEN collector_sources.checkpoint_json
+                ELSE excluded.checkpoint_json
+            END,
             updated_at = excluded.updated_at
         """,
         (
@@ -442,6 +518,9 @@ def update_source_health(conn, attempt, current_ts=None):
             failures,
             None if success else str(attempt.get("error") or "unknown_error")[:2000],
             updated_at,
+            publication_mode,
+            publication_interval,
+            checkpoint_json,
         ),
     )
     conn.commit()
@@ -453,17 +532,38 @@ def source_state(row, current_ts=None):
     last_success = row[4]
     source_ts = row[5]
     failures = int(row[8] or 0)
-    freshness_ts = source_ts or last_success
-    age = None if freshness_ts is None else max(0, now - int(freshness_ts))
+    publication_mode = row[11] or "polling"
+    publication_interval = row[12] or interval
+    collection_age = None if last_success is None else max(0, now - int(last_success))
+    data_age = None if source_ts is None else max(0, now - int(source_ts))
     if last_success is None or failures >= 3:
-        state = "failed"
-    elif age is None or age > interval * 4:
-        state = "stale"
-    elif failures > 0 or age > interval * 2:
-        state = "delayed"
+        collection_state = "failed"
+    elif failures > 0 or collection_age is None or collection_age > interval * 2:
+        collection_state = "delayed"
     else:
-        state = "healthy"
-    return state, age
+        collection_state = "healthy"
+    if publication_mode == "event":
+        freshness_state = "event_driven"
+    elif data_age is None:
+        freshness_state = "unknown"
+    elif data_age > publication_interval * 4:
+        freshness_state = "stale"
+    elif data_age > publication_interval * 2:
+        freshness_state = "delayed"
+    else:
+        freshness_state = "fresh"
+    state = collection_state
+    if collection_state != "failed" and freshness_state == "stale":
+        state = "stale"
+    elif collection_state == "healthy" and freshness_state in ("delayed", "unknown"):
+        state = "delayed"
+    return {
+        "state": state,
+        "collection_state": collection_state,
+        "freshness_state": freshness_state,
+        "collection_age_seconds": collection_age,
+        "data_age_seconds": data_age,
+    }
 
 
 def list_source_health(conn, current_ts=None):
@@ -472,13 +572,14 @@ def list_source_health(conn, current_ts=None):
         SELECT source_id, display_name, expected_interval_seconds,
                last_attempt_ts, last_success_ts, source_timestamp_ts,
                last_payload_hash, last_row_count, consecutive_failures,
-               last_error, updated_at
+               last_error, updated_at, publication_mode,
+               publication_interval_seconds, checkpoint_json
         FROM collector_sources ORDER BY display_name
         """
     ).fetchall()
     output = []
     for row in rows:
-        state, age = source_state(row, current_ts)
+        states = source_state(row, current_ts)
         output.append(
             {
                 "source_id": row[0],
@@ -492,8 +593,14 @@ def list_source_health(conn, current_ts=None):
                 "consecutive_failures": row[8],
                 "last_error": row[9],
                 "updated_at": row[10],
-                "state": state,
-                "age_seconds": age,
+                "publication_mode": row[11],
+                "publication_interval_seconds": row[12],
+                "state": states["state"],
+                "age_seconds": states["data_age_seconds"],
+                "collection_state": states["collection_state"],
+                "freshness_state": states["freshness_state"],
+                "collection_age_seconds": states["collection_age_seconds"],
+                "data_age_seconds": states["data_age_seconds"],
             }
         )
     return output
@@ -563,6 +670,36 @@ def downsample_minmax(points, max_points):
             max_point = [ts, value]
     flush_bucket()
     return output[:max_points]
+
+
+def series_statistics(points):
+    if not points:
+        return {
+            "count": 0,
+            "latest": None,
+            "minimum": None,
+            "maximum": None,
+            "average": None,
+            "energy_mwh": None,
+        }
+    values = [float(point[1]) for point in points]
+    energy = 0.0
+    for index in range(1, len(points)):
+        previous_ts, previous_value = points[index - 1]
+        ts, value = points[index]
+        if ts <= previous_ts:
+            continue
+        energy += ((float(previous_value) + float(value)) / 2) * (
+            (ts - previous_ts) / 3600
+        )
+    return {
+        "count": len(points),
+        "latest": values[-1],
+        "minimum": min(values),
+        "maximum": max(values),
+        "average": sum(values) / len(values),
+        "energy_mwh": energy if len(points) > 1 else None,
+    }
 
 
 def infer_bucket_seconds(points, seasonal_period):
@@ -810,7 +947,15 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def _series_query(
-        self, conn, metric, since, until, tags, bucket_seconds=None, aggregation="average"
+        self,
+        conn,
+        metric,
+        since,
+        until,
+        tags,
+        bucket_seconds=None,
+        aggregation="average",
+        rollup=None,
     ):
         source, clauses, params_for_metric = series_filter_sql(tags)
         clauses = list(clauses)
@@ -825,6 +970,27 @@ class Handler(BaseHTTPRequestHandler):
         tag_params = []
         if len(tags) > 1:
             tag_clause, tag_params = tags_filter_clause(tags)
+
+        if rollup == "sum":
+            query = (
+                f"SELECT m.ts, SUM(m.value) FROM {source} WHERE "
+                + " AND ".join(clauses)
+                + " "
+                + tag_clause
+                + " GROUP BY m.ts ORDER BY m.ts"
+            )
+            raw = [
+                [row[0], row[1]]
+                for row in conn.execute(query, params + tag_params).fetchall()
+            ]
+            if bucket_seconds is None:
+                return raw
+            if aggregation == "minmax":
+                return downsample_minmax(
+                    raw,
+                    max(1, math.ceil((until - since) / bucket_seconds) * 2),
+                )
+            return bucket_average(raw, int(bucket_seconds))
 
         if bucket_seconds is not None:
             bucket_seconds = int(bucket_seconds)
@@ -881,6 +1047,11 @@ class Handler(BaseHTTPRequestHandler):
         target_points = max(1, int(max_points) // 2) if aggregation == "minmax" else int(max_points)
         return max(1, int(span / target_points) + 1)
 
+    def _series_statistics(self, conn, metric, since, until, tags, rollup=None):
+        return series_statistics(
+            self._series_query(conn, metric, since, until, tags, rollup=rollup)
+        )
+
     def _series_params(self, payload):
         bucket_raw = payload.get("bucket_seconds")
         seasonal_raw = payload.get("seasonal_period")
@@ -921,6 +1092,24 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return {"ts": row[0], "value": row[1], "tags": json.loads(row[2] or "[]")}
 
+    def _latest_by_tag(self, conn, metric, tag_prefix, limit):
+        rows = conn.execute(
+            """
+            SELECT tag, ts, value FROM (
+                SELECT mt.tag AS tag, m.ts AS ts, m.value AS value,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY mt.tag ORDER BY m.ts DESC, m.id DESC
+                       ) AS latest_rank
+                FROM metrics m
+                JOIN metric_tags mt ON mt.metric_id = m.id
+                WHERE m.metric_name = ? AND mt.tag LIKE ?
+            ) WHERE latest_rank = 1
+            ORDER BY value DESC LIMIT ?
+            """,
+            (metric, f"{tag_prefix}%", limit),
+        ).fetchall()
+        return [{"tag": row[0], "ts": row[1], "value": row[2]} for row in rows]
+
     def _cache_key(self, label, payload):
         return label + ":" + json.dumps(payload, sort_keys=True)
 
@@ -942,7 +1131,6 @@ class Handler(BaseHTTPRequestHandler):
             result = ingest_metrics(conn, payload)
             dependencies = result.pop("dependencies")
             self._app_server().cache.invalidate(dependencies)
-            conn.execute("PRAGMA optimize")
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -1026,15 +1214,27 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 tags = normalize_tags(entry.get("tags") or [])
                 since = parse_timestamp(entry.get("since"))
+                stats_since = parse_timestamp(entry.get("stats_since"))
                 until = parse_timestamp(entry.get("until"))
                 dependencies.add(metric)
                 try:
                     aggregation = entry.get("aggregation") or "average"
                     if aggregation not in ("average", "minmax"):
                         raise ValueError("invalid_aggregation")
+                    rollup = entry.get("rollup")
+                    if rollup not in (None, "sum"):
+                        raise ValueError("invalid_rollup")
                     max_points = validate_max_points(entry.get("max_points"))
                     bucket_seconds, seasonal_period = self._series_params(entry)
-                    validate_query_window(since, until, max_points, bucket_seconds)
+                    since, until = normalize_query_window(
+                        since, until, max_points, bucket_seconds
+                    )
+                    stats_since, _stats_until = normalize_query_window(
+                        stats_since if stats_since is not None else since,
+                        until,
+                        max_points,
+                        bucket_seconds,
+                    )
                 except ValueError as exc:
                     result.append(
                         {"id": entry.get("id"), "metric": metric, "error": str(exc)}
@@ -1051,6 +1251,7 @@ class Handler(BaseHTTPRequestHandler):
                     tags,
                     query_bucket_seconds,
                     aggregation,
+                    rollup,
                 )
                 points = transform_series(
                     points,
@@ -1065,6 +1266,9 @@ class Handler(BaseHTTPRequestHandler):
                     points = downsample_minmax(points, max_points)
                 elif max_points and len(points) > max_points:
                     points = downsample_minmax(points, max_points)
+                stats = self._series_statistics(
+                    conn, metric, stats_since, until, tags, rollup
+                )
                 result.append(
                     {
                         "id": entry.get("id"),
@@ -1076,6 +1280,8 @@ class Handler(BaseHTTPRequestHandler):
                             "max_points": max_points,
                             "bucket_seconds": query_bucket_seconds,
                             "aggregation": aggregation,
+                            "rollup": rollup,
+                            "stats": stats,
                             "partial_current_bucket": bool(
                                 query_bucket_seconds
                                 and (
@@ -1163,6 +1369,35 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/source-checkpoint":
+            if not self._rate_limit("source_checkpoint", RATE_LIMIT_STATUS_RPM):
+                return
+            if not self._require_api_key():
+                return
+            source_id = (parse_qs(parsed.query).get("source_id") or [None])[0]
+            if not source_id:
+                self._send_json(
+                    400, {"error": "missing_source_id"}, cache_control="no-store"
+                )
+                return
+            row = get_db().execute(
+                """
+                SELECT last_payload_hash, source_timestamp_ts, checkpoint_json
+                FROM collector_sources WHERE source_id = ?
+                """,
+                (source_id,),
+            ).fetchone()
+            self._send_json(
+                200,
+                {
+                    "source_id": source_id,
+                    "payload_hash": row[0] if row else None,
+                    "source_timestamp_ts": row[1] if row else None,
+                    "checkpoint": json.loads(row[2]) if row and row[2] else None,
+                },
+                cache_control="no-store",
+            )
+            return
         if parsed.path == "/api/v1/source-health":
             if not self._rate_limit("source_health", RATE_LIMIT_STATUS_RPM):
                 return
@@ -1288,6 +1523,34 @@ class Handler(BaseHTTPRequestHandler):
                 200, cached, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}"
             )
             return
+        if parsed.path == "/api/v1/ranking":
+            if not self._rate_limit("ranking", RATE_LIMIT_LATEST_RPM):
+                return
+            qs = parse_qs(parsed.query)
+            metric = (qs.get("metric") or [None])[0]
+            tag_prefix = (qs.get("tag_prefix") or [None])[0]
+            limit = min(
+                parse_positive_int((qs.get("limit") or [None])[0]) or 10,
+                100,
+            )
+            if not metric or not tag_prefix:
+                self._send_json(
+                    400, {"error": "missing_metric_or_tag_prefix"}, cache_control="no-store"
+                )
+                return
+            cache_key = self._cache_key(
+                "ranking",
+                {"metric": metric, "tag_prefix": tag_prefix, "limit": limit},
+            )
+            cached = self._app_server().cache.get(cache_key)
+            if cached is None:
+                rows = self._latest_by_tag(get_db(), metric, tag_prefix, limit)
+                cached = {"metric": metric, "rows": rows, "as_of": now_ts()}
+                self._app_server().cache.set(cache_key, cached, {metric})
+            self._send_json(
+                200, cached, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}"
+            )
+            return
         if parsed.path == "/api/status":
             if not self._rate_limit("status", RATE_LIMIT_STATUS_RPM):
                 return
@@ -1357,14 +1620,19 @@ class Handler(BaseHTTPRequestHandler):
             bucket_raw = (qs.get("bucket_seconds") or [None])[0]
             seasonal_raw = (qs.get("seasonal_period") or [None])[0]
             aggregation = (qs.get("aggregation") or ["average"])[0]
+            rollup = (qs.get("rollup") or [None])[0]
             try:
                 if aggregation not in ("average", "minmax"):
                     raise ValueError("invalid_aggregation")
+                if rollup not in (None, "sum"):
+                    raise ValueError("invalid_rollup")
                 max_points = validate_max_points(max_points_raw)
                 bucket_seconds, seasonal_period = self._series_params(
                     {"bucket_seconds": bucket_raw, "seasonal_period": seasonal_raw}
                 )
-                validate_query_window(since, until, max_points, bucket_seconds)
+                since, until = normalize_query_window(
+                    since, until, max_points, bucket_seconds
+                )
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)}, cache_control="no-store")
                 return
@@ -1379,6 +1647,7 @@ class Handler(BaseHTTPRequestHandler):
                     "bucket_seconds": bucket_seconds,
                     "seasonal_period": seasonal_period,
                     "aggregation": aggregation,
+                    "rollup": rollup,
                 },
             )
             cached = self._app_server().cache.get(cache_key)
@@ -1401,6 +1670,7 @@ class Handler(BaseHTTPRequestHandler):
                 tags,
                 query_bucket_seconds,
                 aggregation,
+                rollup,
             )
             points = transform_series(
                 points,
@@ -1415,6 +1685,7 @@ class Handler(BaseHTTPRequestHandler):
                 points = downsample_minmax(points, max_points)
             elif max_points and len(points) > max_points:
                 points = downsample_minmax(points, max_points)
+            stats = self._series_statistics(conn, metric, since, until, tags, rollup)
             payload_out = {
                 "metric": metric,
                 "points": points,
@@ -1424,6 +1695,8 @@ class Handler(BaseHTTPRequestHandler):
                     "max_points": max_points,
                     "bucket_seconds": query_bucket_seconds,
                     "aggregation": aggregation,
+                    "rollup": rollup,
+                    "stats": stats,
                     "partial_current_bucket": bool(
                         query_bucket_seconds
                         and (until is None or until >= now_ts() - query_bucket_seconds)
@@ -1486,6 +1759,7 @@ class Server(ThreadingHTTPServer):
         super().__init__(addr, Handler)
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         init_db(conn)
+        conn.execute("PRAGMA optimize")
         conn.close()
         self.cache = Cache(CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
         self.limiter = RateLimiter()

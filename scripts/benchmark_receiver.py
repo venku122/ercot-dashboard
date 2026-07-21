@@ -113,7 +113,7 @@ def main():
             page_count_after = conn.execute("PRAGMA page_count").fetchone()[0]
             dedupe = {
                 "first_inserted": first["inserted"],
-                "retry_duplicates": second["duplicate"],
+                "retry_unchanged": second["unchanged"],
                 "retry_page_growth": page_count_after - page_count_before,
             }
 

@@ -1,7 +1,10 @@
 import importlib.util
+import io
+import json
 from pathlib import Path
 import sqlite3
 import tempfile
+import threading
 import unittest
 
 SERVER_PATH = Path(__file__).with_name("server.py")
@@ -208,16 +211,27 @@ class MigrationAndIngestTests(unittest.TestCase):
         )
         legacy.close()
 
-    def test_metric_dedupe_reports_inserted_duplicate_and_invalid(self):
+    def test_metric_dedupe_upserts_revisions_and_identical_replay_is_unchanged(self):
         payload = [
             {
-                "metric_name": "ercot.storage.net_output_mw",
-                "tags": ["source:storage"],
+                "metric_name": "ercot.supply_demand.demand_mw",
+                "tags": ["source:supply_demand"],
                 "points": [
                     {
                         "timestamp": 100,
-                        "value": -50.5,
-                        "dedupe_key": "storage:100:net",
+                        "value": 50_000,
+                        "dedupe_key": "supply:actual:100",
+                    }
+                ],
+            },
+            {
+                "metric_name": "ercot.supply_demand.forecast_demand_mw",
+                "tags": ["source:supply_demand"],
+                "points": [
+                    {
+                        "timestamp": 200,
+                        "value": 55_000,
+                        "dedupe_key": "supply:forecast:200",
                     }
                 ],
             },
@@ -225,13 +239,35 @@ class MigrationAndIngestTests(unittest.TestCase):
         ]
 
         first = server.ingest_metrics(self.conn, payload, current_ts=100)
-        second = server.ingest_metrics(self.conn, payload[:1], current_ts=100)
+        unchanged = server.ingest_metrics(self.conn, payload[:2], current_ts=100)
+        payload[0]["points"][0]["value"] = 50_250
+        payload[1]["points"][0]["value"] = 54_750
+        revised = server.ingest_metrics(self.conn, payload[:2], current_ts=101)
 
-        self.assertEqual((first["inserted"], first["invalid"]), (1, 1))
-        self.assertEqual((second["inserted"], second["duplicate"]), (0, 1))
-        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0], 1)
+        self.assertEqual((first["inserted"], first["invalid"]), (2, 1))
         self.assertEqual(
-            self.conn.execute("SELECT COUNT(*) FROM metric_tags").fetchone()[0], 1
+            {key: unchanged[key] for key in ("inserted", "updated", "unchanged", "invalid")},
+            {"inserted": 0, "updated": 0, "unchanged": 2, "invalid": 0},
+        )
+        self.assertEqual(
+            {key: revised[key] for key in ("inserted", "updated", "unchanged", "invalid")},
+            {"inserted": 0, "updated": 2, "unchanged": 0, "invalid": 0},
+        )
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0], 2)
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT value FROM metrics WHERE dedupe_key = 'supply:actual:100'"
+            ).fetchone()[0],
+            50_250,
+        )
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT value FROM metrics WHERE dedupe_key = 'supply:forecast:200'"
+            ).fetchone()[0],
+            54_750,
+        )
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM metric_tags").fetchone()[0], 2
         )
 
     def test_event_retry_upserts_without_duplicate(self):
@@ -318,6 +354,29 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         self.assertEqual(health["state"], "failed")
         self.assertEqual(health["consecutive_failures"], 3)
 
+    def test_event_driven_source_can_be_collection_healthy_with_old_observation(self):
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "operations_messages",
+                "display_name": "ERCOT Operations Messages",
+                "expected_interval_seconds": 180,
+                "publication_mode": "event",
+                "attempted_at": 10_000,
+                "success": True,
+                "source_timestamp_ts": 1_000,
+                "row_count": 0,
+            },
+            current_ts=10_000,
+        )
+
+        health = server.list_source_health(self.conn, 10_060)[0]
+
+        self.assertEqual(health["collection_state"], "healthy")
+        self.assertEqual(health["freshness_state"], "event_driven")
+        self.assertEqual(health["collection_age_seconds"], 60)
+        self.assertEqual(health["data_age_seconds"], 9_060)
+
     def test_query_limits_reject_unbounded_or_oversized_requests(self):
         with self.assertRaisesRegex(ValueError, "max_points_exceeds_limit"):
             server.validate_max_points(server.MAX_POINTS_HARD + 1)
@@ -328,6 +387,18 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         server.validate_query_window(
             0, server.MAX_RAW_SPAN_SECONDS + 1, server.MAX_POINTS_HARD, None
         )
+
+    def test_raw_statistics_are_independent_of_plot_decimation(self):
+        points = [[0, 10.0], [1800, 20.0], [3600, 30.0]]
+
+        stats = server.series_statistics(points)
+
+        self.assertEqual(stats["count"], 3)
+        self.assertEqual(stats["latest"], 30.0)
+        self.assertEqual(stats["minimum"], 10.0)
+        self.assertEqual(stats["maximum"], 30.0)
+        self.assertEqual(stats["average"], 20.0)
+        self.assertEqual(stats["energy_mwh"], 20.0)
 
     def test_cache_is_bounded_and_invalidates_only_dependencies(self):
         cache = server.Cache(60, max_entries=2)
@@ -340,6 +411,103 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         cache.set("c", 3, {"metric.c"})
         cache.set("d", 4, {"metric.d"})
         self.assertLessEqual(cache.stats()["entries"], 2)
+
+
+class HttpQueryBoundsTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        server.DB_PATH = str(Path(self.tmp.name) / "metrics.db")
+        server.DB_LOCAL = threading.local()
+        conn = sqlite3.connect(server.DB_PATH)
+        server.init_db(conn)
+        conn.close()
+        self.app = type(
+            "TestServer",
+            (),
+            {"cache": server.Cache(60), "limiter": server.RateLimiter()},
+        )()
+
+    def tearDown(self):
+        conn = getattr(server.DB_LOCAL, "conn", None)
+        if conn is not None:
+            conn.close()
+        self.tmp.cleanup()
+
+    def invoke(self, method, path, payload=None):
+        body = json.dumps(payload).encode() if payload is not None else b""
+        handler = server.Handler.__new__(server.Handler)
+        handler.path = path
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.server = self.app
+        handler.headers = {
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        }
+        handler.rfile = io.BytesIO(body)
+        handler.wfile = io.BytesIO()
+        handler.send_response = lambda status: setattr(handler, "response_status", status)
+        handler.send_header = lambda _name, _value: None
+        handler.end_headers = lambda: None
+        if method == "GET":
+            handler.do_GET()
+        else:
+            handler.do_POST()
+        self.assertEqual(handler.response_status, 200)
+        return json.loads(handler.wfile.getvalue())
+
+    def test_get_without_since_defaults_to_bounded_window(self):
+        payload = self.invoke("GET", "/api/series?metric=fixture.raw")
+
+        self.assertIsNotNone(payload["meta"]["since"])
+        self.assertLessEqual(
+            payload["meta"]["until"] - payload["meta"]["since"],
+            server.MAX_RAW_SPAN_SECONDS,
+        )
+
+    def test_batch_without_since_uses_the_same_bounded_window(self):
+        payload = self.invoke(
+            "POST",
+            "/api/series/batch",
+            {"queries": [{"id": "raw", "metric": "fixture.raw"}]},
+        )
+
+        meta = payload["series"][0]["meta"]
+        self.assertIsNotNone(meta["since"])
+        self.assertLessEqual(meta["until"] - meta["since"], server.MAX_RAW_SPAN_SECONDS)
+
+    def test_batch_statistics_use_raw_window_not_max_points_plot(self):
+        conn = sqlite3.connect(server.DB_PATH)
+        for ts, value in ((100, 10), (200, 20), (300, 30)):
+            conn.execute(
+                """
+                INSERT INTO metrics (metric_name, ts, value, interval, metric_type, tags)
+                VALUES ('fixture.stats', ?, ?, 60, 'gauge', '[]')
+                """,
+                (ts, value),
+            )
+        conn.commit()
+        conn.close()
+
+        payload = self.invoke(
+            "POST",
+            "/api/series/batch",
+            {
+                "queries": [
+                    {
+                        "id": "stats",
+                        "metric": "fixture.stats",
+                        "since": 100,
+                        "until": 300,
+                        "max_points": 1,
+                    }
+                ]
+            },
+        )
+
+        result = payload["series"][0]
+        self.assertEqual(len(result["points"]), 1)
+        self.assertEqual(result["meta"]["stats"]["count"], 3)
+        self.assertEqual(result["meta"]["stats"]["latest"], 30)
 
 
 if __name__ == "__main__":
