@@ -4,22 +4,13 @@ services:
     build:
       context: .
       dockerfile: ercot-receiver/Dockerfile
-    container_name: ercot-receiver
+    container_name: ercot-receiver-dev
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       HOST: 0.0.0.0
       PORT: 8080
-      METRICS_API_KEY: "${METRICS_API_KEY:?METRICS_API_KEY must be set for production}"
-      # CACHE_TTL_SECONDS: 10
-      # CACHE_CONTROL_MAX_AGE: 30
-      # CORS_ORIGINS_EXTRA: "https://example.com,https://other.example.com"
-      # TRUST_PROXY: "1"
-      # RATE_LIMIT_INGEST_RPM: 600
-      # RATE_LIMIT_SERIES_RPM: 300
-      # RATE_LIMIT_LATEST_RPM: 300
-      # RATE_LIMIT_STATUS_RPM: 120
-      # RATE_LIMIT_METRICS_RPM: 120
+      METRICS_API_KEY: "${METRICS_API_KEY:-local-dev-key}"
     volumes:
       - ./ercot-receiver/data:/app/data
     healthcheck:
@@ -40,13 +31,10 @@ services:
     build:
       context: ./ercot-collector
       dockerfile: Dockerfile
-    container_name: ercot-collector
+    container_name: ercot-collector-dev
     environment:
       METRICS_ENDPOINT: http://receiver:8080/api/ingest
-      METRICS_API_KEY: "${METRICS_API_KEY:?METRICS_API_KEY must be set for production}"
-      # POWEROUTAGE_US_KEY: "your_poweroutage_key"
-      # DATADOG_API_KEY: "optional-datadog-key"
-      # DATADOG_APP_KEY: "optional-datadog-app-key"
+      METRICS_API_KEY: "${METRICS_API_KEY:-local-dev-key}"
     depends_on:
       receiver:
         condition: service_healthy

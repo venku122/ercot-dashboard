@@ -22,8 +22,8 @@ ERCOT context page.
   per-fuel HSL field, so the collector does not fabricate one. Wind/solar HSL is collected from the
   combined renewable resource, where the live schema does publish `copHslWind` and `copHslSolar`.
 - Storage, supply/demand, outages, and combined wind/solar publish an epoch plus a DST flag. Epoch is
-  authoritative, so repeated local hours remain distinct. Previous-day replay is harmless because
-  point dedupe keys are stable across restarts.
+  authoritative, so repeated local hours remain distinct. Actuals retain a bounded overlap for
+  corrections; mutable forecast identities are value-diffed from a receiver-persisted checkpoint.
 - Generation-outage categories were verified as Combined, Dispatchable, and Renewable, each with
   planned, unplanned, and total values. No timestamp or transient category becomes a tag.
 - `combine-wind-solar.json` remains current and useful; it is enabled.
@@ -40,5 +40,7 @@ ERCOT context page.
 ## Failure semantics
 
 HTTP failure, malformed schema, invalid numeric data, or zero core rows produce no metrics/events
-and increment structured source failure state. An unchanged valid payload resets failures and is
-reported as success without resubmitting its rows.
+and increment structured source failure state. All modern and legacy loops report structured
+attempts. Collection health is based on attempts; freshness is based on publication semantics and
+source timestamps. Operations Messages is explicitly event-driven. An unchanged valid payload
+resets failures and is reported as success without resubmitting its rows.

@@ -10,14 +10,22 @@ pnpm run test:collector:live
 pnpm run test:performance
 pnpm run test:e2e
 
-METRICS_API_KEY=local-dev-key docker compose build --no-cache
-METRICS_API_KEY=local-dev-key docker compose up -d
-docker compose ps
-docker compose logs --no-color --tail=500 receiver collector
+METRICS_API_KEY=local-dev-key docker compose -f docker-compose.dev.yml build --no-cache
+METRICS_API_KEY=local-dev-key docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.dev.yml logs --no-color --tail=500 receiver collector
 ```
 
-The Compose file builds local images, waits for the receiver health check before starting the
-collector, and uses `local-dev-key` only as a local default.
+The development Compose file builds local images, waits for the receiver health check before
+starting the collector, uses `local-dev-key` only as a development default, and binds the receiver
+to `127.0.0.1`. Production uses `docker-compose.yml` and requires an explicit secret:
+
+```bash
+METRICS_API_KEY="$(openssl rand -hex 32)" docker compose config
+METRICS_API_KEY="<secret from the deployment environment>" docker compose up -d
+```
+
+Do not place the production key in a committed `.env` file.
 
 ## Database backup
 
