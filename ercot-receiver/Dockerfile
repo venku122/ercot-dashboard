@@ -15,7 +15,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY ercot-receiver/server.py /app/server.py
+COPY ercot-receiver/*.py /app/
 COPY --from=web-build /src/ercot-receiver/web /app/web
 
 RUN mkdir -p /app/data
