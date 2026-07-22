@@ -22,6 +22,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Supply and demand",
     description: "Actual demand, forecast demand, and available ERCOT generation capacity.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "supply_demand",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/supplyanddemand",
     series: [
@@ -51,6 +52,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Grid frequency",
     description: "System frequency around the nominal 60 Hz operating point.",
     unit: "Hz",
+    statisticPolicy: "gauge",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html",
     spikeCritical: true,
     series: [
@@ -68,6 +70,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Operating reserves",
     description: "Physical responsive capability and ancillary capacity published by ERCOT.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/ancillaryservices",
     spikeCritical: true,
     series: [
@@ -97,6 +100,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Fuel mix generation",
     description: "Five-minute generation by major ERCOT fuel category without smoothing.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "fuel_mix",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/fuelmix",
     series: [
@@ -150,6 +154,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Energy storage resources",
     description: "Charging is published as negative load; discharging is positive generation.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "energy_storage",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/energystorageresources",
     spikeCritical: true,
@@ -180,6 +185,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Wind and solar outlook",
     description: "Hourly actual, short-term forecast, and current operating-plan HSL.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "wind_solar",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/combinedwindandsolar",
     series: [
@@ -226,6 +232,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Generation outages",
     description: "Planned and unplanned dispatchable and renewable generation outages.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "generation_outages",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/generationoutages",
     spikeCritical: true,
@@ -266,6 +273,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Settlement point prices",
     description: "Selected ERCOT real-time settlement point prices; negative prices are preserved.",
     unit: "$/MWh",
+    statisticPolicy: "gauge",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_spp",
     spikeCritical: true,
     series: [
@@ -299,6 +307,7 @@ export const chartDefinitions: ChartDefinition[] = [
     description:
       "Individual ERCOT DC tie flows; the source sign convention is shown without inversion.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html",
     spikeCritical: true,
     series: [
@@ -363,6 +372,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Unused capacity and headroom",
     description: "Available system capacity minus actual system demand, alongside PRC.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "ercot_realtime",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html",
     spikeCritical: true,
@@ -399,6 +409,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Time error and delta",
     description: "ERCOT instantaneous time error and the change between consecutive readings.",
     unit: "seconds",
+    statisticPolicy: "gauge",
     sourceId: "ercot_realtime",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html",
     spikeCritical: true,
@@ -423,6 +434,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "System inertia",
     description: "Current ERCOT system inertia from the real-time conditions feed.",
     unit: "GW·s",
+    statisticPolicy: "gauge",
     sourceId: "ercot_realtime",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html",
     series: [
@@ -440,6 +452,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Emergency Energy Alert level",
     description: "Discrete ERCOT EEA state collected from the daily PRC dashboard.",
     unit: "level",
+    statisticPolicy: "gauge",
     sourceId: "ercot_eea",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/dailyprc",
     series: [
@@ -457,6 +470,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Regulation awards",
     description: "Regulation-up and regulation-down awards from the ancillary capacity monitor.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "ercot_ancillary",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/ancillaryservices",
     series: [
@@ -480,6 +494,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Real-time reserve capacity",
     description: "Online and online/offline real-time reserve capacity.",
     unit: "MW",
+    statisticPolicy: "power",
     sourceId: "ercot_ancillary",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/ancillaryservices",
     series: [
@@ -515,6 +530,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "PowerOutage.us customer outages",
     description: "Total reported Texas customers without power across county observations.",
     unit: "customers",
+    statisticPolicy: "gauge",
     sourceId: "poweroutages_us",
     sourceUrl: "https://poweroutage.us/area/state/texas",
     series: [
@@ -533,6 +549,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Nearby METAR temperature",
     description: "Airport observations near major ERCOT load and generation centers.",
     unit: "°C",
+    statisticPolicy: "gauge",
     sourceId: "metar",
     sourceUrl: "https://aviationweather.gov/data/api/",
     series: [
@@ -572,6 +589,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Nearby METAR wind speed",
     description: "Observed airport wind speeds in miles per hour.",
     unit: "mph",
+    statisticPolicy: "gauge",
     sourceId: "metar",
     sourceUrl: "https://aviationweather.gov/data/api/",
     series: [
@@ -611,6 +629,7 @@ export const chartDefinitions: ChartDefinition[] = [
     title: "Collector duty cycle",
     description: "Internal collection-loop utilization by source.",
     unit: "%",
+    statisticPolicy: "gauge",
     sourceUrl: "https://github.com/venku122/ercot-dashboard",
     series: [
       {

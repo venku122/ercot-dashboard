@@ -3,6 +3,7 @@ export type Point = [number, number];
 export type TimeMode = "fixed" | "live";
 export type CompareMode = "custom" | "day" | "none" | "previous_period" | "week";
 export type LegendMode = "compact" | "expanded";
+export type StatisticPolicy = "gauge" | "power";
 
 export type TimeState = {
   end: number;
@@ -42,6 +43,7 @@ export type ChartDefinition = {
   sourceId?: string;
   sourceUrl: string;
   spikeCritical?: boolean;
+  statisticPolicy: StatisticPolicy;
   title: string;
   unit: string;
   series: SeriesDefinition[];
