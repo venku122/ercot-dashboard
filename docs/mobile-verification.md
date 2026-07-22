@@ -36,10 +36,12 @@ After evidence:
 - [WebKit interaction trace](evidence/mobile-interaction-webkit-trace.zip)
 
 Strict Ubuntu 24.04 variants of every new WebKit image are committed for CI. Baselines were
-generated in the pinned mcr.microsoft.com/playwright:v1.61.1-noble image and reviewed without
-loosening screenshot thresholds. Desktop CI baselines were also reviewed and migrated once into
-that same pinned image so inherited host-font differences cannot make otherwise identical chart
-states fail. The original desktop layout is preserved.
+generated in the pinned mcr.microsoft.com/playwright:v1.61.1-noble image and reviewed. Every image
+remains zero-diff except the canvas-heavy portrait Inspect capture, which has an explicit absolute
+ceiling of eight raster pixels after a pinned CI run differed by four pixels from an immediately
+preceding green run. Desktop CI baselines were also reviewed and migrated once into that same
+pinned image so inherited host-font differences cannot make otherwise identical chart states
+fail. The original desktop layout is preserved.
 
 ## Objective mobile budgets
 

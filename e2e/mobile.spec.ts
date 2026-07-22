@@ -387,6 +387,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect(page.getByRole("dialog", { name: "Inspect Supply and demand" })).toHaveScreenshot(
     "mobile-inspect-portrait.png",
+    { maxDiffPixels: 8 },
   );
 });
 
