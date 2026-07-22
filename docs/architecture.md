@@ -73,3 +73,30 @@ idle. Click-to-pin state follows the user between visible charts.
 
 Source status exposes collection/poll state independently from observation freshness. Event-driven
 Operations Messages remains collection-healthy when a successful quiet poll has no newer event.
+
+## Mobile product mode
+
+The mobile interface is a responsive composition over the same dashboard state, exact-latest
+queries, chart definitions, source health, events, and URL serializer used by desktop. A subscribed
+matchMedia hook selects mobile behavior at 700 CSS pixels or a coarse-pointer landscape viewport;
+it does not fork data fetching into another application. Mobile defaults collapse every group
+except Grid Conditions and select compact legends only when the incoming URL does not explicitly
+set legend detail.
+
+The mobile grid summary and exact KPI grid precede global analysis controls. Quick range and pause
+actions remain inline; comparison, fixed-window navigation, custom Chicago time inputs, event
+annotations, and legend settings share the same mutations through a safe-area-aware dialog.
+Source health, operations history, settlement ranking, and secondary groups use progressive
+disclosure. The fixed section navigator expands and focuses the selected group while preserving
+the user's collapse choices for the session.
+
+ChartCard is a React lazy split point. The initial shell chunk contains the header, condition,
+exact KPIs, quick controls, navigation, and diagnostics; Chart.js, Hammer, the date adapter, and
+the zoom plugin load with the first chart workspace. The ordinary mobile interaction policy
+disables pan, drag zoom, pinch zoom, wheel zoom, and tap-to-pin while CSS reserves the canvas for
+vertical page scrolling. Inspect mode switches the same stable Chart.js instance to deliberate
+pinch, horizontal pan, and cursor interaction without reconstructing it.
+
+All mobile fixed surfaces use dynamic viewport units and safe-area environment variables.
+Dialogs and inspect mode trap focus, expose explicit close actions, lock background scrolling, and
+restore focus to their triggers. Accessible chart tables and CSV export remain shared with desktop.

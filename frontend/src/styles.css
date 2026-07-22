@@ -367,6 +367,10 @@ main {
   color: #dbe7f5;
 }
 
+.ranking-panel > .table-scroll {
+  display: contents;
+}
+
 .chart-group {
   display: grid;
   gap: 12px;
@@ -1038,6 +1042,22 @@ footer p {
 
   .overview-card strong {
     font-size: clamp(1rem, 5vw, 1.25rem);
+  }
+
+  .overview-card:nth-child(1) {
+    order: 1;
+  }
+
+  .overview-card:nth-child(2) {
+    order: 2;
+  }
+
+  .overview-card:nth-child(5) {
+    order: 3;
+  }
+
+  .overview-card:nth-child(3) {
+    order: 4;
   }
 
   .overview-card-secondary,

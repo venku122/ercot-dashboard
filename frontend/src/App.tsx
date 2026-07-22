@@ -523,6 +523,13 @@ export function App() {
   const overview = [
     { label: "Demand", value: latest.get("demand")?.value ?? null, unit: "MW" },
     { label: "Available capacity", value: latest.get("capacity")?.value ?? null, unit: "MW" },
+    { label: "Frequency", value: latest.get("frequency")?.value ?? null, unit: "Hz" },
+    {
+      label: "Storage net output",
+      value: latest.get("storage")?.value ?? null,
+      unit: "MW",
+      secondary: true,
+    },
     {
       label: "Unused capacity",
       value:
@@ -530,13 +537,6 @@ export function App() {
           ? latest.get("grid-capacity")!.value - latest.get("grid-demand")!.value
           : null,
       unit: "MW",
-    },
-    { label: "Frequency", value: latest.get("frequency")?.value ?? null, unit: "Hz" },
-    {
-      label: "Storage net output",
-      value: latest.get("storage")?.value ?? null,
-      unit: "MW",
-      secondary: true,
     },
     {
       label: "System inertia",
@@ -626,20 +626,22 @@ export function App() {
           </div>
         ) : null}
 
-        <section
-          aria-label="Grid condition"
-          className="mobile-grid-condition"
-          data-condition={condition.state}
-          ref={overviewRef}
-          tabIndex={-1}
-        >
-          <div>
-            <p className="eyebrow">Grid condition</p>
-            <strong>{condition.label}</strong>
-          </div>
-          <p>{condition.detail}</p>
-          <span>Updated {formatAge(newestOverviewAge).replace(" old", " ago")}</span>
-        </section>
+        {isMobile ? (
+          <section
+            aria-label="Grid condition"
+            className="mobile-grid-condition"
+            data-condition={condition.state}
+            ref={overviewRef}
+            tabIndex={-1}
+          >
+            <div>
+              <p className="eyebrow">Grid condition</p>
+              <strong>{condition.label}</strong>
+            </div>
+            <p>{condition.detail}</p>
+            <span>Updated {formatAge(newestOverviewAge).replace(" old", " ago")}</span>
+          </section>
+        ) : null}
 
         <section aria-label="Grid overview" className="overview-grid">
           {overview.map((item) => (
@@ -908,6 +910,7 @@ export function App() {
                           onToggleSeries={toggleSeries}
                           onVisibilityChange={setChartVisible}
                           onZoom={onZoom}
+                          requestError={requestError}
                           seriesData={seriesData}
                           sourceHealth={
                             chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null

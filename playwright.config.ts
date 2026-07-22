@@ -23,19 +23,19 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /mobile.*\.spec\.ts/,
+      testIgnore: /\/mobile.*\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 960 } },
     },
     {
       name: "mobile",
-      grep: /@mobile-core|@responsive/,
-      testMatch: /mobile.*\.spec\.ts/,
+      grep: /@mobile-core|@mobile-performance|@responsive/,
+      testMatch: /\/mobile.*\.spec\.ts$/,
       use: { ...devices["Pixel 7"] },
     },
     {
       name: "iphone-pro-max-webkit",
-      grep: /@mobile-core|@responsive/,
-      testMatch: /mobile.*\.spec\.ts/,
+      grep: /@mobile-core|@mobile-vri|@responsive/,
+      testMatch: /\/mobile.*\.spec\.ts$/,
       use: {
         browserName: "webkit",
         viewport: { width: 440, height: 956 },
@@ -51,7 +51,7 @@ export default defineConfig({
     {
       name: "compact-mobile",
       grep: /@responsive/,
-      testMatch: /mobile.*\.spec\.ts/,
+      testMatch: /\/mobile.*\.spec\.ts$/,
       use: {
         browserName: "chromium",
         viewport: { width: 375, height: 667 },
@@ -63,8 +63,8 @@ export default defineConfig({
     },
     {
       name: "iphone-landscape-webkit",
-      grep: /@responsive/,
-      testMatch: /mobile.*\.spec\.ts/,
+      grep: /@landscape-vri|@responsive/,
+      testMatch: /\/mobile.*\.spec\.ts$/,
       use: {
         browserName: "webkit",
         viewport: { width: 956, height: 440 },

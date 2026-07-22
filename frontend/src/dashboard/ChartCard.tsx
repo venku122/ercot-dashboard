@@ -63,6 +63,7 @@ type Props = {
   onToggleSeries: (key: string) => void;
   onVisibilityChange: (chartId: string, visible: boolean) => void;
   onZoom: (start: number, end: number) => void;
+  requestError: string | null;
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
   time: TimeState;
@@ -111,6 +112,7 @@ export function ChartCard({
   onToggleSeries,
   onVisibilityChange,
   onZoom,
+  requestError,
   seriesData,
   sourceHealth,
   time,
@@ -609,10 +611,12 @@ export function ChartCard({
         role="presentation"
       >
         {!mounted || loading ? <div className="chart-placeholder">Loading chart…</div> : null}
-        {!loading && errors.length ? (
-          <div className="chart-overlay chart-error">Source request failed: {errors[0]}</div>
+        {!loading && (errors.length || requestError) ? (
+          <div className="chart-overlay chart-error">
+            Source request failed: {errors[0] ?? requestError}
+          </div>
         ) : null}
-        {!loading && !errors.length && !allPoints.length ? (
+        {!loading && !errors.length && !requestError && !allPoints.length ? (
           <div className="chart-overlay chart-empty">No observations in this window.</div>
         ) : null}
         {stale && allPoints.length ? (

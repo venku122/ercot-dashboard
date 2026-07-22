@@ -2,6 +2,9 @@
 
 Date: 2026-07-21
 
+Mobile-specific browser, visual, performance, and physical-device evidence is recorded in
+[mobile-verification.md](mobile-verification.md).
+
 ## Environment
 
 - Host shell Node: 25.2.1; pinned pnpm: 10.30.3. The standalone pnpm executable reports its
