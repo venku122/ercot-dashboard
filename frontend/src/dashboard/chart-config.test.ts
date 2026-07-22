@@ -49,4 +49,15 @@ describe("legacy parity contract", () => {
     ]);
     expect(deriveSeries("delta", [input[0]!])).toEqual([[200, 10]]);
   });
+
+  it("declares dimensional statistic policy instead of inferring it in the legend", () => {
+    const policies = new Map(
+      chartDefinitions.map((chart) => [chart.id, chart.statisticPolicy] as const),
+    );
+    expect(policies.get("supply-demand")).toBe("power");
+    expect(policies.get("storage")).toBe("power");
+    expect(policies.get("frequency")).toBe("gauge");
+    expect(policies.get("pricing")).toBe("gauge");
+    expect(policies.get("weather-temperature")).toBe("gauge");
+  });
 });

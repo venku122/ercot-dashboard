@@ -277,6 +277,7 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const session = await page.context().newCDPSession(page);
   await session.send("Performance.enable");
   await page.goto("/");
+  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(19);
   const total = await page.locator("[data-chart-id]").count();
   const initiallyMounted = await page.locator('[data-chart-id][data-mounted="true"]').count();
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();
@@ -383,8 +384,11 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
+  await expect(cards).toHaveCount(19);
   for (let index = 0; index < (await cards.count()); index += 1) {
-    await cards.nth(index).scrollIntoViewIfNeeded();
+    const card = cards.nth(index);
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toHaveAttribute("data-mounted", "true");
   }
   await expect(page.locator(".chart-placeholder")).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, 0));

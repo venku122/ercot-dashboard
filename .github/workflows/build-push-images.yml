@@ -69,6 +69,8 @@ jobs:
     name: e2e-vri
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -80,12 +82,45 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm run test:e2e
+      - run: pnpm exec playwright test --project=chromium
       - if: ${{ failure() }}
         uses: actions/upload-artifact@v6
         with:
           name: playwright-failure-${{ github.run_id }}
+          path: |
+            artifacts/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mobile-webkit-vri:
+    name: mobile-webkit-vri
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run populated mobile Chromium and WebKit coverage
+        run: >-
+          pnpm exec playwright test e2e/mobile.spec.ts
+          --project=mobile
+          --project=iphone-pro-max-webkit
+          --project=compact-mobile
+          --project=iphone-landscape-webkit
+      - if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mobile-playwright-failure
           path: |
             artifacts/
             test-results/
@@ -129,7 +164,7 @@ jobs:
   docker-build:
     name: docker-build (${{ matrix.name }})
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
-    needs: [static-unit, collector-fixtures, e2e-vri, performance]
+    needs: [static-unit, collector-fixtures, e2e-vri, mobile-webkit-vri, performance]
     permissions:
       contents: read
       packages: write

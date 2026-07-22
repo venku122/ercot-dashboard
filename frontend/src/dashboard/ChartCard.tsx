@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { seriesKey } from "./chart-config";
 import { chartCoordinator } from "./chart-coordinator";
+import { chartInteractionPolicy } from "./interaction-policy";
 import { seriesStats } from "./stats";
 import type {
   ChartDefinition,
@@ -54,6 +55,7 @@ type Props = {
   inspect: boolean;
   legendMode: LegendMode;
   loading: boolean;
+  mobile: boolean;
   onInspect: () => void;
   onResetZoom: () => void;
   onSetCompare: (mode: CompareMode) => void;
@@ -61,6 +63,7 @@ type Props = {
   onToggleSeries: (key: string) => void;
   onVisibilityChange: (chartId: string, visible: boolean) => void;
   onZoom: (start: number, end: number) => void;
+  requestError: string | null;
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
   time: TimeState;
@@ -101,6 +104,7 @@ export function ChartCard({
   inspect,
   legendMode,
   loading,
+  mobile,
   onInspect,
   onResetZoom,
   onSetCompare,
@@ -108,21 +112,32 @@ export function ChartCard({
   onToggleSeries,
   onVisibilityChange,
   onZoom,
+  requestError,
   seriesData,
   sourceHealth,
   time,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<ChartJs<"line"> | null>(null);
+  const accessibleDataRef = useRef<HTMLDetailsElement>(null);
+  const inspectTriggerRef = useRef<HTMLButtonElement>(null);
   const cursorTimestamp = useRef<number | null>(null);
   const pointerDown = useRef<{ x: number; y: number } | null>(null);
   const cursorActive = useRef(false);
-  const { mounted, ref: visibilityRef, visible } = useVisible<HTMLElement>();
+  const interactionPolicy = useMemo(
+    () => chartInteractionPolicy({ inspect, mobile }),
+    [inspect, mobile],
+  );
+  const {
+    mounted,
+    ref: visibilityRef,
+    visible,
+  } = useVisible<HTMLElement>(mobile ? "0px" : "100px");
   const [pinned, setPinned] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    cursorActive.current = visible;
+    cursorActive.current = visible && interactionPolicy.cursorPin;
     const instance = chartRef.current;
     if (visible && instance) {
       const snapshot = chartCoordinator.snapshot();
@@ -132,7 +147,15 @@ export function ChartCard({
       setPinned(snapshot.pinned);
       instance.draw();
     }
-  }, [visible]);
+  }, [interactionPolicy.cursorPin, visible]);
+
+  const wasInspect = useRef(false);
+  useEffect(() => {
+    if (wasInspect.current && !inspect) {
+      window.requestAnimationFrame(() => inspectTriggerRef.current?.focus());
+    }
+    wasInspect.current = inspect;
+  }, [inspect]);
 
   useEffect(() => {
     onVisibilityChange(chart.id, visible);
@@ -177,16 +200,18 @@ export function ChartCard({
     return output;
   }, [chart, compare, hiddenSeries, seriesData]);
 
-  const dynamic = useRef({ datasets, events, onZoom, seriesData, time });
-  dynamic.current = { datasets, events, onZoom, seriesData, time };
+  const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time });
+  dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time };
 
   useEffect(() => {
     if (!mounted || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const handlePointerDown = (event: PointerEvent) => {
+      if (!dynamic.current.interactionPolicy.cursorPin) return;
       pointerDown.current = { x: event.clientX, y: event.clientY };
     };
     const handlePointerUp = (event: PointerEvent) => {
+      if (!dynamic.current.interactionPolicy.cursorPin) return;
       const start = pointerDown.current;
       pointerDown.current = null;
       if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) return;
@@ -283,9 +308,9 @@ export function ChartCard({
           zoom: {
             limits: { x: { minRange: 5 * 60 * 1000 } },
             pan: {
-              enabled: true,
+              enabled: dynamic.current.interactionPolicy.pan,
               mode: "x",
-              modifierKey: "shift",
+              modifierKey: dynamic.current.interactionPolicy.panModifier,
               onPanComplete({ chart: panned }) {
                 const minimum = panned.scales["x"].min;
                 const maximum = panned.scales["x"].max;
@@ -296,9 +321,16 @@ export function ChartCard({
             },
             zoom: {
               mode: "x",
-              drag: { enabled: true, backgroundColor: "rgba(96, 165, 250, 0.16)" },
-              pinch: { enabled: true },
-              wheel: { enabled: true, modifierKey: "ctrl", speed: 0.08 },
+              drag: {
+                enabled: dynamic.current.interactionPolicy.dragZoom,
+                backgroundColor: "rgba(96, 165, 250, 0.16)",
+              },
+              pinch: { enabled: dynamic.current.interactionPolicy.pinchZoom },
+              wheel: {
+                enabled: dynamic.current.interactionPolicy.wheelZoom,
+                modifierKey: "ctrl",
+                speed: 0.08,
+              },
               onZoomComplete({ chart: zoomed }) {
                 const minimum = zoomed.scales["x"].min;
                 const maximum = zoomed.scales["x"].max;
@@ -358,6 +390,33 @@ export function ChartCard({
 
   useEffect(() => {
     const instance = chartRef.current;
+    const zoomOptions = instance?.options.plugins?.zoom;
+    if (!instance || !zoomOptions) return;
+    zoomOptions.pan = {
+      ...zoomOptions.pan,
+      enabled: interactionPolicy.pan,
+      modifierKey: interactionPolicy.panModifier,
+    };
+    zoomOptions.zoom = {
+      ...zoomOptions.zoom,
+      drag: {
+        ...zoomOptions.zoom?.drag,
+        enabled: interactionPolicy.dragZoom,
+      },
+      pinch: {
+        ...zoomOptions.zoom?.pinch,
+        enabled: interactionPolicy.pinchZoom,
+      },
+      wheel: {
+        ...zoomOptions.zoom?.wheel,
+        enabled: interactionPolicy.wheelZoom,
+      },
+    };
+    instance.update("none");
+  }, [interactionPolicy]);
+
+  useEffect(() => {
+    const instance = chartRef.current;
     if (!instance) return;
     instance.data.datasets = datasets;
     const xScale = instance.options.scales?.["x"];
@@ -380,14 +439,52 @@ export function ChartCard({
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.meta.partial_current_bucket,
   );
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
+  const resetChartZoom = () => {
+    chartRef.current?.resetZoom();
+    onResetZoom();
+  };
+  const showDataTable = () => {
+    if (!accessibleDataRef.current) return;
+    accessibleDataRef.current.open = true;
+    accessibleDataRef.current.querySelector("summary")?.focus();
+  };
 
   return (
     <article
+      aria-label={inspect ? "Inspect " + chart.title : undefined}
+      aria-modal={inspect ? "true" : undefined}
       className={`chart-card ${inspect ? "chart-card-inspect" : ""}`}
       data-chart-id={chart.id}
+      data-interaction-policy={interactionPolicy.policyName}
       data-mounted={mounted ? "true" : "false"}
       data-visible={visible ? "true" : "false"}
+      onKeyDown={(event) => {
+        if (!inspect) return;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          chartCoordinator.clearPin();
+          onInspect();
+          return;
+        }
+        if (event.key !== "Tab") return;
+        const focusable = [
+          ...event.currentTarget.querySelectorAll<HTMLElement>(
+            "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex='-1'])",
+          ),
+        ];
+        const first = focusable.at(0);
+        const last = focusable.at(-1);
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
       ref={visibilityRef}
+      role={inspect ? "dialog" : undefined}
     >
       <header className="chart-card-header">
         <div>
@@ -399,6 +496,7 @@ export function ChartCard({
           <button
             aria-label={`${inspect ? "Close" : "Open"} ${chart.title} inspect mode`}
             onClick={onInspect}
+            ref={inspectTriggerRef}
           >
             {inspect ? "Close" : "Inspect"}
           </button>
@@ -445,6 +543,36 @@ export function ChartCard({
         </div>
       </header>
 
+      {inspect ? (
+        <div
+          aria-label={chart.title + " inspect actions"}
+          className="inspect-toolbar"
+          role="toolbar"
+        >
+          <button aria-label="Close inspect" onClick={onInspect}>
+            Close
+          </button>
+          <button aria-label="Reset zoom" onClick={resetChartZoom}>
+            Reset zoom
+          </button>
+          <button
+            aria-label={compare === "none" ? "Enable comparison" : "Disable comparison"}
+            onClick={() => onSetCompare(compare === "none" ? "previous_period" : "none")}
+          >
+            {compare === "none" ? "Compare" : "No compare"}
+          </button>
+          <button aria-label="Download CSV" onClick={() => downloadCsv(chart, seriesData)}>
+            CSV
+          </button>
+          <a aria-label="ERCOT source" href={chart.sourceUrl} rel="noreferrer" target="_blank">
+            Source
+          </a>
+          <button aria-label="Show data table" onClick={showDataTable}>
+            Data
+          </button>
+        </div>
+      ) : null}
+
       <div className="chart-status-row" aria-live="polite">
         {sourceHealth ? (
           <span className={`status-chip status-${sourceHealth.state}`}>
@@ -456,6 +584,12 @@ export function ChartCard({
         {pinned ? <span className="status-chip status-pinned">cursor pinned</span> : null}
       </div>
 
+      {inspect && mobile ? (
+        <p className="inspect-gesture-hint">
+          Pinch to zoom · drag horizontally to pan · tap to pin the cursor
+        </p>
+      ) : null}
+
       <div
         className="chart-canvas-wrap"
         onKeyDown={(event) => {
@@ -463,6 +597,7 @@ export function ChartCard({
         }}
         onMouseLeave={() => chartCoordinator.publish(null)}
         onMouseMove={(event) => {
+          if (!interactionPolicy.cursorPin) return;
           const instance = chartRef.current;
           if (!instance) return;
           const bounds = event.currentTarget.getBoundingClientRect();
@@ -476,10 +611,12 @@ export function ChartCard({
         role="presentation"
       >
         {!mounted || loading ? <div className="chart-placeholder">Loading chart…</div> : null}
-        {!loading && errors.length ? (
-          <div className="chart-overlay chart-error">Source request failed: {errors[0]}</div>
+        {!loading && (errors.length || requestError) ? (
+          <div className="chart-overlay chart-error">
+            Source request failed: {errors[0] ?? requestError}
+          </div>
         ) : null}
-        {!loading && !errors.length && !allPoints.length ? (
+        {!loading && !errors.length && !requestError && !allPoints.length ? (
           <div className="chart-overlay chart-empty">No observations in this window.</div>
         ) : null}
         {stale && allPoints.length ? (
@@ -530,7 +667,7 @@ export function ChartCard({
                   min {formatValue(stats.minimum, chart.unit)} · max{" "}
                   {formatValue(stats.maximum, chart.unit)} · avg{" "}
                   {formatValue(stats.average, chart.unit)}
-                  {chart.unit === "MW" && stats.energy_mwh !== null
+                  {chart.statisticPolicy === "power" && stats.energy_mwh !== null
                     ? ` · energy ${formatValue(stats.energy_mwh, "MWh")}`
                     : ""}
                 </span>
@@ -540,7 +677,7 @@ export function ChartCard({
         })}
       </div>
 
-      <details className="accessible-data">
+      <details className="accessible-data" ref={accessibleDataRef}>
         <summary>Accessible data table</summary>
         <div className="table-scroll">
           <table>

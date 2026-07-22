@@ -2,6 +2,9 @@
 
 Date: 2026-07-21
 
+Mobile-specific browser, visual, performance, and physical-device evidence is recorded in
+[mobile-verification.md](mobile-verification.md).
+
 ## Environment
 
 - Host shell Node: 25.2.1; pinned pnpm: 10.30.3. The standalone pnpm executable reports its
@@ -43,12 +46,13 @@ series, and scrolling into view performs bounded tail fetches instead of refetch
 
 Committed visual baselines cover normal supply/demand, price spike, negative price, storage
 charging, stale storage source, an operations event, the full analytical dashboard, and the mobile
-dashboard. The suite contains 12 browser tests.
+dashboard. The suite contains 48 browser tests across desktop Chromium and four mobile projects.
 
 Pixel baselines are strict and environment-specific: local Linux baselines remain available for
 developer runs, while CI uses separately inspected `ubuntu-24.04` baselines. The workflow pins that
-runner version instead of depending on `ubuntu-latest` font and rasterization drift; no screenshot
-threshold was loosened.
+runner version instead of depending on `ubuntu-latest` font and rasterization drift. All images
+remain zero-diff except the portrait mobile Inspect canvas, which allows at most eight changed
+raster pixels to cover observed cross-worker canvas antialiasing.
 
 ## Before and after
 
