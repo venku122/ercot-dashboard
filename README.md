@@ -1,6 +1,6 @@
 # ERCOT Grid Monitor
 
-Live ERCOT grid metrics with a self-hosted collector, receiver, and dashboard UI.
+Live ERCOT grid metrics with a self-hosted collector, receiver, and analytical dashboard UI.
 
 Live site:
 
@@ -14,15 +14,30 @@ Hello, I am a Texas resident and the health and status of the Texas power grid i
 
 ## Quick start (Docker)
 
-```
-docker compose up -d
+```bash
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 The dashboard will be available at:
 
-```
+```text
 http://localhost:8080
 ```
+
+The collector polls ERCOT's public dashboard resources and reports metrics, operations events, and structured source health to the receiver. The receiver stores data in SQLite WAL mode and serves the built React dashboard.
+
+## Dashboard capabilities
+
+- Global presets, custom ranges, live/pause, one-window navigation, and previous-period/day/week/custom-offset comparison.
+- Inspect mode, bounded drag/wheel/pinch zoom, modified pan, a linked RAF-throttled cursor, and click-to-pin.
+- Stable interactive legends with solo mode, exact latest values, raw-window min/max/average, and
+  trapezoidal MW-to-MWh integration where energy is meaningful.
+- Operations-message annotations, CSV export, copyable URL-restored state, explicit loading/empty/stale/failed/partial states, and accessible data tables.
+- Lazy chart mounting and server-side bounded aggregation, including min/max preservation for spike-critical series.
+
+See [architecture](docs/architecture.md), [legacy parity matrix](docs/parity-matrix.md),
+[ERCOT sources and schemas](docs/ercot-sources.md), [operations and rollback](docs/operations.md),
+and [verification evidence](docs/verification.md).
 
 ## Frontend development
 
@@ -40,6 +55,25 @@ For a separate Vite dev server with `/api` proxied to the local receiver:
 python3 ercot-receiver/server.py
 pnpm run dev
 ```
+
+## Verification
+
+```bash
+pnpm run check
+pnpm run test:frontend
+pnpm run test:receiver
+pnpm run test:collector
+pnpm run test:e2e
+pnpm run test:performance
+METRICS_API_KEY=local-dev-key docker compose -f docker-compose.dev.yml build --no-cache
+METRICS_API_KEY=local-dev-key docker compose -f docker-compose.dev.yml up -d
+```
+
+The production `docker-compose.yml` has no API-key fallback and fails configuration unless
+`METRICS_API_KEY` is set. Development uses a separate file whose published receiver port is bound
+to loopback.
+
+`pnpm run test:collector:live` performs a one-shot schema/value check against the current ERCOT resources after the collector image has been built. It is intentionally separate from deterministic fixture tests.
 
 ## Pre-commit hook
 
@@ -69,13 +103,4 @@ Source code:
 https://github.com/venku122/ercot-dashboard
 ```
 
-Data sources:
-
-```
-http://www.ercot.com/content/cdr/html/real_time_system_conditions.html
-http://www.ercot.com/content/cdr/html/as_capacity_monitor.html
-http://www.ercot.com/content/cdr/html/real_time_spp
-http://www.ercot.com/content/alerts/conservation_state.js
-https://www.aviationweather.gov/metar/data
-https://poweroutage.us
-```
+The complete source inventory, exact current payload shapes, cadence, timestamp handling, DST behavior, and known limitations are maintained in [docs/ercot-sources.md](docs/ercot-sources.md).

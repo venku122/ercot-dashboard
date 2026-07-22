@@ -1,15 +1,16 @@
-version: "3.9"
-
 services:
   receiver:
-    image: ghcr.io/venku122/ercot-receiver:latest
+    image: ercot-receiver:local
+    build:
+      context: .
+      dockerfile: ercot-receiver/Dockerfile
     container_name: ercot-receiver
     ports:
       - "8080:8080"
     environment:
       HOST: 0.0.0.0
       PORT: 8080
-      # METRICS_API_KEY: "your-local-key"
+      METRICS_API_KEY: "${METRICS_API_KEY:?METRICS_API_KEY must be set for production}"
       # CACHE_TTL_SECONDS: 10
       # CACHE_CONTROL_MAX_AGE: 30
       # CORS_ORIGINS_EXTRA: "https://example.com,https://other.example.com"
@@ -21,17 +22,32 @@ services:
       # RATE_LIMIT_METRICS_RPM: 120
     volumes:
       - ./ercot-receiver/data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/status', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     restart: unless-stopped
 
   collector:
-    image: ghcr.io/venku122/ercot-collector:latest
+    image: ercot-collector:local
+    build:
+      context: ./ercot-collector
+      dockerfile: Dockerfile
     container_name: ercot-collector
     environment:
       METRICS_ENDPOINT: http://receiver:8080/api/ingest
-      # METRICS_API_KEY: "your-local-key"
+      METRICS_API_KEY: "${METRICS_API_KEY:?METRICS_API_KEY must be set for production}"
       # POWEROUTAGE_US_KEY: "your_poweroutage_key"
       # DATADOG_API_KEY: "optional-datadog-key"
       # DATADOG_APP_KEY: "optional-datadog-app-key"
     depends_on:
-      - receiver
+      receiver:
+        condition: service_healthy
     restart: unless-stopped

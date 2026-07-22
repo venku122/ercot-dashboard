@@ -1,4 +1,4 @@
-FROM denoland/deno:alpine
+FROM denoland/deno:alpine AS collector-test
 WORKDIR /src/app
 
 ENV DENO_DIR=/deno-dir
@@ -12,5 +12,8 @@ ADD *.ts ./
 RUN --mount=type=cache,target=/deno-cache DENO_DIR=/deno-cache deno cache --allow-import mod.ts \
     && mkdir -p /deno-dir \
     && cp -a /deno-cache/. /deno-dir/
+
+ADD fixtures ./fixtures
+RUN deno test --allow-read --allow-env --cached-only
 
 ENTRYPOINT ["deno", "run", "--allow-net", "--allow-env", "--cached-only", "--no-check", "mod.ts"]

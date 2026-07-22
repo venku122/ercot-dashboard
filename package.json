@@ -9,31 +9,45 @@
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint .",
     "lint:type-aware": "oxlint . --type-aware --type-check",
-    "format": "oxfmt .dockerignore .github/workflows/build-push-images.yml .gitignore frontend oxlint.config.ts package.json README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --write",
-    "format:check": "oxfmt .dockerignore .github/workflows/build-push-images.yml .gitignore frontend oxlint.config.ts package.json README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --check",
+    "format": "oxfmt .dockerignore .github/workflows docker-compose.yml docker-compose.dev.yml .gitignore docs e2e frontend scripts oxlint.config.ts package.json playwright.config.ts README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --ignore-path .oxfmtignore --write",
+    "format:check": "oxfmt .dockerignore .github/workflows docker-compose.yml docker-compose.dev.yml .gitignore docs e2e frontend scripts oxlint.config.ts package.json playwright.config.ts README.md tsconfig.json vite.config.ts ercot-collector ercot-receiver/server.py ercot-receiver/test_server.py ercot-receiver/README.md --ignore-path .oxfmtignore --check",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
+    "test:frontend": "vitest run",
+    "test:e2e": "playwright test",
+    "test:collector": "docker build --target collector-test -f ercot-collector/Dockerfile ercot-collector",
+    "test:collector:live": "docker run --rm --entrypoint deno ercot-collector:local run --allow-net --allow-env --cached-only live_verify.ts",
+    "test:performance": "python3 scripts/benchmark_receiver.py",
     "test:receiver": "python3 -m unittest discover -s ercot-receiver -p 'test*.py'",
-    "validate:commit": "pnpm run check && pnpm run test:receiver"
+    "validate:commit": "pnpm run check && pnpm run test:frontend && pnpm run test:receiver"
   },
   "dependencies": {
     "@radix-ui/react-separator": "^1.1.7",
+    "chart.js": "4.5.1",
+    "chartjs-adapter-date-fns": "3.0.0",
+    "chartjs-plugin-zoom": "2.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "4.4.0",
+    "hammerjs": "2.0.8",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@tailwindcss/vite": "^4.1.13",
+    "@types/hammerjs": "2.0.46",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@typescript/native-preview": "^7.0.0-dev.20260301.1",
     "@vitejs/plugin-react": "^5.0.4",
+    "jsdom": "29.1.1",
     "oxfmt": "^0.35.0",
     "oxlint": "^1.50.0",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.7.2",
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "vitest": "4.1.10"
   },
   "engines": {
     "node": ">=24"

@@ -1,3 +1,4 @@
 ercot-receiver/web/**
+**/fixtures/invalid.json
 frontend/public/vendor/**
 node_modules/**

@@ -1,53 +1,142 @@
-name: Build and push images
+name: Deterministic validation and images
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 11 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: ercot-dashboard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
+  static-unit:
+    name: static-unit
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+          cache: pnpm
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run test:frontend
+      - run: pnpm run test:receiver
+      - name: Verify secure Compose contracts
+        run: |
+          if env -u METRICS_API_KEY docker compose -f docker-compose.yml config --quiet; then
+            echo "production Compose unexpectedly accepted a missing METRICS_API_KEY"
+            exit 1
+          fi
+          METRICS_API_KEY=ci-contract-key docker compose -f docker-compose.yml config --quiet
+          env -u METRICS_API_KEY docker compose -f docker-compose.dev.yml config --quiet
 
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
+  collector-fixtures:
+    name: collector-fixtures
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: ercot-collector
+          file: ercot-collector/Dockerfile
+          target: collector-test
+          load: true
+          tags: ercot-collector-fixtures:ci
+          cache-from: type=gha,scope=collector-fixtures
+          cache-to: type=gha,mode=max,scope=collector-fixtures
 
-      - name: Run frontend checks
-        run: pnpm run check
+  e2e-vri:
+    name: e2e-vri
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:e2e
+      - if: ${{ failure() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-failure-${{ github.run_id }}
+          path: |
+            artifacts/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
-      - name: Run receiver unit tests
-        run: python3 -m unittest discover -s ercot-receiver -p 'test*.py'
+  performance:
+    name: performance
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:performance
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Verify browser performance budgets
+        run: >-
+          pnpm exec playwright test e2e/dashboard.spec.ts
+          --grep "lazy mounting, browser long tasks, and heap remain bounded"
+      - if: ${{ failure() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: performance-failure-${{ github.run_id }}
+          path: |
+            artifacts/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
-  build:
-    needs: check
+  docker-build:
+    name: docker-build (${{ matrix.name }})
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    needs: [static-unit, collector-fixtures, e2e-vri, performance]
     permissions:
       contents: read
       packages: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: ercot-receiver
@@ -57,34 +146,23 @@ jobs:
             context: ercot-collector
             file: ercot-collector/Dockerfile
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - uses: actions/checkout@v6
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
+      - id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}
           tags: |
             type=sha,format=short
-            type=raw,value=latest
-
-      - name: Build and push
-        uses: docker/build-push-action@v7
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -92,5 +170,18 @@ jobs:
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  live-source-scheduled:
+    name: live-source-scheduled
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - run: docker build -t ercot-collector:live ercot-collector
+      - run: >-
+          docker run --rm --entrypoint deno ercot-collector:live
+          run --allow-net --allow-env --cached-only live_verify.ts
