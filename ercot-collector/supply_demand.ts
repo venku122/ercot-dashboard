@@ -34,7 +34,8 @@ function points(rows: SupplyRow[], field: string) {
 
 export async function parseSupplyDemand(payload: SupplyPayload): Promise<SourceResult> {
   const sourceTimestamp = parseErcotTimestamp(payload.lastUpdated);
-  const actualRows = payload.data ?? [];
+  const sourceRows = payload.data ?? [];
+  const actualRows = sourceRows.filter((row) => Number(row.forecast ?? 0) === 0);
   const forecastRows = payload.forecast ?? [];
   const definitions: Array<[string, SupplyRow[], string]> = [
     ["ercot.supply_demand.demand_mw", actualRows, "demand"],
@@ -48,15 +49,24 @@ export async function parseSupplyDemand(payload: SupplyPayload): Promise<SourceR
     const series = points(rows, field);
     if (series.length) metrics.push(metricSeries(SOURCE_ID, metricName, series));
   }
-  if (!metrics.some((entry) => entry.metric_name.endsWith("demand_mw"))) {
+  const actualDemand = metrics.find(
+    (entry) => entry.metric_name === "ercot.supply_demand.demand_mw",
+  );
+  if (!actualDemand?.points.length) {
     throw new Error("supply_demand_zero_core_rows");
   }
+  const dataTimestamp = Math.max(...actualDemand.points.map((point) => point.timestamp ?? 0));
   return {
     metrics,
     events: [],
     sourceTimestamp,
+    dataTimestamp,
     payloadHash: await payloadHash(payload),
-    diagnostics: { actualRows: actualRows.length, forecastRows: forecastRows.length },
+    diagnostics: {
+      sourceRows: sourceRows.length,
+      actualRows: actualRows.length,
+      forecastRows: forecastRows.length,
+    },
   };
 }
 

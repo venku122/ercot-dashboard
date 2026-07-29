@@ -102,6 +102,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             last_attempt_ts INTEGER,
             last_success_ts INTEGER,
             source_timestamp_ts INTEGER,
+            data_timestamp_ts INTEGER,
             last_payload_hash TEXT,
             last_row_count INTEGER,
             consecutive_failures INTEGER NOT NULL DEFAULT 0,
@@ -126,6 +127,8 @@ def init_db(conn: sqlite3.Connection) -> None:
         )
     if "checkpoint_json" not in source_columns:
         conn.execute("ALTER TABLE collector_sources ADD COLUMN checkpoint_json TEXT")
+    if "data_timestamp_ts" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN data_timestamp_ts INTEGER")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS events (
@@ -475,8 +478,9 @@ def update_source_health(conn, attempt, current_ts=None):
             source_id, display_name, expected_interval_seconds, last_attempt_ts,
             last_success_ts, source_timestamp_ts, last_payload_hash,
             last_row_count, consecutive_failures, last_error, updated_at
-            , publication_mode, publication_interval_seconds, checkpoint_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            , publication_mode, publication_interval_seconds, checkpoint_json,
+            data_timestamp_ts
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_id) DO UPDATE SET
             display_name = excluded.display_name,
             expected_interval_seconds = excluded.expected_interval_seconds,
@@ -502,6 +506,11 @@ def update_source_health(conn, attempt, current_ts=None):
                 THEN collector_sources.checkpoint_json
                 ELSE excluded.checkpoint_json
             END,
+            data_timestamp_ts = CASE
+                WHEN excluded.data_timestamp_ts IS NULL
+                THEN collector_sources.data_timestamp_ts
+                ELSE excluded.data_timestamp_ts
+            END,
             updated_at = excluded.updated_at
         """,
         (
@@ -521,6 +530,7 @@ def update_source_health(conn, attempt, current_ts=None):
             publication_mode,
             publication_interval,
             checkpoint_json,
+            parse_timestamp(attempt.get("data_timestamp_ts")),
         ),
     )
     conn.commit()
@@ -531,11 +541,13 @@ def source_state(row, current_ts=None):
     interval = max(1, int(row[2]))
     last_success = row[4]
     source_ts = row[5]
+    data_ts = row[14] if row[14] is not None else source_ts
     failures = int(row[8] or 0)
     publication_mode = row[11] or "polling"
     publication_interval = row[12] or interval
     collection_age = None if last_success is None else max(0, now - int(last_success))
-    data_age = None if source_ts is None else max(0, now - int(source_ts))
+    source_age = None if source_ts is None else max(0, now - int(source_ts))
+    data_age = None if data_ts is None else max(0, now - int(data_ts))
     if last_success is None or failures >= 3:
         collection_state = "failed"
     elif failures > 0 or collection_age is None or collection_age > interval * 2:
@@ -562,6 +574,7 @@ def source_state(row, current_ts=None):
         "collection_state": collection_state,
         "freshness_state": freshness_state,
         "collection_age_seconds": collection_age,
+        "source_age_seconds": source_age,
         "data_age_seconds": data_age,
     }
 
@@ -573,7 +586,8 @@ def list_source_health(conn, current_ts=None):
                last_attempt_ts, last_success_ts, source_timestamp_ts,
                last_payload_hash, last_row_count, consecutive_failures,
                last_error, updated_at, publication_mode,
-               publication_interval_seconds, checkpoint_json
+               publication_interval_seconds, checkpoint_json,
+               data_timestamp_ts
         FROM collector_sources ORDER BY display_name
         """
     ).fetchall()
@@ -588,6 +602,7 @@ def list_source_health(conn, current_ts=None):
                 "last_attempt_ts": row[3],
                 "last_success_ts": row[4],
                 "source_timestamp_ts": row[5],
+                "data_timestamp_ts": row[14],
                 "last_payload_hash": row[6],
                 "last_row_count": row[7],
                 "consecutive_failures": row[8],
@@ -600,6 +615,7 @@ def list_source_health(conn, current_ts=None):
                 "collection_state": states["collection_state"],
                 "freshness_state": states["freshness_state"],
                 "collection_age_seconds": states["collection_age_seconds"],
+                "source_age_seconds": states["source_age_seconds"],
                 "data_age_seconds": states["data_age_seconds"],
             }
         )
