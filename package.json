@@ -18,6 +18,7 @@
     "test:collector:live": "docker run --rm --entrypoint deno ercot-collector:local run --allow-net --allow-env --cached-only live_verify.ts",
     "test:performance": "python3 scripts/benchmark_receiver.py",
     "test:receiver": "python3 -m unittest discover -s ercot-receiver -p 'test*.py'",
+    "test": "pnpm run test:frontend && pnpm run test:receiver",
     "validate:commit": "pnpm run check && pnpm run test:frontend && pnpm run test:receiver"
   },
   "dependencies": {

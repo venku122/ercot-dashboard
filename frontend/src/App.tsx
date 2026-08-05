@@ -650,9 +650,7 @@ export function App() {
               key={item.label}
             >
               <span>{item.label}</span>
-              <strong>
-                {overviewLoading ? "Loading…" : formatValue(item.value, item.unit, true)}
-              </strong>
+              <strong>{overviewLoading ? "Loading…" : formatValue(item.value, item.unit)}</strong>
             </article>
           ))}
           <article className="overview-card source-overview">

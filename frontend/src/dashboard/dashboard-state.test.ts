@@ -129,7 +129,7 @@ describe("statistics, freshness, and units", () => {
     expect(freshnessState(300, 300)).toBe("fresh");
     expect(freshnessState(700, 300)).toBe("delayed");
     expect(freshnessState(1300, 300)).toBe("stale");
-    expect(formatValue(-1234.5, "$/MWh")).toContain("-1,234.5");
+    expect(formatValue(-1234.5, "$/MWh")).toBe("-$1,234.50/MWh");
     expect(formatAge(3700)).toBe("1h old");
   });
 });

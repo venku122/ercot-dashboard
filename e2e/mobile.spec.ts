@@ -163,7 +163,7 @@ test("P0 negative price ranking is compact and accessible @mobile-core", async (
   await openPopulated(page, "negative");
   const summary = page.getByLabel("Settlement price summary");
   await expect(summary.getByText("HB_NORTH", { exact: true })).toBeVisible();
-  await expect(summary.getByText(/-42\.2 \$\/MWh/)).toBeVisible();
+  await expect(summary.getByText(/-\$42\.16\/MWh/)).toBeVisible();
   await expect(summary.getByRole("listitem")).toHaveCount(5);
   await summary.getByRole("button", { name: "Show all prices" }).click();
   const dialog = page.getByRole("dialog", { name: "Settlement price details" });
