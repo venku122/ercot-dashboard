@@ -8,6 +8,15 @@ on:
   schedule:
     - cron: "17 11 * * *"
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Validation suite to run on the selected ref
+        required: true
+        default: deterministic
+        type: choice
+        options:
+          - deterministic
+          - live-source
 
 permissions:
   contents: read
@@ -19,7 +28,7 @@ concurrency:
 jobs:
   static-unit:
     name: static-unit
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -49,7 +58,7 @@ jobs:
 
   collector-fixtures:
     name: collector-fixtures
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -67,7 +76,7 @@ jobs:
 
   e2e-vri:
     name: e2e-vri
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic') }}
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
@@ -95,7 +104,7 @@ jobs:
 
   mobile-webkit-vri:
     name: mobile-webkit-vri
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic')
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
@@ -129,7 +138,7 @@ jobs:
 
   performance:
     name: performance
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -163,7 +172,7 @@ jobs:
 
   docker-build:
     name: docker-build (${{ matrix.name }})
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic') }}
     needs: [static-unit, collector-fixtures, e2e-vri, mobile-webkit-vri, performance]
     permissions:
       contents: read
@@ -210,7 +219,7 @@ jobs:
 
   live-source-scheduled:
     name: live-source-scheduled
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'live-source') }}
     continue-on-error: true
     runs-on: ubuntu-24.04
     timeout-minutes: 15

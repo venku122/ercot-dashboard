@@ -1,4 +1,5 @@
 import {
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -23,6 +24,14 @@ import {
 } from "./dashboard/api";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
+import {
+  chartGroupDefinition,
+  criticalMetricDefinitions,
+  informationLevels,
+  initiallyCollapsedGroups,
+  reserveMarginPercent,
+  type CriticalMetricId,
+} from "./dashboard/information-architecture";
 import {
   navigateWindow,
   resetLive,
@@ -56,10 +65,7 @@ const overviewQueries = [
   { id: "demand", metric: "ercot.supply_demand.demand_mw" },
   { id: "capacity", metric: "ercot.supply_demand.available_capacity_mw" },
   { id: "frequency", metric: "ercot.Frequency.Current_Frequency" },
-  { id: "storage", metric: "ercot.storage.net_output_mw" },
-  { id: "grid-demand", metric: "ercot.Real_Time_Data.Actual_System_Demand" },
-  { id: "grid-capacity", metric: "ercot.Real_Time_Data.Total_System_Capacity" },
-  { id: "inertia", metric: "ercot.Real_Time_Data.Current_System_Inertia" },
+  { id: "price", metric: "ercot.pricing", tags: ["ercot_region:HB_HOUSTON"] },
 ] as const;
 
 const rangeOptions = [
@@ -313,8 +319,7 @@ export function App() {
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
-    if (!initialMobile) return new Set();
-    const collapsed = new Set(chartGroups.filter((group) => group !== "Grid conditions"));
+    const collapsed = initiallyCollapsedGroups(initialMobile);
     const inspected = chartDefinitions.find((chart) => chart.id === state.expandedChart);
     if (inspected) collapsed.delete(inspected.group);
     return collapsed;
@@ -520,31 +525,21 @@ export function App() {
     });
   }, []);
 
-  const overview = [
-    { label: "Demand", value: latest.get("demand")?.value ?? null, unit: "MW" },
-    { label: "Available capacity", value: latest.get("capacity")?.value ?? null, unit: "MW" },
-    { label: "Frequency", value: latest.get("frequency")?.value ?? null, unit: "Hz" },
-    {
-      label: "Storage net output",
-      value: latest.get("storage")?.value ?? null,
-      unit: "MW",
-      secondary: true,
-    },
-    {
-      label: "Unused capacity",
-      value:
-        latest.get("grid-capacity") && latest.get("grid-demand")
-          ? latest.get("grid-capacity")!.value - latest.get("grid-demand")!.value
-          : null,
-      unit: "MW",
-    },
-    {
-      label: "System inertia",
-      value: latest.get("inertia")?.value ?? null,
-      unit: "GW·s",
-      secondary: true,
-    },
-  ];
+  const demand = latest.get("demand")?.value ?? null;
+  const availableCapacity = latest.get("capacity")?.value ?? null;
+  const reserveMargin = reserveMarginPercent(demand, availableCapacity);
+  const criticalValues: Record<CriticalMetricId, number | null> = {
+    "available-capacity": availableCapacity,
+    demand,
+    frequency: latest.get("frequency")?.value ?? null,
+    "grid-status": null,
+    "real-time-price": latest.get("price")?.value ?? null,
+    "reserve-margin": reserveMargin,
+  };
+  const overview = criticalMetricDefinitions.map((definition) => ({
+    ...definition,
+    value: criticalValues[definition.id],
+  }));
 
   const newestOverviewAge = Math.max(
     0,
@@ -643,23 +638,43 @@ export function App() {
           </section>
         ) : null}
 
-        <section aria-label="Grid overview" className="overview-grid">
-          {overview.map((item) => (
-            <article
-              className={"overview-card " + (item.secondary ? "overview-card-secondary" : "")}
-              key={item.label}
-            >
-              <span>{item.label}</span>
-              <strong>{overviewLoading ? "Loading…" : formatValue(item.value, item.unit)}</strong>
-            </article>
-          ))}
-          <article className="overview-card source-overview">
-            <span>Collector sources</span>
-            <strong>
-              {healthCounts.healthy} healthy · {healthCounts.delayed} delayed · {healthCounts.stale}{" "}
-              stale · {healthCounts.failed} failed
-            </strong>
-          </article>
+        <section
+          aria-labelledby="critical-information-heading"
+          className="information-section information-critical"
+          data-information-level="critical"
+        >
+          <header className="information-heading">
+            <div>
+              <p className="eyebrow">Critical</p>
+              <h2 id="critical-information-heading">{informationLevels[0].label}</h2>
+            </div>
+            <p>{informationLevels[0].description}</p>
+          </header>
+          <section aria-label="Grid overview" className="overview-grid">
+            {overview.map((item) =>
+              item.id === "grid-status" ? (
+                isMobile ? null : (
+                  <article
+                    className="overview-card overview-status-card"
+                    data-condition={condition.state}
+                    data-metric-id={item.id}
+                    key={item.id}
+                  >
+                    <span>{item.label}</span>
+                    <strong>{condition.label}</strong>
+                    <small>{condition.detail}</small>
+                  </article>
+                )
+              ) : (
+                <article className="overview-card" data-metric-id={item.id} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>
+                    {overviewLoading ? "Loading…" : formatValue(item.value, item.unit)}
+                  </strong>
+                </article>
+              ),
+            )}
+          </section>
         </section>
 
         {isMobile ? (
@@ -686,6 +701,20 @@ export function App() {
             </Button>
           </section>
         ) : null}
+
+        <section
+          aria-labelledby="operational-information-heading"
+          className="information-section information-operational-intro"
+          data-information-level="operational"
+        >
+          <header className="information-heading">
+            <div>
+              <p className="eyebrow">Operational</p>
+              <h2 id="operational-information-heading">{informationLevels[1].label}</h2>
+            </div>
+            <p>{informationLevels[1].description}</p>
+          </header>
+        </section>
 
         {isMobile ? (
           <div className="mobile-summary-stack">
@@ -760,31 +789,6 @@ export function App() {
 
         {!isMobile ? (
           <>
-            <section aria-label="Source health" className="source-health-panel">
-              <div>
-                <p className="eyebrow">Freshness</p>
-                <h2>Collector source health</h2>
-              </div>
-              <div className="source-health-list">
-                {!sourceHealth.length && !loading ? (
-                  <span>No source health has been reported yet.</span>
-                ) : null}
-                {sourceHealth.map((source) => (
-                  <span
-                    className={"source-health-item status-" + source.state}
-                    key={source.source_id}
-                  >
-                    {source.display_name}: collection {source.collection_state} · data{" "}
-                    {source.freshness_state} · {formatAge(source.data_age_seconds)}
-                    {source.source_timestamp_ts
-                      ? " · source " + new Date(source.source_timestamp_ts * 1000).toLocaleString()
-                      : ""}
-                    {source.last_error ? " · " + source.last_error : ""}
-                  </span>
-                ))}
-              </div>
-            </section>
-
             {state.events ? (
               <section aria-label="ERCOT operations messages" className="events-panel">
                 <div>
@@ -842,86 +846,145 @@ export function App() {
           </>
         ) : null}
 
-        {chartGroups.map((group) => {
+        {chartGroups.map((group, index) => {
           const collapsed = collapsedGroups.has(group);
+          const groupInformation = chartGroupDefinition(group);
+          const previousGroup = index > 0 ? chartGroupDefinition(chartGroups[index - 1]!) : null;
+          const beginsAdvancedLayer =
+            groupInformation.level === "advanced" && previousGroup?.level !== "advanced";
           return (
-            <section className="chart-group" data-group={group} key={group}>
-              <button
-                aria-expanded={!collapsed}
-                aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
-                className="group-heading"
-                onClick={() =>
-                  setCollapsedGroups((current) => {
-                    const next = new Set(current);
-                    if (next.has(group)) next.delete(group);
-                    else next.add(group);
-                    return next;
-                  })
-                }
-                ref={(element) => {
-                  if (element) groupHeadingRefs.current.set(group, element);
-                  else groupHeadingRefs.current.delete(group);
-                }}
-              >
-                <span>{group}</span>
-                <span>{collapsed ? "Expand" : "Collapse"}</span>
-              </button>
-              {!collapsed ? (
-                <div className="chart-grid">
-                  {chartDefinitions
-                    .filter((chart) => chart.group === group)
-                    .map((chart) => (
-                      <Suspense
-                        fallback={
-                          <article className="chart-card chart-card-lazy" key={chart.id}>
-                            Loading chart workspace…
-                          </article>
-                        }
-                        key={chart.id}
-                      >
-                        <ChartCard
-                          chart={chart}
-                          compare={state.compare}
-                          events={state.events ? events : []}
-                          hiddenSeries={state.hiddenSeries}
-                          inspect={state.expandedChart === chart.id}
-                          legendMode={state.legendMode}
-                          loading={loading}
-                          mobile={isMobile}
-                          onInspect={() =>
-                            setState((current) => ({
-                              ...current,
-                              expandedChart: current.expandedChart === chart.id ? null : chart.id,
-                            }))
-                          }
-                          onResetZoom={() =>
-                            setState((current) => {
-                              const origin = zoomOriginRef.current;
-                              zoomOriginRef.current = null;
-                              return { ...current, time: origin ?? current.time };
-                            })
-                          }
-                          onSetCompare={(compare) =>
-                            setState((current) => ({ ...current, compare }))
-                          }
-                          onSoloSeries={soloSeries}
-                          onToggleSeries={toggleSeries}
-                          onVisibilityChange={setChartVisible}
-                          onZoom={onZoom}
-                          requestError={requestError}
-                          seriesData={seriesData}
-                          sourceHealth={
-                            chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null
-                          }
-                          time={state.time}
-                        />
-                      </Suspense>
-                    ))}
-                </div>
+            <Fragment key={group}>
+              {beginsAdvancedLayer ? (
+                <section
+                  aria-labelledby="advanced-information-heading"
+                  className="information-section information-advanced-intro"
+                  data-information-level="advanced"
+                >
+                  <header className="information-heading">
+                    <div>
+                      <p className="eyebrow">Advanced</p>
+                      <h2 id="advanced-information-heading">{informationLevels[2].label}</h2>
+                    </div>
+                    <p>{informationLevels[2].description}</p>
+                  </header>
+                </section>
               ) : null}
-            </section>
+              <section
+                className="chart-group"
+                data-group={group}
+                data-information-level={groupInformation.level}
+              >
+                <button
+                  aria-expanded={!collapsed}
+                  aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
+                  className="group-heading"
+                  onClick={() =>
+                    setCollapsedGroups((current) => {
+                      const next = new Set(current);
+                      if (next.has(group)) next.delete(group);
+                      else next.add(group);
+                      return next;
+                    })
+                  }
+                  ref={(element) => {
+                    if (element) groupHeadingRefs.current.set(group, element);
+                    else groupHeadingRefs.current.delete(group);
+                  }}
+                >
+                  <span>
+                    {group}
+                    <small>{groupInformation.description}</small>
+                  </span>
+                  <span>{collapsed ? "Expand" : "Collapse"}</span>
+                </button>
+                {!collapsed ? (
+                  <div className="chart-grid">
+                    {chartDefinitions
+                      .filter((chart) => chart.group === group)
+                      .map((chart) => (
+                        <Suspense
+                          fallback={
+                            <article className="chart-card chart-card-lazy" key={chart.id}>
+                              Loading chart workspace…
+                            </article>
+                          }
+                          key={chart.id}
+                        >
+                          <ChartCard
+                            chart={chart}
+                            compare={state.compare}
+                            events={state.events ? events : []}
+                            hiddenSeries={state.hiddenSeries}
+                            inspect={state.expandedChart === chart.id}
+                            legendMode={state.legendMode}
+                            loading={loading}
+                            mobile={isMobile}
+                            onInspect={() =>
+                              setState((current) => ({
+                                ...current,
+                                expandedChart: current.expandedChart === chart.id ? null : chart.id,
+                              }))
+                            }
+                            onResetZoom={() =>
+                              setState((current) => {
+                                const origin = zoomOriginRef.current;
+                                zoomOriginRef.current = null;
+                                return { ...current, time: origin ?? current.time };
+                              })
+                            }
+                            onSetCompare={(compare) =>
+                              setState((current) => ({ ...current, compare }))
+                            }
+                            onSoloSeries={soloSeries}
+                            onToggleSeries={toggleSeries}
+                            onVisibilityChange={setChartVisible}
+                            onZoom={onZoom}
+                            requestError={requestError}
+                            seriesData={seriesData}
+                            sourceHealth={
+                              chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null
+                            }
+                            time={state.time}
+                          />
+                        </Suspense>
+                      ))}
+                  </div>
+                ) : null}
+              </section>
+            </Fragment>
           );
         })}
+
+        {!isMobile ? (
+          <section
+            aria-label="Source health"
+            className="source-health-panel"
+            data-information-level="advanced"
+          >
+            <div>
+              <p className="eyebrow">Freshness</p>
+              <h2>Collector source health</h2>
+            </div>
+            <div className="source-health-list">
+              {!sourceHealth.length && !loading ? (
+                <span>No source health has been reported yet.</span>
+              ) : null}
+              {sourceHealth.map((source) => (
+                <span
+                  className={"source-health-item status-" + source.state}
+                  key={source.source_id}
+                >
+                  {source.display_name}: collection {source.collection_state} · data{" "}
+                  {source.freshness_state} · {formatAge(source.data_age_seconds)}
+                  {source.source_timestamp_ts
+                    ? " · source " + new Date(source.source_timestamp_ts * 1000).toLocaleString()
+                    : ""}
+                  {source.last_error ? " · " + source.last_error : ""}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </main>
 
       {state.expandedChart ? <div aria-hidden="true" className="inspect-backdrop" /> : null}
