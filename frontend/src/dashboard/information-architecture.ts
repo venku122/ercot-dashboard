@@ -1,5 +1,14 @@
 export type InformationLevel = "advanced" | "critical" | "operational";
 
+export type DashboardViewId =
+  | "advanced"
+  | "diagnostics"
+  | "generation"
+  | "market"
+  | "overview"
+  | "reliability"
+  | "weather";
+
 export type CriticalMetricId =
   | "available-capacity"
   | "demand"
@@ -103,9 +112,79 @@ export const chartGroupDefinitions = [
   name: string;
 }>;
 
+export const dashboardViewDefinitions = [
+  {
+    id: "overview",
+    label: "Overview",
+    description: "Grid condition, critical readings, calculated context, and current alerts.",
+    groups: ["Grid conditions"],
+  },
+  {
+    id: "generation",
+    label: "Generation",
+    description: "Fuel mix, renewable output, and storage behavior.",
+    groups: ["Generation"],
+  },
+  {
+    id: "reliability",
+    label: "Reliability",
+    description: "Capacity headroom, outages, emergency conditions, and ERCOT notices.",
+    groups: ["Reliability"],
+  },
+  {
+    id: "market",
+    label: "Market",
+    description: "Real-time prices, settlement-point ranking, and market context.",
+    groups: ["Market"],
+  },
+  {
+    id: "weather",
+    label: "Weather",
+    description: "Temperature and wind observations near major grid centers.",
+    groups: ["Weather"],
+  },
+  {
+    id: "advanced",
+    label: "Advanced",
+    description: "Engineering signals, ancillary products, and collector telemetry.",
+    groups: ["Advanced grid", "Ancillary services", "Operations"],
+  },
+  {
+    id: "diagnostics",
+    label: "Diagnostics",
+    description: "Collection health, source freshness, timestamps, and failure detail.",
+    groups: [],
+  },
+] as const satisfies ReadonlyArray<{
+  description: string;
+  groups: readonly string[];
+  id: DashboardViewId;
+  label: string;
+}>;
+
 const groupByName = new Map<string, (typeof chartGroupDefinitions)[number]>(
   chartGroupDefinitions.map((group) => [group.name, group]),
 );
+
+const dashboardViewById = new Map<DashboardViewId, (typeof dashboardViewDefinitions)[number]>(
+  dashboardViewDefinitions.map((view) => [view.id, view]),
+);
+
+const dashboardViewByGroup = new Map<string, DashboardViewId>(
+  dashboardViewDefinitions.flatMap((view) => view.groups.map((group) => [group, view.id])),
+);
+
+export function dashboardViewDefinition(id: DashboardViewId) {
+  const definition = dashboardViewById.get(id);
+  if (!definition) throw new Error(`unknown_dashboard_view:${id}`);
+  return definition;
+}
+
+export function dashboardViewForGroup(group: string) {
+  const view = dashboardViewByGroup.get(group);
+  if (!view) throw new Error(`unassigned_chart_group:${group}`);
+  return view;
+}
 
 export function chartGroupDefinition(name: string) {
   const definition = groupByName.get(name);
