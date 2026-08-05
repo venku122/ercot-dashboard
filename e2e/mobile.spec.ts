@@ -184,11 +184,12 @@ test("P0 long source failures are summarized with complete drawer detail @mobile
   page,
 }) => {
   await openPopulated(page, "failed");
-  const summary = page.getByLabel("Source health summary");
+  const summary = page.getByLabel("System health summary");
+  await expect(summary).toContainText("1 Data Source Needs Attention");
   await expect(summary).toContainText("Energy Storage");
   await expect(summary).not.toContainText(LONG_SOURCE_ERROR);
-  await summary.getByRole("button", { name: "Review source health" }).click();
-  const dialog = page.getByRole("dialog", { name: "Source health details" });
+  await summary.getByRole("button", { name: "Review system health diagnostics" }).click();
+  const dialog = page.getByRole("dialog", { name: "System health details" });
   await expect(dialog.getByText(LONG_SOURCE_ERROR, { exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
@@ -355,7 +356,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "failed");
   await page.reload();
-  const sourceSummary = page.getByLabel("Source health summary");
+  const sourceSummary = page.getByLabel("System health summary");
   await expect.soft(sourceSummary).toHaveScreenshot("mobile-source-failure-summary.png");
   await page.getByRole("button", { name: "Generation section" }).click();
   const storage = page.locator('[data-chart-id="storage"]');
@@ -364,9 +365,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect(storage.getByText("Showing stale data")).toBeVisible();
   await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png");
   await sourceSummary.scrollIntoViewIfNeeded();
-  await sourceSummary.getByRole("button", { name: "Review source health" }).click();
+  await sourceSummary.getByRole("button", { name: "Review system health diagnostics" }).click();
   await expect
-    .soft(page.getByRole("dialog", { name: "Source health details" }))
+    .soft(page.getByRole("dialog", { name: "System health details" }))
     .toHaveScreenshot("mobile-source-failure-drawer.png");
   await page.keyboard.press("Escape");
 

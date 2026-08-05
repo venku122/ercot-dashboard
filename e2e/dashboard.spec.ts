@@ -269,6 +269,28 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await expect(storage.getByText("Showing stale data")).toBeVisible();
 });
 
+test("system health is summarized by default with full diagnostics on demand", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+  const summary = page.getByLabel("System health summary");
+  await expect(summary).toContainText("Data Sources Healthy");
+  await expect(summary).not.toContainText("ERCOT Fuel Mix:");
+  await summary.getByRole("button", { name: "Review system health diagnostics" }).click();
+  const dialog = page.getByRole("dialog", { name: "System health details" });
+  await expect(dialog).toContainText("ERCOT Fuel Mix");
+  await expect(dialog).toContainText("Collection healthy · data fresh");
+  await page.keyboard.press("Escape");
+  await expect(
+    summary.getByRole("button", { name: "Review system health diagnostics" }),
+  ).toBeFocused();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "stale");
+  await page.reload();
+  await expect(summary).toContainText("1 Data Source Needs Attention");
+  await expect(summary).toContainText("Energy Storage Resources failed");
+});
+
 test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page }) => {
   await page.addInitScript(() => {
     const durations: number[] = [];
