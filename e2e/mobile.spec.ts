@@ -22,7 +22,13 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
 }) => {
   await openPopulated(page);
   const viewportHeight = page.viewportSize()?.height ?? 956;
-  for (const label of ["Demand", "Available capacity", "Unused capacity", "Frequency"]) {
+  for (const label of [
+    "Demand",
+    "Available capacity",
+    "Reserve margin",
+    "Frequency",
+    "Real-time price",
+  ]) {
     const card = page.getByLabel("Grid overview").getByText(label, { exact: true });
     await expect(card).toBeVisible();
   }
@@ -37,6 +43,8 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
   expect(demand && demand.y + demand.height).toBeLessThanOrEqual(viewportHeight);
   expect(frequency && frequency.y + frequency.height).toBeLessThanOrEqual(viewportHeight);
   await expect(page.getByLabel("Global dashboard controls")).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Grid at a glance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Operational detail" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Controls" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Grid conditions Collapse" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Generation Expand" })).toBeVisible();

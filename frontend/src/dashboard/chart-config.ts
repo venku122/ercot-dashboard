@@ -1,4 +1,5 @@
 import type { ChartDefinition } from "./types";
+import { chartGroupDefinitions } from "./information-architecture";
 
 const colors = {
   amber: "#fbbf24",
@@ -66,7 +67,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "reserves",
-    group: "Grid conditions",
+    group: "Advanced grid",
     title: "Operating reserves",
     description: "Physical responsive capability and ancillary capacity published by ERCOT.",
     unit: "MW",
@@ -302,7 +303,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "dc-ties",
-    group: "Market",
+    group: "Advanced grid",
     title: "DC tie flows",
     description:
       "Individual ERCOT DC tie flows; the source sign convention is shown without inversion.",
@@ -368,7 +369,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "capacity-headroom",
-    group: "Grid conditions",
+    group: "Reliability",
     title: "Unused capacity and headroom",
     description: "Available system capacity minus actual system demand, alongside PRC.",
     unit: "MW",
@@ -405,7 +406,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "time-error",
-    group: "Grid conditions",
+    group: "Advanced grid",
     title: "Time error and delta",
     description: "ERCOT instantaneous time error and the change between consecutive readings.",
     unit: "seconds",
@@ -430,7 +431,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "inertia",
-    group: "Grid conditions",
+    group: "Advanced grid",
     title: "System inertia",
     description: "Current ERCOT system inertia from the real-time conditions feed.",
     unit: "GW·s",
@@ -678,7 +679,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
 ];
 
-export const chartGroups = [...new Set(chartDefinitions.map((definition) => definition.group))];
+export const chartGroups = chartGroupDefinitions.map((definition) => definition.name);
 
 export function seriesKey(chartId: string, seriesId: string) {
   return `${chartId}:${seriesId}`;

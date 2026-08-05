@@ -156,7 +156,11 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await installApi(page);
   await page.goto("/?range=21600&compare=none&events=1");
   await expect(page.getByRole("heading", { name: "ERCOT analytical dashboard" })).toBeVisible();
-  await expect(page.getByText("Fixture operations message", { exact: false })).toBeVisible();
+  await expect(
+    page
+      .getByLabel("ERCOT operations messages")
+      .getByText("Fixture operations message", { exact: false }),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Latest settlement point prices" })).toBeVisible();
 
   await page.getByRole("button", { name: "Pause" }).click();
@@ -277,11 +281,13 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const session = await page.context().newCDPSession(page);
   await session.send("Performance.enable");
   await page.goto("/");
-  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(19);
+  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(12);
   const total = await page.locator("[data-chart-id]").count();
   const initiallyMounted = await page.locator('[data-chart-id][data-mounted="true"]').count();
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();
-  expect(total).toBe(19);
+  expect(total).toBe(12);
+  await expect(page.locator('[data-chart-id="time-error"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Advanced grid Expand" })).toBeVisible();
   expect(initiallyMounted).toBeLessThanOrEqual(4);
   expect(initiallyVisible).toBeLessThanOrEqual(4);
   const heapBefore = await session.send("Performance.getMetrics");
@@ -320,7 +326,12 @@ test("inactive and collapsed groups are not requested and legacy parity views ar
   const requests: string[][] = [];
   await installApi(page, "normal", requests);
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Grid at a glance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Operational detail" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Advanced analysis" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Unused capacity and headroom" })).toBeAttached();
+  await expect(page.getByRole("button", { name: "Advanced grid Expand" })).toBeVisible();
+  await page.getByRole("button", { name: "Advanced grid Expand" }).click();
   await expect(page.getByRole("heading", { name: "Time error and delta" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "System inertia" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "Emergency Energy Alert level" })).toBeAttached();
@@ -328,6 +339,7 @@ test("inactive and collapsed groups are not requested and legacy parity views ar
     page.getByRole("heading", { name: "PowerOutage.us customer outages" }),
   ).toBeAttached();
   await expect(page.getByRole("heading", { name: "Nearby METAR temperature" })).toBeAttached();
+  await page.getByRole("button", { name: "Operations Expand" }).click();
   await expect(page.getByRole("heading", { name: "Collector duty cycle" })).toBeAttached();
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
@@ -337,14 +349,7 @@ test("inactive and collapsed groups are not requested and legacy parity views ar
   const requestCount = requests.length;
   await page.getByLabel("Compare time").selectOption("week");
   await expect.poll(() => requests.length).toBeGreaterThanOrEqual(requestCount);
-  const gridPrefixes = [
-    "supply-demand:",
-    "frequency:",
-    "reserves:",
-    "capacity-headroom:",
-    "time-error:",
-    "inertia:",
-  ];
+  const gridPrefixes = ["supply-demand:", "frequency:"];
   expect(
     requests
       .slice(requestCount)
@@ -384,7 +389,7 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
-  await expect(cards).toHaveCount(19);
+  await expect(cards).toHaveCount(12);
   for (let index = 0; index < (await cards.count()); index += 1) {
     const card = cards.nth(index);
     await card.scrollIntoViewIfNeeded();

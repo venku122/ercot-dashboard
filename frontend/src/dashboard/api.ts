@@ -24,7 +24,7 @@ type SeriesQuery = {
   until: number;
 };
 
-export type LatestQuery = { id: string; metric: string; tags?: string[] };
+export type LatestQuery = { id: string; metric: string; tags?: readonly string[] };
 export type LatestResult = { point: { tags: string[]; ts: number; value: number } | null };
 export type RankingRow = { tag: string; ts: number; value: number };
 

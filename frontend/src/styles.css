@@ -247,6 +247,40 @@ main {
   padding: 24px 0;
 }
 
+.information-section {
+  display: grid;
+  gap: 14px;
+}
+
+.information-heading {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(280px, 1fr);
+  align-items: end;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.information-heading h2,
+.information-heading p {
+  margin: 0;
+}
+
+.information-heading > p {
+  max-width: 680px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.information-advanced-intro {
+  margin-top: 10px;
+}
+
+.information-advanced-intro .information-heading {
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
 .global-error {
   border: 1px solid rgba(248, 113, 113, 0.5);
   border-radius: 12px;
@@ -257,7 +291,7 @@ main {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -291,6 +325,40 @@ main {
 .overview-card strong {
   font-size: clamp(1rem, 1.4vw, 1.35rem);
   font-variant-numeric: tabular-nums;
+}
+
+.overview-card small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.overview-status-card {
+  border-color: rgba(52, 211, 153, 0.32);
+  background: linear-gradient(145deg, rgba(6, 78, 59, 0.28), var(--panel));
+}
+
+.overview-status-card strong {
+  color: #a7f3d0;
+  letter-spacing: 0.05em;
+}
+
+.overview-status-card[data-condition="warning"] {
+  border-color: rgba(251, 191, 36, 0.42);
+  background: linear-gradient(145deg, rgba(120, 53, 15, 0.28), var(--panel));
+}
+
+.overview-status-card[data-condition="warning"] strong {
+  color: #fde68a;
+}
+
+.overview-status-card[data-condition="failure"] {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: linear-gradient(145deg, rgba(127, 29, 29, 0.3), var(--panel));
+}
+
+.overview-status-card[data-condition="failure"] strong {
+  color: #fecaca;
 }
 
 .source-overview strong {
@@ -395,6 +463,19 @@ main {
   font-size: 0.7rem;
   font-weight: 650;
   text-transform: uppercase;
+}
+
+.group-heading small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.chart-group[data-information-level="advanced"] .group-heading {
+  color: #cbd5e1;
 }
 
 .chart-grid {
@@ -966,6 +1047,21 @@ footer p {
     order: 0;
   }
 
+  .information-heading {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding-bottom: 8px;
+  }
+
+  .information-heading h2 {
+    font-size: 1rem;
+  }
+
+  .information-heading > p {
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
   .mobile-grid-condition {
     order: 1;
     display: grid;
@@ -1023,9 +1119,21 @@ footer p {
   }
 
   .overview-grid {
-    order: 2;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  .information-critical {
+    order: 2;
+  }
+
+  .information-operational-intro {
+    order: 4;
+  }
+
+  .information-advanced-intro {
+    order: 6;
+    margin-top: 6px;
   }
 
   .overview-card {
@@ -1044,25 +1152,25 @@ footer p {
     font-size: clamp(1rem, 5vw, 1.25rem);
   }
 
-  .overview-card:nth-child(1) {
+  .overview-card[data-metric-id="demand"] {
     order: 1;
   }
 
-  .overview-card:nth-child(2) {
+  .overview-card[data-metric-id="available-capacity"] {
     order: 2;
   }
 
-  .overview-card:nth-child(5) {
+  .overview-card[data-metric-id="reserve-margin"] {
     order: 3;
   }
 
-  .overview-card:nth-child(3) {
+  .overview-card[data-metric-id="frequency"] {
     order: 4;
   }
 
-  .overview-card-secondary,
-  .source-overview {
-    display: none;
+  .overview-card[data-metric-id="real-time-price"] {
+    order: 5;
+    grid-column: 1 / -1;
   }
 
   .mobile-quick-controls {
@@ -1197,6 +1305,10 @@ footer p {
     min-height: 44px;
     scroll-margin-top: max(12px, env(safe-area-inset-top));
     padding: 10px 2px;
+  }
+
+  .group-heading small {
+    display: none;
   }
 
   .chart-group {
