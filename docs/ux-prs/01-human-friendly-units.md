@@ -64,3 +64,5 @@ third-party snippet URL that now returns 404. Cached `main` builds concealed the
 failure; a clean PR build could not resolve it. The scheduler is now a small
 local module with a direct deterministic test. Its immediate first iteration,
 fixed cadence, skipped overdue intervals, and duty-cycle output are unchanged.
+The dependency-cache layer copies the local scheduler alongside `deps.ts`, so
+the image remains cache-efficient and independently buildable.
