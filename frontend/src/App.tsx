@@ -751,7 +751,10 @@ export function App() {
 
         {isMobile ? (
           <div className="mobile-summary-stack">
-            <section aria-label="Operations notice summary" className="mobile-summary-row">
+            <section
+              aria-label="Operations notice summary"
+              className="mobile-summary-row operations-summary-row"
+            >
               <div>
                 <span className="summary-label">Operations</span>
                 <strong>

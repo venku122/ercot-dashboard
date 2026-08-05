@@ -1353,6 +1353,10 @@ footer p {
     gap: 8px;
   }
 
+  .operations-summary-row {
+    height: 70px;
+  }
+
   .mobile-summary-row > div {
     min-width: 0;
   }
@@ -1642,6 +1646,10 @@ footer p {
 
   .mobile-summary-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .operations-summary-row {
+    height: auto;
   }
 
   .mobile-summary-row button {
