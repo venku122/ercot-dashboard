@@ -212,6 +212,58 @@ export async function loadTrendBaselines(
   );
 }
 
+export async function loadDerivedContext(
+  now: number,
+  signal: AbortSignal,
+): Promise<Map<string, Point[]>> {
+  const queries: SeriesQuery[] = [
+    {
+      id: "derived:forecast-demand",
+      max_points: 288,
+      metric: "ercot.supply_demand.forecast_demand_mw",
+      since: Math.round(now),
+      stats_since: Math.round(now),
+      tags: [],
+      until: Math.round(now + 24 * 3600),
+    },
+    {
+      id: "derived:price-history",
+      max_points: 288,
+      metric: "ercot.pricing",
+      since: Math.round(now - 24 * 3600),
+      stats_since: Math.round(now - 24 * 3600),
+      tags: ["ercot_region:HB_HOUSTON"],
+      until: Math.round(now),
+    },
+    {
+      id: "derived:demand-yesterday",
+      max_points: 60,
+      metric: "ercot.supply_demand.demand_mw",
+      since: Math.round(now - 25 * 3600),
+      stats_since: Math.round(now - 25 * 3600),
+      tags: [],
+      until: Math.round(now - 23 * 3600),
+    },
+  ];
+  const response = await fetchJson<{ series: SeriesResult[] }>(
+    "/api/series/batch",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ queries }),
+    },
+    signal,
+  );
+  return new Map(
+    response.series.map((entry) => [
+      entry.id,
+      (entry.points ?? []).filter(
+        ([timestamp, value]) => Number.isFinite(timestamp) && Number.isFinite(value),
+      ),
+    ]),
+  );
+}
+
 export async function loadPriceRanking(signal: AbortSignal): Promise<RankingRow[]> {
   const params = new URLSearchParams({
     metric: "ercot.pricing",

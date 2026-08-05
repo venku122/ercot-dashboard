@@ -60,6 +60,12 @@ export function formatValue(value: number | null, unit: string): string {
   return `${formatted} ${normalized.unit}`;
 }
 
+export function formatSignedValue(value: number | null, unit: string): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  if (value === 0) return formatValue(0, unit);
+  return `${value > 0 ? "+" : "−"}${formatValue(Math.abs(value), unit)}`;
+}
+
 export function formatAge(seconds: number | null): string {
   if (seconds === null) return "unknown age";
   if (seconds < 60) return `${seconds}s old`;

@@ -1,4 +1,4 @@
-import { formatValue } from "./units";
+import { formatSignedValue } from "./units";
 
 export type HeroTrendDirection = "down" | "steady" | "unavailable" | "up";
 
@@ -52,7 +52,7 @@ export function buildHeroTrend(
   return {
     arrow: delta > 0 ? "▲" : "▼",
     comparisonLabel: "Last hour",
-    deltaLabel: `${delta > 0 ? "+" : "−"}${formatValue(Math.abs(delta), unit)}`,
+    deltaLabel: formatSignedValue(delta, unit),
     direction: delta > 0 ? "up" : "down",
     observedAt,
     timestampLabel,

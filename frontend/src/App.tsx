@@ -16,6 +16,7 @@ import { MobileDialog } from "./components/MobileDialog";
 import { Button } from "./components/ui/button";
 import {
   loadEvents,
+  loadDerivedContext,
   loadLatest,
   loadPriceRanking,
   loadSeries,
@@ -28,6 +29,11 @@ import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
 import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
+import {
+  buildDerivedMetrics,
+  derivedLatestQueries,
+  type LatestPoint,
+} from "./dashboard/derived-metrics";
 import {
   chartGroupDefinition,
   criticalMetricDefinitions,
@@ -359,10 +365,10 @@ export function App() {
   const seriesDataRef = useRef(seriesData);
   const zoomOriginRef = useRef<TimeState | null>(null);
   const [sourceHealth, setSourceHealth] = useState<SourceHealth[]>([]);
-  const [latest, setLatest] = useState<Map<string, { ts: number; value: number } | null>>(
-    new Map(),
-  );
+  const [latest, setLatest] = useState<Map<string, LatestPoint>>(new Map());
   const [trendBaselines, setTrendBaselines] = useState<Map<string, TrendBaseline>>(new Map());
+  const [derivedContext, setDerivedContext] = useState<Map<string, [number, number][]>>(new Map());
+  const [overviewAsOf, setOverviewAsOf] = useState(nowSeconds());
   const [priceRanking, setPriceRanking] = useState<RankingRow[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -468,20 +474,32 @@ export function App() {
     const trendUntil = nowSeconds();
     void Promise.all([
       loadSourceHealth(controller.signal),
-      loadLatest([...overviewQueries], controller.signal),
+      loadLatest([...overviewQueries, ...derivedLatestQueries], controller.signal),
       loadTrendBaselines([...overviewQueries], trendUntil, controller.signal).catch(
         () => new Map<string, TrendBaseline>(),
       ),
+      loadDerivedContext(trendUntil, controller.signal).catch(() => new Map()),
       loadPriceRanking(controller.signal),
       state.events ? loadEvents(state.time, controller.signal) : Promise.resolve([]),
     ])
-      .then(([nextHealth, nextLatest, nextTrendBaselines, nextRanking, nextEvents]) => {
-        setSourceHealth(nextHealth);
-        setLatest(nextLatest);
-        setTrendBaselines(nextTrendBaselines);
-        setPriceRanking(nextRanking);
-        setEvents(nextEvents);
-      })
+      .then(
+        ([
+          nextHealth,
+          nextLatest,
+          nextTrendBaselines,
+          nextDerivedContext,
+          nextRanking,
+          nextEvents,
+        ]) => {
+          setSourceHealth(nextHealth);
+          setLatest(nextLatest);
+          setTrendBaselines(nextTrendBaselines);
+          setDerivedContext(nextDerivedContext);
+          setOverviewAsOf(trendUntil);
+          setPriceRanking(nextRanking);
+          setEvents(nextEvents);
+        },
+      )
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setRequestError(error instanceof Error ? error.message : String(error));
@@ -644,6 +662,16 @@ export function App() {
     ),
     "reserve-margin": buildHeroTrend(reserveMargin, reserveBaseline, "%", reserveObservedAt),
   };
+  const derivedMetrics = useMemo(
+    () =>
+      buildDerivedMetrics({
+        context: derivedContext,
+        latest,
+        now: overviewAsOf,
+        trendBaselines,
+      }),
+    [derivedContext, latest, overviewAsOf, trendBaselines],
+  );
   const overview = criticalMetricDefinitions.map((definition) => ({
     ...definition,
     trend: heroTrends[definition.id],
@@ -870,6 +898,43 @@ export function App() {
             </div>
             <p>{informationLevels[1].description}</p>
           </header>
+        </section>
+
+        <section
+          aria-labelledby="derived-insights-heading"
+          className="derived-insights-section"
+          data-information-level="operational"
+        >
+          <header className="derived-insights-heading">
+            <div>
+              <p className="eyebrow">Calculated context</p>
+              <h2 id="derived-insights-heading">Derived grid insights</h2>
+            </div>
+            <p>Transparent calculations from current readings and bounded comparison windows.</p>
+          </header>
+          <div aria-label="Derived grid metrics" className="derived-insights-grid">
+            {derivedMetrics.map((metric) => {
+              const valueLabel = overviewLoading ? "…" : metric.valueLabel;
+              const detail = overviewLoading ? "Loading required source data…" : metric.detail;
+              return (
+                <article
+                  aria-label={`${metric.label}: ${valueLabel}. ${detail} Formula: ${metric.formula}.`}
+                  className="derived-insight-card"
+                  data-derived-available={!overviewLoading && metric.available}
+                  data-derived-metric={metric.id}
+                  key={metric.id}
+                >
+                  <span>{metric.label}</span>
+                  <strong>{valueLabel}</strong>
+                  <small>{detail}</small>
+                  <p>
+                    <span>Formula</span>
+                    {metric.formula}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
         </section>
 
         {isMobile ? (
