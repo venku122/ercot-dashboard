@@ -379,10 +379,10 @@ test("visual regression storage charging and operations event", async ({ page })
   await storage.evaluate((element) => element.scrollIntoView({ block: "end" }));
   await expect(storage).toHaveAttribute("data-visible", "true");
   await expect(storage.locator(".chart-placeholder")).toHaveCount(0);
-  await expect(storage).toHaveScreenshot("storage-charging.png");
+  await expect.soft(storage).toHaveScreenshot("storage-charging.png");
   const events = page.getByRole("region", { name: "ERCOT operations messages" });
   await events.scrollIntoViewIfNeeded();
-  await expect(events).toHaveScreenshot("operations-event.png");
+  await expect.soft(events).toHaveScreenshot("operations-event.png");
 });
 
 test("visual regression analytical dashboard", async ({ page }) => {

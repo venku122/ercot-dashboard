@@ -50,6 +50,8 @@ available in the advanced layer, which defaults collapsed on desktop and mobile.
 - A deterministic manual-dispatch mode runs the same CI matrix for stacked PRs
   whose base is not `main`; live-source verification remains a separate explicit
   dispatch choice and never runs as part of that deterministic gate.
+- Paired desktop visual assertions report both divergences in one artifact while
+  retaining a failing job conclusion, matching the mobile VRI evidence flow.
 
 ## Accessibility impact
 
