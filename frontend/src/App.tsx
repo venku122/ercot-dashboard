@@ -24,6 +24,7 @@ import {
 } from "./dashboard/api";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
+import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
 import {
   chartGroupDefinition,
   criticalMetricDefinitions,
@@ -284,10 +285,6 @@ function DashboardControls({
   );
 }
 
-function sourcePriority(source: SourceHealth) {
-  return { failed: 0, stale: 1, delayed: 2, healthy: 3 }[source.state];
-}
-
 function activeOperationalEvents(events: EventRecord[]) {
   return events.filter((event) => {
     const status = event.status?.toLowerCase() ?? "";
@@ -458,15 +455,9 @@ export function App() {
     () => new Map(sourceHealth.map((source) => [source.source_id, source])),
     [sourceHealth],
   );
-  const sortedHealth = useMemo(
-    () => [...sourceHealth].sort((left, right) => sourcePriority(left) - sourcePriority(right)),
-    [sourceHealth],
-  );
-  const healthCounts = useMemo(() => {
-    const counts = { healthy: 0, delayed: 0, stale: 0, failed: 0 };
-    for (const source of sourceHealth) counts[source.state] += 1;
-    return counts;
-  }, [sourceHealth]);
+  const sortedHealth = useMemo(() => sortDiagnostics(sourceHealth), [sourceHealth]);
+  const diagnostics = useMemo(() => summarizeDiagnostics(sourceHealth), [sourceHealth]);
+  const healthCounts = diagnostics.counts;
   const activeEvents = useMemo(() => activeOperationalEvents(events), [events]);
 
   const onZoom = useCallback((start: number, end: number) => {
@@ -562,14 +553,18 @@ export function App() {
           detail: "Grid conditions are within the observed operating range",
           state: "normal",
         };
-  const worstSource = sortedHealth.find((source) => source.state !== "healthy");
-  const sourceSummary = worstSource
-    ? worstSource.display_name.replace(/^ERCOT /, "") +
+  const sourceDetail = diagnostics.worstSource
+    ? diagnostics.worstSource.display_name.replace(/^ERCOT /, "") +
       " " +
-      worstSource.state +
+      diagnostics.worstSource.state +
       " · data " +
-      formatAge(worstSource.data_age_seconds)
-    : "Sources: " + String(healthCounts.healthy) + " healthy";
+      formatAge(diagnostics.worstSource.data_age_seconds)
+    : diagnostics.state === "healthy"
+      ? String(healthCounts.healthy) +
+        " source" +
+        (healthCounts.healthy === 1 ? " is" : "s are") +
+        " reporting normally"
+      : "No source health has been reported yet";
 
   const controls = {
     onError: setRequestError,
@@ -738,14 +733,19 @@ export function App() {
                 Review
               </Button>
             </section>
-            <section aria-label="Source health summary" className="mobile-summary-row">
-              <div>
-                <span className="summary-label">Freshness</span>
-                <strong>{sourceSummary}</strong>
+            <section
+              aria-label="System health summary"
+              className="mobile-summary-row diagnostics-summary"
+              data-diagnostics-state={diagnostics.state}
+            >
+              <div aria-live="polite">
+                <span className="summary-label">Diagnostics</span>
+                <strong>{diagnostics.headline}</strong>
+                <small>{sourceDetail}</small>
               </div>
               <Button
                 aria-haspopup="dialog"
-                aria-label="Review source health"
+                aria-label="Review system health diagnostics"
                 onClick={() => setMobileDialog("sources")}
                 ref={sourcesTriggerRef}
               >
@@ -957,31 +957,28 @@ export function App() {
 
         {!isMobile ? (
           <section
-            aria-label="Source health"
-            className="source-health-panel"
-            data-information-level="advanced"
+            aria-label="System health summary"
+            className="source-health-panel diagnostics-summary"
+            data-diagnostics-state={diagnostics.state}
+            data-information-level="diagnostics"
           >
             <div>
-              <p className="eyebrow">Freshness</p>
-              <h2>Collector source health</h2>
+              <p className="eyebrow">Diagnostics</p>
+              <h2>System health</h2>
             </div>
-            <div className="source-health-list">
-              {!sourceHealth.length && !loading ? (
-                <span>No source health has been reported yet.</span>
-              ) : null}
-              {sourceHealth.map((source) => (
-                <span
-                  className={"source-health-item status-" + source.state}
-                  key={source.source_id}
-                >
-                  {source.display_name}: collection {source.collection_state} · data{" "}
-                  {source.freshness_state} · {formatAge(source.data_age_seconds)}
-                  {source.source_timestamp_ts
-                    ? " · source " + new Date(source.source_timestamp_ts * 1000).toLocaleString()
-                    : ""}
-                  {source.last_error ? " · " + source.last_error : ""}
-                </span>
-              ))}
+            <div className="diagnostics-summary-content">
+              <div aria-live="polite">
+                <strong>{diagnostics.headline}</strong>
+                <p>{sourceDetail}</p>
+              </div>
+              <Button
+                aria-haspopup="dialog"
+                aria-label="Review system health diagnostics"
+                onClick={() => setMobileDialog("sources")}
+                ref={sourcesTriggerRef}
+              >
+                Review diagnostics
+              </Button>
             </div>
           </section>
         ) : null}
@@ -1046,9 +1043,10 @@ export function App() {
         onClose={() => setMobileDialog(null)}
         open={mobileDialog === "sources"}
         returnFocusRef={sourcesTriggerRef}
-        title="Source health details"
+        title="System health details"
       >
         <div className="diagnostic-list">
+          {!sortedHealth.length ? <p>No source health has been reported yet.</p> : null}
           {sortedHealth.map((source) => (
             <article className={"diagnostic-item status-" + source.state} key={source.source_id}>
               <header>
