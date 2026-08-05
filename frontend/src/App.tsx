@@ -22,6 +22,7 @@ import {
   loadSourceHealth,
   type RankingRow,
 } from "./dashboard/api";
+import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
 import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
@@ -315,6 +316,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestRevision, setRequestRevision] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const collapsed = initiallyCollapsedGroups(initialMobile);
     const inspected = chartDefinitions.find((chart) => chart.id === state.expandedChart);
@@ -405,6 +407,7 @@ export function App() {
     state.customCompareSeconds,
     state.time.end,
     state.time.start,
+    requestRevision,
   ]);
 
   useEffect(() => {
@@ -430,7 +433,7 @@ export function App() {
         if (!controller.signal.aborted) setOverviewLoading(false);
       });
     return () => controller.abort();
-  }, [state.events, state.time.end, state.time.start]);
+  }, [requestRevision, state.events, state.time.end, state.time.start]);
 
   useEffect(() => {
     const closeInspect = (event: KeyboardEvent) => {
@@ -459,6 +462,10 @@ export function App() {
   const diagnostics = useMemo(() => summarizeDiagnostics(sourceHealth), [sourceHealth]);
   const healthCounts = diagnostics.counts;
   const activeEvents = useMemo(() => activeOperationalEvents(events), [events]);
+  const publicAlerts = useMemo(
+    () => rationalizeAlerts(events, sourceHealth, Boolean(requestError)),
+    [events, requestError, sourceHealth],
+  );
 
   const onZoom = useCallback((start: number, end: number) => {
     setState((current) => {
@@ -536,23 +543,18 @@ export function App() {
     0,
     ...[...latest.values()].map((point) => (point ? nowSeconds() - point.ts : 0)),
   );
-  const condition = activeEvents.length
-    ? { label: "WATCH", detail: activeEvents[0]!.title, state: "warning" }
-    : healthCounts.failed > 0
-      ? {
-          label: "DATA ISSUE",
-          detail:
-            String(healthCounts.failed) +
-            " collector source" +
-            (healthCounts.failed === 1 ? "" : "s") +
-            " failed",
-          state: "failure",
-        }
-      : {
-          label: "NORMAL",
-          detail: "Grid conditions are within the observed operating range",
-          state: "normal",
-        };
+  const primaryAlert = publicAlerts[0];
+  const condition = primaryAlert
+    ? {
+        label: primaryAlert.severity === "critical" ? "EMERGENCY" : "WATCH",
+        detail: primaryAlert.cause,
+        state: primaryAlert.severity === "critical" ? "failure" : "warning",
+      }
+    : {
+        label: "NORMAL",
+        detail: "Grid conditions are within the observed operating range",
+        state: "normal",
+      };
   const sourceDetail = diagnostics.worstSource
     ? diagnostics.worstSource.display_name.replace(/^ERCOT /, "") +
       " " +
@@ -576,6 +578,15 @@ export function App() {
     },
     setState,
     state,
+  };
+
+  const actOnAlert = (alert: PublicAlert) => {
+    if (alert.action === "review-operations") setMobileDialog("events");
+    else if (alert.action === "review-diagnostics") setMobileDialog("sources");
+    else {
+      setRequestError(null);
+      setRequestRevision((current) => current + 1);
+    }
   };
 
   return (
@@ -609,13 +620,6 @@ export function App() {
       ) : null}
 
       <main>
-        {requestError ? (
-          <div className="global-error" role="alert">
-            Dashboard request failed. Existing data is preserved; this is not an empty-data state.{" "}
-            {requestError}
-          </div>
-        ) : null}
-
         {isMobile ? (
           <section
             aria-label="Grid condition"
@@ -672,6 +676,40 @@ export function App() {
           </section>
         </section>
 
+        {publicAlerts.length ? (
+          <section aria-label="Active grid alerts" className="alert-stack" role="alert">
+            {publicAlerts.map((alert) => (
+              <article className="public-alert" data-alert-severity={alert.severity} key={alert.id}>
+                <header>
+                  <span>{alert.severity}</span>
+                  <h2>{alert.label}</h2>
+                </header>
+                <dl>
+                  <div>
+                    <dt>Cause</dt>
+                    <dd>{alert.cause}</dd>
+                  </div>
+                  <div>
+                    <dt>Impact</dt>
+                    <dd>{alert.impact}</dd>
+                  </div>
+                  <div>
+                    <dt>Recommended action</dt>
+                    <dd>{alert.recommendedAction}</dd>
+                  </div>
+                </dl>
+                <Button onClick={() => actOnAlert(alert)}>
+                  {alert.action === "retry-data"
+                    ? "Retry data"
+                    : alert.action === "review-diagnostics"
+                      ? "Review System health"
+                      : "Review operations"}
+                </Button>
+              </article>
+            ))}
+          </section>
+        ) : null}
+
         {isMobile ? (
           <section aria-label="Mobile quick controls" className="mobile-quick-controls">
             <TimeRangeSelect setState={setState} state={state} />
@@ -713,7 +751,10 @@ export function App() {
 
         {isMobile ? (
           <div className="mobile-summary-stack">
-            <section aria-label="Operations notice summary" className="mobile-summary-row">
+            <section
+              aria-label="Operations notice summary"
+              className="mobile-summary-row operations-summary-row"
+            >
               <div>
                 <span className="summary-label">Operations</span>
                 <strong>

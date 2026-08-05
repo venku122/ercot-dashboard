@@ -265,8 +265,32 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await page.reload();
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.scrollIntoViewIfNeeded();
-  await expect(storage.getByText("failed", { exact: false }).first()).toBeVisible();
+  await expect(storage.getByText("Data stale", { exact: false }).first()).toBeVisible();
   await expect(storage.getByText("Showing stale data")).toBeVisible();
+});
+
+test("alerts are actionable, interpretive, material, and free of collector noise", async ({
+  page,
+}) => {
+  await installApi(page);
+  await page.goto("/");
+  const alerts = page.getByLabel("Active grid alerts");
+  await expect(alerts.getByRole("article")).toHaveCount(1);
+  await expect(alerts).toContainText("warning");
+  await expect(alerts).toContainText("Cause");
+  await expect(alerts).toContainText("Impact");
+  await expect(alerts).toContainText("Recommended action");
+  await alerts.getByRole("button", { name: "Review operations" }).click();
+  await expect(page.getByRole("dialog", { name: "Operations message history" })).toContainText(
+    "Fixture operations message",
+  );
+  await page.keyboard.press("Escape");
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "stale");
+  await page.reload();
+  await expect(alerts).not.toContainText("Critical data limited");
+  await expect(alerts).not.toContainText("fixture timeout");
 });
 
 test("system health is summarized by default with full diagnostics on demand", async ({ page }) => {
@@ -405,6 +429,14 @@ test("visual regression storage charging and operations event", async ({ page })
   const events = page.getByRole("region", { name: "ERCOT operations messages" });
   await events.scrollIntoViewIfNeeded();
   await expect.soft(events).toHaveScreenshot("operations-event.png");
+});
+
+test("visual regression structured operational alert", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+  const alert = page.getByLabel("Active grid alerts");
+  await expect(alert).toContainText("Recommended action");
+  await expect(alert).toHaveScreenshot("structured-operational-alert.png");
 });
 
 test("visual regression analytical dashboard", async ({ page }) => {
