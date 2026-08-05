@@ -74,7 +74,8 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
   await expect(page.getByRole("heading", { name: "Operational detail" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Controls" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Grid conditions Collapse" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Generation Expand" })).toBeVisible();
+  await expect(page.locator('[data-group="Generation"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Generation view" })).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("legend")).toBe("compact");
   const firstChart = await page.locator('[data-chart-id="supply-demand"]').boundingBox();
   expect(firstChart?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(viewportHeight * 1.5);
@@ -172,7 +173,7 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
     card.getByRole("button", { name: "Actual demand", exact: true }),
     card.getByRole("button", { name: "Solo Actual demand" }),
     card.locator(".accessible-data summary"),
-    page.getByRole("button", { name: "Market section" }),
+    page.getByRole("button", { name: "Market view" }),
   ];
   for (const target of targets) {
     const bounds = await target.boundingBox();
@@ -308,17 +309,47 @@ test("P0 API failure remains distinct from an empty selected window @mobile-core
   await expect(card.getByText("No observations in this window.")).toBeVisible();
 });
 
-test("P0 section navigation expands, scrolls, and focuses its destination @mobile-core", async ({
-  page,
-}) => {
+test("P0 view navigation updates URL, content, and focus @mobile-core", async ({ page }) => {
   const requests: string[][] = [];
   await installMobileApi(page, "normal", requests);
   await page.goto("/");
-  await page.getByRole("button", { name: "Market section" }).click();
+  await page.getByRole("button", { name: "Market view" }).click();
   const heading = page.getByRole("button", { name: "Market Collapse" });
   await expect(heading).toBeVisible();
-  await expect(heading).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Market", exact: true })).toBeFocused();
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("market");
+  await page.locator('[data-chart-id="pricing"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.flat().some((id) => id.startsWith("pricing:"))).toBe(true);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("P0 all seven views are reachable and browser history restores them @mobile-core", async ({
+  page,
+}) => {
+  await installMobileApi(page, "normal");
+  await page.goto("/?view=weather");
+  const navigation = page.getByRole("navigation", { name: "Dashboard views" });
+  await expect(navigation.getByRole("button")).toHaveCount(7);
+  await expect(page.getByRole("button", { name: "Weather Collapse" })).toBeVisible();
+  await expect(page.locator('[data-group="Grid conditions"]')).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Advanced view" }).click();
+  for (const group of ["Advanced grid", "Ancillary services", "Operations"]) {
+    await expect(page.getByRole("button", { name: `${group} Collapse` })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Diagnostics view" }).click();
+  await expect(page.getByLabel("System health details")).toBeVisible();
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("diagnostics");
+
+  await page.goBack();
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("advanced");
+  await expect(page.getByRole("button", { name: "Advanced view" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await page.goBack();
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("weather");
+  await expect(page.getByRole("button", { name: "Weather Collapse" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
@@ -334,8 +365,8 @@ test("mobile interaction evidence flow @mobile-core @interaction-evidence", asyn
   await page.getByRole("button", { name: "Controls" }).click();
   await expect(page.getByRole("dialog", { name: "Dashboard controls" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Market section" }).click();
-  await expect(page.getByRole("button", { name: "Market Collapse" })).toBeFocused();
+  await page.getByRole("button", { name: "Market view" }).click();
+  await expect(page.getByRole("heading", { name: "Market", exact: true })).toBeFocused();
 });
 
 test("P1 mobile performance mounts at most two charts and skips collapsed groups @mobile-core", async ({
@@ -373,11 +404,11 @@ test("P1 mobile long-task and heap budgets remain bounded @mobile-performance", 
   await session.send("Performance.enable");
   await page.goto("/");
   const heapBefore = await session.send("Performance.getMetrics");
-  for (const section of ["Grid", "Generation", "Reliability", "Market"]) {
-    await page.getByRole("button", { name: section + " section" }).click();
+  for (const view of ["Generation", "Reliability", "Market", "Weather", "Advanced"]) {
+    await page.getByRole("button", { name: view + " view" }).click();
     await page.waitForTimeout(120);
   }
-  await page.getByRole("button", { name: "Overview section" }).click();
+  await page.getByRole("button", { name: "Overview view" }).click();
   const heapAfter = await session.send("Performance.getMetrics");
   const metric = (metrics: typeof heapBefore.metrics, name: string) =>
     metrics.find((entry) => entry.name === name)?.value ?? 0;
@@ -417,6 +448,19 @@ test("P0 viewport metadata opts into safe-area layout @mobile-core", async ({ pa
     /viewport-fit=cover/,
   );
   await expect(page.locator(".mobile-section-nav")).toHaveCSS("padding-bottom", /.+/);
+});
+
+test("progressive-disclosure mobile visual states @mobile-vri", async ({ page }) => {
+  await openPopulated(page);
+  await expect(page).toHaveScreenshot("progressive-overview-mobile.png");
+
+  await page.getByRole("button", { name: "Advanced view" }).click();
+  await expect(page.getByRole("heading", { name: "Advanced", exact: true })).toBeVisible();
+  await expect(page).toHaveScreenshot("progressive-advanced-mobile.png");
+
+  await page.getByRole("button", { name: "Diagnostics view" }).click();
+  await expect(page.getByLabel("System health details")).toBeVisible();
+  await expect(page).toHaveScreenshot("progressive-diagnostics-mobile.png");
 });
 
 test("mobile visual evidence states @mobile-vri", async ({ page }) => {
@@ -473,12 +517,13 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     maxDiffPixelRatio: 0.02,
     maxDiffPixels: 500,
   });
-  await page.getByRole("button", { name: "Generation section" }).click();
+  await page.getByRole("button", { name: "Generation view" }).click();
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(storage.getByText("Showing stale data")).toBeVisible();
   await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png");
+  await page.getByRole("button", { name: "Overview view" }).click();
   await sourceSummary.scrollIntoViewIfNeeded();
   await sourceSummary.getByRole("button", { name: "Review system health diagnostics" }).click();
   await expect
@@ -488,7 +533,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "active-event");
-  await page.reload();
+  await page.goto("/?view=overview");
   await expect
     .soft(page.getByLabel("Operations notice summary"))
     .toHaveScreenshot("mobile-active-operations.png", {
@@ -506,7 +551,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "warning");
-  await page.reload();
+  await page.goto("/?view=overview");
   const warning = page.locator(".mobile-grid-condition");
   await expect(warning).toContainText("EMERGENCY");
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
@@ -516,11 +561,10 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "negative");
-  await page.reload();
+  await page.goto("/?view=overview");
   await expect
     .soft(page.getByLabel("Settlement price summary"))
     .toHaveScreenshot("mobile-negative-ranking.png");
-  await page.getByRole("button", { name: "Grid section" }).click();
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect
     .soft(page.getByRole("dialog", { name: "Inspect Supply and demand" }))
@@ -529,7 +573,6 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
 
 test("landscape inspect remains usable @landscape-vri", async ({ page }) => {
   await openPopulated(page, "active-event");
-  await page.getByRole("button", { name: "Grid section" }).click();
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   const inspect = page.getByRole("dialog", { name: "Inspect Supply and demand" });
   await expect(inspect).toBeVisible();

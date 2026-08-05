@@ -354,6 +354,7 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await installApi(page);
   await page.goto("/?range=21600&compare=none&events=1");
   await expect(page.getByRole("heading", { name: "ERCOT analytical dashboard" })).toBeVisible();
+  await page.getByRole("button", { name: "Reliability view" }).click();
   await expect(
     page
       .getByLabel("ERCOT operations messages")
@@ -378,7 +379,10 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   ).toHaveCount(2);
   await expect(operations).toContainText("Showing 2 of 5 events");
   await operations.getByLabel("Filter operations timeline by severity").selectOption("all");
+  await page.getByRole("button", { name: "Market view" }).click();
   await expect(page.getByRole("heading", { name: "Latest settlement point prices" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Overview view" }).click();
 
   await page.getByRole("button", { name: "Pause" }).click();
   await expect(page.getByText("Live paused")).toBeVisible();
@@ -480,6 +484,7 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "stale");
   await page.reload();
+  await page.getByRole("button", { name: "Generation view" }).click();
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.getByText("Data stale", { exact: false }).first()).toBeVisible();
@@ -513,17 +518,13 @@ test("alerts are actionable, interpretive, material, and free of collector noise
 test("system health is summarized by default with full diagnostics on demand", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
+  await page.getByRole("button", { name: "Diagnostics view" }).click();
   const summary = page.getByLabel("System health summary");
   await expect(summary).toContainText("Data Sources Healthy");
   await expect(summary).not.toContainText("ERCOT Fuel Mix:");
-  await summary.getByRole("button", { name: "Review system health diagnostics" }).click();
-  const dialog = page.getByRole("dialog", { name: "System health details" });
-  await expect(dialog).toContainText("ERCOT Fuel Mix");
-  await expect(dialog).toContainText("Collection healthy · data fresh");
-  await page.keyboard.press("Escape");
-  await expect(
-    summary.getByRole("button", { name: "Review system health diagnostics" }),
-  ).toBeFocused();
+  const details = page.getByLabel("System health details");
+  await expect(details).toContainText("ERCOT Fuel Mix");
+  await expect(details).toContainText("Collection healthy · data fresh");
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "stale");
@@ -544,16 +545,17 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const session = await page.context().newCDPSession(page);
   await session.send("Performance.enable");
   await page.goto("/");
-  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(12);
+  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(2);
   const total = await page.locator("[data-chart-id]").count();
   const initiallyMounted = await page.locator('[data-chart-id][data-mounted="true"]').count();
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();
-  expect(total).toBe(12);
+  expect(total).toBe(2);
   await expect(page.locator('[data-chart-id="time-error"]')).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Advanced grid Expand" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Advanced view" })).toBeVisible();
   expect(initiallyMounted).toBeLessThanOrEqual(4);
   expect(initiallyVisible).toBeLessThanOrEqual(4);
   const heapBefore = await session.send("Performance.getMetrics");
+  await page.getByRole("button", { name: "Market view" }).click();
   await page.locator('[data-chart-id="pricing"]').scrollIntoViewIfNeeded();
   await expect
     .poll(() => windowLifecycle(page).then((value) => value?.constructed ?? 0))
@@ -565,6 +567,7 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   expect(lifecycle?.constructed).toBe(beforeChurn?.constructed);
   expect(lifecycle?.destroyed).toBe(beforeChurn?.destroyed);
   expect(lifecycle?.updated).toBeGreaterThan(initiallyMounted);
+  await page.getByRole("button", { name: "Overview view" }).click();
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect
     .poll(() => page.locator('[data-chart-id][data-visible="true"]').count())
@@ -583,7 +586,7 @@ async function windowLifecycle(page: Page) {
   return page.evaluate(() => window.__ercotChartLifecycle);
 }
 
-test("inactive and collapsed groups are not requested and legacy parity views are present", async ({
+test("inactive views are not requested and all legacy parity surfaces remain reachable", async ({
   page,
 }) => {
   const requests: string[][] = [];
@@ -591,40 +594,81 @@ test("inactive and collapsed groups are not requested and legacy parity views ar
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Grid at a glance" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Operational detail" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Advanced analysis" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Unused capacity and headroom" })).toBeAttached();
-  await expect(page.getByRole("button", { name: "Advanced grid Expand" })).toBeVisible();
-  await page.getByRole("button", { name: "Advanced grid Expand" }).click();
-  await expect(page.getByRole("heading", { name: "Time error and delta" })).toBeAttached();
-  await expect(page.getByRole("heading", { name: "System inertia" })).toBeAttached();
-  await expect(page.getByRole("heading", { name: "Emergency Energy Alert level" })).toBeAttached();
   await expect(
-    page.getByRole("heading", { name: "PowerOutage.us customer outages" }),
-  ).toBeAttached();
-  await expect(page.getByRole("heading", { name: "Nearby METAR temperature" })).toBeAttached();
-  await page.getByRole("button", { name: "Operations Expand" }).click();
-  await expect(page.getByRole("heading", { name: "Collector duty cycle" })).toBeAttached();
+    page.getByRole("navigation", { name: "Dashboard views" }).getByRole("button"),
+  ).toHaveCount(7);
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(false);
 
-  await page.getByRole("button", { name: "Grid conditions Collapse" }).click();
+  await page.getByRole("button", { name: "Reliability view" }).click();
+  await expect(page.getByRole("heading", { name: "Unused capacity and headroom" })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "Emergency Energy Alert level" })).toBeAttached();
+  await expect(
+    page.getByRole("heading", { name: "PowerOutage.us customer outages" }),
+  ).toBeAttached();
+
+  await page.getByRole("button", { name: "Weather view" }).click();
+  await expect(page.getByRole("heading", { name: "Nearby METAR temperature" })).toBeAttached();
+
+  await page.getByRole("button", { name: "Advanced view" }).click();
+  await expect(page.getByRole("heading", { name: "Time error and delta" })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "System inertia" })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "Collector duty cycle" })).toBeAttached();
+
+  await page.getByRole("button", { name: "Market view" }).click();
+  await page.locator('[data-chart-id="pricing"]').scrollIntoViewIfNeeded();
+  await expect.poll(() => requests.flat().some((id) => id.startsWith("pricing:"))).toBe(true);
   const requestCount = requests.length;
   await page.getByLabel("Compare time").selectOption("week");
   await expect.poll(() => requests.length).toBeGreaterThanOrEqual(requestCount);
-  const gridPrefixes = ["supply-demand:", "frequency:"];
+  const hiddenViewPrefixes = ["supply-demand:", "frequency:", "time-error:", "inertia:"];
   expect(
     requests
       .slice(requestCount)
       .flat()
-      .some((id) => gridPrefixes.some((prefix) => id.startsWith(prefix))),
+      .some((id) => hiddenViewPrefixes.some((prefix) => id.startsWith(prefix))),
   ).toBe(false);
+});
+
+test("view changes clear chart-specific inspect state and legacy inspect links find their view", async ({
+  page,
+}) => {
+  await installApi(page);
+  await page.goto("/?inspect=storage");
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("generation");
+  await expect(page.locator('[data-chart-id="storage"]')).toHaveClass(/chart-card-inspect/);
+
+  await page.getByRole("button", { name: "Market view" }).evaluate((button: HTMLButtonElement) => {
+    button.click();
+  });
+  await expect.poll(() => new URL(page.url()).searchParams.get("inspect")).toBeNull();
+  await expect(page.locator(".inspect-backdrop")).toHaveCount(0);
+  await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
+});
+
+test("visual regression progressive-disclosure desktop views", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/?view=overview");
+  await expect(page).toHaveScreenshot("progressive-overview-desktop.png");
+
+  await page.getByRole("button", { name: "Advanced view" }).click();
+  await expect(page.getByRole("heading", { name: "Advanced", exact: true })).toBeVisible();
+  await expect(page).toHaveScreenshot("progressive-advanced-desktop.png");
+
+  await page.getByRole("button", { name: "Diagnostics view" }).click();
+  await expect(page.getByLabel("System health details")).toBeVisible();
+  await expect(page).toHaveScreenshot("progressive-diagnostics-desktop.png");
 });
 
 for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
   test(`visual regression ${scenario}`, async ({ page }) => {
     await installApi(page, scenario);
     await page.goto("/");
+    if (scenario === "stale") await page.getByRole("button", { name: "Generation view" }).click();
+    if (scenario === "spike" || scenario === "negative") {
+      await page.getByRole("button", { name: "Market view" }).click();
+    }
     const chartId =
       scenario === "normal" ? "supply-demand" : scenario === "stale" ? "storage" : "pricing";
     const card = page.locator(`[data-chart-id="${chartId}"]`);
@@ -638,11 +682,13 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
 test("visual regression storage charging and operations event", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
+  await page.getByRole("button", { name: "Generation view" }).click();
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.evaluate((element) => element.scrollIntoView({ block: "end" }));
   await expect(storage).toHaveAttribute("data-visible", "true");
   await expect(storage.locator(".chart-placeholder")).toHaveCount(0);
   await expect.soft(storage).toHaveScreenshot("storage-charging.png");
+  await page.getByRole("button", { name: "Reliability view" }).click();
   const events = page.getByRole("region", { name: "ERCOT operations messages" });
   await events.scrollIntoViewIfNeeded();
   await expect.soft(events).toHaveScreenshot("operations-event.png");
@@ -671,7 +717,7 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
-  await expect(cards).toHaveCount(12);
+  await expect(cards).toHaveCount(2);
   for (let index = 0; index < (await cards.count()); index += 1) {
     const card = cards.nth(index);
     await card.scrollIntoViewIfNeeded();

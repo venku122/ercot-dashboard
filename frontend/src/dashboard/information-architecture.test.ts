@@ -5,6 +5,8 @@ import {
   chartGroupDefinition,
   chartGroupDefinitions,
   criticalMetricDefinitions,
+  dashboardViewDefinitions,
+  dashboardViewForGroup,
   initiallyCollapsedGroups,
   mobilePrimaryCriticalMetricIds,
   mobileSupportingCriticalMetricIds,
@@ -43,6 +45,26 @@ describe("dashboard information architecture", () => {
     const declared = new Set(chartGroupDefinitions.map((group) => group.name));
     expect(new Set(chartDefinitions.map((chart) => chart.group))).toEqual(declared);
     for (const chart of chartDefinitions) expect(chartGroupDefinition(chart.group)).toBeTruthy();
+  });
+
+  it("assigns every chart group to exactly one of the seven progressive-disclosure views", () => {
+    expect(dashboardViewDefinitions.map((view) => view.id)).toEqual([
+      "overview",
+      "generation",
+      "reliability",
+      "market",
+      "weather",
+      "advanced",
+      "diagnostics",
+    ]);
+    const assignedGroups = dashboardViewDefinitions.flatMap((view) => view.groups);
+    expect(new Set(assignedGroups).size).toBe(assignedGroups.length);
+    expect(new Set(assignedGroups)).toEqual(
+      new Set(chartGroupDefinitions.map((group) => group.name)),
+    );
+    for (const view of dashboardViewDefinitions) {
+      for (const group of view.groups) expect(dashboardViewForGroup(group)).toBe(view.id);
+    }
   });
 
   it("keeps engineering signals in the advanced layer", () => {

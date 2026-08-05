@@ -1,5 +1,4 @@
 import {
-  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -38,12 +37,16 @@ import {
 import {
   chartGroupDefinition,
   criticalMetricDefinitions,
+  dashboardViewDefinition,
+  dashboardViewDefinitions,
+  dashboardViewForGroup,
   informationLevels,
   initiallyCollapsedGroups,
   mobilePrimaryCriticalMetricIds,
   mobileSupportingCriticalMetricIds,
   reserveMarginPercent,
   type CriticalMetricId,
+  type DashboardViewId,
 } from "./dashboard/information-architecture";
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import {
@@ -69,7 +72,12 @@ import type {
   SourceHealth,
   TimeState,
 } from "./dashboard/types";
-import { dashboardStateFromUrl, dashboardStateToUrl } from "./dashboard/url-state";
+import {
+  dashboardStateFromUrl,
+  dashboardStateToUrl,
+  dashboardViewFromUrl,
+  dashboardViewToUrl,
+} from "./dashboard/url-state";
 import { mediaQueryMatches, MOBILE_MEDIA_QUERY, useMediaQuery } from "./dashboard/use-media-query";
 import { formatAge, formatValue } from "./dashboard/units";
 import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./dashboard/zoned-time";
@@ -79,6 +87,16 @@ const ChartCard = lazy(() =>
 );
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+function dashboardViewForUrl(url: URL): DashboardViewId {
+  if (!url.searchParams.has("view")) {
+    const inspected = chartDefinitions.find(
+      (chart) => chart.id === url.searchParams.get("inspect"),
+    );
+    if (inspected) return dashboardViewForGroup(inspected.group);
+  }
+  return dashboardViewFromUrl(url);
+}
 
 const overviewQueries = [
   { id: "demand", metric: "ercot.supply_demand.demand_mw" },
@@ -98,7 +116,7 @@ const rangeOptions = [
   [31536000, "12 months"],
 ] as const;
 
-type MobileDialogName = "controls" | "events" | "more" | "prices" | "sources" | null;
+type MobileDialogName = "controls" | "events" | "prices" | "sources" | null;
 
 type ControlProps = {
   onError: (message: string) => void;
@@ -403,9 +421,66 @@ function GridHealthScoreValue({ health, loading }: { health: GridHealthScore; lo
   );
 }
 
+function DashboardViewNavigation({
+  activeView,
+  mobile,
+  onNavigate,
+}: {
+  activeView: DashboardViewId;
+  mobile: boolean;
+  onNavigate: (view: DashboardViewId) => void;
+}) {
+  return (
+    <nav
+      aria-label="Dashboard views"
+      className={`dashboard-view-nav ${mobile ? "mobile-section-nav" : "desktop-view-nav"}`}
+      data-navigation-surface={mobile ? "mobile" : "desktop"}
+    >
+      {dashboardViewDefinitions.map((view) => (
+        <button
+          aria-current={activeView === view.id ? "page" : undefined}
+          aria-label={`${view.label} view`}
+          key={view.id}
+          onClick={() => onNavigate(view.id)}
+          type="button"
+        >
+          {view.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function DiagnosticList({ sources }: { sources: readonly SourceHealth[] }) {
+  return (
+    <div className="diagnostic-list">
+      {!sources.length ? <p>No source health has been reported yet.</p> : null}
+      {sources.map((source) => (
+        <article className={`diagnostic-item status-${source.state}`} key={source.source_id}>
+          <header>
+            <strong>{source.display_name}</strong>
+            <span>{source.state}</span>
+          </header>
+          <p>
+            Collection {source.collection_state} · data {source.freshness_state} ·{" "}
+            {formatAge(source.data_age_seconds)}
+          </p>
+          {source.source_timestamp_ts ? (
+            <time dateTime={new Date(source.source_timestamp_ts * 1000).toISOString()}>
+              Source observation {new Date(source.source_timestamp_ts * 1000).toLocaleString()}
+            </time>
+          ) : null}
+          {source.last_error ? <p className="diagnostic-error">{source.last_error}</p> : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function App() {
   const initialUrl = useMemo(() => new URL(window.location.href), []);
   const initialMobile = useRef(mediaQueryMatches(MOBILE_MEDIA_QUERY)).current;
+  const initialView = useMemo(() => dashboardViewForUrl(initialUrl), [initialUrl]);
   const explicitLegendRef = useRef(initialUrl.searchParams.has("legend"));
   const [state, setState] = useState<DashboardState>(() => {
     const parsed = dashboardStateFromUrl(initialUrl, nowSeconds());
@@ -429,21 +504,21 @@ export function App() {
   const [requestRevision, setRequestRevision] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const collapsed = initiallyCollapsedGroups(initialMobile);
+    for (const group of dashboardViewDefinition(initialView).groups) collapsed.delete(group);
     const inspected = chartDefinitions.find((chart) => chart.id === state.expandedChart);
     if (inspected) collapsed.delete(inspected.group);
     return collapsed;
   });
   const [activeChartIds, setActiveChartIds] = useState<Set<string>>(new Set());
   const [mobileDialog, setMobileDialog] = useState<MobileDialogName>(null);
-  const [selectedSection, setSelectedSection] = useState("Overview");
+  const [selectedView, setSelectedView] = useState<DashboardViewId>(initialView);
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const controlsTriggerRef = useRef<HTMLButtonElement>(null);
   const sourcesTriggerRef = useRef<HTMLButtonElement>(null);
   const eventsTriggerRef = useRef<HTMLButtonElement>(null);
   const pricesTriggerRef = useRef<HTMLButtonElement>(null);
-  const moreTriggerRef = useRef<HTMLButtonElement>(null);
-  const overviewRef = useRef<HTMLElement>(null);
-  const groupHeadingRefs = useRef(new Map<string, HTMLButtonElement>());
+  const dashboardTitleRef = useRef<HTMLHeadingElement>(null);
+  const viewHeadingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     seriesDataRef.current = seriesData;
@@ -465,14 +540,18 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const next = dashboardStateToUrl(state, new URL(window.location.href));
+    const next = dashboardViewToUrl(
+      selectedView,
+      dashboardStateToUrl(state, new URL(window.location.href)),
+    );
     window.history.replaceState(null, "", next);
-  }, [state]);
+  }, [selectedView, state]);
 
   useEffect(() => {
     const restore = () => {
       const url = new URL(window.location.href);
       explicitLegendRef.current = url.searchParams.has("legend");
+      setSelectedView(dashboardViewForUrl(url));
       const restored = dashboardStateFromUrl(url, nowSeconds());
       setState(
         isMobile && !explicitLegendRef.current ? { ...restored, legendMode: "compact" } : restored,
@@ -485,7 +564,10 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
     const requestedCharts = chartDefinitions.filter(
-      (chart) => activeChartIds.has(chart.id) && !collapsedGroups.has(chart.group),
+      (chart) =>
+        dashboardViewForGroup(chart.group) === selectedView &&
+        activeChartIds.has(chart.id) &&
+        !collapsedGroups.has(chart.group),
     );
     if (!requestedCharts.length) return () => controller.abort();
     setLoading(true);
@@ -518,7 +600,17 @@ export function App() {
     state.time.end,
     state.time.start,
     requestRevision,
+    selectedView,
   ]);
+
+  useEffect(() => {
+    const groups = dashboardViewDefinition(selectedView).groups;
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      for (const group of groups) next.delete(group);
+      return next;
+    });
+  }, [selectedView]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -640,26 +732,42 @@ export function App() {
     });
   }, []);
 
-  const navigateToGroup = useCallback((group: string, navigationLabel = group) => {
-    setCollapsedGroups((current) => {
-      const next = new Set(current);
-      next.delete(group);
-      return next;
-    });
-    setActiveChartIds((current) => {
-      const next = new Set(current);
-      for (const chart of chartDefinitions) {
-        if (chart.group === group) next.add(chart.id);
+  const navigateToView = useCallback(
+    (view: DashboardViewId) => {
+      if (view === selectedView) {
+        window.scrollTo({ behavior: "smooth", top: 0 });
+        (view === "overview" ? dashboardTitleRef.current : viewHeadingRef.current)?.focus({
+          preventScroll: true,
+        });
+        return;
       }
-      return next;
-    });
-    setSelectedSection(navigationLabel);
-    window.requestAnimationFrame(() => {
-      const heading = groupHeadingRefs.current.get(group);
-      heading?.scrollIntoView({ behavior: "smooth", block: "start" });
-      heading?.focus({ preventScroll: true });
-    });
-  }, []);
+      window.history.pushState(
+        null,
+        "",
+        dashboardViewToUrl(
+          view,
+          dashboardStateToUrl({ ...state, expandedChart: null }, new URL(window.location.href)),
+        ),
+      );
+      const groups = dashboardViewDefinition(view).groups;
+      chartCoordinator.clearPin();
+      setState((current) => ({ ...current, expandedChart: null }));
+      setSelectedView(view);
+      setMobileDialog(null);
+      setCollapsedGroups((current) => {
+        const next = new Set(current);
+        for (const group of groups) next.delete(group);
+        return next;
+      });
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ behavior: "smooth", top: 0 });
+        (view === "overview" ? dashboardTitleRef.current : viewHeadingRef.current)?.focus({
+          preventScroll: true,
+        });
+      });
+    },
+    [selectedView, state],
+  );
 
   const demandPoint = latest.get("demand") ?? null;
   const capacityPoint = latest.get("capacity") ?? null;
@@ -775,6 +883,10 @@ export function App() {
         (healthCounts.healthy === 1 ? " is" : "s are") +
         " reporting normally"
       : "No source health has been reported yet";
+  const activeView = dashboardViewDefinition(selectedView);
+  const activeChartGroups = chartGroups.filter(
+    (group) => dashboardViewForGroup(group) === selectedView,
+  );
 
   const controls = {
     onError: setRequestError,
@@ -802,7 +914,7 @@ export function App() {
       <header className="dashboard-header">
         <div>
           <p className="eyebrow">Texas grid monitor</p>
-          <h1>
+          <h1 ref={dashboardTitleRef} tabIndex={-1}>
             <span className="mobile-only-title">ERCOT Grid</span>
             <span className="desktop-only-title">ERCOT analytical dashboard</span>
           </h1>
@@ -822,19 +934,34 @@ export function App() {
       </header>
 
       {!isMobile ? (
-        <section aria-label="Global dashboard controls" className="control-bar">
-          <DashboardControls {...controls} surface="desktop" />
-        </section>
+        <>
+          <section aria-label="Global dashboard controls" className="control-bar">
+            <DashboardControls {...controls} surface="desktop" />
+          </section>
+          <DashboardViewNavigation
+            activeView={selectedView}
+            mobile={false}
+            onNavigate={navigateToView}
+          />
+        </>
       ) : null}
 
-      <main>
-        {isMobile ? (
+      <main aria-label={`${activeView.label} dashboard view`} data-dashboard-view={selectedView}>
+        {selectedView !== "overview" ? (
+          <section className="dashboard-view-heading">
+            <p className="eyebrow">Dashboard view</p>
+            <h2 ref={viewHeadingRef} tabIndex={-1}>
+              {activeView.label}
+            </h2>
+            <p>{activeView.description}</p>
+          </section>
+        ) : null}
+
+        {selectedView === "overview" && isMobile ? (
           <section
             aria-label="Grid condition"
             className="mobile-grid-condition"
             data-condition={condition.state}
-            ref={overviewRef}
-            tabIndex={-1}
           >
             <div>
               <p className="eyebrow">Grid condition</p>
@@ -851,101 +978,107 @@ export function App() {
           </section>
         ) : null}
 
-        <section
-          aria-labelledby="critical-information-heading"
-          className="information-section information-critical"
-          data-information-level="critical"
-        >
-          <header className="information-heading">
-            <div>
-              <p className="eyebrow">Critical</p>
-              <h2 id="critical-information-heading">{informationLevels[0].label}</h2>
-            </div>
-            <p>{informationLevels[0].description}</p>
-          </header>
-          <section aria-label="Grid overview" className="overview-grid" data-mobile-tier="primary">
-            {visibleOverview.map((item) =>
-              item.id === "grid-status" ? (
-                isMobile ? null : (
-                  <article
-                    className="overview-card overview-status-card"
-                    data-condition={condition.state}
-                    data-metric-id={item.id}
-                    key={item.id}
-                  >
-                    <span>{item.label}</span>
-                    <strong>{condition.label}</strong>
-                    <GridHealthScoreValue health={gridHealth} loading={overviewLoading} />
-                    <small>{condition.detail}</small>
-                    <HeroTrendDetail
-                      id={item.id}
-                      label={item.label}
-                      loading={overviewLoading}
-                      trend={item.trend}
-                    />
-                  </article>
-                )
-              ) : (
-                <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
-              ),
-            )}
-          </section>
-          {isMobile ? (
-            <details className="mobile-supporting-metrics">
-              <summary>
-                <span>Supporting grid readings</span>
-                <small>Available capacity and frequency</small>
-                <span aria-hidden="true" className="mobile-supporting-indicator">
-                  <span className="mobile-supporting-indicator-closed">+</span>
-                  <span className="mobile-supporting-indicator-open">−</span>
-                </span>
-              </summary>
-              <section aria-label="Supporting grid readings" className="overview-grid">
-                {mobileSupportingOverview.map((item) => (
+        {selectedView === "overview" ? (
+          <section
+            aria-labelledby="critical-information-heading"
+            className="information-section information-critical"
+            data-information-level="critical"
+          >
+            <header className="information-heading">
+              <div>
+                <p className="eyebrow">Critical</p>
+                <h2 id="critical-information-heading">{informationLevels[0].label}</h2>
+              </div>
+              <p>{informationLevels[0].description}</p>
+            </header>
+            <section
+              aria-label="Grid overview"
+              className="overview-grid"
+              data-mobile-tier="primary"
+            >
+              {visibleOverview.map((item) =>
+                item.id === "grid-status" ? (
+                  isMobile ? null : (
+                    <article
+                      className="overview-card overview-status-card"
+                      data-condition={condition.state}
+                      data-metric-id={item.id}
+                      key={item.id}
+                    >
+                      <span>{item.label}</span>
+                      <strong>{condition.label}</strong>
+                      <GridHealthScoreValue health={gridHealth} loading={overviewLoading} />
+                      <small>{condition.detail}</small>
+                      <HeroTrendDetail
+                        id={item.id}
+                        label={item.label}
+                        loading={overviewLoading}
+                        trend={item.trend}
+                      />
+                    </article>
+                  )
+                ) : (
                   <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
-                ))}
-              </section>
+                ),
+              )}
+            </section>
+            {isMobile ? (
+              <details className="mobile-supporting-metrics">
+                <summary>
+                  <span>Supporting grid readings</span>
+                  <small>Available capacity and frequency</small>
+                  <span aria-hidden="true" className="mobile-supporting-indicator">
+                    <span className="mobile-supporting-indicator-closed">+</span>
+                    <span className="mobile-supporting-indicator-open">−</span>
+                  </span>
+                </summary>
+                <section aria-label="Supporting grid readings" className="overview-grid">
+                  {mobileSupportingOverview.map((item) => (
+                    <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
+                  ))}
+                </section>
+              </details>
+            ) : null}
+            <details className="grid-health-details">
+              <summary>How the Grid Health Score is calculated</summary>
+              <div>
+                <p>
+                  Eight weighted factors contribute 100 possible points. Threshold penalties are
+                  normalized across available factors; fresh demand, capacity, and frequency plus at
+                  least 70% weighted coverage are required. Any missing factor prevents a NORMAL
+                  label, and EEA levels 1, 2, and 3 override the label to WATCH, STRAINED, and
+                  CRITICAL.
+                </p>
+                <p className="grid-health-current-result">
+                  Current result:{" "}
+                  {gridHealth.score === null ? "unavailable" : `${String(gridHealth.score)} / 100`}{" "}
+                  · {gridHealth.detail}
+                </p>
+                <ol aria-label="Grid Health Score factors">
+                  {gridHealth.factors.map((factor) => (
+                    <li data-factor-available={factor.available} key={factor.id}>
+                      <div>
+                        <strong>{factor.label}</strong>
+                        <span>{formatValue(factor.weight, "points")} maximum</span>
+                      </div>
+                      <p>{factor.detail}</p>
+                      <small>
+                        {factor.penalty === null
+                          ? "Unavailable"
+                          : `${formatValue(factor.weight - factor.penalty, "points")} retained`}
+                      </small>
+                    </li>
+                  ))}
+                </ol>
+                <p className="grid-health-thresholds">
+                  Score bands: NORMAL 85–100 · WATCH 70–84 · STRAINED 50–69 · CRITICAL below 50.
+                </p>
+              </div>
             </details>
-          ) : null}
-          <details className="grid-health-details">
-            <summary>How the Grid Health Score is calculated</summary>
-            <div>
-              <p>
-                Eight weighted factors contribute 100 possible points. Threshold penalties are
-                normalized across available factors; fresh demand, capacity, and frequency plus at
-                least 70% weighted coverage are required. Any missing factor prevents a NORMAL
-                label, and EEA levels 1, 2, and 3 override the label to WATCH, STRAINED, and
-                CRITICAL.
-              </p>
-              <p className="grid-health-current-result">
-                Current result:{" "}
-                {gridHealth.score === null ? "unavailable" : `${String(gridHealth.score)} / 100`} ·{" "}
-                {gridHealth.detail}
-              </p>
-              <ol aria-label="Grid Health Score factors">
-                {gridHealth.factors.map((factor) => (
-                  <li data-factor-available={factor.available} key={factor.id}>
-                    <div>
-                      <strong>{factor.label}</strong>
-                      <span>{formatValue(factor.weight, "points")} maximum</span>
-                    </div>
-                    <p>{factor.detail}</p>
-                    <small>
-                      {factor.penalty === null
-                        ? "Unavailable"
-                        : `${formatValue(factor.weight - factor.penalty, "points")} retained`}
-                    </small>
-                  </li>
-                ))}
-              </ol>
-              <p className="grid-health-thresholds">
-                Score bands: NORMAL 85–100 · WATCH 70–84 · STRAINED 50–69 · CRITICAL below 50.
-              </p>
-            </div>
-          </details>
-        </section>
+          </section>
+        ) : null}
 
-        {publicAlerts.length ? (
+        {selectedView === "overview" && publicAlerts.length ? (
           <section aria-label="Active grid alerts" className="alert-stack" role="alert">
             {publicAlerts.map((alert) => (
               <article className="public-alert" data-alert-severity={alert.severity} key={alert.id}>
@@ -1004,58 +1137,62 @@ export function App() {
           </section>
         ) : null}
 
-        <section
-          aria-labelledby="operational-information-heading"
-          className="information-section information-operational-intro"
-          data-information-level="operational"
-        >
-          <header className="information-heading">
-            <div>
-              <p className="eyebrow">Operational</p>
-              <h2 id="operational-information-heading">{informationLevels[1].label}</h2>
-            </div>
-            <p>{informationLevels[1].description}</p>
-          </header>
-        </section>
+        {selectedView === "overview" ? (
+          <section
+            aria-labelledby="operational-information-heading"
+            className="information-section information-operational-intro"
+            data-information-level="operational"
+          >
+            <header className="information-heading">
+              <div>
+                <p className="eyebrow">Operational</p>
+                <h2 id="operational-information-heading">{informationLevels[1].label}</h2>
+              </div>
+              <p>{informationLevels[1].description}</p>
+            </header>
+          </section>
+        ) : null}
 
-        <section
-          aria-labelledby="derived-insights-heading"
-          className="derived-insights-section"
-          data-information-level="operational"
-        >
-          <header className="derived-insights-heading">
-            <div>
-              <p className="eyebrow">Calculated context</p>
-              <h2 id="derived-insights-heading">Derived grid insights</h2>
+        {selectedView === "overview" ? (
+          <section
+            aria-labelledby="derived-insights-heading"
+            className="derived-insights-section"
+            data-information-level="operational"
+          >
+            <header className="derived-insights-heading">
+              <div>
+                <p className="eyebrow">Calculated context</p>
+                <h2 id="derived-insights-heading">Derived grid insights</h2>
+              </div>
+              <p>Transparent calculations from current readings and bounded comparison windows.</p>
+            </header>
+            <div aria-label="Derived grid metrics" className="derived-insights-grid">
+              {derivedMetrics.map((metric) => {
+                const valueLabel = overviewLoading ? "…" : metric.valueLabel;
+                const detail = overviewLoading ? "Loading required source data…" : metric.detail;
+                return (
+                  <article
+                    aria-label={`${metric.label}: ${valueLabel}. ${detail} Formula: ${metric.formula}.`}
+                    className="derived-insight-card"
+                    data-derived-available={!overviewLoading && metric.available}
+                    data-derived-metric={metric.id}
+                    key={metric.id}
+                  >
+                    <span>{metric.label}</span>
+                    <strong>{valueLabel}</strong>
+                    <small>{detail}</small>
+                    <p>
+                      <span>Formula</span>
+                      {metric.formula}
+                    </p>
+                  </article>
+                );
+              })}
             </div>
-            <p>Transparent calculations from current readings and bounded comparison windows.</p>
-          </header>
-          <div aria-label="Derived grid metrics" className="derived-insights-grid">
-            {derivedMetrics.map((metric) => {
-              const valueLabel = overviewLoading ? "…" : metric.valueLabel;
-              const detail = overviewLoading ? "Loading required source data…" : metric.detail;
-              return (
-                <article
-                  aria-label={`${metric.label}: ${valueLabel}. ${detail} Formula: ${metric.formula}.`}
-                  className="derived-insight-card"
-                  data-derived-available={!overviewLoading && metric.available}
-                  data-derived-metric={metric.id}
-                  key={metric.id}
-                >
-                  <span>{metric.label}</span>
-                  <strong>{valueLabel}</strong>
-                  <small>{detail}</small>
-                  <p>
-                    <span>Formula</span>
-                    {metric.formula}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+          </section>
+        ) : null}
 
-        {isMobile ? (
+        {selectedView === "overview" && isMobile ? (
           <div className="mobile-summary-stack">
             <section
               aria-label="Operations notice summary"
@@ -1134,230 +1271,175 @@ export function App() {
           </div>
         ) : null}
 
-        {!isMobile ? (
-          <>
+        {selectedView === "reliability" ? (
+          <section aria-label="ERCOT operations messages" className="events-panel">
+            <div>
+              <p className="eyebrow">History</p>
+              <h2>Operations timeline</h2>
+              <p>ERCOT notices in the selected time window, classified for faster review.</p>
+            </div>
             {state.events ? (
-              <section aria-label="ERCOT operations messages" className="events-panel">
-                <div>
-                  <p className="eyebrow">History</p>
-                  <h2>Operations timeline</h2>
-                  <p>ERCOT notices in the selected time window, classified for faster review.</p>
-                </div>
-                <OperationsTimeline events={events} />
-              </section>
-            ) : null}
-
-            <section aria-label="Settlement price ranking" className="events-panel ranking-panel">
-              <div>
-                <p className="eyebrow">Market ranking</p>
-                <h2>Latest settlement point prices</h2>
+              <OperationsTimeline events={events} />
+            ) : (
+              <div className="view-empty-note">
+                <p>Operations annotations are off for the shared dashboard window.</p>
+                <Button aria-haspopup="dialog" onClick={() => setMobileDialog("controls")}>
+                  Review controls
+                </Button>
               </div>
-              {priceRanking.length ? (
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Settlement point</th>
-                        <th>Price</th>
-                        <th>Observed</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {priceRanking.map((row) => (
-                        <tr key={row.tag}>
-                          <td>{row.tag.replace("ercot_region:", "")}</td>
-                          <td>{formatValue(row.value, "$/MWh")}</td>
-                          <td>{new Date(row.ts * 1000).toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p>No settlement prices have been reported yet.</p>
-              )}
-            </section>
-          </>
+            )}
+          </section>
         ) : null}
 
-        {chartGroups.map((group, index) => {
+        {selectedView === "market" ? (
+          <section aria-label="Settlement price ranking" className="events-panel ranking-panel">
+            <div>
+              <p className="eyebrow">Market ranking</p>
+              <h2>Latest settlement point prices</h2>
+            </div>
+            {priceRanking.length ? (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Settlement point</th>
+                      <th>Price</th>
+                      <th>Observed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {priceRanking.map((row) => (
+                      <tr key={row.tag}>
+                        <td>{row.tag.replace("ercot_region:", "")}</td>
+                        <td>{formatValue(row.value, "$/MWh")}</td>
+                        <td>{new Date(row.ts * 1000).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>No settlement prices have been reported yet.</p>
+            )}
+          </section>
+        ) : null}
+
+        {activeChartGroups.map((group) => {
           const collapsed = collapsedGroups.has(group);
           const groupInformation = chartGroupDefinition(group);
-          const previousGroup = index > 0 ? chartGroupDefinition(chartGroups[index - 1]!) : null;
-          const beginsAdvancedLayer =
-            groupInformation.level === "advanced" && previousGroup?.level !== "advanced";
           return (
-            <Fragment key={group}>
-              {beginsAdvancedLayer ? (
-                <section
-                  aria-labelledby="advanced-information-heading"
-                  className="information-section information-advanced-intro"
-                  data-information-level="advanced"
-                >
-                  <header className="information-heading">
-                    <div>
-                      <p className="eyebrow">Advanced</p>
-                      <h2 id="advanced-information-heading">{informationLevels[2].label}</h2>
-                    </div>
-                    <p>{informationLevels[2].description}</p>
-                  </header>
-                </section>
-              ) : null}
-              <section
-                className="chart-group"
-                data-group={group}
-                data-information-level={groupInformation.level}
+            <section
+              className="chart-group"
+              data-group={group}
+              data-information-level={groupInformation.level}
+              key={group}
+            >
+              <button
+                aria-expanded={!collapsed}
+                aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
+                className="group-heading"
+                onClick={() =>
+                  setCollapsedGroups((current) => {
+                    const next = new Set(current);
+                    if (next.has(group)) next.delete(group);
+                    else next.add(group);
+                    return next;
+                  })
+                }
               >
-                <button
-                  aria-expanded={!collapsed}
-                  aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
-                  className="group-heading"
-                  onClick={() =>
-                    setCollapsedGroups((current) => {
-                      const next = new Set(current);
-                      if (next.has(group)) next.delete(group);
-                      else next.add(group);
-                      return next;
-                    })
-                  }
-                  ref={(element) => {
-                    if (element) groupHeadingRefs.current.set(group, element);
-                    else groupHeadingRefs.current.delete(group);
-                  }}
-                >
-                  <span>
-                    {group}
-                    <small>{groupInformation.description}</small>
-                  </span>
-                  <span>{collapsed ? "Expand" : "Collapse"}</span>
-                </button>
-                {!collapsed ? (
-                  <div className="chart-grid">
-                    {chartDefinitions
-                      .filter((chart) => chart.group === group)
-                      .map((chart) => (
-                        <Suspense
-                          fallback={
-                            <article className="chart-card chart-card-lazy" key={chart.id}>
-                              Loading chart workspace…
-                            </article>
+                <span>
+                  {group}
+                  <small>{groupInformation.description}</small>
+                </span>
+                <span>{collapsed ? "Expand" : "Collapse"}</span>
+              </button>
+              {!collapsed ? (
+                <div className="chart-grid">
+                  {chartDefinitions
+                    .filter((chart) => chart.group === group)
+                    .map((chart) => (
+                      <Suspense
+                        fallback={
+                          <article className="chart-card chart-card-lazy" key={chart.id}>
+                            Loading chart workspace…
+                          </article>
+                        }
+                        key={chart.id}
+                      >
+                        <ChartCard
+                          chart={chart}
+                          compare={state.compare}
+                          events={state.events ? events : []}
+                          hiddenSeries={state.hiddenSeries}
+                          inspect={state.expandedChart === chart.id}
+                          legendMode={state.legendMode}
+                          loading={loading}
+                          mobile={isMobile}
+                          onInspect={() =>
+                            setState((current) => ({
+                              ...current,
+                              expandedChart: current.expandedChart === chart.id ? null : chart.id,
+                            }))
                           }
-                          key={chart.id}
-                        >
-                          <ChartCard
-                            chart={chart}
-                            compare={state.compare}
-                            events={state.events ? events : []}
-                            hiddenSeries={state.hiddenSeries}
-                            inspect={state.expandedChart === chart.id}
-                            legendMode={state.legendMode}
-                            loading={loading}
-                            mobile={isMobile}
-                            onInspect={() =>
-                              setState((current) => ({
-                                ...current,
-                                expandedChart: current.expandedChart === chart.id ? null : chart.id,
-                              }))
-                            }
-                            onResetZoom={() =>
-                              setState((current) => {
-                                const origin = zoomOriginRef.current;
-                                zoomOriginRef.current = null;
-                                return { ...current, time: origin ?? current.time };
-                              })
-                            }
-                            onSetCompare={(compare) =>
-                              setState((current) => ({ ...current, compare }))
-                            }
-                            onSoloSeries={soloSeries}
-                            onToggleSeries={toggleSeries}
-                            onVisibilityChange={setChartVisible}
-                            onZoom={onZoom}
-                            requestError={requestError}
-                            seriesData={seriesData}
-                            sourceHealth={
-                              chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null
-                            }
-                            time={state.time}
-                          />
-                        </Suspense>
-                      ))}
-                  </div>
-                ) : null}
-              </section>
-            </Fragment>
+                          onResetZoom={() =>
+                            setState((current) => {
+                              const origin = zoomOriginRef.current;
+                              zoomOriginRef.current = null;
+                              return { ...current, time: origin ?? current.time };
+                            })
+                          }
+                          onSetCompare={(compare) =>
+                            setState((current) => ({ ...current, compare }))
+                          }
+                          onSoloSeries={soloSeries}
+                          onToggleSeries={toggleSeries}
+                          onVisibilityChange={setChartVisible}
+                          onZoom={onZoom}
+                          requestError={requestError}
+                          seriesData={seriesData}
+                          sourceHealth={
+                            chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null
+                          }
+                          time={state.time}
+                        />
+                      </Suspense>
+                    ))}
+                </div>
+              ) : null}
+            </section>
           );
         })}
 
-        {!isMobile ? (
-          <section
-            aria-label="System health summary"
-            className="source-health-panel diagnostics-summary"
-            data-diagnostics-state={diagnostics.state}
-            data-information-level="diagnostics"
-          >
-            <div>
-              <p className="eyebrow">Diagnostics</p>
-              <h2>System health</h2>
-            </div>
-            <div className="diagnostics-summary-content">
-              <div aria-live="polite">
-                <strong>{diagnostics.headline}</strong>
-                <p>{sourceDetail}</p>
+        {selectedView === "diagnostics" ? (
+          <>
+            <section
+              aria-label="System health summary"
+              className="source-health-panel diagnostics-summary"
+              data-diagnostics-state={diagnostics.state}
+              data-information-level="diagnostics"
+            >
+              <div>
+                <p className="eyebrow">Diagnostics</p>
+                <h2>System health</h2>
               </div>
-              <Button
-                aria-haspopup="dialog"
-                aria-label="Review system health diagnostics"
-                onClick={() => setMobileDialog("sources")}
-                ref={sourcesTriggerRef}
-              >
-                Review diagnostics
-              </Button>
-            </div>
-          </section>
+              <div className="diagnostics-summary-content">
+                <div aria-live="polite">
+                  <strong>{diagnostics.headline}</strong>
+                  <p>{sourceDetail}</p>
+                </div>
+              </div>
+            </section>
+            <section aria-label="System health details" className="diagnostics-view-details">
+              <DiagnosticList sources={sortedHealth} />
+            </section>
+          </>
         ) : null}
       </main>
 
       {state.expandedChart ? <div aria-hidden="true" className="inspect-backdrop" /> : null}
 
       {isMobile ? (
-        <nav aria-label="Dashboard sections" className="mobile-section-nav">
-          {[
-            ["Overview", null],
-            ["Grid", "Grid conditions"],
-            ["Generation", "Generation"],
-            ["Reliability", "Reliability"],
-            ["Market", "Market"],
-          ].map(([label, group]) => (
-            <button
-              aria-current={selectedSection === label ? "page" : undefined}
-              aria-label={label + " section"}
-              key={label}
-              onClick={() => {
-                if (group) navigateToGroup(group, label ?? group);
-                else {
-                  setSelectedSection("Overview");
-                  overviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  overviewRef.current?.focus({ preventScroll: true });
-                }
-              }}
-            >
-              {label === "Generation" ? "Gen" : label}
-            </button>
-          ))}
-          <button
-            aria-current={selectedSection === "More" ? "page" : undefined}
-            aria-label="More sections"
-            aria-haspopup="dialog"
-            onClick={() => {
-              setSelectedSection("More");
-              setMobileDialog("more");
-            }}
-            ref={moreTriggerRef}
-          >
-            More
-          </button>
-        </nav>
+        <DashboardViewNavigation activeView={selectedView} mobile onNavigate={navigateToView} />
       ) : null}
 
       <MobileDialog
@@ -1379,27 +1461,7 @@ export function App() {
         returnFocusRef={sourcesTriggerRef}
         title="System health details"
       >
-        <div className="diagnostic-list">
-          {!sortedHealth.length ? <p>No source health has been reported yet.</p> : null}
-          {sortedHealth.map((source) => (
-            <article className={"diagnostic-item status-" + source.state} key={source.source_id}>
-              <header>
-                <strong>{source.display_name}</strong>
-                <span>{source.state}</span>
-              </header>
-              <p>
-                Collection {source.collection_state} · data {source.freshness_state} ·{" "}
-                {formatAge(source.data_age_seconds)}
-              </p>
-              {source.source_timestamp_ts ? (
-                <time dateTime={new Date(source.source_timestamp_ts * 1000).toISOString()}>
-                  Source observation {new Date(source.source_timestamp_ts * 1000).toLocaleString()}
-                </time>
-              ) : null}
-              {source.last_error ? <p className="diagnostic-error">{source.last_error}</p> : null}
-            </article>
-          ))}
-        </div>
+        <DiagnosticList sources={sortedHealth} />
       </MobileDialog>
 
       <MobileDialog
@@ -1440,28 +1502,6 @@ export function App() {
               ))}
             </tbody>
           </table>
-        </div>
-      </MobileDialog>
-
-      <MobileDialog
-        description="Open the remaining analytical areas without traversing the full dashboard."
-        onClose={() => setMobileDialog(null)}
-        open={mobileDialog === "more"}
-        returnFocusRef={moreTriggerRef}
-        title="More dashboard sections"
-      >
-        <div className="section-picker">
-          {["Ancillary services", "Weather", "Operations"].map((group) => (
-            <Button
-              key={group}
-              onClick={() => {
-                setMobileDialog(null);
-                window.setTimeout(() => navigateToGroup(group, "More"), 0);
-              }}
-            >
-              {group}
-            </Button>
-          ))}
         </div>
       </MobileDialog>
 

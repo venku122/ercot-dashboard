@@ -14,7 +14,12 @@ import {
   zoomTo,
 } from "./time-state";
 import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./zoned-time";
-import { dashboardStateFromUrl, dashboardStateToUrl } from "./url-state";
+import {
+  dashboardStateFromUrl,
+  dashboardStateToUrl,
+  dashboardViewFromUrl,
+  dashboardViewToUrl,
+} from "./url-state";
 import { formatAge, formatValue } from "./units";
 
 describe("global time state", () => {
@@ -47,6 +52,14 @@ describe("global time state", () => {
 });
 
 describe("shareable URL state", () => {
+  it("normalizes and serializes the active progressive-disclosure view", () => {
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=weather"))).toBe("weather");
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=unknown"))).toBe("overview");
+    const output = dashboardViewToUrl("diagnostics", new URL("https://example.test/?range=3600"));
+    expect(output.searchParams.get("view")).toBe("diagnostics");
+    expect(output.searchParams.get("range")).toBe("3600");
+  });
+
   it("round trips fixed time, comparison, events, inspect, legend and hidden series", () => {
     const parsed = dashboardStateFromUrl(
       new URL(
