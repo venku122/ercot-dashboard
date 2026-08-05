@@ -299,7 +299,7 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
       json: {
         events: [
           {
-            dedupe_key: "fixture:event",
+            dedupe_key: "fixture:event:transmission",
             source_id: "operations_messages",
             starts_at: now - 1800,
             observed_at: now - 1800,
@@ -307,6 +307,42 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
             status: "Active",
             severity: "warning",
             title: "Fixture operations message: DC tie unavailable during the selected window.",
+          },
+          {
+            dedupe_key: "fixture:event:heat",
+            source_id: "operations_messages",
+            starts_at: now - 3600,
+            event_type: "Advisory",
+            status: "Closed",
+            severity: "information",
+            title: "Heat advisory asked consumers to conserve during the afternoon peak.",
+          },
+          {
+            dedupe_key: "fixture:event:generator",
+            source_id: "operations_messages",
+            starts_at: now - 5400,
+            event_type: "Operational Information",
+            status: "Closed",
+            severity: "warning",
+            title: "Generator unit trip removed 620 MW before the resource returned to service.",
+          },
+          {
+            dedupe_key: "fixture:event:reserve",
+            source_id: "operations_messages",
+            starts_at: now - 7200,
+            event_type: "Operational Information",
+            status: "Closed",
+            severity: "watch",
+            title: "Reserve watch ended after Physical Responsive Capability recovered.",
+          },
+          {
+            dedupe_key: "fixture:event:eea",
+            source_id: "operations_messages",
+            starts_at: now - 9000,
+            event_type: "Emergency Notice",
+            status: "Closed",
+            severity: "emergency",
+            title: "EEA Level 2 ended after operating reserves stabilized.",
           },
         ],
       },
@@ -323,6 +359,25 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
       .getByLabel("ERCOT operations messages")
       .getByText("Fixture operations message", { exact: false }),
   ).toBeVisible();
+  const operations = page.getByLabel("ERCOT operations messages");
+  await expect(
+    operations.getByLabel("Historical operations timeline").getByRole("listitem"),
+  ).toHaveCount(5);
+  for (const category of [
+    "Heat advisory",
+    "Generator trip",
+    "Reserve watch",
+    "EEA",
+    "Transmission event",
+  ]) {
+    await expect(operations.getByText(category, { exact: true })).toBeVisible();
+  }
+  await operations.getByLabel("Filter operations timeline by severity").selectOption("watch");
+  await expect(
+    operations.getByLabel("Historical operations timeline").getByRole("listitem"),
+  ).toHaveCount(2);
+  await expect(operations).toContainText("Showing 2 of 5 events");
+  await operations.getByLabel("Filter operations timeline by severity").selectOption("all");
   await expect(page.getByRole("heading", { name: "Latest settlement point prices" })).toBeVisible();
 
   await page.getByRole("button", { name: "Pause" }).click();
@@ -443,7 +498,7 @@ test("alerts are actionable, interpretive, material, and free of collector noise
   await expect(alerts).toContainText("Impact");
   await expect(alerts).toContainText("Recommended action");
   await alerts.getByRole("button", { name: "Review operations" }).click();
-  await expect(page.getByRole("dialog", { name: "Operations message history" })).toContainText(
+  await expect(page.getByRole("dialog", { name: "Operations timeline" })).toContainText(
     "Fixture operations message",
   );
   await page.keyboard.press("Escape");

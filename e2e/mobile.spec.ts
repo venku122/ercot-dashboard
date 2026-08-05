@@ -269,9 +269,17 @@ test("P0 active operations notice stays visible while history is progressive @mo
   await expect(alert).toContainText("Recommended action");
   await expect(page.getByText("Earlier transmission advisory", { exact: false })).toBeHidden();
   await summary.getByRole("button", { name: "Review operations messages" }).click();
-  await expect(page.getByRole("dialog", { name: "Operations message history" })).toContainText(
-    "Earlier transmission advisory",
-  );
+  const dialog = page.getByRole("dialog", { name: "Operations timeline" });
+  await expect(dialog).toContainText("Earlier transmission advisory");
+  await expect(
+    dialog.getByLabel("Historical operations timeline").getByRole("listitem"),
+  ).toHaveCount(6);
+  await dialog.getByLabel("Filter operations timeline by severity").selectOption("emergency");
+  await expect(
+    dialog.getByLabel("Historical operations timeline").getByRole("listitem"),
+  ).toHaveCount(1);
+  await expect(dialog).toContainText("EEA Level 2");
+  await expectNoHorizontalOverflow(page);
 });
 
 test("P0 API failure remains distinct from an empty selected window @mobile-core", async ({
@@ -473,6 +481,14 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
       maxDiffPixelRatio: 0.04,
       maxDiffPixels: 900,
     });
+  await page
+    .getByLabel("Operations notice summary")
+    .getByRole("button", { name: "Review operations messages" })
+    .click();
+  await expect
+    .soft(page.getByRole("dialog", { name: "Operations timeline" }))
+    .toHaveScreenshot("mobile-operations-timeline.png");
+  await page.keyboard.press("Escape");
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "warning");
