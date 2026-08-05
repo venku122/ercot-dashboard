@@ -52,6 +52,9 @@ available in the advanced layer, which defaults collapsed on desktop and mobile.
   dispatch choice and never runs as part of that deterministic gate.
 - Paired desktop visual assertions report both divergences in one artifact while
   retaining a failing job conclusion, matching the mobile VRI evidence flow.
+- The mobile suite uses a stable first-viewport page snapshot plus focused
+  component states; it no longer captures a full page whose lazy chart at the
+  viewport boundary alternated between placeholder and mounted canvas.
 
 ## Accessibility impact
 

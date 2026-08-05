@@ -344,7 +344,6 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   const supplyDemand = page.locator('[data-chart-id="supply-demand"]');
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.soft(page).toHaveScreenshot("mobile-after-first-viewport.png");
-  await expect.soft(page).toHaveScreenshot("mobile-after-full.png", { fullPage: true });
   await page.getByRole("button", { name: "Controls" }).click();
   await expect
     .soft(page.getByRole("dialog", { name: "Dashboard controls" }))
