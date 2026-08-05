@@ -155,6 +155,39 @@ test("Grid Health Score is bounded, explainable, and coverage-aware", async ({ p
   await expect(score).toContainText("— / 100");
 });
 
+test("chart thresholds pair semantic bands with non-color interpretation text", async ({
+  page,
+}) => {
+  await installApi(page);
+  await page.goto("/");
+
+  const demand = page.locator('[data-chart-id="supply-demand"]');
+  await demand.scrollIntoViewIfNeeded();
+  await expect(demand.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
+  await expect(demand.locator(".chart-interpretation")).toHaveAttribute("open", "");
+  await expect(
+    demand.getByLabel("Supply and demand interpretation bands").getByRole("listitem"),
+  ).toHaveCount(4);
+  await expect(demand.getByText("Comfortable", { exact: true })).toBeVisible();
+  await expect(demand.getByText("80.0%–90.0%", { exact: true })).toBeVisible();
+  await expect(demand.getByText(/Waiting for latest available capacity/)).toHaveCount(0);
+  await expect(demand.locator("canvas")).toHaveAttribute(
+    "aria-label",
+    /Interpretation guide for actual demand.*Comfortable.*Above capacity/,
+  );
+
+  const frequency = page.locator('[data-chart-id="frequency"]');
+  await frequency.scrollIntoViewIfNeeded();
+  await expect(
+    frequency.getByLabel("Grid frequency interpretation bands").getByRole("listitem"),
+  ).toHaveCount(7);
+  await expect(frequency.getByText("Near nominal", { exact: true })).toBeVisible();
+  await expect(frequency.locator("canvas")).toHaveAttribute(
+    "aria-label",
+    /Near nominal, 59.950 Hz–60.050 Hz/,
+  );
+});
+
 async function installApi(page: Page, scenario: Scenario = "normal", requests: string[][] = []) {
   await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/series/batch", async (route) => {

@@ -955,6 +955,78 @@ main {
   gap: 6px;
 }
 
+.chart-interpretation {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 10px;
+  background: rgba(8, 15, 25, 0.42);
+  padding: 7px 9px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.chart-interpretation summary {
+  color: #cbd5e1;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.chart-interpretation p {
+  margin: 7px 0 0;
+  line-height: 1.4;
+}
+
+.chart-interpretation ul {
+  display: flex;
+  margin: 8px 0 0;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0;
+  list-style: none;
+}
+
+.chart-interpretation li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 999px;
+  padding: 3px 6px;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-interpretation li > span:last-child {
+  color: var(--muted);
+}
+
+.interpretation-swatch {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  background: #60a5fa;
+}
+
+.interpretation-normal .interpretation-swatch {
+  background: #34d399;
+}
+
+.interpretation-watch .interpretation-swatch {
+  background: #fbbf24;
+}
+
+.interpretation-strained .interpretation-swatch {
+  background: #fb923c;
+}
+
+.interpretation-critical .interpretation-swatch {
+  background: #f87171;
+}
+
+.interpretation-reference-unavailable {
+  color: #fcd34d;
+}
+
 .chart-canvas-wrap {
   position: relative;
   height: 310px;
@@ -1028,6 +1100,14 @@ main {
   border-radius: 999px;
   background: var(--series-color);
   box-shadow: 0 0 7px var(--series-color);
+}
+
+.legend-swatch-dashed {
+  width: 14px;
+  height: 3px;
+  border-radius: 0;
+  background: repeating-linear-gradient(90deg, var(--series-color) 0 4px, transparent 4px 7px);
+  box-shadow: none;
 }
 
 .legend-latest {
@@ -1888,6 +1968,15 @@ footer p {
   .chart-canvas-wrap {
     height: 260px;
     touch-action: pan-y;
+  }
+
+  .chart-interpretation {
+    font-size: 0.72rem;
+  }
+
+  .chart-interpretation summary {
+    min-height: 44px;
+    line-height: 44px;
   }
 
   .chart-card-inspect .chart-canvas-wrap {
