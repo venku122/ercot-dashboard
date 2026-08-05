@@ -29,6 +29,7 @@ import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
 import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
+import { OperationsTimeline } from "./dashboard/OperationsTimeline";
 import {
   buildDerivedMetrics,
   derivedLatestQueries,
@@ -1099,24 +1100,11 @@ export function App() {
             {state.events ? (
               <section aria-label="ERCOT operations messages" className="events-panel">
                 <div>
-                  <p className="eyebrow">Annotations</p>
-                  <h2>ERCOT operations messages</h2>
+                  <p className="eyebrow">History</p>
+                  <h2>Operations timeline</h2>
+                  <p>ERCOT notices in the selected time window, classified for faster review.</p>
                 </div>
-                {events.length ? (
-                  <ol>
-                    {events.slice(0, 8).map((event) => (
-                      <li key={event.dedupe_key}>
-                        <time dateTime={new Date(event.starts_at * 1000).toISOString()}>
-                          {new Date(event.starts_at * 1000).toLocaleString()}
-                        </time>
-                        <span>{event.status ?? "Unknown"}</span>
-                        <p>{event.title}</p>
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p>No operations messages in this window.</p>
-                )}
+                <OperationsTimeline events={events} />
               </section>
             ) : null}
 
@@ -1376,31 +1364,13 @@ export function App() {
       </MobileDialog>
 
       <MobileDialog
-        description="Active notices are prioritized; complete selected-window history remains available here."
+        description="Active notices are prioritized; filterable selected-window history remains available here."
         onClose={() => setMobileDialog(null)}
         open={mobileDialog === "events"}
         returnFocusRef={eventsTriggerRef}
-        title="Operations message history"
+        title="Operations timeline"
       >
-        {events.length ? (
-          <ol className="dialog-event-list">
-            {events.map((event) => (
-              <li key={event.dedupe_key}>
-                <div>
-                  <span className="event-severity">{event.severity ?? "information"}</span>
-                  <span>{event.status ?? "Unknown"}</span>
-                </div>
-                <strong>{event.title}</strong>
-                <time dateTime={new Date(event.starts_at * 1000).toISOString()}>
-                  {new Date(event.starts_at * 1000).toLocaleString()}
-                </time>
-                {event.body ? <p>{event.body}</p> : null}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p>No operations messages in this window.</p>
-        )}
+        <OperationsTimeline events={events} />
       </MobileDialog>
 
       <MobileDialog
