@@ -557,6 +557,148 @@ main {
   color: #fecaca;
 }
 
+.overview-status-card[data-condition="unavailable"] {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: linear-gradient(145deg, rgba(51, 65, 85, 0.28), var(--panel));
+}
+
+.overview-status-card[data-condition="unavailable"] > strong {
+  color: #cbd5e1;
+}
+
+.grid-health-score-value {
+  display: grid;
+  gap: 2px;
+}
+
+.grid-health-score-value strong {
+  color: #e0f2fe;
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.grid-health-score-value strong span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.grid-health-score-value small {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid-health-score-value[data-health-status="critical"] strong,
+.grid-health-score-value[data-health-status="strained"] strong {
+  color: #fecaca;
+}
+
+.grid-health-score-value[data-health-status="watch"] strong {
+  color: #fde68a;
+}
+
+.grid-health-score-value[data-health-status="limited"] strong,
+.grid-health-score-value[data-health-status="unavailable"] strong {
+  color: #cbd5e1;
+}
+
+.grid-health-details {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.grid-health-details summary {
+  min-height: 44px;
+  padding: 13px 16px;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.grid-health-details > div {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 16px;
+}
+
+.grid-health-details > div > p {
+  max-width: 920px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.grid-health-current-result {
+  color: #dbeafe !important;
+  font-weight: 700;
+}
+
+.grid-health-details ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.grid-health-details li {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.grid-health-details li[data-factor-available="false"] {
+  border-style: dashed;
+}
+
+.grid-health-details li > div {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.grid-health-details li strong {
+  font-size: 0.74rem;
+}
+
+.grid-health-details li span,
+.grid-health-details li small,
+.grid-health-details li p {
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.4;
+}
+
+.grid-health-details li span {
+  flex: 0 0 auto;
+}
+
+.grid-health-details li p {
+  margin: 0;
+}
+
+.grid-health-details li small {
+  margin-top: auto;
+  color: #bae6fd;
+}
+
+.grid-health-thresholds {
+  padding-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
 .source-overview strong {
   font-size: 0.82rem;
   line-height: 1.5;
@@ -1342,6 +1484,11 @@ footer p {
     background: rgba(127, 29, 29, 0.24);
   }
 
+  .mobile-grid-condition[data-condition="unavailable"] {
+    border-color: rgba(148, 163, 184, 0.36);
+    background: rgba(51, 65, 85, 0.22);
+  }
+
   .mobile-grid-condition .eyebrow {
     margin-bottom: 2px;
   }
@@ -1360,6 +1507,10 @@ footer p {
     color: #fecaca;
   }
 
+  .mobile-grid-condition[data-condition="unavailable"] > div > strong {
+    color: #cbd5e1;
+  }
+
   .mobile-grid-condition p {
     margin: 0;
     overflow: hidden;
@@ -1369,9 +1520,31 @@ footer p {
     text-overflow: ellipsis;
   }
 
+  .mobile-grid-condition > p {
+    grid-column: 1 / -1;
+  }
+
+  .mobile-grid-condition .grid-health-score-value {
+    justify-items: end;
+    text-align: right;
+  }
+
+  .mobile-grid-condition .grid-health-score-value strong {
+    font-size: 1.25rem;
+    letter-spacing: 0;
+  }
+
   .mobile-grid-condition > .hero-trend {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .grid-health-details ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid-health-details > div {
+    padding: 12px;
   }
 
   .overview-grid {
