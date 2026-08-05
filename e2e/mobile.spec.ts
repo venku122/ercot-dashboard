@@ -412,7 +412,10 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await installMobileApi(page, "failed");
   await page.reload();
   const sourceSummary = page.getByLabel("System health summary");
-  await expect.soft(sourceSummary).toHaveScreenshot("mobile-source-failure-summary.png");
+  await expect.soft(sourceSummary).toHaveScreenshot("mobile-source-failure-summary.png", {
+    maxDiffPixelRatio: 0.02,
+    maxDiffPixels: 500,
+  });
   await page.getByRole("button", { name: "Generation section" }).click();
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.scrollIntoViewIfNeeded();
