@@ -1067,6 +1067,10 @@ main {
   display: contents;
 }
 
+.panel-lifecycle-message {
+  grid-column: 1 / -1;
+}
+
 .chart-group {
   display: grid;
   gap: 12px;
@@ -1285,6 +1289,13 @@ main {
   min-height: 220px;
 }
 
+.chart-canvas-wrap[data-lifecycle-state="loading"],
+.chart-canvas-wrap[data-lifecycle-state="unavailable"],
+.chart-canvas-wrap[data-lifecycle-state="waiting"] {
+  height: 176px;
+  min-height: 160px;
+}
+
 .chart-canvas-wrap canvas {
   width: 100% !important;
   height: 100% !important;
@@ -1305,6 +1316,44 @@ main {
 
 .chart-error {
   color: #fecaca;
+}
+
+.data-lifecycle-message {
+  display: grid;
+  min-height: 112px;
+  place-content: center;
+  gap: 6px;
+  border: 1px dashed rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+}
+
+.data-lifecycle-message strong {
+  color: #dbe7f5;
+  font-size: 0.9rem;
+}
+
+.data-lifecycle-message p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.data-lifecycle-message[data-lifecycle-state="unavailable"] strong {
+  color: #fecaca;
+}
+
+.chart-lifecycle-overlay .data-lifecycle-message {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.chart-lifecycle-overlay {
+  background: rgba(8, 15, 25, 0.96);
 }
 
 .chart-stale {

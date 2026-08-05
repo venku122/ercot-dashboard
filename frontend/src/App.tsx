@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { MobileDialog } from "./components/MobileDialog";
+import { DataLifecycleMessage } from "./components/DataLifecycleMessage";
 import { Button } from "./components/ui/button";
 import {
   loadEvents,
@@ -28,6 +29,11 @@ import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
 import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
+import {
+  dataLifecycleCopy,
+  resolveDataLifecycleState,
+  type DataLifecycleState,
+} from "./dashboard/data-lifecycle";
 import { OperationsTimeline } from "./dashboard/OperationsTimeline";
 import {
   buildDerivedMetrics,
@@ -451,10 +457,27 @@ function DashboardViewNavigation({
   );
 }
 
-function DiagnosticList({ sources }: { sources: readonly SourceHealth[] }) {
+function DiagnosticList({
+  lifecycleState,
+  sources,
+}: {
+  lifecycleState: DataLifecycleState;
+  sources: readonly SourceHealth[];
+}) {
+  if (lifecycleState !== "ready") {
+    return (
+      <DataLifecycleMessage
+        detail={
+          lifecycleState === "waiting"
+            ? "No source-health sample has been reported yet."
+            : undefined
+        }
+        state={lifecycleState}
+      />
+    );
+  }
   return (
     <div className="diagnostic-list">
-      {!sources.length ? <p>No source health has been reported yet.</p> : null}
       {sources.map((source) => (
         <article className={`diagnostic-item status-${source.state}`} key={source.source_id}>
           <header>
@@ -882,7 +905,31 @@ export function App() {
         " source" +
         (healthCounts.healthy === 1 ? " is" : "s are") +
         " reporting normally"
-      : "No source health has been reported yet";
+      : dataLifecycleCopy.waiting.detail;
+  const sourceLifecycleState = resolveDataLifecycleState({
+    hasData: sourceHealth.length > 0,
+    loading: overviewLoading,
+    unavailable: Boolean(requestError),
+  });
+  const priceLifecycleState = resolveDataLifecycleState({
+    hasData: priceRanking.length > 0,
+    loading: overviewLoading,
+    unavailable: Boolean(requestError),
+  });
+  const sourceHeadline =
+    sourceLifecycleState === "ready"
+      ? diagnostics.headline
+      : dataLifecycleCopy[sourceLifecycleState].title;
+  const lifecycleSourceDetail =
+    sourceLifecycleState === "ready"
+      ? sourceDetail
+      : sourceLifecycleState === "waiting"
+        ? "No source-health sample has been reported yet."
+        : dataLifecycleCopy[sourceLifecycleState].detail;
+  const eventsLoading = Boolean(state.events && overviewLoading && !events.length);
+  const eventsUnavailable = Boolean(
+    state.events && !overviewLoading && requestError && !events.length,
+  );
   const activeView = dashboardViewDefinition(selectedView);
   const activeChartGroups = chartGroups.filter(
     (group) => dashboardViewForGroup(group) === selectedView,
@@ -1224,8 +1271,8 @@ export function App() {
             >
               <div aria-live="polite">
                 <span className="summary-label">Diagnostics</span>
-                <strong>{diagnostics.headline}</strong>
-                <small>{sourceDetail}</small>
+                <strong>{sourceHeadline}</strong>
+                <small>{lifecycleSourceDetail}</small>
               </div>
               <Button
                 aria-haspopup="dialog"
@@ -1250,7 +1297,7 @@ export function App() {
                   Show all prices
                 </Button>
               </div>
-              {priceRanking.length ? (
+              {priceLifecycleState === "ready" ? (
                 <ol>
                   {priceRanking.slice(0, 5).map((row) => (
                     <li key={row.tag}>
@@ -1265,7 +1312,15 @@ export function App() {
                   ))}
                 </ol>
               ) : (
-                <p>No settlement prices have been reported yet.</p>
+                <DataLifecycleMessage
+                  className="panel-lifecycle-message"
+                  detail={
+                    priceLifecycleState === "waiting"
+                      ? "No settlement-price sample has been reported yet."
+                      : undefined
+                  }
+                  state={priceLifecycleState}
+                />
               )}
             </section>
           </div>
@@ -1279,7 +1334,11 @@ export function App() {
               <p>ERCOT notices in the selected time window, classified for faster review.</p>
             </div>
             {state.events ? (
-              <OperationsTimeline events={events} />
+              <OperationsTimeline
+                events={events}
+                loading={eventsLoading}
+                unavailable={eventsUnavailable}
+              />
             ) : (
               <div className="view-empty-note">
                 <p>Operations annotations are off for the shared dashboard window.</p>
@@ -1297,7 +1356,7 @@ export function App() {
               <p className="eyebrow">Market ranking</p>
               <h2>Latest settlement point prices</h2>
             </div>
-            {priceRanking.length ? (
+            {priceLifecycleState === "ready" ? (
               <div className="table-scroll">
                 <table>
                   <thead>
@@ -1319,7 +1378,15 @@ export function App() {
                 </table>
               </div>
             ) : (
-              <p>No settlement prices have been reported yet.</p>
+              <DataLifecycleMessage
+                className="panel-lifecycle-message"
+                detail={
+                  priceLifecycleState === "waiting"
+                    ? "No settlement-price sample has been reported yet."
+                    : undefined
+                }
+                state={priceLifecycleState}
+              />
             )}
           </section>
         ) : null}
@@ -1424,13 +1491,13 @@ export function App() {
               </div>
               <div className="diagnostics-summary-content">
                 <div aria-live="polite">
-                  <strong>{diagnostics.headline}</strong>
-                  <p>{sourceDetail}</p>
+                  <strong>{sourceHeadline}</strong>
+                  <p>{lifecycleSourceDetail}</p>
                 </div>
               </div>
             </section>
             <section aria-label="System health details" className="diagnostics-view-details">
-              <DiagnosticList sources={sortedHealth} />
+              <DiagnosticList lifecycleState={sourceLifecycleState} sources={sortedHealth} />
             </section>
           </>
         ) : null}
@@ -1461,7 +1528,7 @@ export function App() {
         returnFocusRef={sourcesTriggerRef}
         title="System health details"
       >
-        <DiagnosticList sources={sortedHealth} />
+        <DiagnosticList lifecycleState={sourceLifecycleState} sources={sortedHealth} />
       </MobileDialog>
 
       <MobileDialog
@@ -1471,7 +1538,11 @@ export function App() {
         returnFocusRef={eventsTriggerRef}
         title="Operations timeline"
       >
-        <OperationsTimeline events={events} />
+        <OperationsTimeline
+          events={events}
+          loading={eventsLoading}
+          unavailable={eventsUnavailable}
+        />
       </MobileDialog>
 
       <MobileDialog
@@ -1481,28 +1552,39 @@ export function App() {
         returnFocusRef={pricesTriggerRef}
         title="Settlement price details"
       >
-        <div className="table-scroll ranking-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Settlement point</th>
-                <th>Price</th>
-                <th>Observed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {priceRanking.map((row) => (
-                <tr key={row.tag}>
-                  <td>{row.tag.replace("ercot_region:", "")}</td>
-                  <td className={row.value < 0 ? "negative-price" : ""}>
-                    {formatValue(row.value, "$/MWh")}
-                  </td>
-                  <td>{new Date(row.ts * 1000).toLocaleString()}</td>
+        {priceLifecycleState === "ready" ? (
+          <div className="table-scroll ranking-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Settlement point</th>
+                  <th>Price</th>
+                  <th>Observed</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {priceRanking.map((row) => (
+                  <tr key={row.tag}>
+                    <td>{row.tag.replace("ercot_region:", "")}</td>
+                    <td className={row.value < 0 ? "negative-price" : ""}>
+                      {formatValue(row.value, "$/MWh")}
+                    </td>
+                    <td>{new Date(row.ts * 1000).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <DataLifecycleMessage
+            detail={
+              priceLifecycleState === "waiting"
+                ? "No settlement-price sample has been reported yet."
+                : undefined
+            }
+            state={priceLifecycleState}
+          />
+        )}
       </MobileDialog>
 
       <footer>

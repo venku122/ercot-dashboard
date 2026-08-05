@@ -1,6 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
-type Scenario = "empty" | "error" | "missing-core" | "negative" | "normal" | "spike" | "stale";
+type Scenario =
+  | "empty"
+  | "empty-panels"
+  | "error"
+  | "missing-core"
+  | "negative"
+  | "no-events"
+  | "normal"
+  | "spike"
+  | "stale";
 
 const FIXED_NOW = new Date("2026-07-21T18:00:00-05:00");
 const FIXED_NOW_SECONDS = Math.floor(FIXED_NOW.getTime() / 1000);
@@ -254,10 +263,13 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
   await page.route("**/api/v1/ranking**", async (route) => {
     await route.fulfill({
       json: {
-        rows: [
-          { tag: "ercot_region:LZ_WEST", ts: FIXED_NOW_SECONDS - 30, value: 92.5 },
-          { tag: "ercot_region:HB_HOUSTON", ts: FIXED_NOW_SECONDS - 30, value: 48.25 },
-        ],
+        rows:
+          scenario === "empty-panels"
+            ? []
+            : [
+                { tag: "ercot_region:LZ_WEST", ts: FIXED_NOW_SECONDS - 30, value: 92.5 },
+                { tag: "ercot_region:HB_HOUSTON", ts: FIXED_NOW_SECONDS - 30, value: 48.25 },
+              ],
       },
     });
   });
@@ -291,60 +303,67 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
       publication_mode: sourceId === "operations_messages" ? "event" : "polling",
       publication_interval_seconds: 300,
     }));
-    await route.fulfill({ json: { sources, summary: {}, as_of: now } });
+    await route.fulfill({
+      json: { sources: scenario === "empty-panels" ? [] : sources, summary: {}, as_of: now },
+    });
   });
   await page.route("**/api/v1/events**", async (route) => {
     const now = FIXED_NOW_SECONDS;
     await route.fulfill({
       json: {
-        events: [
-          {
-            dedupe_key: "fixture:event:transmission",
-            source_id: "operations_messages",
-            starts_at: now - 1800,
-            observed_at: now - 1800,
-            event_type: "Operational Information",
-            status: "Active",
-            severity: "warning",
-            title: "Fixture operations message: DC tie unavailable during the selected window.",
-          },
-          {
-            dedupe_key: "fixture:event:heat",
-            source_id: "operations_messages",
-            starts_at: now - 3600,
-            event_type: "Advisory",
-            status: "Closed",
-            severity: "information",
-            title: "Heat advisory asked consumers to conserve during the afternoon peak.",
-          },
-          {
-            dedupe_key: "fixture:event:generator",
-            source_id: "operations_messages",
-            starts_at: now - 5400,
-            event_type: "Operational Information",
-            status: "Closed",
-            severity: "warning",
-            title: "Generator unit trip removed 620 MW before the resource returned to service.",
-          },
-          {
-            dedupe_key: "fixture:event:reserve",
-            source_id: "operations_messages",
-            starts_at: now - 7200,
-            event_type: "Operational Information",
-            status: "Closed",
-            severity: "watch",
-            title: "Reserve watch ended after Physical Responsive Capability recovered.",
-          },
-          {
-            dedupe_key: "fixture:event:eea",
-            source_id: "operations_messages",
-            starts_at: now - 9000,
-            event_type: "Emergency Notice",
-            status: "Closed",
-            severity: "emergency",
-            title: "EEA Level 2 ended after operating reserves stabilized.",
-          },
-        ],
+        events:
+          scenario === "no-events"
+            ? []
+            : [
+                {
+                  dedupe_key: "fixture:event:transmission",
+                  source_id: "operations_messages",
+                  starts_at: now - 1800,
+                  observed_at: now - 1800,
+                  event_type: "Operational Information",
+                  status: "Active",
+                  severity: "warning",
+                  title:
+                    "Fixture operations message: DC tie unavailable during the selected window.",
+                },
+                {
+                  dedupe_key: "fixture:event:heat",
+                  source_id: "operations_messages",
+                  starts_at: now - 3600,
+                  event_type: "Advisory",
+                  status: "Closed",
+                  severity: "information",
+                  title: "Heat advisory asked consumers to conserve during the afternoon peak.",
+                },
+                {
+                  dedupe_key: "fixture:event:generator",
+                  source_id: "operations_messages",
+                  starts_at: now - 5400,
+                  event_type: "Operational Information",
+                  status: "Closed",
+                  severity: "warning",
+                  title:
+                    "Generator unit trip removed 620 MW before the resource returned to service.",
+                },
+                {
+                  dedupe_key: "fixture:event:reserve",
+                  source_id: "operations_messages",
+                  starts_at: now - 7200,
+                  event_type: "Operational Information",
+                  status: "Closed",
+                  severity: "watch",
+                  title: "Reserve watch ended after Physical Responsive Capability recovered.",
+                },
+                {
+                  dedupe_key: "fixture:event:eea",
+                  source_id: "operations_messages",
+                  starts_at: now - 9000,
+                  event_type: "Emergency Notice",
+                  status: "Closed",
+                  severity: "emergency",
+                  title: "EEA Level 2 ended after operating reserves stabilized.",
+                },
+              ],
       },
     });
   });
@@ -445,13 +464,13 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
 test("drag zoom and modified pan update the fixed global window", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
-  const canvas = page.locator('[data-chart-id="supply-demand"] canvas');
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  const canvas = card.locator("canvas");
   await expect(canvas).toBeVisible();
-  await canvas.scrollIntoViewIfNeeded();
   await expect(canvas).toHaveAttribute("aria-label", /[1-9]\d* observations/);
-  await expect
-    .poll(() => page.evaluate(() => window.__ercotChartLifecycle?.updated ?? 0))
-    .toBeGreaterThan(0);
+  await expect(canvas).toHaveAttribute("data-chart-ready", "true");
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas missing bounds");
   await page.mouse.move(box.x + 120, box.y + 130);
@@ -474,12 +493,20 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await page.goto("/");
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect(page.getByRole("alert")).toContainText("not an empty-data state");
+  const failedCard = page.locator('[data-chart-id="supply-demand"]');
+  await expect(failedCard.getByText("Temporarily unavailable…")).toBeVisible();
+  await expect(failedCard.getByText("Waiting for first sample…")).toBeHidden();
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "empty");
   await page.reload();
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
-  await expect(page.getByText("No observations in this window.").first()).toBeVisible();
+  const emptyCard = page.locator('[data-chart-id="supply-demand"]');
+  await expect(emptyCard.getByText("Waiting for first sample…")).toBeVisible();
+  await expect(emptyCard.getByText("Temporarily unavailable…")).toBeHidden();
+  await expect(emptyCard.locator(".chart-interpretation")).toHaveCount(0);
+  await expect(emptyCard.locator(".series-legend")).toHaveCount(0);
+  await expect(emptyCard.locator(".accessible-data")).toHaveCount(0);
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "stale");
@@ -489,6 +516,53 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.getByText("Data stale", { exact: false }).first()).toBeVisible();
   await expect(storage.getByText("Showing stale data")).toBeVisible();
+});
+
+test("loading resolves to a first-sample wait without blank chart detail", async ({ page }) => {
+  await installApi(page, "empty");
+  let releaseSeries: (() => void) | undefined;
+  const heldSeries = new Promise<void>((resolve) => {
+    releaseSeries = resolve;
+  });
+  await page.route("**/api/series/batch", async (route) => {
+    await heldSeries;
+    await route.fallback();
+  });
+  await page.goto("/");
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.getByText("Loading…")).toBeVisible();
+  releaseSeries?.();
+  await expect(card.getByText("Waiting for first sample…")).toBeVisible();
+});
+
+test("empty optional panels collapse to lifecycle or selected-range states", async ({ page }) => {
+  await installApi(page, "empty-panels");
+  await page.goto("/?view=market");
+  const ranking = page.getByRole("region", { name: "Settlement price ranking" });
+  await expect(ranking.getByText("Waiting for first sample…")).toBeVisible();
+  await expect(ranking.getByRole("table")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Diagnostics view" }).click();
+  const diagnostics = page.getByRole("region", { name: "System health details" });
+  await expect(diagnostics.getByText("Waiting for first sample…")).toBeVisible();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "no-events");
+  await page.goto("/?view=reliability");
+  await expect(page.getByText("No events during selected range.")).toBeVisible();
+});
+
+test("visual regression empty lifecycle state", async ({ page }) => {
+  await page.setViewportSize({ height: 1200, width: 1280 });
+  await installApi(page, "empty");
+  await page.goto("/");
+  await page.addStyleTag({
+    content: ".control-bar, .desktop-view-nav { display: none !important; }",
+  });
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card).toHaveScreenshot("empty-lifecycle-chart-desktop.png");
 });
 
 test("alerts are actionable, interpretive, material, and free of collector noise", async ({

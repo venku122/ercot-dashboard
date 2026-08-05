@@ -133,10 +133,14 @@ test("P0 compact legends preserve explicit shared expanded state @mobile-core", 
 }) => {
   await openPopulated(page);
   const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(card.locator(".legend-stats")).toHaveCount(0);
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page);
   await page.goto("/?legend=expanded");
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(card.locator(".legend-stats").first()).toBeVisible();
 });
 
@@ -300,13 +304,26 @@ test("P0 API failure remains distinct from an empty selected window @mobile-core
   await expect(page.getByRole("alert")).toContainText("not an empty-data state");
   await expect(page.getByRole("button", { name: "Retry data" })).toBeVisible();
   await expect(page.getByRole("alert")).not.toContainText("fixture upstream unavailable");
-  await expect(card.getByText("No observations in this window.")).toBeHidden();
+  await expect(card.getByText("Temporarily unavailable…")).toBeVisible();
+  await expect(card.getByText("Waiting for first sample…")).toBeHidden();
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "empty");
   await page.reload();
   await card.scrollIntoViewIfNeeded();
-  await expect(card.getByText("No observations in this window.")).toBeVisible();
+  await expect(card.getByText("Waiting for first sample…")).toBeVisible();
+  await expect(card.getByText("Temporarily unavailable…")).toBeHidden();
+  await expect(card.locator(".chart-interpretation")).toHaveCount(0);
+  await expect(card.locator(".series-legend")).toHaveCount(0);
+  await expect(card.locator(".accessible-data")).toHaveCount(0);
+});
+
+test("visual regression empty lifecycle state @mobile-vri", async ({ page }) => {
+  await installMobileApi(page, "empty");
+  await page.goto("/");
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card).toHaveScreenshot("empty-lifecycle-chart-mobile.png");
 });
 
 test("P0 view navigation updates URL, content, and focus @mobile-core", async ({ page }) => {

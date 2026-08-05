@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import {
   buildOperationsTimeline,
   filterOperationsTimeline,
@@ -8,7 +9,15 @@ import {
 } from "./operations-timeline";
 import type { EventRecord } from "./types";
 
-export function OperationsTimeline({ events }: { events: readonly EventRecord[] }) {
+export function OperationsTimeline({
+  events,
+  loading = false,
+  unavailable = false,
+}: {
+  events: readonly EventRecord[];
+  loading?: boolean;
+  unavailable?: boolean;
+}) {
   const [severity, setSeverity] = useState<"all" | OperationsSeverity>("all");
   const timeline = useMemo(() => buildOperationsTimeline(events), [events]);
   const visibleEvents = useMemo(
@@ -19,10 +28,30 @@ export function OperationsTimeline({ events }: { events: readonly EventRecord[] 
     operationsSeverityOptions.find((option) => option.value === severity)?.label ??
     "All severities";
 
+  if (!timeline.length && loading) {
+    return (
+      <DataLifecycleMessage
+        className="operations-timeline-empty"
+        detail="Requesting ERCOT notices for the selected range."
+        state="loading"
+      />
+    );
+  }
+
+  if (!timeline.length && unavailable) {
+    return (
+      <DataLifecycleMessage
+        className="operations-timeline-empty"
+        detail="ERCOT notices could not be loaded. Try again shortly."
+        state="unavailable"
+      />
+    );
+  }
+
   if (!timeline.length) {
     return (
       <div className="operations-timeline-empty" role="status">
-        <strong>No recorded operations events in this window</strong>
+        <strong>No events during selected range.</strong>
         <p>Choose a longer time range to review earlier ERCOT notices.</p>
       </div>
     );
@@ -78,7 +107,7 @@ export function OperationsTimeline({ events }: { events: readonly EventRecord[] 
         </ol>
       ) : (
         <div className="operations-timeline-empty" role="status">
-          <strong>No {selectedLabel.toLowerCase()} events in this window</strong>
+          <strong>No {selectedLabel.toLowerCase()} events during selected range.</strong>
           <p>Choose another severity or a longer time range.</p>
         </div>
       )}
