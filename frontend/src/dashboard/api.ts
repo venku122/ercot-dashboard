@@ -27,6 +27,7 @@ type SeriesQuery = {
 export type LatestQuery = { id: string; metric: string; tags?: readonly string[] };
 export type LatestResult = { point: { tags: string[]; ts: number; value: number } | null };
 export type RankingRow = { tag: string; ts: number; value: number };
+export type TrendBaseline = Point | null;
 
 type SeriesResult = {
   error?: string;
@@ -166,6 +167,49 @@ export async function loadLatest(
     signal,
   );
   return new Map(response.latest.map((entry) => [entry.id, entry.point]));
+}
+
+export async function loadTrendBaselines(
+  queries: LatestQuery[],
+  until: number,
+  signal: AbortSignal,
+): Promise<Map<string, TrendBaseline>> {
+  const since = Math.round(until - 3600);
+  const response = await fetchJson<{ series: SeriesResult[] }>(
+    "/api/series/batch",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        queries: queries.map((query) => ({
+          id: `hero:${query.id}`,
+          max_points: 120,
+          metric: query.metric,
+          since,
+          stats_since: since,
+          tags: [...(query.tags ?? [])],
+          until: Math.round(until),
+        })),
+      }),
+    },
+    signal,
+  );
+  const byId = new Map(response.series.map((entry) => [entry.id, entry]));
+  return new Map(
+    queries.map((query) => {
+      const point = byId
+        .get(`hero:${query.id}`)
+        ?.points?.filter(
+          ([timestamp, value]) => Number.isFinite(timestamp) && Number.isFinite(value),
+        )
+        .reduce<Point | undefined>(
+          (earliest, candidate) =>
+            earliest === undefined || candidate[0] < earliest[0] ? candidate : earliest,
+          undefined,
+        );
+      return [query.id, point ?? null];
+    }),
+  );
 }
 
 export async function loadPriceRanking(signal: AbortSignal): Promise<RankingRow[]> {

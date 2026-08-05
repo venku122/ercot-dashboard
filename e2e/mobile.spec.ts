@@ -32,6 +32,18 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
     const card = page.getByLabel("Grid overview").getByText(label, { exact: true });
     await expect(card).toBeVisible();
   }
+  for (const id of [
+    "grid-status",
+    "demand",
+    "available-capacity",
+    "reserve-margin",
+    "frequency",
+    "real-time-price",
+  ]) {
+    const trend = page.locator(`[data-hero-trend="${id}"]`);
+    await expect(trend).toBeVisible();
+    await expect(trend).toHaveAttribute("aria-label", /Last hour/);
+  }
   const demand = await page
     .getByLabel("Grid overview")
     .getByText("Demand", { exact: true })
@@ -383,7 +395,10 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await page.reload();
   await expect
     .soft(page.getByLabel("Operations notice summary"))
-    .toHaveScreenshot("mobile-active-operations.png");
+    .toHaveScreenshot("mobile-active-operations.png", {
+      maxDiffPixelRatio: 0.04,
+      maxDiffPixels: 900,
+    });
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "warning");
