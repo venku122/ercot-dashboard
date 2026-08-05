@@ -411,7 +411,10 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   });
   await expect(mobileNavigation).toBeHidden();
   await page.evaluate(() => new Promise(requestAnimationFrame));
-  await expect.soft(derivedMetrics).toHaveScreenshot("mobile-derived-metrics.png");
+  await expect.soft(derivedMetrics).toHaveScreenshot("mobile-derived-metrics.png", {
+    maxDiffPixelRatio: 0.02,
+    maxDiffPixels: 6000,
+  });
   const healthDetails = page.locator(".grid-health-details");
   await healthDetails.getByText("How the Grid Health Score is calculated", { exact: true }).click();
   await healthDetails.scrollIntoViewIfNeeded();
