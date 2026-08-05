@@ -6,6 +6,8 @@ import {
   chartGroupDefinitions,
   criticalMetricDefinitions,
   initiallyCollapsedGroups,
+  mobilePrimaryCriticalMetricIds,
+  mobileSupportingCriticalMetricIds,
   reserveMarginPercent,
 } from "./information-architecture";
 
@@ -19,6 +21,22 @@ describe("dashboard information architecture", () => {
       "frequency",
       "real-time-price",
     ]);
+  });
+
+  it("partitions mobile critical metrics into four primary and two supporting readings", () => {
+    expect(mobilePrimaryCriticalMetricIds).toEqual([
+      "grid-status",
+      "demand",
+      "reserve-margin",
+      "real-time-price",
+    ]);
+    expect(mobileSupportingCriticalMetricIds).toEqual(["available-capacity", "frequency"]);
+
+    const allMobileIds = [...mobilePrimaryCriticalMetricIds, ...mobileSupportingCriticalMetricIds];
+    expect(new Set(allMobileIds).size).toBe(allMobileIds.length);
+    expect(new Set(allMobileIds)).toEqual(
+      new Set(criticalMetricDefinitions.map((metric) => metric.id)),
+    );
   });
 
   it("assigns every chart to one declared hierarchy group", () => {

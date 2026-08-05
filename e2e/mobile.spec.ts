@@ -22,24 +22,15 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
 }) => {
   await openPopulated(page);
   const viewportHeight = page.viewportSize()?.height ?? 956;
-  for (const label of [
-    "Demand",
-    "Available capacity",
-    "Reserve margin",
-    "Frequency",
-    "Real-time price",
-  ]) {
-    const card = page.getByLabel("Grid overview").getByText(label, { exact: true });
+  const primaryOverview = page.getByLabel("Grid overview");
+  await expect(primaryOverview.getByRole("article")).toHaveCount(3);
+  for (const label of ["Demand", "Reserve margin", "Real-time price"]) {
+    const card = primaryOverview.getByText(label, { exact: true });
     await expect(card).toBeVisible();
   }
-  for (const id of [
-    "grid-status",
-    "demand",
-    "available-capacity",
-    "reserve-margin",
-    "frequency",
-    "real-time-price",
-  ]) {
+  await expect(primaryOverview.getByText("Available capacity", { exact: true })).toHaveCount(0);
+  await expect(primaryOverview.getByText("Frequency", { exact: true })).toHaveCount(0);
+  for (const id of ["grid-status", "demand", "reserve-margin", "real-time-price"]) {
     const trend = page.locator(`[data-hero-trend="${id}"]`);
     await expect(trend).toBeVisible();
     await expect(trend).toHaveAttribute("aria-label", /Last hour/);
@@ -52,16 +43,32 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
   await expect(
     page.getByText("How the Grid Health Score is calculated", { exact: true }),
   ).toBeVisible();
-  const demand = await page
-    .getByLabel("Grid overview")
-    .getByText("Demand", { exact: true })
+  const primaryPrice = await primaryOverview
+    .getByText("Real-time price", { exact: true })
     .boundingBox();
-  const frequency = await page
-    .getByLabel("Grid overview")
-    .getByText("Frequency", { exact: true })
-    .boundingBox();
-  expect(demand && demand.y + demand.height).toBeLessThanOrEqual(viewportHeight);
-  expect(frequency && frequency.y + frequency.height).toBeLessThanOrEqual(viewportHeight);
+  expect(primaryPrice && primaryPrice.y + primaryPrice.height).toBeLessThanOrEqual(viewportHeight);
+  const supporting = page.locator(".mobile-supporting-metrics");
+  const supportingSummary = supporting.locator("summary");
+  await expect(supporting).not.toHaveAttribute("open", "");
+  await expect(supportingSummary).toHaveAccessibleName(
+    "Supporting grid readings Available capacity and frequency",
+  );
+  await expect(supporting.getByText("Available capacity", { exact: true })).toBeHidden();
+  await expect(supporting.getByText("Frequency", { exact: true })).toBeHidden();
+  await supportingSummary.focus();
+  await expect(supportingSummary).toBeFocused();
+  await expect(supportingSummary).toHaveCSS("outline-width", "2px");
+  await page.keyboard.press("Enter");
+  await expect(supporting).toHaveAttribute("open", "");
+  await expect(supporting.getByText("Available capacity", { exact: true })).toBeVisible();
+  await expect(supporting.getByText("Frequency", { exact: true })).toBeVisible();
+  for (const id of ["available-capacity", "frequency"]) {
+    await expect(supporting.locator(`[data-hero-trend="${id}"]`)).toHaveAttribute(
+      "aria-label",
+      /Last hour/,
+    );
+  }
+  await page.keyboard.press("Enter");
   await expect(page.getByLabel("Global dashboard controls")).toBeHidden();
   await expect(page.getByRole("heading", { name: "Grid at a glance" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Operational detail" })).toBeVisible();
@@ -156,6 +163,7 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator("canvas")).toBeVisible();
   const targets = [
+    page.locator(".mobile-supporting-metrics > summary"),
     page.getByRole("button", { name: "Controls" }),
     page.getByLabel("Time range"),
     page.getByRole("button", { name: "Grid conditions Collapse" }),
@@ -422,6 +430,12 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   const supplyDemand = page.locator('[data-chart-id="supply-demand"]');
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.soft(page).toHaveScreenshot("mobile-after-first-viewport.png");
+  const supportingReadings = page.locator(".mobile-supporting-metrics");
+  await supportingReadings.locator("summary").click();
+  await supportingReadings.scrollIntoViewIfNeeded();
+  await expect.soft(supportingReadings).toHaveScreenshot("mobile-supporting-grid-readings.png");
+  await supportingReadings.locator("summary").click();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole("button", { name: "Controls" }).click();
   await expect
     .soft(page.getByRole("dialog", { name: "Dashboard controls" }))
