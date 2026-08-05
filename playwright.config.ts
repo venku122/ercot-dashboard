@@ -8,7 +8,10 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   timeout: 45_000,
-  expect: { timeout: 8000, toHaveScreenshot: { animations: "disabled" } },
+  expect: {
+    timeout: 8000,
+    toHaveScreenshot: { animations: "disabled", maxDiffPixelRatio: 0.005 },
+  },
   snapshotPathTemplate: `{testDir}/{testFilePath}-snapshots/{arg}-{projectName}-{platform}${snapshotEnvironment}{ext}`,
   reporter: [["list"], ["html", { open: "never", outputFolder: "artifacts/playwright-report" }]],
   use: {

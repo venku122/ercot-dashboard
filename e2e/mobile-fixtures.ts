@@ -55,6 +55,22 @@ function latestValue(id: string, metric: string, tags: string[], scenario: Mobil
   return metricValue(metric, tags, 63, scenario);
 }
 
+function heroHistoryValue(
+  metric: string,
+  tags: string[],
+  index: number,
+  count: number,
+  scenario: MobileScenario,
+) {
+  const progress = count <= 1 ? 1 : index / (count - 1);
+  const current = metricValue(metric, tags, 63, scenario);
+  if (metric.includes("demand_mw")) return 66_800 + (68_200 - 66_800) * progress;
+  if (metric.includes("capacity_mw")) return 87_900 + (88_500 - 87_900) * progress;
+  if (metric.includes("Frequency")) return 59.998 + (60.001 - 59.998) * progress;
+  if (metric.includes("pricing")) return current + 9 * (1 - progress);
+  return metricValue(metric, tags, index, scenario);
+}
+
 function sourceFixture(scenario: MobileScenario) {
   const definitions = [
     ["fuel_mix", "ERCOT Fuel Mix"],
@@ -161,7 +177,9 @@ export async function installMobileApi(
           ? []
           : Array.from({ length: count }, (_, index) => [
               query.since + index * step,
-              metricValue(query.metric, query.tags, index, scenario),
+              query.id.startsWith("hero:")
+                ? heroHistoryValue(query.metric, query.tags, index, count, scenario)
+                : metricValue(query.metric, query.tags, index, scenario),
             ]);
       return {
         id: query.id,

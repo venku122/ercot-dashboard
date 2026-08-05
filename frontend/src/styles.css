@@ -373,14 +373,14 @@ main {
 
 .overview-card {
   display: grid;
-  min-height: 98px;
+  min-height: 166px;
   align-content: space-between;
-  gap: 16px;
+  gap: 10px;
   border-radius: 14px;
-  padding: 15px;
+  padding: 16px;
 }
 
-.overview-card span {
+.overview-card > span {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
@@ -397,6 +397,47 @@ main {
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.35;
+}
+
+.hero-trend {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  padding-top: 9px;
+}
+
+.hero-trend-delta {
+  color: #bae6fd;
+  font-size: 0.78rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-transform: none;
+}
+
+.hero-trend[data-direction="steady"] .hero-trend-delta,
+.hero-trend[data-direction="unavailable"] .hero-trend-delta {
+  color: var(--muted);
+}
+
+.hero-trend-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.hero-trend-meta time {
+  color: inherit;
 }
 
 .overview-status-card {
@@ -1195,7 +1236,7 @@ footer p {
     border: 1px solid rgba(52, 211, 153, 0.28);
     border-radius: 14px;
     background: rgba(6, 78, 59, 0.22);
-    padding: 12px 14px;
+    padding: 16px;
   }
 
   .mobile-grid-condition[data-condition="warning"] {
@@ -1235,10 +1276,9 @@ footer p {
     text-overflow: ellipsis;
   }
 
-  .mobile-grid-condition > span {
+  .mobile-grid-condition > .hero-trend {
     grid-column: 1 / -1;
-    color: var(--muted);
-    font-size: 0.75rem;
+    width: 100%;
   }
 
   .overview-grid {
@@ -1260,19 +1300,28 @@ footer p {
   }
 
   .overview-card {
-    min-height: 76px;
-    gap: 7px;
+    min-height: 132px;
+    gap: 8px;
     border-radius: 12px;
-    padding: 11px 12px;
+    padding: 16px;
   }
 
-  .overview-card span {
+  .overview-card > span {
     font-size: 0.75rem;
     letter-spacing: 0.02em;
   }
 
   .overview-card strong {
     font-size: clamp(1rem, 5vw, 1.25rem);
+  }
+
+  .overview-card .hero-trend {
+    gap: 4px;
+    padding-top: 7px;
+  }
+
+  .hero-trend-meta {
+    display: grid;
   }
 
   .overview-card[data-metric-id="demand"] {

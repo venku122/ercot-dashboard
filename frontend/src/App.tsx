@@ -20,7 +20,9 @@ import {
   loadPriceRanking,
   loadSeries,
   loadSourceHealth,
+  loadTrendBaselines,
   type RankingRow,
+  type TrendBaseline,
 } from "./dashboard/api";
 import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
@@ -34,6 +36,7 @@ import {
   reserveMarginPercent,
   type CriticalMetricId,
 } from "./dashboard/information-architecture";
+import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import {
   navigateWindow,
   resetLive,
@@ -294,6 +297,54 @@ function activeOperationalEvents(events: EventRecord[]) {
   });
 }
 
+function HeroTrendDetail({
+  id,
+  label,
+  loading,
+  trend,
+}: {
+  id: CriticalMetricId;
+  label: string;
+  loading: boolean;
+  trend: HeroTrend;
+}) {
+  const directionLabel =
+    trend.direction === "up"
+      ? "increasing"
+      : trend.direction === "down"
+        ? "decreasing"
+        : trend.direction === "steady"
+          ? "unchanged"
+          : "unavailable";
+  const accessibleLabel = loading
+    ? `${label} trend is loading for the last hour.`
+    : `${label} trend is ${directionLabel}: ${trend.deltaLabel}, ${trend.comparisonLabel}. ${trend.timestampLabel}.`;
+  return (
+    <div
+      aria-label={accessibleLabel}
+      className="hero-trend"
+      data-direction={loading ? "unavailable" : trend.direction}
+      data-hero-trend={id}
+      role="group"
+    >
+      <span className="hero-trend-delta">
+        <span aria-hidden="true">{loading ? "…" : trend.arrow}</span>{" "}
+        {loading ? "Loading trend…" : trend.deltaLabel}
+      </span>
+      <span className="hero-trend-meta">
+        <span>{trend.comparisonLabel}</span>
+        {trend.observedAt === null ? (
+          <span>{trend.timestampLabel}</span>
+        ) : (
+          <time dateTime={new Date(trend.observedAt * 1000).toISOString()}>
+            {trend.timestampLabel}
+          </time>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export function App() {
   const initialUrl = useMemo(() => new URL(window.location.href), []);
   const initialMobile = useRef(mediaQueryMatches(MOBILE_MEDIA_QUERY)).current;
@@ -311,6 +362,7 @@ export function App() {
   const [latest, setLatest] = useState<Map<string, { ts: number; value: number } | null>>(
     new Map(),
   );
+  const [trendBaselines, setTrendBaselines] = useState<Map<string, TrendBaseline>>(new Map());
   const [priceRanking, setPriceRanking] = useState<RankingRow[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -412,15 +464,21 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    setOverviewLoading(true);
+    const trendUntil = nowSeconds();
     void Promise.all([
       loadSourceHealth(controller.signal),
       loadLatest([...overviewQueries], controller.signal),
+      loadTrendBaselines([...overviewQueries], trendUntil, controller.signal).catch(
+        () => new Map<string, TrendBaseline>(),
+      ),
       loadPriceRanking(controller.signal),
       state.events ? loadEvents(state.time, controller.signal) : Promise.resolve([]),
     ])
-      .then(([nextHealth, nextLatest, nextRanking, nextEvents]) => {
+      .then(([nextHealth, nextLatest, nextTrendBaselines, nextRanking, nextEvents]) => {
         setSourceHealth(nextHealth);
         setLatest(nextLatest);
+        setTrendBaselines(nextTrendBaselines);
         setPriceRanking(nextRanking);
         setEvents(nextEvents);
       })
@@ -515,6 +573,13 @@ export function App() {
       next.delete(group);
       return next;
     });
+    setActiveChartIds((current) => {
+      const next = new Set(current);
+      for (const chart of chartDefinitions) {
+        if (chart.group === group) next.add(chart.id);
+      }
+      return next;
+    });
     setSelectedSection(navigationLabel);
     window.requestAnimationFrame(() => {
       const heading = groupHeadingRefs.current.get(group);
@@ -523,26 +588,67 @@ export function App() {
     });
   }, []);
 
-  const demand = latest.get("demand")?.value ?? null;
-  const availableCapacity = latest.get("capacity")?.value ?? null;
+  const demandPoint = latest.get("demand") ?? null;
+  const capacityPoint = latest.get("capacity") ?? null;
+  const frequencyPoint = latest.get("frequency") ?? null;
+  const pricePoint = latest.get("price") ?? null;
+  const demand = demandPoint?.value ?? null;
+  const availableCapacity = capacityPoint?.value ?? null;
   const reserveMargin = reserveMarginPercent(demand, availableCapacity);
   const criticalValues: Record<CriticalMetricId, number | null> = {
     "available-capacity": availableCapacity,
     demand,
-    frequency: latest.get("frequency")?.value ?? null,
+    frequency: frequencyPoint?.value ?? null,
     "grid-status": null,
-    "real-time-price": latest.get("price")?.value ?? null,
+    "real-time-price": pricePoint?.value ?? null,
     "reserve-margin": reserveMargin,
+  };
+  const reserveBaseline = reserveMarginPercent(
+    trendBaselines.get("demand")?.[1] ?? null,
+    trendBaselines.get("capacity")?.[1] ?? null,
+  );
+  const reserveObservedAt =
+    demandPoint && capacityPoint ? Math.min(demandPoint.ts, capacityPoint.ts) : null;
+  const overviewObservedAt =
+    Math.max(
+      0,
+      ...[...latest.values()].map((point) => point?.ts ?? 0),
+      ...sourceHealth.map((source) => source.last_attempt_ts ?? 0),
+      ...events.map((event) => event.starts_at),
+    ) || null;
+  const heroTrends: Record<CriticalMetricId, HeroTrend> = {
+    "available-capacity": buildHeroTrend(
+      availableCapacity,
+      trendBaselines.get("capacity")?.[1] ?? null,
+      "MW",
+      capacityPoint?.ts ?? null,
+    ),
+    demand: buildHeroTrend(
+      demand,
+      trendBaselines.get("demand")?.[1] ?? null,
+      "MW",
+      demandPoint?.ts ?? null,
+    ),
+    frequency: buildHeroTrend(
+      frequencyPoint?.value ?? null,
+      trendBaselines.get("frequency")?.[1] ?? null,
+      "Hz",
+      frequencyPoint?.ts ?? null,
+    ),
+    "grid-status": unavailableHeroTrend(overviewObservedAt),
+    "real-time-price": buildHeroTrend(
+      pricePoint?.value ?? null,
+      trendBaselines.get("price")?.[1] ?? null,
+      "$/MWh",
+      pricePoint?.ts ?? null,
+    ),
+    "reserve-margin": buildHeroTrend(reserveMargin, reserveBaseline, "%", reserveObservedAt),
   };
   const overview = criticalMetricDefinitions.map((definition) => ({
     ...definition,
+    trend: heroTrends[definition.id],
     value: criticalValues[definition.id],
   }));
-
-  const newestOverviewAge = Math.max(
-    0,
-    ...[...latest.values()].map((point) => (point ? nowSeconds() - point.ts : 0)),
-  );
   const primaryAlert = publicAlerts[0];
   const condition = primaryAlert
     ? {
@@ -633,7 +739,12 @@ export function App() {
               <strong>{condition.label}</strong>
             </div>
             <p>{condition.detail}</p>
-            <span>Updated {formatAge(newestOverviewAge).replace(" old", " ago")}</span>
+            <HeroTrendDetail
+              id="grid-status"
+              label="Grid status"
+              loading={overviewLoading}
+              trend={heroTrends["grid-status"]}
+            />
           </section>
         ) : null}
 
@@ -662,6 +773,12 @@ export function App() {
                     <span>{item.label}</span>
                     <strong>{condition.label}</strong>
                     <small>{condition.detail}</small>
+                    <HeroTrendDetail
+                      id={item.id}
+                      label={item.label}
+                      loading={overviewLoading}
+                      trend={item.trend}
+                    />
                   </article>
                 )
               ) : (
@@ -670,6 +787,12 @@ export function App() {
                   <strong>
                     {overviewLoading ? "Loading…" : formatValue(item.value, item.unit)}
                   </strong>
+                  <HeroTrendDetail
+                    id={item.id}
+                    label={item.label}
+                    loading={overviewLoading}
+                    trend={item.trend}
+                  />
                 </article>
               ),
             )}

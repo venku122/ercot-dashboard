@@ -29,6 +29,56 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Sc
   return 1200 + wave * 350;
 }
 
+test("hero metrics expose honest hourly direction, delta, and timestamp", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+
+  for (const id of [
+    "grid-status",
+    "demand",
+    "available-capacity",
+    "reserve-margin",
+    "frequency",
+    "real-time-price",
+  ]) {
+    const trend = page.locator(`[data-hero-trend="${id}"]`);
+    await expect(trend).toBeVisible();
+    await expect(trend).toHaveAttribute("aria-label", /Last hour/);
+    await expect(trend.locator("time")).toHaveCount(1);
+  }
+  await expect(page.locator('[data-hero-trend="demand"]')).toHaveAttribute(
+    "aria-label",
+    /increasing|decreasing|unchanged/,
+  );
+  await expect(page.locator('[data-hero-trend="grid-status"]')).toHaveAttribute(
+    "aria-label",
+    /unavailable/,
+  );
+
+  await page.route("**/api/series/batch", async (route) => {
+    const payload = route.request().postDataJSON() as { queries: Array<{ id: string }> };
+    if (payload.queries.every((query) => query.id.startsWith("hero:"))) {
+      await route.fulfill({ status: 503, body: "fixture trend history unavailable" });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.reload();
+  await expect(page.locator('[data-metric-id="demand"] strong')).toContainText("GW");
+  await expect(page.locator('[data-hero-trend="demand"]')).toHaveAttribute(
+    "aria-label",
+    /unavailable/,
+  );
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "empty");
+  await page.reload();
+  await expect(page.locator('[data-hero-trend="demand"]')).toHaveAttribute(
+    "aria-label",
+    /unavailable/,
+  );
+});
+
 async function installApi(page: Page, scenario: Scenario = "normal", requests: string[][] = []) {
   await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/series/batch", async (route) => {
