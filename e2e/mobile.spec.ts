@@ -132,6 +132,24 @@ test("P0 compact legends preserve explicit shared expanded state @mobile-core", 
   await expect(card.locator(".legend-stats").first()).toBeVisible();
 });
 
+test("P0 chart interpretation stays compact and text-accessible @mobile-core", async ({ page }) => {
+  await openPopulated(page);
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  const interpretation = card.locator(".chart-interpretation");
+  await card.scrollIntoViewIfNeeded();
+  await expect(interpretation).not.toHaveAttribute("open", "");
+  await expect(interpretation.locator("summary")).toBeVisible();
+  await interpretation.locator("summary").click();
+  await expect(
+    card.getByLabel("Supply and demand interpretation bands").getByRole("listitem"),
+  ).toHaveCount(4);
+  await expect(card.locator("canvas")).toHaveAttribute(
+    "aria-label",
+    /Interpretation guide for actual demand.*Above capacity/,
+  );
+  await expectNoHorizontalOverflow(page);
+});
+
 test("P0 primary mobile targets meet the 44 point contract @mobile-core", async ({ page }) => {
   await openPopulated(page);
   const card = page.locator('[data-chart-id="supply-demand"]');
@@ -403,6 +421,8 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await page.keyboard.press("Escape");
   await supplyDemand.scrollIntoViewIfNeeded();
   await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png");
+  await supplyDemand.locator(".chart-interpretation summary").click();
+  await expect.soft(supplyDemand).toHaveScreenshot("mobile-chart-interpretation.png");
   const derivedMetrics = page.getByLabel("Derived grid metrics");
   await derivedMetrics.scrollIntoViewIfNeeded();
   const mobileNavigation = page.locator(".mobile-section-nav");

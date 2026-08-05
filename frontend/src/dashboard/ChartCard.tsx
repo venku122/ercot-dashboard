@@ -19,6 +19,11 @@ import zoomPlugin from "chartjs-plugin-zoom";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { seriesKey } from "./chart-config";
+import {
+  formatInterpretationRange,
+  interpretationAriaDescription,
+  resolveInterpretationBands,
+} from "./chart-interpretation";
 import { chartCoordinator } from "./chart-coordinator";
 import { chartInteractionPolicy } from "./interaction-policy";
 import { seriesStats } from "./stats";
@@ -71,6 +76,13 @@ type Props = {
 
 const cursorByChart = new WeakMap<ChartJs<"line">, number | null>();
 const pinnedByChart = new WeakMap<ChartJs<"line">, boolean>();
+const interpretationFill = {
+  critical: "rgba(248, 113, 113, 0.1)",
+  informational: "rgba(96, 165, 250, 0.08)",
+  normal: "rgba(52, 211, 153, 0.07)",
+  strained: "rgba(251, 146, 60, 0.09)",
+  watch: "rgba(251, 191, 36, 0.08)",
+} as const;
 
 function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
   const rows = ["series,timestamp_iso,timestamp_epoch,value"];
@@ -135,6 +147,12 @@ export function ChartCard({
   } = useVisible<HTMLElement>(mobile ? "0px" : "100px");
   const [pinned, setPinned] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [interpretationOpen, setInterpretationOpen] = useState(!mobile);
+  const interpretation = chart.interpretation;
+  const interpretationDescription = interpretationAriaDescription(chart);
+  const resolvedInterpretation = interpretation
+    ? resolveInterpretationBands(interpretation, seriesData)
+    : [];
 
   useEffect(() => {
     cursorActive.current = visible && interactionPolicy.cursorPin;
@@ -176,6 +194,7 @@ export function ChartCard({
         })),
         borderColor: series.color,
         backgroundColor: series.color,
+        ...(series.lineStyle === "dashed" ? { borderDash: [5, 4] } : {}),
         borderWidth: 1.6,
         pointRadius: 0,
         pointHitRadius: 12,
@@ -227,6 +246,27 @@ export function ChartCard({
     canvas.addEventListener("pointerup", handlePointerUp, true);
     const overlayPlugin: Plugin<"line"> = {
       id: `ercot-overlay-${chart.id}`,
+      beforeDatasetsDraw(instance) {
+        if (!chart.interpretation) return;
+        const area = instance.chartArea;
+        const context = instance.ctx;
+        const yScale = instance.scales["y"];
+        if (!yScale) return;
+        const bands = resolveInterpretationBands(chart.interpretation, dynamic.current.seriesData);
+        context.save();
+        for (const band of bands) {
+          const upper =
+            band.upperValue === undefined ? area.top : yScale.getPixelForValue(band.upperValue);
+          const lower =
+            band.lowerValue === undefined ? area.bottom : yScale.getPixelForValue(band.lowerValue);
+          const top = Math.max(area.top, Math.min(area.bottom, Math.min(upper, lower)));
+          const bottom = Math.max(area.top, Math.min(area.bottom, Math.max(upper, lower)));
+          if (bottom <= top) continue;
+          context.fillStyle = interpretationFill[band.tone];
+          context.fillRect(area.left, top, area.width, bottom - top);
+        }
+        context.restore();
+      },
       afterDatasetsDraw(instance) {
         const area = instance.chartArea;
         const context = instance.ctx;
@@ -589,6 +629,33 @@ export function ChartCard({
         </p>
       ) : null}
 
+      {interpretation ? (
+        <details
+          className="chart-interpretation"
+          onToggle={(event) => setInterpretationOpen(event.currentTarget.open)}
+          open={interpretationOpen}
+        >
+          <summary>
+            Interpretation guide · <strong>{interpretation.subject}</strong>
+          </summary>
+          <p>{interpretation.basis}.</p>
+          {interpretation.mode === "reference-ratio" && !resolvedInterpretation.length ? (
+            <p className="interpretation-reference-unavailable">
+              Waiting for {interpretation.referenceLabel} to draw the canvas bands.
+            </p>
+          ) : null}
+          <ul aria-label={`${chart.title} interpretation bands`}>
+            {interpretation.bands.map((band) => (
+              <li className={`interpretation-${band.tone}`} key={band.id}>
+                <span aria-hidden="true" className="interpretation-swatch" />
+                <strong>{band.label}</strong>
+                <span>{formatInterpretationRange(interpretation, band, chart.unit)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
       <div
         className="chart-canvas-wrap"
         onKeyDown={(event) => {
@@ -622,7 +689,7 @@ export function ChartCard({
           <div className="chart-overlay chart-stale">Showing stale data</div>
         ) : null}
         <canvas
-          aria-label={`${chart.title}. ${allPoints.length} observations. Use the legend or CSV menu for exact values.`}
+          aria-label={`${chart.title}. ${allPoints.length} observations. ${interpretationDescription} Use the legend or CSV menu for exact values.`}
           ref={canvasRef}
           role="img"
         />
@@ -650,7 +717,9 @@ export function ChartCard({
                 onClick={() => onToggleSeries(key)}
                 style={{ "--series-color": series.color } as React.CSSProperties}
               >
-                <span className="legend-swatch" />
+                <span
+                  className={`legend-swatch ${series.lineStyle === "dashed" ? "legend-swatch-dashed" : ""}`}
+                />
                 {series.label}
               </button>
               <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
