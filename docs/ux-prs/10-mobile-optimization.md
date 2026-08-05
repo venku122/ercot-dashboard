@@ -84,6 +84,9 @@ long-task, production-build, and receiver benchmark gates remain authoritative.
 
 None. API contracts, stored observations, metric units, Grid Health scoring,
 alerts, URL state, collector behavior, and desktop information architecture are
-unchanged. Physical iPhone Safari review remains an external-device acceptance
-step; automated evidence uses the documented 440 x 956 WebKit project and does
-not claim physical-device validation.
+unchanged. The shared Deno dependency cache is locked during multi-architecture
+collector image builds so parallel platforms cannot race while the cache is
+copied into the image; this changes build synchronization, not the collector
+runtime or its dependencies. Physical iPhone Safari review remains an
+external-device acceptance step; automated evidence uses the documented 440 x
+956 WebKit project and does not claim physical-device validation.
