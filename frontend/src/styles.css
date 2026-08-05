@@ -1885,21 +1885,81 @@ footer p {
     order: 1;
   }
 
-  .overview-card[data-metric-id="available-capacity"] {
+  .overview-card[data-metric-id="reserve-margin"] {
     order: 2;
   }
 
-  .overview-card[data-metric-id="reserve-margin"] {
-    order: 3;
-  }
-
-  .overview-card[data-metric-id="frequency"] {
-    order: 4;
-  }
-
   .overview-card[data-metric-id="real-time-price"] {
-    order: 5;
+    order: 3;
     grid-column: 1 / -1;
+  }
+
+  .mobile-supporting-metrics {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  .mobile-supporting-metrics > summary {
+    display: grid;
+    min-height: 48px;
+    cursor: pointer;
+    align-content: center;
+    gap: 2px;
+    padding: 8px 42px 8px 12px;
+    position: relative;
+    list-style: none;
+  }
+
+  .mobile-supporting-metrics > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-supporting-indicator {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    color: #7dd3fc;
+    font-size: 1.1rem;
+    font-weight: 400;
+    transform: translateY(-50%);
+  }
+
+  .mobile-supporting-indicator-open,
+  .mobile-supporting-metrics[open] .mobile-supporting-indicator-closed {
+    display: none;
+  }
+
+  .mobile-supporting-metrics[open] .mobile-supporting-indicator-open {
+    display: inline;
+  }
+
+  .mobile-supporting-metrics > summary > span:not(.mobile-supporting-indicator) {
+    color: #dbeafe;
+    font-size: 0.78rem;
+    font-weight: 750;
+  }
+
+  .mobile-supporting-metrics > summary small {
+    color: var(--muted);
+    font-size: 0.68rem;
+  }
+
+  .mobile-supporting-metrics > .overview-grid {
+    border-top: 1px solid var(--border);
+    padding: 8px;
+  }
+
+  .mobile-supporting-metrics .overview-card {
+    min-height: 116px;
+    padding: 12px;
+    box-shadow: none;
+  }
+
+  .mobile-supporting-metrics .overview-card[data-metric-id] {
+    order: initial;
+    grid-column: auto;
   }
 
   .mobile-quick-controls {

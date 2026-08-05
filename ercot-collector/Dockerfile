@@ -4,12 +4,12 @@ WORKDIR /src/app
 ENV DENO_DIR=/deno-dir
 
 ADD deps.ts fixed_interval.ts ./
-RUN --mount=type=cache,target=/deno-cache DENO_DIR=/deno-cache deno cache --allow-import deps.ts \
+RUN --mount=type=cache,target=/deno-cache,sharing=locked DENO_DIR=/deno-cache deno cache --allow-import deps.ts \
     && mkdir -p /deno-dir \
     && cp -a /deno-cache/. /deno-dir/
 
 ADD *.ts ./
-RUN --mount=type=cache,target=/deno-cache DENO_DIR=/deno-cache deno cache --allow-import mod.ts \
+RUN --mount=type=cache,target=/deno-cache,sharing=locked DENO_DIR=/deno-cache deno cache --allow-import mod.ts \
     && mkdir -p /deno-dir \
     && cp -a /deno-cache/. /deno-dir/
 

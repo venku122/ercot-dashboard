@@ -44,6 +44,18 @@ export const criticalMetricDefinitions = [
   unit: string | null;
 }>;
 
+export const mobilePrimaryCriticalMetricIds: ReadonlyArray<CriticalMetricId> = [
+  "grid-status",
+  "demand",
+  "reserve-margin",
+  "real-time-price",
+];
+
+export const mobileSupportingCriticalMetricIds: ReadonlyArray<CriticalMetricId> = [
+  "available-capacity",
+  "frequency",
+];
+
 export const chartGroupDefinitions = [
   {
     name: "Grid conditions",

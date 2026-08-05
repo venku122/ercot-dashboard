@@ -40,6 +40,8 @@ import {
   criticalMetricDefinitions,
   informationLevels,
   initiallyCollapsedGroups,
+  mobilePrimaryCriticalMetricIds,
+  mobileSupportingCriticalMetricIds,
   reserveMarginPercent,
   type CriticalMetricId,
 } from "./dashboard/information-architecture";
@@ -354,6 +356,30 @@ function HeroTrendDetail({
         )}
       </span>
     </div>
+  );
+}
+
+function MetricOverviewCard({
+  item,
+  loading,
+}: {
+  item: {
+    id: CriticalMetricId;
+    label: string;
+    trend: HeroTrend;
+    unit: string | null;
+    value: number | null;
+  };
+  loading: boolean;
+}) {
+  return (
+    <article className="overview-card" data-metric-id={item.id}>
+      <span>{item.label}</span>
+      <strong>
+        {loading ? "Loading…" : item.unit === null ? "—" : formatValue(item.value, item.unit)}
+      </strong>
+      <HeroTrendDetail id={item.id} label={item.label} loading={loading} trend={item.trend} />
+    </article>
   );
 }
 
@@ -710,6 +736,13 @@ export function App() {
     trend: heroTrends[definition.id],
     value: criticalValues[definition.id],
   }));
+  const mobilePrimaryOverview = overview.filter((item) =>
+    mobilePrimaryCriticalMetricIds.includes(item.id),
+  );
+  const mobileSupportingOverview = overview.filter((item) =>
+    mobileSupportingCriticalMetricIds.includes(item.id),
+  );
+  const visibleOverview = isMobile ? mobilePrimaryOverview : overview;
   const primaryAlert = publicAlerts[0];
   const healthConditionState =
     gridHealth.status === "critical"
@@ -830,8 +863,8 @@ export function App() {
             </div>
             <p>{informationLevels[0].description}</p>
           </header>
-          <section aria-label="Grid overview" className="overview-grid">
-            {overview.map((item) =>
+          <section aria-label="Grid overview" className="overview-grid" data-mobile-tier="primary">
+            {visibleOverview.map((item) =>
               item.id === "grid-status" ? (
                 isMobile ? null : (
                   <article
@@ -853,21 +886,27 @@ export function App() {
                   </article>
                 )
               ) : (
-                <article className="overview-card" data-metric-id={item.id} key={item.id}>
-                  <span>{item.label}</span>
-                  <strong>
-                    {overviewLoading ? "Loading…" : formatValue(item.value, item.unit)}
-                  </strong>
-                  <HeroTrendDetail
-                    id={item.id}
-                    label={item.label}
-                    loading={overviewLoading}
-                    trend={item.trend}
-                  />
-                </article>
+                <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
               ),
             )}
           </section>
+          {isMobile ? (
+            <details className="mobile-supporting-metrics">
+              <summary>
+                <span>Supporting grid readings</span>
+                <small>Available capacity and frequency</small>
+                <span aria-hidden="true" className="mobile-supporting-indicator">
+                  <span className="mobile-supporting-indicator-closed">+</span>
+                  <span className="mobile-supporting-indicator-open">−</span>
+                </span>
+              </summary>
+              <section aria-label="Supporting grid readings" className="overview-grid">
+                {mobileSupportingOverview.map((item) => (
+                  <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
+                ))}
+              </section>
+            </details>
+          ) : null}
           <details className="grid-health-details">
             <summary>How the Grid Health Score is calculated</summary>
             <div>
