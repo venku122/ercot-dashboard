@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatValue, normalizeUnit } from "./units";
+import { formatSignedValue, formatValue, normalizeUnit } from "./units";
 
 describe("human-friendly operational units", () => {
   it("normalizes large megawatt values to gigawatts at the threshold", () => {
@@ -21,6 +21,13 @@ describe("human-friendly operational units", () => {
     expect(formatValue(60.0014, "Hz")).toBe("60.001 Hz");
     expect(formatValue(1234.56, "customers")).toBe("1,235 customers");
     expect(formatValue(0, "%")).toBe("0.0%");
+  });
+
+  it("centralizes signed deltas without duplicating currency or unit rules", () => {
+    expect(formatSignedValue(1400, "MW")).toBe("+1.4 GW");
+    expect(formatSignedValue(-7.5, "$/MWh")).toBe("−$7.50/MWh");
+    expect(formatSignedValue(0, "%")).toBe("0.0%");
+    expect(formatSignedValue(null, "%")).toBe("—");
   });
 
   it("places the currency sign and negative sign naturally", () => {

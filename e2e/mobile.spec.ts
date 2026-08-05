@@ -74,6 +74,30 @@ test("P0 populated layouts have no horizontal overflow @mobile-core", async ({ p
   }
 });
 
+test("P0 all derived metrics remain accessible without horizontal overflow @mobile-core", async ({
+  page,
+}) => {
+  await openPopulated(page);
+  const metrics = page.getByLabel("Derived grid metrics");
+  await metrics.scrollIntoViewIfNeeded();
+  await expect(metrics.getByRole("article")).toHaveCount(9);
+  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(9);
+  for (const label of [
+    "Reserve Margin %",
+    "Capacity Utilization %",
+    "Renewable %",
+    "Storage State",
+    "Demand Growth",
+    "Forecast Peak",
+    "Hours Until Peak",
+    "Price Percentile",
+    "Historical Comparison",
+  ]) {
+    await expect(metrics.getByRole("article", { name: new RegExp(`^${label}:`) })).toBeVisible();
+  }
+  await expectNoHorizontalOverflow(page);
+});
+
 test("P0 quick controls open a focus-trapped restorable sheet @mobile-core", async ({ page }) => {
   await openPopulated(page);
   const trigger = page.getByRole("button", { name: "Controls" });
@@ -371,6 +395,18 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await page.keyboard.press("Escape");
   await supplyDemand.scrollIntoViewIfNeeded();
   await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png");
+  const derivedMetrics = page.getByLabel("Derived grid metrics");
+  await derivedMetrics.scrollIntoViewIfNeeded();
+  const mobileNavigation = page.locator(".mobile-section-nav");
+  await mobileNavigation.evaluate((element) => {
+    element.style.display = "none";
+  });
+  await expect(mobileNavigation).toBeHidden();
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await expect.soft(derivedMetrics).toHaveScreenshot("mobile-derived-metrics.png");
+  await mobileNavigation.evaluate((element) => {
+    element.style.display = "";
+  });
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "failed");

@@ -79,6 +79,50 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
   );
 });
 
+test("derived insights expose nine formulas and honest history availability", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+
+  const metrics = page.getByLabel("Derived grid metrics");
+  await expect(metrics.getByRole("article")).toHaveCount(9);
+  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(9);
+  for (const label of [
+    "Reserve Margin %",
+    "Capacity Utilization %",
+    "Renewable %",
+    "Storage State",
+    "Demand Growth",
+    "Forecast Peak",
+    "Hours Until Peak",
+    "Price Percentile",
+    "Historical Comparison",
+  ]) {
+    await expect(metrics).toContainText(label);
+  }
+  await expect(metrics.getByText("Formula", { exact: true })).toHaveCount(9);
+
+  await page.route("**/api/series/batch", async (route) => {
+    const payload = route.request().postDataJSON() as { queries: Array<{ id: string }> };
+    if (payload.queries.every((query) => query.id.startsWith("derived:"))) {
+      await route.fulfill({ status: 503, body: "fixture derived history unavailable" });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.reload();
+  for (const id of [
+    "forecast-peak",
+    "hours-until-peak",
+    "price-percentile",
+    "historical-comparison",
+  ]) {
+    const card = metrics.locator(`[data-derived-metric="${id}"]`);
+    await expect(card).toHaveAttribute("data-derived-available", "false");
+    await expect(card).toContainText("Required source data or comparison history is unavailable.");
+  }
+  await expect(page.locator(".global-error")).toHaveCount(0);
+});
+
 async function installApi(page: Page, scenario: Scenario = "normal", requests: string[][] = []) {
   await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/series/batch", async (route) => {
