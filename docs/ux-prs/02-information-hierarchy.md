@@ -47,6 +47,9 @@ available in the advanced layer, which defaults collapsed on desktop and mobile.
   initial chart DOM, operational navigation, and all existing interactions.
 - Deterministic local Chromium and iPhone WebKit screenshots were regenerated
   and visually reviewed.
+- A deterministic manual-dispatch mode runs the same CI matrix for stacked PRs
+  whose base is not `main`; live-source verification remains a separate explicit
+  dispatch choice and never runs as part of that deterministic gate.
 
 ## Accessibility impact
 
