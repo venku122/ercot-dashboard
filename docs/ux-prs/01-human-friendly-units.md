@@ -66,3 +66,6 @@ local module with a direct deterministic test. Its immediate first iteration,
 fixed cadence, skipped overdue intervals, and duty-cycle output are unchanged.
 The dependency-cache layer copies the local scheduler alongside `deps.ts`, so
 the image remains cache-efficient and independently buildable.
+Mobile visual assertions are soft within their single evidence flow: the job
+still fails on any mismatch, but emits every divergent runner image in one
+artifact instead of concealing later regressions behind the first failure.

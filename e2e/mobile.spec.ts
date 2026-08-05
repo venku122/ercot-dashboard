@@ -335,60 +335,59 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   }
   const supplyDemand = page.locator('[data-chart-id="supply-demand"]');
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(page).toHaveScreenshot("mobile-after-first-viewport.png");
-  await expect(page).toHaveScreenshot("mobile-after-full.png", { fullPage: true });
+  await expect.soft(page).toHaveScreenshot("mobile-after-first-viewport.png");
+  await expect.soft(page).toHaveScreenshot("mobile-after-full.png", { fullPage: true });
   await page.getByRole("button", { name: "Controls" }).click();
-  await expect(page.getByRole("dialog", { name: "Dashboard controls" })).toHaveScreenshot(
-    "mobile-controls-sheet.png",
-  );
+  await expect
+    .soft(page.getByRole("dialog", { name: "Dashboard controls" }))
+    .toHaveScreenshot("mobile-controls-sheet.png");
   await page.keyboard.press("Escape");
   await supplyDemand.scrollIntoViewIfNeeded();
-  await expect(supplyDemand).toHaveScreenshot("mobile-compact-legend.png");
+  await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png");
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "failed");
   await page.reload();
   const sourceSummary = page.getByLabel("Source health summary");
-  await expect(sourceSummary).toHaveScreenshot("mobile-source-failure-summary.png");
+  await expect.soft(sourceSummary).toHaveScreenshot("mobile-source-failure-summary.png");
   await page.getByRole("button", { name: "Generation section" }).click();
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(storage.getByText("Showing stale data")).toBeVisible();
-  await expect(storage).toHaveScreenshot("mobile-stale-storage-card.png");
+  await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png");
   await sourceSummary.scrollIntoViewIfNeeded();
   await sourceSummary.getByRole("button", { name: "Review source health" }).click();
-  await expect(page.getByRole("dialog", { name: "Source health details" })).toHaveScreenshot(
-    "mobile-source-failure-drawer.png",
-  );
+  await expect
+    .soft(page.getByRole("dialog", { name: "Source health details" }))
+    .toHaveScreenshot("mobile-source-failure-drawer.png");
   await page.keyboard.press("Escape");
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "active-event");
   await page.reload();
-  await expect(page.getByLabel("Operations notice summary")).toHaveScreenshot(
-    "mobile-active-operations.png",
-  );
+  await expect
+    .soft(page.getByLabel("Operations notice summary"))
+    .toHaveScreenshot("mobile-active-operations.png");
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "warning");
   await page.reload();
   const warning = page.locator(".mobile-grid-condition");
   await expect(warning).toContainText("WATCH");
-  await expect(warning).toHaveScreenshot("mobile-grid-warning.png");
+  await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "negative");
   await page.reload();
-  await expect(page.getByLabel("Settlement price summary")).toHaveScreenshot(
-    "mobile-negative-ranking.png",
-  );
+  await expect
+    .soft(page.getByLabel("Settlement price summary"))
+    .toHaveScreenshot("mobile-negative-ranking.png");
   await page.getByRole("button", { name: "Grid section" }).click();
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
-  await expect(page.getByRole("dialog", { name: "Inspect Supply and demand" })).toHaveScreenshot(
-    "mobile-inspect-portrait.png",
-    { maxDiffPixels: 8 },
-  );
+  await expect
+    .soft(page.getByRole("dialog", { name: "Inspect Supply and demand" }))
+    .toHaveScreenshot("mobile-inspect-portrait.png", { maxDiffPixels: 8 });
 });
 
 test("landscape inspect remains usable @landscape-vri", async ({ page }) => {
