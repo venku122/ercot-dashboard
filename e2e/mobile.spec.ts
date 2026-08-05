@@ -44,6 +44,14 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
     await expect(trend).toBeVisible();
     await expect(trend).toHaveAttribute("aria-label", /Last hour/);
   }
+  const healthScore = page.locator(".mobile-grid-condition .grid-health-score-value");
+  await expect(healthScore).toBeVisible();
+  await expect(healthScore).toHaveAttribute("data-health-status", "normal");
+  await expect(healthScore).toContainText("/ 100");
+  await expect(healthScore).toContainText("100% factor coverage");
+  await expect(
+    page.getByText("How the Grid Health Score is calculated", { exact: true }),
+  ).toBeVisible();
   const demand = await page
     .getByLabel("Grid overview")
     .getByText("Demand", { exact: true })
@@ -404,6 +412,10 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect(mobileNavigation).toBeHidden();
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect.soft(derivedMetrics).toHaveScreenshot("mobile-derived-metrics.png");
+  const healthDetails = page.locator(".grid-health-details");
+  await healthDetails.getByText("How the Grid Health Score is calculated", { exact: true }).click();
+  await healthDetails.scrollIntoViewIfNeeded();
+  await expect.soft(healthDetails).toHaveScreenshot("mobile-grid-health-score.png");
   await mobileNavigation.evaluate((element) => {
     element.style.display = "";
   });

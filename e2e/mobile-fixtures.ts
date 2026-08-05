@@ -27,6 +27,8 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Mo
   if (metric.includes("charging_mw")) return -900 - wave * 500;
   if (metric.includes("discharging_mw")) return 450 + wave * 300;
   if (metric.includes("net_output_mw")) return -450 + wave * 800;
+  if (metric.includes("eea_level")) return 0;
+  if (metric.includes("metar.temperature")) return 31 + wave * 4;
   if (metric.includes("fuel_mix")) {
     if (tags.includes("fuel:wind")) return 18_000 + wave * 2200;
     if (tags.includes("fuel:solar")) return Math.max(0, 12_000 + wave * 9000);

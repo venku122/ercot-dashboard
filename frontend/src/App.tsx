@@ -44,6 +44,11 @@ import {
 } from "./dashboard/information-architecture";
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import {
+  buildGridHealthScore,
+  healthLatestQueries,
+  type GridHealthScore,
+} from "./dashboard/grid-health-score";
+import {
   navigateWindow,
   resetLive,
   setCustomRange,
@@ -351,6 +356,26 @@ function HeroTrendDetail({
   );
 }
 
+function GridHealthScoreValue({ health, loading }: { health: GridHealthScore; loading: boolean }) {
+  const value = loading ? "…" : (health.score ?? "—");
+  const coverage = loading
+    ? "Calculating factor coverage"
+    : `${String(health.coveragePercent)}% factor coverage`;
+  return (
+    <div
+      aria-label={`Grid Health Score ${String(value)} out of 100. ${coverage}.`}
+      className="grid-health-score-value"
+      data-health-status={loading ? "unavailable" : health.status}
+      role="group"
+    >
+      <strong>
+        {value} <span>/ 100</span>
+      </strong>
+      <small>{coverage}</small>
+    </div>
+  );
+}
+
 export function App() {
   const initialUrl = useMemo(() => new URL(window.location.href), []);
   const initialMobile = useRef(mediaQueryMatches(MOBILE_MEDIA_QUERY)).current;
@@ -474,7 +499,10 @@ export function App() {
     const trendUntil = nowSeconds();
     void Promise.all([
       loadSourceHealth(controller.signal),
-      loadLatest([...overviewQueries, ...derivedLatestQueries], controller.signal),
+      loadLatest(
+        [...overviewQueries, ...derivedLatestQueries, ...healthLatestQueries],
+        controller.signal,
+      ),
       loadTrendBaselines([...overviewQueries], trendUntil, controller.signal).catch(
         () => new Map<string, TrendBaseline>(),
       ),
@@ -672,12 +700,24 @@ export function App() {
       }),
     [derivedContext, latest, overviewAsOf, trendBaselines],
   );
+  const gridHealth = useMemo(
+    () => buildGridHealthScore({ context: derivedContext, latest, now: overviewAsOf }),
+    [derivedContext, latest, overviewAsOf],
+  );
   const overview = criticalMetricDefinitions.map((definition) => ({
     ...definition,
     trend: heroTrends[definition.id],
     value: criticalValues[definition.id],
   }));
   const primaryAlert = publicAlerts[0];
+  const healthConditionState =
+    gridHealth.status === "critical"
+      ? "failure"
+      : gridHealth.status === "strained" || gridHealth.status === "watch"
+        ? "warning"
+        : gridHealth.status === "limited" || gridHealth.status === "unavailable"
+          ? "unavailable"
+          : "normal";
   const condition = primaryAlert
     ? {
         label: primaryAlert.severity === "critical" ? "EMERGENCY" : "WATCH",
@@ -685,9 +725,9 @@ export function App() {
         state: primaryAlert.severity === "critical" ? "failure" : "warning",
       }
     : {
-        label: "NORMAL",
-        detail: "Grid conditions are within the observed operating range",
-        state: "normal",
+        label: gridHealth.label,
+        detail: gridHealth.detail,
+        state: healthConditionState,
       };
   const sourceDetail = diagnostics.worstSource
     ? diagnostics.worstSource.display_name.replace(/^ERCOT /, "") +
@@ -766,6 +806,7 @@ export function App() {
               <p className="eyebrow">Grid condition</p>
               <strong>{condition.label}</strong>
             </div>
+            <GridHealthScoreValue health={gridHealth} loading={overviewLoading} />
             <p>{condition.detail}</p>
             <HeroTrendDetail
               id="grid-status"
@@ -800,6 +841,7 @@ export function App() {
                   >
                     <span>{item.label}</span>
                     <strong>{condition.label}</strong>
+                    <GridHealthScoreValue health={gridHealth} loading={overviewLoading} />
                     <small>{condition.detail}</small>
                     <HeroTrendDetail
                       id={item.id}
@@ -825,6 +867,42 @@ export function App() {
               ),
             )}
           </section>
+          <details className="grid-health-details">
+            <summary>How the Grid Health Score is calculated</summary>
+            <div>
+              <p>
+                Eight weighted factors contribute 100 possible points. Threshold penalties are
+                normalized across available factors; fresh demand, capacity, and frequency plus at
+                least 70% weighted coverage are required. Any missing factor prevents a NORMAL
+                label, and EEA levels 1, 2, and 3 override the label to WATCH, STRAINED, and
+                CRITICAL.
+              </p>
+              <p className="grid-health-current-result">
+                Current result:{" "}
+                {gridHealth.score === null ? "unavailable" : `${String(gridHealth.score)} / 100`} ·{" "}
+                {gridHealth.detail}
+              </p>
+              <ol aria-label="Grid Health Score factors">
+                {gridHealth.factors.map((factor) => (
+                  <li data-factor-available={factor.available} key={factor.id}>
+                    <div>
+                      <strong>{factor.label}</strong>
+                      <span>{formatValue(factor.weight, "points")} maximum</span>
+                    </div>
+                    <p>{factor.detail}</p>
+                    <small>
+                      {factor.penalty === null
+                        ? "Unavailable"
+                        : `${formatValue(factor.weight - factor.penalty, "points")} retained`}
+                    </small>
+                  </li>
+                ))}
+              </ol>
+              <p className="grid-health-thresholds">
+                Score bands: NORMAL 85–100 · WATCH 70–84 · STRAINED 50–69 · CRITICAL below 50.
+              </p>
+            </div>
+          </details>
         </section>
 
         {publicAlerts.length ? (

@@ -47,7 +47,7 @@ export const derivedLatestQueries = [
   { id: "storage-net", metric: "ercot.storage.net_output_mw" },
 ] as const satisfies readonly LatestQuery[];
 
-const MAX_LATEST_AGE_SECONDS = 30 * 60;
+export const MAX_LATEST_AGE_SECONDS = 30 * 60;
 const MAX_COMPARISON_DISTANCE_SECONDS = 60 * 60;
 const unavailableDetail = "Required source data or comparison history is unavailable.";
 
@@ -60,16 +60,17 @@ function unavailable(
   return { available: false, detail, formula, id, label, observedAt: null, valueLabel: "—" };
 }
 
-function freshPoint(
+export function freshLatestPoint(
   point: LatestPoint | undefined,
   now: number,
+  maxAgeSeconds = MAX_LATEST_AGE_SECONDS,
 ): Exclude<LatestPoint, null> | null {
   if (
     !point ||
     !Number.isFinite(point.ts) ||
     !Number.isFinite(point.value) ||
     point.ts > now + 60 ||
-    now - point.ts > MAX_LATEST_AGE_SECONDS
+    now - point.ts > maxAgeSeconds
   ) {
     return null;
   }
@@ -110,8 +111,8 @@ export function buildDerivedMetrics({
   now: number;
   trendBaselines: Map<string, TrendBaseline>;
 }): DerivedMetric[] {
-  const demand = freshPoint(latest.get("demand"), now);
-  const capacity = freshPoint(latest.get("capacity"), now);
+  const demand = freshLatestPoint(latest.get("demand"), now);
+  const capacity = freshLatestPoint(latest.get("capacity"), now);
   const reserveFormula = "(available capacity − demand) ÷ demand × 100";
   const reserve =
     demand && capacity && demand.value > 0
@@ -148,7 +149,7 @@ export function buildDerivedMetrics({
     "fuel-nuclear",
     "fuel-storage",
   ] as const;
-  const fuels = fuelIds.map((id) => freshPoint(latest.get(id), now));
+  const fuels = fuelIds.map((id) => freshLatestPoint(latest.get(id), now));
   const renewableFormula = "(wind + solar) ÷ total reported fuel generation × 100";
   const totalFuel = fuels.every(Boolean)
     ? fuels.reduce((total, point) => total + (point?.value ?? 0), 0)
@@ -168,7 +169,7 @@ export function buildDerivedMetrics({
         }
       : unavailable("renewable-share", "Renewable %", renewableFormula);
 
-  const storage = freshPoint(latest.get("storage-net"), now);
+  const storage = freshLatestPoint(latest.get("storage-net"), now);
   const storageFormula = "net output: above +50 MW discharging; below −50 MW charging";
   const storageState = storage
     ? {
@@ -237,7 +238,7 @@ export function buildDerivedMetrics({
       }
     : unavailable("hours-until-peak", "Hours Until Peak", hoursFormula);
 
-  const price = freshPoint(latest.get("price"), now);
+  const price = freshLatestPoint(latest.get("price"), now);
   const priceHistory = (context.get("derived:price-history") ?? []).filter(
     ([timestamp, value]) =>
       timestamp >= now - 24 * 3600 && timestamp <= now && Number.isFinite(value),

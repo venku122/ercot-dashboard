@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-type Scenario = "empty" | "error" | "negative" | "normal" | "spike" | "stale";
+type Scenario = "empty" | "error" | "missing-core" | "negative" | "normal" | "spike" | "stale";
 
 const FIXED_NOW = new Date("2026-07-21T18:00:00-05:00");
 const FIXED_NOW_SECONDS = Math.floor(FIXED_NOW.getTime() / 1000);
@@ -13,6 +13,8 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Sc
   if (metric.includes("charging_mw")) return -900 - wave * 500;
   if (metric.includes("discharging_mw")) return 450 + wave * 300;
   if (metric.includes("net_output_mw")) return -450 + wave * 800;
+  if (metric.includes("eea_level")) return 0;
+  if (metric.includes("metar.temperature")) return 31 + wave * 4;
   if (metric.includes("fuel_mix")) {
     if (tags.includes("fuel:wind")) return 18_000 + wave * 2200;
     if (tags.includes("fuel:solar")) return Math.max(0, 12_000 + wave * 9000);
@@ -123,6 +125,36 @@ test("derived insights expose nine formulas and honest history availability", as
   await expect(page.locator(".global-error")).toHaveCount(0);
 });
 
+test("Grid Health Score is bounded, explainable, and coverage-aware", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+
+  const score = page.locator(".grid-health-score-value");
+  await expect(score).toHaveCount(1);
+  await expect(score).toHaveAttribute("data-health-status", "normal");
+  await expect(score).toContainText("/ 100");
+  await expect(score).toContainText("100% factor coverage");
+
+  const explanation = page.getByText("How the Grid Health Score is calculated", { exact: true });
+  await explanation.click();
+  await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
+  await expect(page.getByLabel("Grid Health Score factors")).toContainText("Reserve margin");
+  await expect(page.getByLabel("Grid Health Score factors")).toContainText("Forecast pressure");
+  await expect(page.getByText(/Score bands: NORMAL 85–100/)).toBeVisible();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "empty");
+  await page.reload();
+  await expect(score).toHaveAttribute("data-health-status", "limited");
+  await expect(score).toContainText("90% factor coverage");
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "missing-core");
+  await page.reload();
+  await expect(score).toHaveAttribute("data-health-status", "unavailable");
+  await expect(score).toContainText("— / 100");
+});
+
 async function installApi(page: Page, scenario: Scenario = "normal", requests: string[][] = []) {
   await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/series/batch", async (route) => {
@@ -173,11 +205,14 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
         latest: payload.queries.map((query) => ({
           id: query.id,
           metric: query.metric,
-          point: {
-            ts: FIXED_NOW_SECONDS - 30,
-            value: metricValue(query.metric, query.tags ?? [], 63, scenario),
-            tags: query.tags ?? [],
-          },
+          point:
+            scenario === "missing-core" && query.id === "frequency"
+              ? null
+              : {
+                  ts: FIXED_NOW_SECONDS - 30,
+                  value: metricValue(query.metric, query.tags ?? [], 63, scenario),
+                  tags: query.tags ?? [],
+                },
           meta: { age_seconds: 30 },
         })),
       },
@@ -531,6 +566,17 @@ test("visual regression structured operational alert", async ({ page }) => {
   const alert = page.getByLabel("Active grid alerts");
   await expect(alert).toContainText("Recommended action");
   await expect(alert).toHaveScreenshot("structured-operational-alert.png");
+});
+
+test("visual regression Grid Health Score", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/");
+  const criticalInformation = page.locator(".information-critical");
+  await criticalInformation
+    .getByText("How the Grid Health Score is calculated", { exact: true })
+    .click();
+  await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
+  await expect(criticalInformation).toHaveScreenshot("grid-health-score.png");
 });
 
 test("visual regression analytical dashboard", async ({ page }) => {
