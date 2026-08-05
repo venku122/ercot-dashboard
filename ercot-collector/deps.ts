@@ -1,7 +1,7 @@
 export { default as DatadogApi } from "https://deno.land/x/datadog_api@v0.1.3/mod.ts";
 export type { MetricSubmission } from "https://deno.land/x/datadog_api@v0.1.3/v1/metrics.ts";
 
-export { fixedInterval } from "https://crux.land/4MC9JG#fixed-interval@v1";
+export { fixedInterval } from "./fixed_interval.ts";
 
 export { Sha256 } from "https://deno.land/std@0.95.0/hash/sha256.ts";
 

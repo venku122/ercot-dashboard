@@ -55,3 +55,12 @@ browser long-task/heap budgets remain green.
 
 None. This is display-only. Receiver schemas, collector payloads, stored values,
 CSV exports, URLs, and API contracts are unchanged.
+
+## CI reproducibility repair
+
+The first fork-side CI run exposed an unrelated but directly blocking build
+dependency: the collector imported its fixed-interval scheduler from a
+third-party snippet URL that now returns 404. Cached `main` builds concealed the
+failure; a clean PR build could not resolve it. The scheduler is now a small
+local module with a direct deterministic test. Its immediate first iteration,
+fixed cadence, skipped overdue intervals, and duty-cycle output are unchanged.
