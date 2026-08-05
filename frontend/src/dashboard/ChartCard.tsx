@@ -574,10 +574,9 @@ export function ChartCard({
       ) : null}
 
       <div className="chart-status-row" aria-live="polite">
-        {sourceHealth ? (
+        {sourceHealth && sourceHealth.state !== "healthy" ? (
           <span className={`status-chip status-${sourceHealth.state}`}>
-            poll {sourceHealth.collection_state} · data {sourceHealth.freshness_state} ·{" "}
-            {formatAge(sourceHealth.data_age_seconds)}
+            Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}
           </span>
         ) : null}
         {partial ? <span className="status-chip status-partial">partial bucket</span> : null}
@@ -613,7 +612,7 @@ export function ChartCard({
         {!mounted || loading ? <div className="chart-placeholder">Loading chart…</div> : null}
         {!loading && (errors.length || requestError) ? (
           <div className="chart-overlay chart-error">
-            Source request failed: {errors[0] ?? requestError}
+            Data update unavailable. Existing observations remain visible.
           </div>
         ) : null}
         {!loading && !errors.length && !requestError && !allPoints.length ? (

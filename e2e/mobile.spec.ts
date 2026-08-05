@@ -184,6 +184,7 @@ test("P0 long source failures are summarized with complete drawer detail @mobile
   page,
 }) => {
   await openPopulated(page, "failed");
+  await expect(page.getByRole("region", { name: "Grid condition" })).toContainText("NORMAL");
   const summary = page.getByLabel("System health summary");
   await expect(summary).toContainText("1 Data Source Needs Attention");
   await expect(summary).toContainText("Energy Storage");
@@ -200,6 +201,10 @@ test("P0 active operations notice stays visible while history is progressive @mo
   await openPopulated(page, "active-event");
   const summary = page.getByLabel("Operations notice summary");
   await expect(summary).toContainText("Transmission constraint");
+  const alert = page.getByLabel("Active grid alerts");
+  await expect(alert).toContainText("Cause");
+  await expect(alert).toContainText("Impact");
+  await expect(alert).toContainText("Recommended action");
   await expect(page.getByText("Earlier transmission advisory", { exact: false })).toBeHidden();
   await summary.getByRole("button", { name: "Review operations messages" }).click();
   await expect(page.getByRole("dialog", { name: "Operations message history" })).toContainText(
@@ -214,6 +219,8 @@ test("P0 API failure remains distinct from an empty selected window @mobile-core
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
   await expect(page.getByRole("alert")).toContainText("not an empty-data state");
+  await expect(page.getByRole("button", { name: "Retry data" })).toBeVisible();
+  await expect(page.getByRole("alert")).not.toContainText("fixture upstream unavailable");
   await expect(card.getByText("No observations in this window.")).toBeHidden();
 
   await page.unrouteAll({ behavior: "wait" });
@@ -382,8 +389,11 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await installMobileApi(page, "warning");
   await page.reload();
   const warning = page.locator(".mobile-grid-condition");
-  await expect(warning).toContainText("WATCH");
+  await expect(warning).toContainText("EMERGENCY");
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
+  const structuredAlert = page.getByLabel("Active grid alerts");
+  await structuredAlert.scrollIntoViewIfNeeded();
+  await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png");
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "negative");
