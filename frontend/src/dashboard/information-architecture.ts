@@ -162,6 +162,19 @@ export const dashboardViewDefinitions = [
   label: string;
 }>;
 
+export const primaryDashboardViewIds: ReadonlyArray<DashboardViewId> = [
+  "overview",
+  "generation",
+  "reliability",
+  "market",
+];
+
+export const moreDashboardViewIds: ReadonlyArray<DashboardViewId> = [
+  "weather",
+  "advanced",
+  "diagnostics",
+];
+
 const groupByName = new Map<string, (typeof chartGroupDefinitions)[number]>(
   chartGroupDefinitions.map((group) => [group.name, group]),
 );

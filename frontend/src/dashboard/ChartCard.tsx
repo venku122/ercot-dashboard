@@ -70,6 +70,7 @@ type Props = {
   onToggleSeries: (key: string) => void;
   onVisibilityChange: (chartId: string, visible: boolean) => void;
   onZoom: (start: number, end: number) => void;
+  presentation?: "featured" | "standard";
   requestError: string | null;
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
@@ -126,6 +127,7 @@ export function ChartCard({
   onToggleSeries,
   onVisibilityChange,
   onZoom,
+  presentation = "standard",
   requestError,
   seriesData,
   sourceHealth,
@@ -516,7 +518,7 @@ export function ChartCard({
     <article
       aria-label={inspect ? "Inspect " + chart.title : undefined}
       aria-modal={inspect ? "true" : undefined}
-      className={`chart-card ${inspect ? "chart-card-inspect" : ""}`}
+      className={`chart-card ${presentation === "featured" ? "chart-card-featured" : ""} ${inspect ? "chart-card-inspect" : ""}`}
       data-chart-id={chart.id}
       data-interaction-policy={interactionPolicy.policyName}
       data-lifecycle-state={lifecycleState}
@@ -665,7 +667,7 @@ export function ChartCard({
         </p>
       ) : null}
 
-      {interpretation && hasData ? (
+      {interpretation && hasData && (presentation === "standard" || inspect) ? (
         <details
           className="chart-interpretation"
           onToggle={(event) => setInterpretationOpen(event.currentTarget.open)}
@@ -735,7 +737,9 @@ export function ChartCard({
       )}
 
       {hasData ? (
-        <div className={`series-legend legend-${legendMode}`}>
+        <div
+          className={`series-legend legend-${presentation === "featured" && !inspect ? "compact" : legendMode}`}
+        >
           {chart.series.map((series) => {
             const key = seriesKey(chart.id, series.id);
             const loaded = seriesData.get(key);
@@ -770,7 +774,7 @@ export function ChartCard({
                 >
                   Solo
                 </button>
-                {legendMode === "expanded" ? (
+                {(presentation === "standard" || inspect) && legendMode === "expanded" ? (
                   <span className="legend-stats">
                     min {formatValue(stats.minimum, chart.unit)} · max{" "}
                     {formatValue(stats.maximum, chart.unit)} · avg{" "}
