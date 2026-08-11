@@ -90,6 +90,10 @@ Source health, operations history, settlement ranking, and secondary groups use 
 disclosure. The fixed section navigator expands and focuses the selected group while preserving
 the user's collapse choices for the session.
 
+The operations timeline reads the receiver's persisted selected-window event history. A pure
+frontend presentation policy adds non-destructive event-family labels and normalized severity
+filters; the stored source event type, status, title, and body remain authoritative and unchanged.
+
 ChartCard is a React lazy split point. The initial shell chunk contains the header, condition,
 exact KPIs, quick controls, navigation, and diagnostics; Chart.js, Hammer, the date adapter, and
 the zoom plugin load with the first chart workspace. The ordinary mobile interaction policy

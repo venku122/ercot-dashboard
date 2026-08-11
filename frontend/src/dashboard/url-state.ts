@@ -1,13 +1,26 @@
 import { createTimeState, setCustomRange } from "./time-state";
 import type { CompareMode, DashboardState, LegendMode } from "./types";
+import { dashboardViewDefinitions, type DashboardViewId } from "./information-architecture";
 
 const compareModes = new Set<CompareMode>(["none", "previous_period", "day", "week", "custom"]);
 const legendModes = new Set<LegendMode>(["compact", "expanded"]);
+const dashboardViewIds = new Set<DashboardViewId>(dashboardViewDefinitions.map((view) => view.id));
 
 function finiteNumber(value: string | null): number | null {
   if (value === null || value.trim() === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function dashboardViewFromUrl(url: URL): DashboardViewId {
+  const value = url.searchParams.get("view") as DashboardViewId | null;
+  return value && dashboardViewIds.has(value) ? value : "overview";
+}
+
+export function dashboardViewToUrl(view: DashboardViewId, base: URL): URL {
+  const url = new URL(base);
+  url.searchParams.set("view", view);
+  return url;
 }
 
 export function dashboardStateFromUrl(url: URL, now: number): DashboardState {

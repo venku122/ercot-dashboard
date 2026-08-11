@@ -1,4 +1,5 @@
 import type { ChartDefinition } from "./types";
+import { chartGroupDefinitions } from "./information-architecture";
 
 const colors = {
   amber: "#fbbf24",
@@ -25,24 +26,39 @@ export const chartDefinitions: ChartDefinition[] = [
     statisticPolicy: "power",
     sourceId: "supply_demand",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/supplyanddemand",
+    interpretation: {
+      mode: "reference-ratio",
+      subject: "actual demand",
+      subjectSeriesId: "demand",
+      referenceLabel: "latest available capacity",
+      referenceSeriesKey: "supply-demand:available-capacity",
+      basis:
+        "Demand share of the latest available capacity; this dashboard guide is not an ERCOT alert declaration",
+      bands: [
+        { id: "comfortable", label: "Comfortable", tone: "normal", upper: 0.8 },
+        { id: "watch", label: "Watch", tone: "watch", lower: 0.8, upper: 0.9 },
+        { id: "tight", label: "Tight", tone: "strained", lower: 0.9, upper: 1 },
+        { id: "above-capacity", label: "Above capacity", tone: "critical", lower: 1 },
+      ],
+    },
     series: [
       {
         id: "demand",
         label: "Actual demand",
         metric: "ercot.supply_demand.demand_mw",
-        color: colors.emerald,
+        color: colors.blue,
       },
       {
         id: "forecast-demand",
         label: "Forecast demand",
         metric: "ercot.supply_demand.forecast_demand_mw",
-        color: colors.cyan,
+        color: colors.slate,
       },
       {
         id: "available-capacity",
         label: "Available capacity",
         metric: "ercot.supply_demand.available_capacity_mw",
-        color: colors.amber,
+        color: colors.emerald,
       },
     ],
   },
@@ -55,24 +71,77 @@ export const chartDefinitions: ChartDefinition[] = [
     statisticPolicy: "gauge",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html",
     spikeCritical: true,
+    interpretation: {
+      mode: "absolute",
+      subject: "system frequency",
+      subjectSeriesId: "frequency",
+      basis:
+        "Distance from the nominal 60 Hz operating point; this dashboard guide is not an ERCOT alert declaration",
+      bands: [
+        { id: "critical-low", label: "Critical low", tone: "critical", upper: 59.8 },
+        {
+          id: "strained-low",
+          label: "Strained low",
+          tone: "strained",
+          lower: 59.8,
+          upper: 59.9,
+        },
+        { id: "watch-low", label: "Watch low", tone: "watch", lower: 59.9, upper: 59.95 },
+        {
+          id: "near-nominal",
+          label: "Near nominal",
+          tone: "normal",
+          lower: 59.95,
+          upper: 60.05,
+        },
+        {
+          id: "watch-high",
+          label: "Watch high",
+          tone: "watch",
+          lower: 60.05,
+          upper: 60.1,
+        },
+        {
+          id: "strained-high",
+          label: "Strained high",
+          tone: "strained",
+          lower: 60.1,
+          upper: 60.2,
+        },
+        { id: "critical-high", label: "Critical high", tone: "critical", lower: 60.2 },
+      ],
+    },
     series: [
       {
         id: "frequency",
         label: "Frequency",
         metric: "ercot.Frequency.Current_Frequency",
-        color: colors.emerald,
+        color: colors.slate,
       },
     ],
   },
   {
     id: "reserves",
-    group: "Grid conditions",
+    group: "Advanced grid",
     title: "Operating reserves",
     description: "Physical responsive capability and ancillary capacity published by ERCOT.",
     unit: "MW",
     statisticPolicy: "power",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/ancillaryservices",
     spikeCritical: true,
+    interpretation: {
+      mode: "absolute",
+      subject: "physical responsive capability",
+      subjectSeriesId: "prc",
+      basis:
+        "Read against the PRC series only; these operational context bands are dashboard heuristics, not ERCOT EEA thresholds",
+      bands: [
+        { id: "very-low", label: "Very low", tone: "critical", upper: 2_500 },
+        { id: "tight", label: "Tight", tone: "strained", lower: 2_500, upper: 3_000 },
+        { id: "watch", label: "Watch", tone: "watch", lower: 3_000, upper: 4_000 },
+        { id: "higher", label: "Higher", tone: "normal", lower: 4_000 },
+      ],
+    },
     series: [
       {
         id: "prc",
@@ -84,13 +153,13 @@ export const chartDefinitions: ChartDefinition[] = [
         id: "reg-up",
         label: "Regulation up",
         metric: "ercot_ancillary.regUpAwd",
-        color: colors.violet,
+        color: colors.cyan,
       },
       {
         id: "reg-down",
         label: "Regulation down",
         metric: "ercot_ancillary.regDownAwd",
-        color: colors.fuchsia,
+        color: colors.slate,
       },
     ],
   },
@@ -158,12 +227,23 @@ export const chartDefinitions: ChartDefinition[] = [
     sourceId: "energy_storage",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/energystorageresources",
     spikeCritical: true,
+    interpretation: {
+      mode: "absolute",
+      subject: "net storage output",
+      subjectSeriesId: "net-output",
+      basis: "Negative values indicate charging and positive values indicate discharging",
+      bands: [
+        { id: "charging", label: "Charging", tone: "informational", upper: -50 },
+        { id: "near-idle", label: "Near idle", tone: "normal", lower: -50, upper: 50 },
+        { id: "discharging", label: "Discharging", tone: "watch", lower: 50 },
+      ],
+    },
     series: [
       {
         id: "charging",
         label: "Charging",
         metric: "ercot.storage.charging_mw",
-        color: colors.pink,
+        color: colors.blue,
       },
       {
         id: "discharging",
@@ -175,7 +255,7 @@ export const chartDefinitions: ChartDefinition[] = [
         id: "net-output",
         label: "Net output",
         metric: "ercot.storage.net_output_mw",
-        color: colors.blue,
+        color: colors.slate,
       },
     ],
   },
@@ -236,34 +316,57 @@ export const chartDefinitions: ChartDefinition[] = [
     sourceId: "generation_outages",
     sourceUrl: "https://www.ercot.com/gridmktinfo/dashboards/generationoutages",
     spikeCritical: true,
+    interpretation: {
+      mode: "reference-ratio",
+      subject: "total generation outages",
+      subjectSeriesId: "total",
+      referenceLabel: "latest available capacity",
+      referenceSeriesKey: "supply-demand:available-capacity",
+      basis:
+        "Total outages as a share of the latest available capacity; this dashboard guide does not distinguish planned seasonal work",
+      bands: [
+        { id: "lower", label: "Lower", tone: "normal", upper: 0.05 },
+        { id: "elevated", label: "Elevated", tone: "watch", lower: 0.05, upper: 0.08 },
+        { id: "high", label: "High", tone: "strained", lower: 0.08, upper: 0.12 },
+        { id: "very-high", label: "Very high", tone: "critical", lower: 0.12 },
+      ],
+    },
     series: [
+      {
+        id: "total",
+        label: "Total outages",
+        metric: "ercot.generation_outages.total_mw",
+        color: colors.red,
+      },
       {
         id: "dispatchable-unplanned",
         label: "Dispatchable unplanned",
         metric: "ercot.generation_outages.mw",
         tags: ["category:dispatchable", "outage_type:unplanned"],
-        color: colors.red,
+        color: colors.orange,
       },
       {
         id: "dispatchable-planned",
         label: "Dispatchable planned",
         metric: "ercot.generation_outages.mw",
         tags: ["category:dispatchable", "outage_type:planned"],
-        color: colors.orange,
+        color: colors.amber,
       },
       {
         id: "renewable-unplanned",
         label: "Renewable unplanned",
         metric: "ercot.generation_outages.mw",
         tags: ["category:renewable", "outage_type:unplanned"],
-        color: colors.fuchsia,
+        color: colors.orange,
+        lineStyle: "dashed",
       },
       {
         id: "renewable-planned",
         label: "Renewable planned",
         metric: "ercot.generation_outages.mw",
         tags: ["category:renewable", "outage_type:planned"],
-        color: colors.violet,
+        color: colors.amber,
+        lineStyle: "dashed",
       },
     ],
   },
@@ -276,33 +379,46 @@ export const chartDefinitions: ChartDefinition[] = [
     statisticPolicy: "gauge",
     sourceUrl: "https://www.ercot.com/content/cdr/html/real_time_spp",
     spikeCritical: true,
+    interpretation: {
+      mode: "absolute",
+      subject: "settlement point price",
+      subjectSeriesId: "houston",
+      basis:
+        "Read each hub against the same price guide; these dashboard bands provide context and are not market intervention thresholds",
+      bands: [
+        { id: "negative", label: "Negative", tone: "informational", upper: 0 },
+        { id: "lower", label: "Lower", tone: "normal", lower: 0, upper: 100 },
+        { id: "elevated", label: "Elevated", tone: "watch", lower: 100, upper: 1_000 },
+        { id: "very-high", label: "Very high", tone: "critical", lower: 1_000 },
+      ],
+    },
     series: [
       {
         id: "houston",
         label: "Houston hub",
         metric: "ercot.pricing",
         tags: ["ercot_region:HB_HOUSTON"],
-        color: colors.emerald,
+        color: colors.blue,
       },
       {
         id: "north",
         label: "North hub",
         metric: "ercot.pricing",
         tags: ["ercot_region:HB_NORTH"],
-        color: colors.blue,
+        color: colors.cyan,
       },
       {
         id: "west",
         label: "West hub",
         metric: "ercot.pricing",
         tags: ["ercot_region:HB_WEST"],
-        color: colors.orange,
+        color: colors.slate,
       },
     ],
   },
   {
     id: "dc-ties",
-    group: "Market",
+    group: "Advanced grid",
     title: "DC tie flows",
     description:
       "Individual ERCOT DC tie flows; the source sign convention is shown without inversion.",
@@ -368,7 +484,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "capacity-headroom",
-    group: "Grid conditions",
+    group: "Reliability",
     title: "Unused capacity and headroom",
     description: "Available system capacity minus actual system demand, alongside PRC.",
     unit: "MW",
@@ -405,7 +521,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "time-error",
-    group: "Grid conditions",
+    group: "Advanced grid",
     title: "Time error and delta",
     description: "ERCOT instantaneous time error and the change between consecutive readings.",
     unit: "seconds",
@@ -430,7 +546,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "inertia",
-    group: "Grid conditions",
+    group: "Advanced grid",
     title: "System inertia",
     description: "Current ERCOT system inertia from the real-time conditions feed.",
     unit: "GW·s",
@@ -678,7 +794,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
 ];
 
-export const chartGroups = [...new Set(chartDefinitions.map((definition) => definition.group))];
+export const chartGroups = chartGroupDefinitions.map((definition) => definition.name);
 
 export function seriesKey(chartId: string, seriesId: string) {
   return `${chartId}:${seriesId}`;

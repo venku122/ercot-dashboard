@@ -1,12 +1,69 @@
-export function formatValue(value: number | null, unit: string, compact = false): string {
-  if (value === null || !Number.isFinite(value)) return "—";
-  const absolute = Math.abs(value);
-  const maximumFractionDigits = unit === "Hz" ? 3 : absolute < 10 ? 2 : 1;
-  const formatted = new Intl.NumberFormat("en-US", {
+type NormalizedUnit = {
+  maximumFractionDigits: number;
+  minimumFractionDigits: number;
+  unit: string;
+  value: number;
+};
+
+const precisionByUnit: Record<string, readonly [minimum: number, maximum: number]> = {
+  "$ per MWh": [2, 2],
+  "%": [1, 1],
+  "°C": [1, 1],
+  GW: [1, 1],
+  GW·s: [1, 1],
+  Hz: [3, 3],
+  MW: [1, 1],
+  MWh: [1, 1],
+  mph: [1, 1],
+  seconds: [1, 1],
+  TW·s: [1, 1],
+  customers: [0, 0],
+  level: [0, 0],
+};
+
+export function normalizeUnit(value: number, unit: string): NormalizedUnit {
+  let normalizedValue = value;
+  let normalizedUnit = unit === "$/MWh" ? "$ per MWh" : unit;
+
+  if (unit === "MW" && Math.abs(value) >= 1000) {
+    normalizedValue = value / 1000;
+    normalizedUnit = "GW";
+  } else if (unit === "GW·s" && Math.abs(value) >= 1000) {
+    normalizedValue = value / 1000;
+    normalizedUnit = "TW·s";
+  }
+
+  const [minimumFractionDigits, maximumFractionDigits] = precisionByUnit[normalizedUnit] ?? [0, 1];
+  return {
     maximumFractionDigits,
-    notation: compact && absolute >= 1000 ? "compact" : "standard",
-  }).format(value);
-  return `${formatted} ${unit}`;
+    minimumFractionDigits,
+    unit: normalizedUnit,
+    value: normalizedValue,
+  };
+}
+
+export function formatValue(value: number | null, unit: string): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  const normalized = normalizeUnit(value, unit);
+  const absoluteValue =
+    normalized.unit === "$ per MWh" ? Math.abs(normalized.value) : normalized.value;
+  const formatted = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: normalized.maximumFractionDigits,
+    minimumFractionDigits: normalized.minimumFractionDigits,
+    useGrouping: true,
+  }).format(absoluteValue);
+
+  if (normalized.unit === "$ per MWh") {
+    return `${normalized.value < 0 ? "-" : ""}$${formatted}/MWh`;
+  }
+  if (normalized.unit === "%") return `${formatted}%`;
+  return `${formatted} ${normalized.unit}`;
+}
+
+export function formatSignedValue(value: number | null, unit: string): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  if (value === 0) return formatValue(0, unit);
+  return `${value > 0 ? "+" : "−"}${formatValue(Math.abs(value), unit)}`;
 }
 
 export function formatAge(seconds: number | null): string {

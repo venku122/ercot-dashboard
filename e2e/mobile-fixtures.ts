@@ -27,6 +27,8 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Mo
   if (metric.includes("charging_mw")) return -900 - wave * 500;
   if (metric.includes("discharging_mw")) return 450 + wave * 300;
   if (metric.includes("net_output_mw")) return -450 + wave * 800;
+  if (metric.includes("eea_level")) return 0;
+  if (metric.includes("metar.temperature")) return 31 + wave * 4;
   if (metric.includes("fuel_mix")) {
     if (tags.includes("fuel:wind")) return 18_000 + wave * 2200;
     if (tags.includes("fuel:solar")) return Math.max(0, 12_000 + wave * 9000);
@@ -53,6 +55,22 @@ function latestValue(id: string, metric: string, tags: string[], scenario: Mobil
   if (id === "grid-capacity") return 73_500;
   if (id === "inertia") return 312;
   return metricValue(metric, tags, 63, scenario);
+}
+
+function heroHistoryValue(
+  metric: string,
+  tags: string[],
+  index: number,
+  count: number,
+  scenario: MobileScenario,
+) {
+  const progress = count <= 1 ? 1 : index / (count - 1);
+  const current = metricValue(metric, tags, 63, scenario);
+  if (metric.includes("demand_mw")) return 66_800 + (68_200 - 66_800) * progress;
+  if (metric.includes("capacity_mw")) return 87_900 + (88_500 - 87_900) * progress;
+  if (metric.includes("Frequency")) return 59.998 + (60.001 - 59.998) * progress;
+  if (metric.includes("pricing")) return current + 9 * (1 - progress);
+  return metricValue(metric, tags, index, scenario);
 }
 
 function sourceFixture(scenario: MobileScenario) {
@@ -123,7 +141,43 @@ function eventFixture(scenario: MobileScenario) {
       status: "Active",
       severity: scenario === "warning" ? "emergency" : "warning",
       title: "Transmission constraint requires heightened grid awareness in the Houston area.",
-      body: "Operators are monitoring reserves and constrained transmission paths.",
+      body: "Operators are monitoring constrained transmission paths and the affected load zone.",
+    },
+    {
+      dedupe_key: "fixture:event:heat",
+      source_id: "operations_messages",
+      starts_at: FIXED_NOW_SECONDS - 3600,
+      event_type: "Advisory",
+      status: "Closed",
+      severity: "information",
+      title: "Heat advisory asked consumers to conserve during the afternoon peak.",
+    },
+    {
+      dedupe_key: "fixture:event:generator",
+      source_id: "operations_messages",
+      starts_at: FIXED_NOW_SECONDS - 4500,
+      event_type: "Operational Information",
+      status: "Closed",
+      severity: "warning",
+      title: "Generator unit trip removed 620 MW before returning to service.",
+    },
+    {
+      dedupe_key: "fixture:event:reserve",
+      source_id: "operations_messages",
+      starts_at: FIXED_NOW_SECONDS - 5400,
+      event_type: "Operational Information",
+      status: "Closed",
+      severity: "watch",
+      title: "Reserve watch ended after Physical Responsive Capability recovered.",
+    },
+    {
+      dedupe_key: "fixture:event:eea",
+      source_id: "operations_messages",
+      starts_at: FIXED_NOW_SECONDS - 6300,
+      event_type: "Emergency Notice",
+      status: "Closed",
+      severity: "emergency",
+      title: "EEA Level 2 ended after operating reserves stabilized.",
     },
     {
       dedupe_key: "fixture:event:history",
@@ -161,7 +215,9 @@ export async function installMobileApi(
           ? []
           : Array.from({ length: count }, (_, index) => [
               query.since + index * step,
-              metricValue(query.metric, query.tags, index, scenario),
+              query.id.startsWith("hero:")
+                ? heroHistoryValue(query.metric, query.tags, index, count, scenario)
+                : metricValue(query.metric, query.tags, index, scenario),
             ]);
       return {
         id: query.id,

@@ -4,6 +4,7 @@ export type TimeMode = "fixed" | "live";
 export type CompareMode = "custom" | "day" | "none" | "previous_period" | "week";
 export type LegendMode = "compact" | "expanded";
 export type StatisticPolicy = "gauge" | "power";
+export type InterpretationTone = "critical" | "informational" | "normal" | "strained" | "watch";
 
 export type TimeState = {
   end: number;
@@ -31,15 +32,42 @@ export type SeriesDefinition = {
   };
   id: string;
   label: string;
+  lineStyle?: "dashed";
   metric?: string;
   rollup?: "sum";
   tags?: string[];
 };
 
+export type InterpretationBand = {
+  id: string;
+  label: string;
+  lower?: number;
+  tone: InterpretationTone;
+  upper?: number;
+};
+
+type InterpretationBase = {
+  bands: InterpretationBand[];
+  basis: string;
+  subject: string;
+  subjectSeriesId: string;
+};
+
+export type ChartInterpretation =
+  | (InterpretationBase & {
+      mode: "absolute";
+    })
+  | (InterpretationBase & {
+      mode: "reference-ratio";
+      referenceLabel: string;
+      referenceSeriesKey: string;
+    });
+
 export type ChartDefinition = {
   description: string;
   group: string;
   id: string;
+  interpretation?: ChartInterpretation;
   sourceId?: string;
   sourceUrl: string;
   spikeCritical?: boolean;

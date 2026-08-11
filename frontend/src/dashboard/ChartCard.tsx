@@ -18,9 +18,16 @@ import {
 import zoomPlugin from "chartjs-plugin-zoom";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { seriesKey } from "./chart-config";
+import {
+  formatInterpretationRange,
+  interpretationAriaDescription,
+  resolveInterpretationBands,
+} from "./chart-interpretation";
 import { chartCoordinator } from "./chart-coordinator";
 import { chartInteractionPolicy } from "./interaction-policy";
+import { resolveDataLifecycleState } from "./data-lifecycle";
 import { seriesStats } from "./stats";
 import type {
   ChartDefinition,
@@ -63,6 +70,7 @@ type Props = {
   onToggleSeries: (key: string) => void;
   onVisibilityChange: (chartId: string, visible: boolean) => void;
   onZoom: (start: number, end: number) => void;
+  presentation?: "featured" | "standard";
   requestError: string | null;
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
@@ -71,6 +79,13 @@ type Props = {
 
 const cursorByChart = new WeakMap<ChartJs<"line">, number | null>();
 const pinnedByChart = new WeakMap<ChartJs<"line">, boolean>();
+const interpretationFill = {
+  critical: "rgba(248, 113, 113, 0.1)",
+  informational: "rgba(96, 165, 250, 0.08)",
+  normal: "rgba(52, 211, 153, 0.07)",
+  strained: "rgba(251, 146, 60, 0.09)",
+  watch: "rgba(251, 191, 36, 0.08)",
+} as const;
 
 function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
   const rows = ["series,timestamp_iso,timestamp_epoch,value"];
@@ -112,6 +127,7 @@ export function ChartCard({
   onToggleSeries,
   onVisibilityChange,
   onZoom,
+  presentation = "standard",
   requestError,
   seriesData,
   sourceHealth,
@@ -135,6 +151,12 @@ export function ChartCard({
   } = useVisible<HTMLElement>(mobile ? "0px" : "100px");
   const [pinned, setPinned] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [interpretationOpen, setInterpretationOpen] = useState(!mobile);
+  const interpretation = chart.interpretation;
+  const interpretationDescription = interpretationAriaDescription(chart);
+  const resolvedInterpretation = interpretation
+    ? resolveInterpretationBands(interpretation, seriesData)
+    : [];
 
   useEffect(() => {
     cursorActive.current = visible && interactionPolicy.cursorPin;
@@ -176,6 +198,7 @@ export function ChartCard({
         })),
         borderColor: series.color,
         backgroundColor: series.color,
+        ...(series.lineStyle === "dashed" ? { borderDash: [5, 4] } : {}),
         borderWidth: 1.6,
         pointRadius: 0,
         pointHitRadius: 12,
@@ -199,12 +222,15 @@ export function ChartCard({
     }
     return output;
   }, [chart, compare, hiddenSeries, seriesData]);
+  const hasData = chart.series.some(
+    (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
+  );
 
   const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time });
   dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time };
 
   useEffect(() => {
-    if (!mounted || !canvasRef.current) return;
+    if (!hasData || !mounted || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const handlePointerDown = (event: PointerEvent) => {
       if (!dynamic.current.interactionPolicy.cursorPin) return;
@@ -227,6 +253,27 @@ export function ChartCard({
     canvas.addEventListener("pointerup", handlePointerUp, true);
     const overlayPlugin: Plugin<"line"> = {
       id: `ercot-overlay-${chart.id}`,
+      beforeDatasetsDraw(instance) {
+        if (!chart.interpretation) return;
+        const area = instance.chartArea;
+        const context = instance.ctx;
+        const yScale = instance.scales["y"];
+        if (!yScale) return;
+        const bands = resolveInterpretationBands(chart.interpretation, dynamic.current.seriesData);
+        context.save();
+        for (const band of bands) {
+          const upper =
+            band.upperValue === undefined ? area.top : yScale.getPixelForValue(band.upperValue);
+          const lower =
+            band.lowerValue === undefined ? area.bottom : yScale.getPixelForValue(band.lowerValue);
+          const top = Math.max(area.top, Math.min(area.bottom, Math.min(upper, lower)));
+          const bottom = Math.max(area.top, Math.min(area.bottom, Math.max(upper, lower)));
+          if (bottom <= top) continue;
+          context.fillStyle = interpretationFill[band.tone];
+          context.fillRect(area.left, top, area.width, bottom - top);
+        }
+        context.restore();
+      },
       afterDatasetsDraw(instance) {
         const area = instance.chartArea;
         const context = instance.ctx;
@@ -353,7 +400,7 @@ export function ChartCard({
           y: {
             ticks: {
               color: "#94a3b8",
-              callback: (value) => formatValue(Number(value), chart.unit, true),
+              callback: (value) => formatValue(Number(value), chart.unit),
             },
             grid: { color: "rgba(148, 163, 184, 0.08)" },
           },
@@ -363,6 +410,9 @@ export function ChartCard({
     window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
     window.__ercotChartLifecycle.constructed += 1;
     chartRef.current = instance;
+    canvas.dataset["chartReady"] = dynamic.current.datasets.some((dataset) => dataset.data.length)
+      ? "true"
+      : "false";
     const initialCursor = chartCoordinator.snapshot();
     cursorTimestamp.current = initialCursor.timestamp;
     cursorByChart.set(instance, initialCursor.timestamp);
@@ -385,8 +435,9 @@ export function ChartCard({
       instance.destroy();
       window.__ercotChartLifecycle!.destroyed += 1;
       chartRef.current = null;
+      delete canvas.dataset["chartReady"];
     };
-  }, [chart, mounted]);
+  }, [chart, hasData, mounted]);
 
   useEffect(() => {
     const instance = chartRef.current;
@@ -425,6 +476,9 @@ export function ChartCard({
       xScale.max = time.end * 1000;
     }
     instance.update("none");
+    instance.canvas.dataset["chartReady"] = datasets.some((dataset) => dataset.data.length)
+      ? "true"
+      : "false";
     window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
     window.__ercotChartLifecycle.updated += 1;
   }, [datasets, events, seriesData, time.end, time.start]);
@@ -435,10 +489,21 @@ export function ChartCard({
   const errors = chart.series
     .map((series) => seriesData.get(seriesKey(chart.id, series.id))?.error)
     .filter((value): value is string => Boolean(value));
+  const updateUnavailable = !loading && Boolean(errors.length || requestError);
+  const lifecycleState = !mounted
+    ? "loading"
+    : resolveDataLifecycleState({
+        hasData,
+        loading,
+        unavailable: updateUnavailable,
+      });
   const partial = chart.series.some(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.meta.partial_current_bucket,
   );
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
+  const showStatusRow = Boolean(
+    (sourceHealth && sourceHealth.state !== "healthy") || (partial && hasData) || pinned,
+  );
   const resetChartZoom = () => {
     chartRef.current?.resetZoom();
     onResetZoom();
@@ -453,9 +518,10 @@ export function ChartCard({
     <article
       aria-label={inspect ? "Inspect " + chart.title : undefined}
       aria-modal={inspect ? "true" : undefined}
-      className={`chart-card ${inspect ? "chart-card-inspect" : ""}`}
+      className={`chart-card ${presentation === "featured" ? "chart-card-featured" : ""} ${inspect ? "chart-card-inspect" : ""}`}
       data-chart-id={chart.id}
       data-interaction-policy={interactionPolicy.policyName}
+      data-lifecycle-state={lifecycleState}
       data-mounted={mounted ? "true" : "false"}
       data-visible={visible ? "true" : "false"}
       onKeyDown={(event) => {
@@ -521,7 +587,11 @@ export function ChartCard({
               >
                 Reset zoom
               </button>
-              <button onClick={() => downloadCsv(chart, seriesData)} role="menuitem">
+              <button
+                disabled={!hasData}
+                onClick={() => downloadCsv(chart, seriesData)}
+                role="menuitem"
+              >
                 Download CSV
               </button>
               <button
@@ -561,28 +631,35 @@ export function ChartCard({
           >
             {compare === "none" ? "Compare" : "No compare"}
           </button>
-          <button aria-label="Download CSV" onClick={() => downloadCsv(chart, seriesData)}>
+          <button
+            aria-label="Download CSV"
+            disabled={!hasData}
+            onClick={() => downloadCsv(chart, seriesData)}
+          >
             CSV
           </button>
           <a aria-label="ERCOT source" href={chart.sourceUrl} rel="noreferrer" target="_blank">
             Source
           </a>
-          <button aria-label="Show data table" onClick={showDataTable}>
+          <button aria-label="Show data table" disabled={!hasData} onClick={showDataTable}>
             Data
           </button>
         </div>
       ) : null}
 
-      <div className="chart-status-row" aria-live="polite">
-        {sourceHealth ? (
-          <span className={`status-chip status-${sourceHealth.state}`}>
-            poll {sourceHealth.collection_state} · data {sourceHealth.freshness_state} ·{" "}
-            {formatAge(sourceHealth.data_age_seconds)}
-          </span>
-        ) : null}
-        {partial ? <span className="status-chip status-partial">partial bucket</span> : null}
-        {pinned ? <span className="status-chip status-pinned">cursor pinned</span> : null}
-      </div>
+      {showStatusRow ? (
+        <div className="chart-status-row" aria-live="polite">
+          {sourceHealth && sourceHealth.state !== "healthy" ? (
+            <span className={`status-chip status-${sourceHealth.state}`}>
+              Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}
+            </span>
+          ) : null}
+          {partial && hasData ? (
+            <span className="status-chip status-partial">partial bucket</span>
+          ) : null}
+          {pinned ? <span className="status-chip status-pinned">cursor pinned</span> : null}
+        </div>
+      ) : null}
 
       {inspect && mobile ? (
         <p className="inspect-gesture-hint">
@@ -590,120 +667,158 @@ export function ChartCard({
         </p>
       ) : null}
 
-      <div
-        className="chart-canvas-wrap"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") chartCoordinator.clearPin();
-        }}
-        onMouseLeave={() => chartCoordinator.publish(null)}
-        onMouseMove={(event) => {
-          if (!interactionPolicy.cursorPin) return;
-          const instance = chartRef.current;
-          if (!instance) return;
-          const bounds = event.currentTarget.getBoundingClientRect();
-          const pixel = event.clientX - bounds.left;
-          const timestamp = instance.scales["x"].getValueForPixel(pixel);
-          if (typeof timestamp === "number") {
-            cursorTimestamp.current = timestamp / 1000;
-            chartCoordinator.publish(timestamp / 1000);
-          }
-        }}
-        role="presentation"
-      >
-        {!mounted || loading ? <div className="chart-placeholder">Loading chart…</div> : null}
-        {!loading && (errors.length || requestError) ? (
-          <div className="chart-overlay chart-error">
-            Source request failed: {errors[0] ?? requestError}
-          </div>
-        ) : null}
-        {!loading && !errors.length && !requestError && !allPoints.length ? (
-          <div className="chart-overlay chart-empty">No observations in this window.</div>
-        ) : null}
-        {stale && allPoints.length ? (
-          <div className="chart-overlay chart-stale">Showing stale data</div>
-        ) : null}
-        <canvas
-          aria-label={`${chart.title}. ${allPoints.length} observations. Use the legend or CSV menu for exact values.`}
-          ref={canvasRef}
-          role="img"
-        />
-      </div>
+      {interpretation && hasData && (presentation === "standard" || inspect) ? (
+        <details
+          className="chart-interpretation"
+          onToggle={(event) => setInterpretationOpen(event.currentTarget.open)}
+          open={interpretationOpen}
+        >
+          <summary>
+            Interpretation guide · <strong>{interpretation.subject}</strong>
+          </summary>
+          <p>{interpretation.basis}.</p>
+          {interpretation.mode === "reference-ratio" && !resolvedInterpretation.length ? (
+            <p className="interpretation-reference-unavailable">
+              Waiting for {interpretation.referenceLabel} to draw the canvas bands.
+            </p>
+          ) : null}
+          <ul aria-label={`${chart.title} interpretation bands`}>
+            {interpretation.bands.map((band) => (
+              <li className={`interpretation-${band.tone}`} key={band.id}>
+                <span aria-hidden="true" className="interpretation-swatch" />
+                <strong>{band.label}</strong>
+                <span>{formatInterpretationRange(interpretation, band, chart.unit)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
 
-      <div className={`series-legend legend-${legendMode}`}>
-        {chart.series.map((series) => {
-          const key = seriesKey(chart.id, series.id);
-          const loaded = seriesData.get(key);
-          const sampledStats = seriesStats(loaded?.points ?? []);
-          const stats = loaded?.meta.stats ?? {
-            average: sampledStats.average,
-            count: loaded?.points.length ?? 0,
-            energy_mwh: null,
-            latest: sampledStats.latest,
-            maximum: sampledStats.maximum,
-            minimum: sampledStats.minimum,
-          };
-          const hidden = hiddenSeries.has(key);
-          return (
-            <div className={`legend-row ${hidden ? "legend-row-hidden" : ""}`} key={key}>
-              <button
-                aria-pressed={!hidden}
-                className="legend-toggle"
-                onClick={() => onToggleSeries(key)}
-                style={{ "--series-color": series.color } as React.CSSProperties}
-              >
-                <span className="legend-swatch" />
-                {series.label}
-              </button>
-              <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
-              <button
-                aria-label={`Solo ${series.label}`}
-                className="legend-solo"
-                onClick={() => onSoloSeries(chart.id, key)}
-              >
-                Solo
-              </button>
-              {legendMode === "expanded" ? (
-                <span className="legend-stats">
-                  min {formatValue(stats.minimum, chart.unit)} · max{" "}
-                  {formatValue(stats.maximum, chart.unit)} · avg{" "}
-                  {formatValue(stats.average, chart.unit)}
-                  {chart.statisticPolicy === "power" && stats.energy_mwh !== null
-                    ? ` · energy ${formatValue(stats.energy_mwh, "MWh")}`
-                    : ""}
-                </span>
-              ) : null}
+      {lifecycleState === "ready" ? (
+        <div
+          className="chart-canvas-wrap"
+          data-lifecycle-state={lifecycleState}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") chartCoordinator.clearPin();
+          }}
+          onMouseLeave={() => chartCoordinator.publish(null)}
+          onMouseMove={(event) => {
+            if (!interactionPolicy.cursorPin) return;
+            const instance = chartRef.current;
+            if (!instance) return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            const pixel = event.clientX - bounds.left;
+            const timestamp = instance.scales["x"].getValueForPixel(pixel);
+            if (typeof timestamp === "number") {
+              cursorTimestamp.current = timestamp / 1000;
+              chartCoordinator.publish(timestamp / 1000);
+            }
+          }}
+          role="presentation"
+        >
+          {updateUnavailable ? (
+            <div className="chart-overlay chart-error">
+              Temporarily unavailable… Existing observations remain visible.
             </div>
-          );
-        })}
-      </div>
-
-      <details className="accessible-data" ref={accessibleDataRef}>
-        <summary>Accessible data table</summary>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Series</th>
-                <th>Timestamp</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {chart.series.flatMap((series) =>
-                (seriesData.get(seriesKey(chart.id, series.id))?.points ?? [])
-                  .slice(-250)
-                  .map(([timestamp, value]) => (
-                    <tr key={`${series.id}:${timestamp}`}>
-                      <td>{series.label}</td>
-                      <td>{new Date(timestamp * 1000).toISOString()}</td>
-                      <td>{formatValue(value, chart.unit)}</td>
-                    </tr>
-                  )),
-              )}
-            </tbody>
-          </table>
+          ) : null}
+          {stale ? <div className="chart-overlay chart-stale">Showing stale data</div> : null}
+          <canvas
+            aria-label={`${chart.title}. ${allPoints.length} observations. ${interpretationDescription} Use the legend or CSV menu for exact values.`}
+            ref={canvasRef}
+            role="img"
+          />
         </div>
-      </details>
+      ) : (
+        <div className="chart-canvas-wrap" data-lifecycle-state={lifecycleState}>
+          <div className="chart-overlay chart-lifecycle-overlay">
+            <DataLifecycleMessage state={lifecycleState} />
+          </div>
+        </div>
+      )}
+
+      {hasData ? (
+        <div
+          className={`series-legend legend-${presentation === "featured" && !inspect ? "compact" : legendMode}`}
+        >
+          {chart.series.map((series) => {
+            const key = seriesKey(chart.id, series.id);
+            const loaded = seriesData.get(key);
+            const sampledStats = seriesStats(loaded?.points ?? []);
+            const stats = loaded?.meta.stats ?? {
+              average: sampledStats.average,
+              count: loaded?.points.length ?? 0,
+              energy_mwh: null,
+              latest: sampledStats.latest,
+              maximum: sampledStats.maximum,
+              minimum: sampledStats.minimum,
+            };
+            const hidden = hiddenSeries.has(key);
+            return (
+              <div className={`legend-row ${hidden ? "legend-row-hidden" : ""}`} key={key}>
+                <button
+                  aria-pressed={!hidden}
+                  className="legend-toggle"
+                  onClick={() => onToggleSeries(key)}
+                  style={{ "--series-color": series.color } as React.CSSProperties}
+                >
+                  <span
+                    className={`legend-swatch ${series.lineStyle === "dashed" ? "legend-swatch-dashed" : ""}`}
+                  />
+                  {series.label}
+                </button>
+                <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
+                <button
+                  aria-label={`Solo ${series.label}`}
+                  className="legend-solo"
+                  onClick={() => onSoloSeries(chart.id, key)}
+                >
+                  Solo
+                </button>
+                {(presentation === "standard" || inspect) && legendMode === "expanded" ? (
+                  <span className="legend-stats">
+                    min {formatValue(stats.minimum, chart.unit)} · max{" "}
+                    {formatValue(stats.maximum, chart.unit)} · avg{" "}
+                    {formatValue(stats.average, chart.unit)}
+                    {chart.statisticPolicy === "power" && stats.energy_mwh !== null
+                      ? ` · energy ${formatValue(stats.energy_mwh, "MWh")}`
+                      : ""}
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {hasData ? (
+        <details className="accessible-data" ref={accessibleDataRef}>
+          <summary>Accessible data table</summary>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Series</th>
+                  <th>Timestamp</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {chart.series.flatMap((series) =>
+                  (seriesData.get(seriesKey(chart.id, series.id))?.points ?? [])
+                    .slice(-250)
+                    .map(([timestamp, value]) => (
+                      <tr key={`${series.id}:${timestamp}`}>
+                        <td>{series.label}</td>
+                        <td>{new Date(timestamp * 1000).toISOString()}</td>
+                        <td>{formatValue(value, chart.unit)}</td>
+                      </tr>
+                    )),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ) : null}
     </article>
   );
 }

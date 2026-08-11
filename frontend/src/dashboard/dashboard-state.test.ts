@@ -14,7 +14,12 @@ import {
   zoomTo,
 } from "./time-state";
 import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./zoned-time";
-import { dashboardStateFromUrl, dashboardStateToUrl } from "./url-state";
+import {
+  dashboardStateFromUrl,
+  dashboardStateToUrl,
+  dashboardViewFromUrl,
+  dashboardViewToUrl,
+} from "./url-state";
 import { formatAge, formatValue } from "./units";
 
 describe("global time state", () => {
@@ -47,6 +52,14 @@ describe("global time state", () => {
 });
 
 describe("shareable URL state", () => {
+  it("normalizes and serializes the active progressive-disclosure view", () => {
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=weather"))).toBe("weather");
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=unknown"))).toBe("overview");
+    const output = dashboardViewToUrl("diagnostics", new URL("https://example.test/?range=3600"));
+    expect(output.searchParams.get("view")).toBe("diagnostics");
+    expect(output.searchParams.get("range")).toBe("3600");
+  });
+
   it("round trips fixed time, comparison, events, inspect, legend and hidden series", () => {
     const parsed = dashboardStateFromUrl(
       new URL(
@@ -129,7 +142,7 @@ describe("statistics, freshness, and units", () => {
     expect(freshnessState(300, 300)).toBe("fresh");
     expect(freshnessState(700, 300)).toBe("delayed");
     expect(freshnessState(1300, 300)).toBe("stale");
-    expect(formatValue(-1234.5, "$/MWh")).toContain("-1,234.5");
+    expect(formatValue(-1234.5, "$/MWh")).toBe("-$1,234.50/MWh");
     expect(formatAge(3700)).toBe("1h old");
   });
 });
