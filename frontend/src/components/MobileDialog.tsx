@@ -87,7 +87,7 @@ export function MobileDialog({
       >
         <header className="mobile-dialog-header">
           <div>
-            <p className="eyebrow">Mobile workspace</p>
+            <p className="eyebrow">Dashboard workspace</p>
             <h2 id={titleId}>{title}</h2>
             <p id={descriptionId}>{description}</p>
           </div>

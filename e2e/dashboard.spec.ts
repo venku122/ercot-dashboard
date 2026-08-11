@@ -1,9 +1,31 @@
 import { expect, test, type Page } from "@playwright/test";
 
-type Scenario = "empty" | "error" | "missing-core" | "negative" | "normal" | "spike" | "stale";
+type Scenario =
+  | "empty"
+  | "empty-panels"
+  | "error"
+  | "missing-core"
+  | "negative"
+  | "no-events"
+  | "normal"
+  | "spike"
+  | "stale";
 
 const FIXED_NOW = new Date("2026-07-21T18:00:00-05:00");
 const FIXED_NOW_SECONDS = Math.floor(FIXED_NOW.getTime() / 1000);
+
+async function openMoreView(page: Page, name: "Advanced" | "Diagnostics" | "Weather") {
+  await page.getByRole("button", { name: /More views/ }).click();
+  await page
+    .getByRole("navigation", { name: "More dashboard views" })
+    .getByRole("button", { name })
+    .click();
+}
+
+async function openAnalyze(page: Page) {
+  await page.getByRole("button", { name: "Analyze" }).click();
+  return page.getByRole("dialog", { name: "Analyze" });
+}
 
 function metricValue(metric: string, tags: string[], index: number, scenario: Scenario) {
   const wave = Math.sin(index / 5);
@@ -36,7 +58,6 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
   await page.goto("/");
 
   for (const id of [
-    "grid-status",
     "demand",
     "available-capacity",
     "reserve-margin",
@@ -52,10 +73,7 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
     "aria-label",
     /increasing|decreasing|unchanged/,
   );
-  await expect(page.locator('[data-hero-trend="grid-status"]')).toHaveAttribute(
-    "aria-label",
-    /unavailable/,
-  );
+  await expect(page.locator('[data-hero-trend="grid-status"]')).toHaveCount(0);
 
   await page.route("**/api/series/batch", async (route) => {
     const payload = route.request().postDataJSON() as { queries: Array<{ id: string }> };
@@ -67,24 +85,20 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
   });
   await page.reload();
   await expect(page.locator('[data-metric-id="demand"] strong')).toContainText("GW");
-  await expect(page.locator('[data-hero-trend="demand"]')).toHaveAttribute(
-    "aria-label",
-    /unavailable/,
-  );
+  await expect(page.locator('[data-hero-trend="demand"]')).toHaveCount(0);
+  await expect(page.getByText(/Recent comparison unavailable for/)).toBeVisible();
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "empty");
   await page.reload();
-  await expect(page.locator('[data-hero-trend="demand"]')).toHaveAttribute(
-    "aria-label",
-    /unavailable/,
-  );
+  await expect(page.locator('[data-hero-trend="demand"]')).toHaveCount(0);
 });
 
 test("derived insights expose nine formulas and honest history availability", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
 
+  await page.getByText("Calculated grid insights", { exact: true }).click();
   const metrics = page.getByLabel("Derived grid metrics");
   await expect(metrics.getByRole("article")).toHaveCount(9);
   await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(9);
@@ -125,18 +139,18 @@ test("derived insights expose nine formulas and honest history availability", as
   await expect(page.locator(".global-error")).toHaveCount(0);
 });
 
-test("Grid Health Score is bounded, explainable, and coverage-aware", async ({ page }) => {
+test("Grid Health Score is details-only, bounded, explainable, and coverage-aware", async ({
+  page,
+}) => {
   await installApi(page);
   await page.goto("/");
 
-  const score = page.locator(".grid-health-score-value");
-  await expect(score).toHaveCount(1);
-  await expect(score).toHaveAttribute("data-health-status", "normal");
-  await expect(score).toContainText("/ 100");
-  await expect(score).toContainText("100% factor coverage");
+  await expect(page.locator(".grid-health-score-value")).toHaveCount(0);
+  await expect(page.getByLabel("Current ERCOT status")).not.toContainText("/ 100");
 
-  const explanation = page.getByText("How the Grid Health Score is calculated", { exact: true });
+  const explanation = page.getByText("How status is determined", { exact: true });
   await explanation.click();
+  await expect(page.getByText(/Current result: \d+ \/ 100/)).toBeVisible();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
   await expect(page.getByLabel("Grid Health Score factors")).toContainText("Reserve margin");
   await expect(page.getByLabel("Grid Health Score factors")).toContainText("Forecast pressure");
@@ -145,14 +159,14 @@ test("Grid Health Score is bounded, explainable, and coverage-aware", async ({ p
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "empty");
   await page.reload();
-  await expect(score).toHaveAttribute("data-health-status", "limited");
-  await expect(score).toContainText("90% factor coverage");
+  await explanation.click();
+  await expect(page.getByText(/Current result: \d+ \/ 100 · 90% weighted coverage/)).toBeVisible();
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "missing-core");
   await page.reload();
-  await expect(score).toHaveAttribute("data-health-status", "unavailable");
-  await expect(score).toContainText("— / 100");
+  await explanation.click();
+  await expect(page.getByText(/Current result: unavailable/)).toBeVisible();
 });
 
 test("chart thresholds pair semantic bands with non-color interpretation text", async ({
@@ -164,6 +178,7 @@ test("chart thresholds pair semantic bands with non-color interpretation text", 
   const demand = page.locator('[data-chart-id="supply-demand"]');
   await demand.scrollIntoViewIfNeeded();
   await expect(demand.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
+  await demand.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect(demand.locator(".chart-interpretation")).toHaveAttribute("open", "");
   await expect(
     demand.getByLabel("Supply and demand interpretation bands").getByRole("listitem"),
@@ -175,6 +190,7 @@ test("chart thresholds pair semantic bands with non-color interpretation text", 
     "aria-label",
     /Interpretation guide for actual demand.*Comfortable.*Above capacity/,
   );
+  await page.keyboard.press("Escape");
 
   const frequency = page.locator('[data-chart-id="frequency"]');
   await frequency.scrollIntoViewIfNeeded();
@@ -254,10 +270,13 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
   await page.route("**/api/v1/ranking**", async (route) => {
     await route.fulfill({
       json: {
-        rows: [
-          { tag: "ercot_region:LZ_WEST", ts: FIXED_NOW_SECONDS - 30, value: 92.5 },
-          { tag: "ercot_region:HB_HOUSTON", ts: FIXED_NOW_SECONDS - 30, value: 48.25 },
-        ],
+        rows:
+          scenario === "empty-panels"
+            ? []
+            : [
+                { tag: "ercot_region:LZ_WEST", ts: FIXED_NOW_SECONDS - 30, value: 92.5 },
+                { tag: "ercot_region:HB_HOUSTON", ts: FIXED_NOW_SECONDS - 30, value: 48.25 },
+              ],
       },
     });
   });
@@ -291,60 +310,67 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
       publication_mode: sourceId === "operations_messages" ? "event" : "polling",
       publication_interval_seconds: 300,
     }));
-    await route.fulfill({ json: { sources, summary: {}, as_of: now } });
+    await route.fulfill({
+      json: { sources: scenario === "empty-panels" ? [] : sources, summary: {}, as_of: now },
+    });
   });
   await page.route("**/api/v1/events**", async (route) => {
     const now = FIXED_NOW_SECONDS;
     await route.fulfill({
       json: {
-        events: [
-          {
-            dedupe_key: "fixture:event:transmission",
-            source_id: "operations_messages",
-            starts_at: now - 1800,
-            observed_at: now - 1800,
-            event_type: "Operational Information",
-            status: "Active",
-            severity: "warning",
-            title: "Fixture operations message: DC tie unavailable during the selected window.",
-          },
-          {
-            dedupe_key: "fixture:event:heat",
-            source_id: "operations_messages",
-            starts_at: now - 3600,
-            event_type: "Advisory",
-            status: "Closed",
-            severity: "information",
-            title: "Heat advisory asked consumers to conserve during the afternoon peak.",
-          },
-          {
-            dedupe_key: "fixture:event:generator",
-            source_id: "operations_messages",
-            starts_at: now - 5400,
-            event_type: "Operational Information",
-            status: "Closed",
-            severity: "warning",
-            title: "Generator unit trip removed 620 MW before the resource returned to service.",
-          },
-          {
-            dedupe_key: "fixture:event:reserve",
-            source_id: "operations_messages",
-            starts_at: now - 7200,
-            event_type: "Operational Information",
-            status: "Closed",
-            severity: "watch",
-            title: "Reserve watch ended after Physical Responsive Capability recovered.",
-          },
-          {
-            dedupe_key: "fixture:event:eea",
-            source_id: "operations_messages",
-            starts_at: now - 9000,
-            event_type: "Emergency Notice",
-            status: "Closed",
-            severity: "emergency",
-            title: "EEA Level 2 ended after operating reserves stabilized.",
-          },
-        ],
+        events:
+          scenario === "no-events"
+            ? []
+            : [
+                {
+                  dedupe_key: "fixture:event:transmission",
+                  source_id: "operations_messages",
+                  starts_at: now - 1800,
+                  observed_at: now - 1800,
+                  event_type: "Operational Information",
+                  status: "Active",
+                  severity: "warning",
+                  title:
+                    "Fixture operations message: DC tie unavailable during the selected window.",
+                },
+                {
+                  dedupe_key: "fixture:event:heat",
+                  source_id: "operations_messages",
+                  starts_at: now - 3600,
+                  event_type: "Advisory",
+                  status: "Closed",
+                  severity: "information",
+                  title: "Heat advisory asked consumers to conserve during the afternoon peak.",
+                },
+                {
+                  dedupe_key: "fixture:event:generator",
+                  source_id: "operations_messages",
+                  starts_at: now - 5400,
+                  event_type: "Operational Information",
+                  status: "Closed",
+                  severity: "warning",
+                  title:
+                    "Generator unit trip removed 620 MW before the resource returned to service.",
+                },
+                {
+                  dedupe_key: "fixture:event:reserve",
+                  source_id: "operations_messages",
+                  starts_at: now - 7200,
+                  event_type: "Operational Information",
+                  status: "Closed",
+                  severity: "watch",
+                  title: "Reserve watch ended after Physical Responsive Capability recovered.",
+                },
+                {
+                  dedupe_key: "fixture:event:eea",
+                  source_id: "operations_messages",
+                  starts_at: now - 9000,
+                  event_type: "Emergency Notice",
+                  status: "Closed",
+                  severity: "emergency",
+                  title: "EEA Level 2 ended after operating reserves stabilized.",
+                },
+              ],
       },
     });
   });
@@ -353,7 +379,7 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
 test("time, inspect, cursor, legend, compare, events, CSV and URL state", async ({ page }) => {
   await installApi(page);
   await page.goto("/?range=21600&compare=none&events=1");
-  await expect(page.getByRole("heading", { name: "ERCOT analytical dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
   await page.getByRole("button", { name: "Reliability view" }).click();
   await expect(
     page
@@ -384,13 +410,15 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
 
   await page.getByRole("button", { name: "Overview view" }).click();
 
+  let analyze = await openAnalyze(page);
   await page.getByRole("button", { name: "Pause" }).click();
-  await expect(page.getByText("Live paused")).toBeVisible();
+  await expect(page.getByText(/Paused · updated/)).toBeVisible();
   await page.getByRole("button", { name: "Previous time window" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   const fixedFrom = new URL(page.url()).searchParams.get("from");
   expect(fixedFrom).not.toBeNull();
   await page.getByRole("button", { name: "Next time window" }).click();
+  await analyze.getByRole("button", { name: "Close Analyze" }).click();
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect(page.locator('[data-chart-id="supply-demand"]')).toHaveClass(/chart-card-inspect/);
@@ -423,10 +451,12 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await expect.poll(() => new URL(page.url()).searchParams.get("compare")).toBe("none");
   await page.getByLabel("Supply and demand chart menu").click();
 
-  await page.getByLabel("Compare time").selectOption("custom");
-  await page.getByLabel("Custom comparison offset hours").fill("48");
+  analyze = await openAnalyze(page);
+  await analyze.getByLabel("Compare time").selectOption("custom");
+  await analyze.getByLabel("Custom comparison offset hours").fill("48");
   await expect.poll(() => new URL(page.url()).searchParams.get("compare")).toBe("custom");
   await expect.poll(() => new URL(page.url()).searchParams.get("compare_offset")).toBe("172800");
+  await analyze.getByRole("button", { name: "Close Analyze" }).click();
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await page.getByLabel("Supply and demand chart menu").click();
@@ -438,20 +468,21 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await page.getByRole("menuitem", { name: "Reset zoom" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Reset to live" }).click();
+  analyze = await openAnalyze(page);
+  await analyze.getByRole("button", { name: "Reset to live" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
 });
 
 test("drag zoom and modified pan update the fixed global window", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
-  const canvas = page.locator('[data-chart-id="supply-demand"] canvas');
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  const canvas = card.locator("canvas");
   await expect(canvas).toBeVisible();
-  await canvas.scrollIntoViewIfNeeded();
   await expect(canvas).toHaveAttribute("aria-label", /[1-9]\d* observations/);
-  await expect
-    .poll(() => page.evaluate(() => window.__ercotChartLifecycle?.updated ?? 0))
-    .toBeGreaterThan(0);
+  await expect(canvas).toHaveAttribute("data-chart-ready", "true");
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas missing bounds");
   await page.mouse.move(box.x + 120, box.y + 130);
@@ -473,13 +504,23 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await installApi(page, "error");
   await page.goto("/");
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
-  await expect(page.getByRole("alert")).toContainText("not an empty-data state");
+  const errorAlert = page.getByLabel("Active grid alerts");
+  await errorAlert.locator("summary").click();
+  await expect(errorAlert).toContainText("not an empty-data state");
+  const failedCard = page.locator('[data-chart-id="supply-demand"]');
+  await expect(failedCard.getByText("Temporarily unavailable…")).toBeVisible();
+  await expect(failedCard.getByText("Waiting for first sample…")).toBeHidden();
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "empty");
   await page.reload();
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
-  await expect(page.getByText("No observations in this window.").first()).toBeVisible();
+  const emptyCard = page.locator('[data-chart-id="supply-demand"]');
+  await expect(emptyCard.getByText("Waiting for first sample…")).toBeVisible();
+  await expect(emptyCard.getByText("Temporarily unavailable…")).toBeHidden();
+  await expect(emptyCard.locator(".chart-interpretation")).toHaveCount(0);
+  await expect(emptyCard.locator(".series-legend")).toHaveCount(0);
+  await expect(emptyCard.locator(".accessible-data")).toHaveCount(0);
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "stale");
@@ -491,12 +532,60 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await expect(storage.getByText("Showing stale data")).toBeVisible();
 });
 
+test("loading resolves to a first-sample wait without blank chart detail", async ({ page }) => {
+  await installApi(page, "empty");
+  let releaseSeries: (() => void) | undefined;
+  const heldSeries = new Promise<void>((resolve) => {
+    releaseSeries = resolve;
+  });
+  await page.route("**/api/series/batch", async (route) => {
+    await heldSeries;
+    await route.fallback();
+  });
+  await page.goto("/");
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.getByText("Loading…")).toBeVisible();
+  releaseSeries?.();
+  await expect(card.getByText("Waiting for first sample…")).toBeVisible();
+});
+
+test("empty optional panels collapse to lifecycle or selected-range states", async ({ page }) => {
+  await installApi(page, "empty-panels");
+  await page.goto("/?view=market");
+  const ranking = page.getByRole("region", { name: "Settlement price ranking" });
+  await expect(ranking.getByText("Waiting for first sample…")).toBeVisible();
+  await expect(ranking.getByRole("table")).toHaveCount(0);
+
+  await openMoreView(page, "Diagnostics");
+  const diagnostics = page.getByRole("region", { name: "System health details" });
+  await expect(diagnostics.getByText("Waiting for first sample…")).toBeVisible();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "no-events");
+  await page.goto("/?view=reliability");
+  await expect(page.getByText("No events during selected range.")).toBeVisible();
+});
+
+test("visual regression empty lifecycle state", async ({ page }) => {
+  await page.setViewportSize({ height: 1200, width: 1280 });
+  await installApi(page, "empty");
+  await page.goto("/");
+  await page.addStyleTag({
+    content: ".control-bar, .desktop-view-nav { display: none !important; }",
+  });
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card).toHaveScreenshot("empty-lifecycle-chart-desktop.png");
+});
+
 test("alerts are actionable, interpretive, material, and free of collector noise", async ({
   page,
 }) => {
   await installApi(page);
   await page.goto("/");
   const alerts = page.getByLabel("Active grid alerts");
+  await alerts.locator("summary").click();
   await expect(alerts.getByRole("article")).toHaveCount(1);
   await expect(alerts).toContainText("warning");
   await expect(alerts).toContainText("Cause");
@@ -518,7 +607,7 @@ test("alerts are actionable, interpretive, material, and free of collector noise
 test("system health is summarized by default with full diagnostics on demand", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Diagnostics view" }).click();
+  await openMoreView(page, "Diagnostics");
   const summary = page.getByLabel("System health summary");
   await expect(summary).toContainText("Data Sources Healthy");
   await expect(summary).not.toContainText("ERCOT Fuel Mix:");
@@ -551,7 +640,7 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();
   expect(total).toBe(2);
   await expect(page.locator('[data-chart-id="time-error"]')).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Advanced view" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "More views" })).toBeVisible();
   expect(initiallyMounted).toBeLessThanOrEqual(4);
   expect(initiallyVisible).toBeLessThanOrEqual(4);
   const heapBefore = await session.send("Performance.getMetrics");
@@ -561,8 +650,10 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
     .poll(() => windowLifecycle(page).then((value) => value?.constructed ?? 0))
     .toBeGreaterThan(initiallyMounted);
   const beforeChurn = await page.evaluate(() => window.__ercotChartLifecycle);
-  await page.getByLabel("Compare time").selectOption("week");
-  await page.getByLabel("Compare time").selectOption("none");
+  const analyze = await openAnalyze(page);
+  await analyze.getByLabel("Compare time").selectOption("week");
+  await analyze.getByLabel("Compare time").selectOption("none");
+  await analyze.getByRole("button", { name: "Close Analyze" }).click();
   const lifecycle = await page.evaluate(() => window.__ercotChartLifecycle);
   expect(lifecycle?.constructed).toBe(beforeChurn?.constructed);
   expect(lifecycle?.destroyed).toBe(beforeChurn?.destroyed);
@@ -592,11 +683,15 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   const requests: string[][] = [];
   await installApi(page, "normal", requests);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Grid at a glance" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Operational detail" })).toBeVisible();
+  const currentStatus = page.getByLabel("Current ERCOT status");
+  await expect(currentStatus).toBeVisible();
+  await expect(
+    currentStatus.locator(".status-strip-item").first().locator("strong"),
+  ).toHaveAttribute("aria-label", /ERCOT grid watch active|No active ERCOT emergency/);
+  await expect(page.getByLabel("Featured grid trend")).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Dashboard views" }).getByRole("button"),
-  ).toHaveCount(7);
+  ).toHaveCount(5);
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(false);
@@ -608,10 +703,10 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
     page.getByRole("heading", { name: "PowerOutage.us customer outages" }),
   ).toBeAttached();
 
-  await page.getByRole("button", { name: "Weather view" }).click();
+  await openMoreView(page, "Weather");
   await expect(page.getByRole("heading", { name: "Nearby METAR temperature" })).toBeAttached();
 
-  await page.getByRole("button", { name: "Advanced view" }).click();
+  await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Time error and delta" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "System inertia" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "Collector duty cycle" })).toBeAttached();
@@ -620,7 +715,8 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   await page.locator('[data-chart-id="pricing"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.flat().some((id) => id.startsWith("pricing:"))).toBe(true);
   const requestCount = requests.length;
-  await page.getByLabel("Compare time").selectOption("week");
+  const analyze = await openAnalyze(page);
+  await analyze.getByLabel("Compare time").selectOption("week");
   await expect.poll(() => requests.length).toBeGreaterThanOrEqual(requestCount);
   const hiddenViewPrefixes = ["supply-demand:", "frequency:", "time-error:", "inertia:"];
   expect(
@@ -652,11 +748,11 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
   await page.goto("/?view=overview");
   await expect(page).toHaveScreenshot("progressive-overview-desktop.png");
 
-  await page.getByRole("button", { name: "Advanced view" }).click();
+  await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Advanced", exact: true })).toBeVisible();
   await expect(page).toHaveScreenshot("progressive-advanced-desktop.png");
 
-  await page.getByRole("button", { name: "Diagnostics view" }).click();
+  await openMoreView(page, "Diagnostics");
   await expect(page.getByLabel("System health details")).toBeVisible();
   await expect(page).toHaveScreenshot("progressive-diagnostics-desktop.png");
 });
@@ -705,12 +801,10 @@ test("visual regression structured operational alert", async ({ page }) => {
 test("visual regression Grid Health Score", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
-  const criticalInformation = page.locator(".information-critical");
-  await criticalInformation
-    .getByText("How the Grid Health Score is calculated", { exact: true })
-    .click();
+  const scoreDetails = page.locator(".grid-health-details");
+  await scoreDetails.getByText("How status is determined", { exact: true }).click();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
-  await expect(criticalInformation).toHaveScreenshot("grid-health-score.png");
+  await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
 });
 
 test("visual regression analytical dashboard", async ({ page }) => {
