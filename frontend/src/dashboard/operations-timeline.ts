@@ -41,6 +41,14 @@ function eventText(event: EventRecord) {
   return `${event.event_type} ${event.title} ${event.body ?? ""}`.toLowerCase();
 }
 
+export function isPublicOperationsEvent(event: EventRecord) {
+  const text = eventText(event);
+  return !(
+    /\bno sudden loss of generation\b.*\boccurred\b/.test(text) ||
+    /\bno generation loss greater than\b.*\boccurred\b/.test(text)
+  );
+}
+
 export function classifyOperationsCategory(event: EventRecord): OperationsCategory {
   const text = eventText(event);
   if (/\beea\b|emergency energy alert/.test(text)) return "eea";
@@ -76,6 +84,7 @@ export function classifyOperationsSeverity(event: EventRecord): OperationsSeveri
 
 export function buildOperationsTimeline(events: readonly EventRecord[]): TimelineEvent[] {
   return [...events]
+    .filter(isPublicOperationsEvent)
     .sort((left, right) => right.starts_at - left.starts_at)
     .map((event) => {
       const category = classifyOperationsCategory(event);

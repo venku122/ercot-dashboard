@@ -14,13 +14,16 @@ describe("legacy parity contract", () => {
       "eea",
       "ancillary-regulation",
       "ancillary-reserves",
-      "customer-outages",
       "weather-temperature",
       "weather-wind",
       "collector-duty-cycle",
     ]) {
       expect(ids.has(id), `missing parity chart ${id}`).toBe(true);
     }
+  });
+
+  it("keeps intentionally disabled PowerOutage.us out of the public chart catalog", () => {
+    expect(chartDefinitions.some((chart) => chart.sourceId === "poweroutages_us")).toBe(false);
   });
 
   it("computes aligned headroom, net flow, total flow, and delta series", () => {

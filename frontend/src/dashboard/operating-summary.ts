@@ -1,4 +1,5 @@
 import { freshLatestPoint, type LatestPoint } from "./derived-metrics";
+import { isPublicOperationsEvent } from "./operations-timeline";
 import type { EventRecord, SourceHealth } from "./types";
 
 export type OperatingState = "clear" | "emergency" | "unavailable" | "watch";
@@ -28,6 +29,7 @@ function isProblem(source: SourceHealth) {
 
 function activeOperationalEvent(events: readonly EventRecord[]) {
   return events
+    .filter(isPublicOperationsEvent)
     .filter((event) => {
       const status = event.status?.trim().toLowerCase() ?? "";
       const severity = event.severity?.trim().toLowerCase() ?? "";

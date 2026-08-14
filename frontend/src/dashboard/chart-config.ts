@@ -641,25 +641,6 @@ export const chartDefinitions: ChartDefinition[] = [
     ],
   },
   {
-    id: "customer-outages",
-    group: "Reliability",
-    title: "PowerOutage.us customer outages",
-    description: "Total reported Texas customers without power across county observations.",
-    unit: "customers",
-    statisticPolicy: "gauge",
-    sourceId: "poweroutages_us",
-    sourceUrl: "https://poweroutage.us/area/state/texas",
-    series: [
-      {
-        id: "customers",
-        label: "Customers without power",
-        metric: "poweroutageus.customers",
-        rollup: "sum",
-        color: colors.red,
-      },
-    ],
-  },
-  {
     id: "weather-temperature",
     group: "Weather",
     title: "Nearby METAR temperature",
@@ -741,7 +722,7 @@ export const chartDefinitions: ChartDefinition[] = [
   },
   {
     id: "collector-duty-cycle",
-    group: "Operations",
+    group: "Diagnostics",
     title: "Collector duty cycle",
     description: "Internal collection-loop utilization by source.",
     unit: "%",
@@ -775,13 +756,6 @@ export const chartDefinitions: ChartDefinition[] = [
         metric: "ercot.app.duty_cycle",
         tags: ["app:metar"],
         color: colors.emerald,
-      },
-      {
-        id: "outages",
-        label: "Outages",
-        metric: "ercot.app.duty_cycle",
-        tags: ["app:poweroutages_us"],
-        color: colors.red,
       },
       {
         id: "eea",

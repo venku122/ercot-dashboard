@@ -1,0 +1,19 @@
+{
+  "lastUpdated": "2026-08-14 01:36:00-0500",
+  "monthlyCapacity": {
+    "Natural Gas": 66895.8,
+    "Power Storage": 10659.8,
+    "Solar": 24626.7,
+    "Wind": 42760.2
+  },
+  "data": {
+    "2026-08-14": {
+      "2026-08-14 01:30:00-0500": {
+        "Natural Gas": { "gen": 28673.1 },
+        "Power Storage": { "gen": -300.9 },
+        "Solar": { "gen": 1.1 },
+        "Wind": { "gen": 27398.6 }
+      }
+    }
+  }
+}

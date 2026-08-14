@@ -51,6 +51,14 @@ describe("operations timeline policy", () => {
     expect(input.map((item) => item.title)).toEqual(["older", "newer"]);
   });
 
+  it("suppresses detector heartbeats that explicitly report no event", () => {
+    const timeline = buildOperationsTimeline([
+      event("No sudden loss of generation greater than 450 MW occurred during this interval."),
+      event("Generator unit 4 tripped offline"),
+    ]);
+    expect(timeline.map((item) => item.title)).toEqual(["Generator unit 4 tripped offline"]);
+  });
+
   it("filters by normalized severity", () => {
     const timeline = buildOperationsTimeline([
       event("EEA Level 2 issued"),

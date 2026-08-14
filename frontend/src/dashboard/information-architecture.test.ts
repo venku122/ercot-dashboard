@@ -88,7 +88,7 @@ describe("dashboard information architecture", () => {
     expect([...initiallyCollapsedGroups(false)]).toEqual([
       "Advanced grid",
       "Ancillary services",
-      "Operations",
+      "Diagnostics",
     ]);
     expect(initiallyCollapsedGroups(true).has("Grid conditions")).toBe(false);
     expect(initiallyCollapsedGroups(true).size).toBe(chartGroupDefinitions.length - 1);

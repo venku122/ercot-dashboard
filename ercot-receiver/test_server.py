@@ -394,6 +394,23 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         self.assertEqual(health["state"], "failed")
         self.assertEqual(health["consecutive_failures"], 3)
 
+    def test_intentionally_disabled_source_is_not_reported_as_broken(self):
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "poweroutages_us",
+                "display_name": "PowerOutage.us Texas",
+                "expected_interval_seconds": 1800,
+                "attempted_at": 1000,
+                "success": False,
+                "row_count": 0,
+                "error": "missing_api_key",
+            },
+            current_ts=1000,
+        )
+
+        self.assertEqual(server.list_source_health(self.conn, 1100), [])
+
     def test_event_driven_source_can_be_collection_healthy_with_old_observation(self):
         server.update_source_health(
             self.conn,

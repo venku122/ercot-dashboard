@@ -490,13 +490,22 @@ export function ChartCard({
     .map((series) => seriesData.get(seriesKey(chart.id, series.id))?.error)
     .filter((value): value is string => Boolean(value));
   const updateUnavailable = !loading && Boolean(errors.length || requestError);
+  const sourceUnavailable =
+    !hasData && (sourceHealth?.state === "failed" || sourceHealth?.state === "stale");
   const lifecycleState = !mounted
     ? "loading"
     : resolveDataLifecycleState({
         hasData,
         loading,
-        unavailable: updateUnavailable,
+        unavailable: updateUnavailable || sourceUnavailable,
       });
+  const sourceLifecycleDetail = sourceUnavailable
+    ? `${sourceHealth?.collection_state === "failed" ? "Collection failed" : "Source is stale"}${
+        sourceHealth?.data_age_seconds === null
+          ? " and no valid observation is available."
+          : ` · last valid observation ${formatAge(sourceHealth?.data_age_seconds ?? null)}.`
+      }`
+    : undefined;
   const partial = chart.series.some(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.meta.partial_current_bucket,
   );
@@ -731,7 +740,11 @@ export function ChartCard({
       ) : (
         <div className="chart-canvas-wrap" data-lifecycle-state={lifecycleState}>
           <div className="chart-overlay chart-lifecycle-overlay">
-            <DataLifecycleMessage state={lifecycleState} />
+            <DataLifecycleMessage
+              detail={sourceLifecycleDetail}
+              state={lifecycleState}
+              title={sourceUnavailable ? `${chart.title} unavailable` : undefined}
+            />
           </div>
         </div>
       )}
