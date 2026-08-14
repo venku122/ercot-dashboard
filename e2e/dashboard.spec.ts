@@ -87,7 +87,7 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
   await page.reload();
   await expect(page.locator('[data-metric-id="demand"] strong')).toContainText("GW");
   await expect(page.locator('[data-hero-trend="demand"]')).toHaveCount(0);
-  await expect(page.getByText(/Recent comparison unavailable for/)).toBeVisible();
+  await expect(page.getByText(/Recent comparison unavailable for/)).toHaveCount(0);
 
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "empty");
@@ -140,14 +140,17 @@ test("derived insights expose nine formulas and honest history availability", as
   await expect(page.locator(".global-error")).toHaveCount(0);
 });
 
-test("Grid Health Score is details-only, bounded, explainable, and coverage-aware", async ({
-  page,
-}) => {
+test("Grid Health Score is concise, bounded, explainable, and coverage-aware", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
 
   await expect(page.locator(".grid-health-score-value")).toHaveCount(0);
   await expect(page.getByLabel("Current ERCOT status")).not.toContainText("/ 100");
+  const summary = page.locator(".grid-health-summary");
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText(/\d+ \/ 100/);
+  await expect(summary.locator(".grid-health-contribution")).toHaveCount(8);
+  await expect(summary).toContainText("input coverage");
 
   const explanation = page.getByText("How status is determined", { exact: true });
   await explanation.click();
@@ -167,7 +170,8 @@ test("Grid Health Score is details-only, bounded, explainable, and coverage-awar
   await installApi(page, "missing-core");
   await page.reload();
   await explanation.click();
-  await expect(page.getByText(/Current result: unavailable/)).toBeVisible();
+  await expect(page.getByText(/Current result: not enough fresh inputs/)).toBeVisible();
+  await expect(page.locator(".grid-health-summary")).toContainText("Not enough fresh inputs");
 });
 
 test("chart thresholds pair semantic bands with non-color interpretation text", async ({
@@ -234,13 +238,66 @@ test("fixed seven-day windows use canonical cacheable history chunks", async ({ 
   expect(chunkRequests.every((url) => url.includes("chunk_seconds=86400"))).toBe(true);
 });
 
+test("live background refresh keeps populated KPI text and dimensions stable", async ({ page }) => {
+  await installApi(page, "normal", [], [], true);
+  let standardRequests = 0;
+  let releaseRefresh = () => {};
+  const refreshReleased = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  await page.route("**/api/latest/batch", async (route) => {
+    const payload = route.request().postDataJSON() as {
+      queries: Array<{ id: string; metric: string; tags: string[] }>;
+    };
+    if (!payload.queries.some((query) => query.id === "demand")) {
+      await route.fallback();
+      return;
+    }
+    standardRequests += 1;
+    if (standardRequests > 1) await refreshReleased;
+    await route.fulfill({
+      json: {
+        latest: payload.queries.map((query) => ({
+          id: query.id,
+          point: {
+            tags: query.tags ?? [],
+            ts: FIXED_NOW_SECONDS - 30,
+            value:
+              query.id === "demand" && standardRequests > 1
+                ? 71_000
+                : metricValue(query.metric, query.tags ?? [], 63, "normal"),
+          },
+        })),
+      },
+    });
+  });
+  await page.goto("/");
+
+  const card = page.locator('[data-metric-id="demand"]');
+  const value = card.locator("strong");
+  const originalText = await value.textContent();
+  const originalBox = await card.boundingBox();
+  await page.clock.fastForward(300_000);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => standardRequests).toBeGreaterThan(1);
+  await expect(value).toHaveText(originalText ?? "");
+  await expect(card.getByText("Loading…", { exact: true })).toHaveCount(0);
+  expect(await card.boundingBox()).toEqual(originalBox);
+
+  releaseRefresh();
+  await expect(value).toContainText("71.0 GW");
+  expect(await card.boundingBox()).toEqual(originalBox);
+});
+
 async function installApi(
   page: Page,
   scenario: Scenario = "normal",
   requests: string[][] = [],
   chunkRequests: string[] = [],
+  installClock = false,
 ) {
-  await page.clock.setFixedTime(FIXED_NOW);
+  if (installClock) await page.clock.install({ time: FIXED_NOW });
+  else await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/v1/series/chunk**", async (route) => {
     const url = new URL(route.request().url());
     chunkRequests.push(url.toString());

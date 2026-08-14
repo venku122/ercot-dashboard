@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type CSSProperties,
   type FormEvent,
   type RefObject,
   type SetStateAction,
@@ -374,20 +375,94 @@ function MetricOverviewCard({
   loading: boolean;
 }) {
   const trendUnavailable = !loading && item.trend.direction === "unavailable";
+  const valueLabel = loading
+    ? "Loading…"
+    : item.unit === null
+      ? "—"
+      : formatValue(item.value, item.unit);
   return (
     <article
-      aria-label={`${item.label}: ${loading ? "loading" : item.unit === null ? "unavailable" : formatValue(item.value, item.unit)}. ${trendUnavailable ? "Recent comparison unavailable." : ""}`}
+      aria-label={`${item.label}: ${loading ? "loading" : item.unit === null ? "unavailable" : valueLabel}.`}
       className="overview-card"
       data-metric-id={item.id}
     >
       <span>{item.label}</span>
-      <strong>
-        {loading ? "Loading…" : item.unit === null ? "—" : formatValue(item.value, item.unit)}
-      </strong>
-      {trendUnavailable ? null : (
+      <strong>{valueLabel}</strong>
+      {trendUnavailable ? (
+        <div aria-hidden="true" className="hero-trend hero-trend-empty" />
+      ) : (
         <HeroTrendDetail id={item.id} label={item.label} loading={loading} trend={item.trend} />
       )}
     </article>
+  );
+}
+
+function GridHealthSummary({
+  gridHealth,
+}: {
+  gridHealth: ReturnType<typeof buildGridHealthScore>;
+}) {
+  const pressures = gridHealth.factors
+    .filter((factor) => factor.penalty !== null && factor.penalty > 0)
+    .sort((left, right) => (right.penalty ?? 0) - (left.penalty ?? 0))
+    .slice(0, 2)
+    .map((factor) => factor.label.toLowerCase());
+  const accessibleFactors = gridHealth.factors
+    .map((factor) => {
+      if (factor.penalty === null) {
+        return `${factor.label}: unavailable, ${String(factor.weight)} points possible`;
+      }
+      return `${factor.label}: ${String(Math.round(factor.weight - factor.penalty))} of ${String(factor.weight)} points retained`;
+    })
+    .join(". ");
+  return (
+    <section
+      aria-label={`Grid Health: ${gridHealth.label}. ${gridHealth.score === null ? "Not enough fresh inputs to calculate the score." : `${String(gridHealth.score)} of 100 with ${String(gridHealth.coveragePercent)} percent input coverage.`} ${accessibleFactors}`}
+      className="grid-health-summary"
+      data-health-status={gridHealth.status}
+    >
+      <div className="grid-health-summary-heading">
+        <div>
+          <span>Grid Health</span>
+          <strong>{gridHealth.label}</strong>
+        </div>
+        <div className="grid-health-summary-score">
+          {gridHealth.score === null ? (
+            <strong>Not enough fresh inputs</strong>
+          ) : (
+            <strong>
+              {String(gridHealth.score)} <span>/ 100</span>
+            </strong>
+          )}
+          <small>{String(gridHealth.coveragePercent)}% input coverage</small>
+        </div>
+      </div>
+      <div aria-hidden="true" className="grid-health-contribution-bar">
+        {gridHealth.factors.map((factor) => {
+          const retained = factor.penalty === null ? 0 : factor.weight - factor.penalty;
+          const style = {
+            "--factor-retained": `${String((retained / factor.weight) * 100)}%`,
+            "--factor-weight": String(factor.weight),
+          } as CSSProperties;
+          return (
+            <span
+              className="grid-health-contribution"
+              data-available={factor.available}
+              key={factor.id}
+              style={style}
+              title={`${factor.label}: ${factor.available ? `${String(Math.round(retained))} of ${String(factor.weight)} points` : "input unavailable"}`}
+            />
+          );
+        })}
+      </div>
+      <p>
+        {gridHealth.score === null
+          ? "Fresh demand, capacity, frequency, and sufficient weighted coverage are required."
+          : pressures.length
+            ? `Main pressure: ${pressures.join(", ")}.`
+            : "No material pressure is present in the available inputs."}
+      </p>
+    </section>
   );
 }
 
@@ -841,18 +916,19 @@ export function App() {
         limited: "Limited",
         unavailable: "Unavailable",
       }[operatingSummary.coreDataState];
-  const unavailableTrendCount = visibleOverview.filter(
-    (item) => !overviewLoading && item.trend.direction === "unavailable",
-  ).length;
   const updatedAge = operatingSummary.coreObservedAt
     ? formatAge(Math.max(0, nowSeconds() - operatingSummary.coreObservedAt)).replace(" old", " ago")
-    : "time unavailable";
+    : null;
   const freshnessLabel =
     state.time.mode === "fixed"
       ? "Viewing a fixed analysis window"
       : state.time.paused
-        ? `Paused · updated ${updatedAge}`
-        : `Updated ${updatedAge}`;
+        ? updatedAge
+          ? `Paused · updated ${updatedAge}`
+          : "Paused"
+        : updatedAge
+          ? `Updated ${updatedAge}`
+          : "Live";
   const sourceDetail = diagnostics.worstSource
     ? diagnostics.worstSource.display_name.replace(/^ERCOT /, "") +
       " " +
@@ -1021,16 +1097,11 @@ export function App() {
                 <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
               ))}
             </section>
-            {unavailableTrendCount ? (
-              <p className="trend-availability-note">
-                Recent comparison unavailable for {String(unavailableTrendCount)} reading
-                {unavailableTrendCount === 1 ? "" : "s"}.
-              </p>
-            ) : null}
-
             <section aria-label="Featured grid trend" className="featured-chart-section">
               {renderChart(featuredChart, "featured")}
             </section>
+
+            <GridHealthSummary gridHealth={gridHealth} />
 
             {isMobile ? (
               <details className="mobile-supporting-metrics">
@@ -1146,7 +1217,9 @@ export function App() {
                 </p>
                 <p className="grid-health-current-result">
                   Current result:{" "}
-                  {gridHealth.score === null ? "unavailable" : `${String(gridHealth.score)} / 100`}{" "}
+                  {gridHealth.score === null
+                    ? "not enough fresh inputs"
+                    : `${String(gridHealth.score)} / 100`}{" "}
                   · {gridHealth.detail}
                 </p>
                 <ol aria-label="Grid Health Score factors">
