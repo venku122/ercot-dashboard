@@ -29,6 +29,7 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Mo
   if (metric.includes("net_output_mw")) return -450 + wave * 800;
   if (metric.includes("eea_level")) return 0;
   if (metric.includes("metar.temperature")) return 31 + wave * 4;
+  if (metric.includes("metar.winds.speed")) return 12 + wave * 4;
   if (metric.includes("fuel_mix")) {
     if (tags.includes("fuel:wind")) return 18_000 + wave * 2200;
     if (tags.includes("fuel:solar")) return Math.max(0, 12_000 + wave * 9000);
@@ -54,6 +55,9 @@ function latestValue(id: string, metric: string, tags: string[], scenario: Mobil
   if (id === "grid-demand") return 68_100;
   if (id === "grid-capacity") return 73_500;
   if (id === "inertia") return 312;
+  if (metric.includes("winds.direction")) return tags.includes("metar_code:KDFW") ? 315 : 180;
+  if (metric.includes("winds.gust")) return 24;
+  if (metric.includes("winds.speed")) return 12;
   return metricValue(metric, tags, 63, scenario);
 }
 
@@ -250,16 +254,24 @@ export async function installMobileApi(
     };
     await route.fulfill({
       json: {
-        latest: payload.queries.map((query) => ({
-          id: query.id,
-          metric: query.metric,
-          point: {
-            ts: FIXED_NOW_SECONDS - 30,
-            value: latestValue(query.id, query.metric, query.tags ?? [], scenario),
-            tags: query.tags ?? [],
-          },
-          meta: { age_seconds: 30 },
-        })),
+        latest: payload.queries.map((query) => {
+          const tags = query.tags ?? [];
+          const unavailableOptionalWind =
+            (query.metric.includes("winds.gust") && !tags.includes("metar_code:KDFW")) ||
+            (query.metric.includes("winds.direction") && tags.includes("metar_code:KSAT"));
+          return {
+            id: query.id,
+            metric: query.metric,
+            point: unavailableOptionalWind
+              ? null
+              : {
+                  ts: FIXED_NOW_SECONDS - 30,
+                  value: latestValue(query.id, query.metric, tags, scenario),
+                  tags,
+                },
+            meta: { age_seconds: 30 },
+          };
+        }),
       },
     });
   });

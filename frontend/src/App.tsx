@@ -48,6 +48,7 @@ import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboar
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
 import { settlementFreshness, settlementPointMetadata } from "./dashboard/settlement-points";
+import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import {
   navigateWindow,
   resetLive,
@@ -97,6 +98,38 @@ const overviewQueries = [
   { id: "frequency", metric: "ercot.Frequency.Current_Frequency" },
   { id: "price", metric: "ercot.pricing", tags: ["ercot_region:HB_HOUSTON"] },
 ] as const;
+
+function WeatherConditions({
+  latest,
+}: {
+  latest: Map<string, { ts: number; value: number } | null>;
+}) {
+  return (
+    <section aria-labelledby="weather-conditions-title" className="weather-conditions">
+      <div className="weather-conditions-heading">
+        <p className="eyebrow">Latest METAR</p>
+        <h2 id="weather-conditions-title">Current wind conditions</h2>
+        <p>Arrows show where the air is moving; the compass label shows where it comes from.</p>
+      </div>
+      <div className="weather-conditions-grid">
+        {weatherStations.map((station) => {
+          const condition = formatWindCondition(
+            latest.get(`weather-${station.id}-speed`) ?? undefined,
+            latest.get(`weather-${station.id}-direction`) ?? undefined,
+            latest.get(`weather-${station.id}-gust`) ?? undefined,
+          );
+          return (
+            <article aria-label={`${station.label}: ${condition.accessible}`} key={station.code}>
+              <span>{station.label}</span>
+              <strong>{condition.headline}</strong>
+              <small>{condition.detail}</small>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 const rangeOptions = [
   [3600, "1 hour"],
@@ -1403,6 +1436,8 @@ export function App() {
             )}
           </section>
         ) : null}
+
+        {selectedView === "weather" ? <WeatherConditions latest={latest} /> : null}
 
         {activeChartGroups.map((group) => {
           const showGroupHeading = activeView.groups.length > 1;

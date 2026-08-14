@@ -627,3 +627,41 @@ test("landscape inspect remains usable @landscape-vri", async ({ page }) => {
   await expectNoHorizontalOverflow(page);
   await expect(inspect).toHaveScreenshot("mobile-inspect-landscape.png");
 });
+
+test("iPad weather and advanced analytics remain readable in both orientations @tablet", async ({
+  page,
+}, testInfo) => {
+  await openPopulated(page, "normal", "/?view=weather");
+  const conditions = page.getByLabel("Current wind conditions");
+  await expect(conditions.getByRole("article")).toHaveCount(4);
+  await expect(
+    conditions.getByRole("article", { name: /Dallas\/Fort Worth: Wind from northwest/ }),
+  ).toBeVisible();
+  await expect(page.locator('[data-chart-id="weather-wind"]')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  if (process.env["CAMPAIGN_CAPTURE_DIR"]) {
+    await page.screenshot({
+      fullPage: true,
+      path: `${process.env["CAMPAIGN_CAPTURE_DIR"]}/${testInfo.project.name}-weather.png`,
+    });
+  }
+
+  await page.unrouteAll({ behavior: "wait" });
+  await openPopulated(page, "normal", "/?view=advanced");
+  const recovery = page.locator('[data-chart-id="time-error-recovery"]');
+  await recovery.scrollIntoViewIfNeeded();
+  await expect(recovery).toBeVisible();
+  await expect(
+    recovery.getByRole("button", { name: "Absolute error trend", exact: true }),
+  ).toBeVisible();
+  await expect(recovery.getByText("Instantaneous time error input", { exact: true })).toHaveCount(
+    0,
+  );
+  await expectNoHorizontalOverflow(page);
+  if (process.env["CAMPAIGN_CAPTURE_DIR"]) {
+    await page.screenshot({
+      fullPage: true,
+      path: `${process.env["CAMPAIGN_CAPTURE_DIR"]}/${testInfo.project.name}-advanced.png`,
+    });
+  }
+});

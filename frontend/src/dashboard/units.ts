@@ -15,6 +15,7 @@ const precisionByUnit: Record<string, readonly [minimum: number, maximum: number
   MW: [1, 1],
   MWh: [1, 1],
   mph: [1, 1],
+  "s/min": [3, 3],
   seconds: [1, 1],
   TW·s: [1, 1],
   customers: [0, 0],

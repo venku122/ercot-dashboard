@@ -1281,6 +1281,58 @@ main {
   gap: 16px;
 }
 
+.weather-conditions {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--panel);
+}
+
+.weather-conditions-heading h2,
+.weather-conditions-heading p {
+  margin: 0;
+}
+
+.weather-conditions-heading > p:last-child {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.weather-conditions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weather-conditions-grid article {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.weather-conditions-grid span,
+.weather-conditions-grid small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.weather-conditions-grid strong {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .weather-conditions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .chart-card {
   position: relative;
   display: grid;

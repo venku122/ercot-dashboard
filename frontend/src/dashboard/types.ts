@@ -31,6 +31,7 @@ export type SeriesDefinition = {
     operation: import("./derived").DerivedOperation;
   };
   id: string;
+  inputOnly?: boolean;
   label: string;
   lineStyle?: "dashed";
   metric?: string;
@@ -75,6 +76,7 @@ export type ChartDefinition = {
   title: string;
   unit: string;
   series: SeriesDefinition[];
+  zeroCentered?: boolean;
 };
 
 export type SeriesMeta = {

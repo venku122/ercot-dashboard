@@ -1,0 +1,39 @@
+[
+  {
+    "icaoId": "KAUS",
+    "obsTime": 1786692780,
+    "temp": 27.2,
+    "dewp": 24.4,
+    "wdir": 170,
+    "wspd": 13,
+    "altim": 1016.3
+  },
+  {
+    "icaoId": "KDFW",
+    "obsTime": 1786690380,
+    "temp": 30.6,
+    "dewp": 20.6,
+    "wdir": 190,
+    "wspd": 18,
+    "wgst": 26,
+    "altim": 1014
+  },
+  {
+    "icaoId": "KHOU",
+    "obsTime": 1786690380,
+    "temp": 27.2,
+    "dewp": 25.6,
+    "wdir": 180,
+    "wspd": 4,
+    "altim": 1016.7
+  },
+  {
+    "icaoId": "KSAT",
+    "obsTime": 1786690260,
+    "temp": 27.2,
+    "dewp": 21.1,
+    "wdir": 160,
+    "wspd": 7,
+    "altim": 1016.7
+  }
+]

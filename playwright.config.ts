@@ -77,6 +77,32 @@ export default defineConfig({
         permissions: [],
       },
     },
+    {
+      name: "ipad-portrait-webkit",
+      grep: /@tablet/,
+      testMatch: /\/mobile.*\.spec\.ts$/,
+      use: {
+        browserName: "webkit",
+        viewport: { width: 834, height: 1194 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+        permissions: [],
+      },
+    },
+    {
+      name: "ipad-landscape-webkit",
+      grep: /@tablet/,
+      testMatch: /\/mobile.*\.spec\.ts$/,
+      use: {
+        browserName: "webkit",
+        viewport: { width: 1194, height: 834 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+        permissions: [],
+      },
+    },
   ],
   webServer: {
     command: "pnpm run build && pnpm run preview",

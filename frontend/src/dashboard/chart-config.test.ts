@@ -63,4 +63,17 @@ describe("legacy parity contract", () => {
     expect(policies.get("pricing")).toBe("gauge");
     expect(policies.get("weather-temperature")).toBe("gauge");
   });
+
+  it("keeps raw time-error seconds separate from the normalized recovery trend", () => {
+    const raw = chartDefinitions.find((chart) => chart.id === "time-error");
+    const trend = chartDefinitions.find((chart) => chart.id === "time-error-recovery");
+
+    expect(raw?.series.map((series) => series.id)).toEqual(["time-error"]);
+    expect(trend?.unit).toBe("s/min");
+    expect(trend?.zeroCentered).toBe(true);
+    expect(trend?.series.find((series) => series.inputOnly)?.id).toBe("time-error-input");
+    expect(trend?.series.find((series) => series.derive)?.derive?.operation).toBe(
+      "absolute_error_slope",
+    );
+  });
 });

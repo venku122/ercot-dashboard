@@ -1,6 +1,7 @@
 import { incrementalMetrics, metricBatches, payloadHash } from "./_lib.ts";
 import { parseFuelMix } from "./fuel_mix.ts";
 import { parseGenerationOutages } from "./generation_outages.ts";
+import { parseMetar } from "./metar.ts";
 import { parseOperationsMessages, parseOperationsTimestamp } from "./operations_messages.ts";
 import { parseStorage } from "./storage.ts";
 import { parseSupplyDemand } from "./supply_demand.ts";
@@ -45,6 +46,30 @@ Deno.test("fuel mix accepts the current official schema without the retired type
   const result = await parseFuelMix(payload);
   assert(result.metrics.length === 8, "current fuel mix metric count");
   assert(result.dataTimestamp === 1_786_689_000, "current fuel mix observation timestamp");
+});
+
+Deno.test("METAR current schema preserves observations and optional wind fields", async () => {
+  const metrics = parseMetar(await jsonFixture("metar.current.json"));
+  const direction = metrics.filter(
+    (entry) => entry.metric_name === "metar.winds.direction_degrees",
+  );
+  const gust = metrics.filter((entry) => entry.metric_name === "metar.winds.gust_mph");
+
+  assert(direction.length === 4, "numeric directions only");
+  assert(gust.length === 1, "optional gust only");
+  assert(
+    direction.every((entry) => typeof entry.points[0]?.timestamp === "number"),
+    "observation timestamps",
+  );
+  assert(
+    Math.abs((gust[0]?.points[0]?.value ?? 0) - 29.92028) < 0.001,
+    "gust converts knots to mph",
+  );
+  const variable = parseMetar([{ icaoId: "KVRB", obsTime: 1_786_690_000, wdir: "VRB", wspd: 7 }]);
+  assert(
+    !variable.some((entry) => entry.metric_name === "metar.winds.direction_degrees"),
+    "variable direction is not fabricated",
+  );
 });
 
 Deno.test("storage success and repeated DST hour retain distinct epochs", async () => {
