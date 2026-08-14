@@ -47,6 +47,7 @@ import {
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
+import { settlementFreshness, settlementPointMetadata } from "./dashboard/settlement-points";
 import {
   navigateWindow,
   resetLive,
@@ -951,6 +952,19 @@ export function App() {
     loading: overviewLoading,
     unavailable: Boolean(effectiveRequestError),
   });
+  const settlementRows = priceRanking.map((row) => ({
+    ...row,
+    metadata: settlementPointMetadata(row.tag),
+  }));
+  const houstonSettlement = settlementRows.find((row) => row.metadata.code === "HB_HOUSTON");
+  const settlementValues = settlementRows.map((row) => row.value);
+  const settlementSpread = settlementValues.length
+    ? Math.max(...settlementValues) - Math.min(...settlementValues)
+    : null;
+  const settlementObservedAt = Math.max(...settlementRows.map((row) => row.ts), 0);
+  const settlementAge = settlementObservedAt
+    ? Math.max(0, nowSeconds() - settlementObservedAt)
+    : null;
   const sourceHeadline =
     sourceLifecycleState === "ready"
       ? diagnostics.headline
@@ -1045,9 +1059,11 @@ export function App() {
             ERCOT Grid Status
           </h1>
         </div>
-        <p className="freshness-state" data-mode={state.time.mode}>
-          {freshnessLabel}
-        </p>
+        {state.time.mode === "fixed" ? null : (
+          <p className="freshness-state" data-mode={state.time.mode}>
+            {freshnessLabel}
+          </p>
+        )}
         <section aria-label="Global dashboard controls" className="control-bar compact-control-bar">
           <TimeRangeSelect setState={setState} state={state} />
           <Button
@@ -1309,25 +1325,70 @@ export function App() {
               <h2>Latest settlement point prices</h2>
             </div>
             {priceLifecycleState === "ready" ? (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Settlement point</th>
-                      <th>Price</th>
-                      <th>Observed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {priceRanking.map((row) => (
-                      <tr key={row.tag}>
-                        <td>{row.tag.replace("ercot_region:", "")}</td>
-                        <td>{formatValue(row.value, "$/MWh")}</td>
-                        <td>{new Date(row.ts * 1000).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="market-price-context">
+                <div aria-label="Settlement price summary" className="market-summary-grid">
+                  <article>
+                    <span>Houston Hub</span>
+                    <strong>
+                      {houstonSettlement
+                        ? formatValue(houstonSettlement.value, "$/MWh")
+                        : "Not reported"}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>High–low spread</span>
+                    <strong>
+                      {settlementSpread === null
+                        ? "Not reported"
+                        : formatValue(settlementSpread, "$/MWh")}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>Regional context</span>
+                    <strong>
+                      {settlementSpread !== null && settlementSpread >= 100
+                        ? "Material divergence"
+                        : "Broadly aligned"}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>Publication</span>
+                    <strong>
+                      {settlementAge === null ? "Not reported" : formatAge(settlementAge)}
+                    </strong>
+                    {settlementAge === null ? null : (
+                      <small>{settlementFreshness(settlementAge)}</small>
+                    )}
+                  </article>
+                </div>
+                <details className="market-ranking-details">
+                  <summary>Complete hub and load-zone ranking</summary>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Settlement point</th>
+                          <th>Price</th>
+                          <th>Observed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {settlementRows.map((row) => (
+                          <tr key={row.tag}>
+                            <td>
+                              <strong>{row.metadata.label}</strong>
+                              <small>
+                                {row.metadata.type} · {row.metadata.code}
+                              </small>
+                            </td>
+                            <td>{formatValue(row.value, "$/MWh")}</td>
+                            <td>{new Date(row.ts * 1000).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
               </div>
             ) : (
               <DataLifecycleMessage
@@ -1344,7 +1405,8 @@ export function App() {
         ) : null}
 
         {activeChartGroups.map((group) => {
-          const collapsed = collapsedGroups.has(group);
+          const showGroupHeading = activeView.groups.length > 1;
+          const collapsed = showGroupHeading && collapsedGroups.has(group);
           const groupInformation = chartGroupDefinition(group);
           return (
             <section
@@ -1353,25 +1415,27 @@ export function App() {
               data-information-level={groupInformation.level}
               key={group}
             >
-              <button
-                aria-expanded={!collapsed}
-                aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
-                className="group-heading"
-                onClick={() =>
-                  setCollapsedGroups((current) => {
-                    const next = new Set(current);
-                    if (next.has(group)) next.delete(group);
-                    else next.add(group);
-                    return next;
-                  })
-                }
-              >
-                <span>
-                  {group}
-                  <small>{groupInformation.description}</small>
-                </span>
-                <span>{collapsed ? "Expand" : "Collapse"}</span>
-              </button>
+              {showGroupHeading ? (
+                <button
+                  aria-expanded={!collapsed}
+                  aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
+                  className="group-heading"
+                  onClick={() =>
+                    setCollapsedGroups((current) => {
+                      const next = new Set(current);
+                      if (next.has(group)) next.delete(group);
+                      else next.add(group);
+                      return next;
+                    })
+                  }
+                >
+                  <span>
+                    {group}
+                    <small>{groupInformation.description}</small>
+                  </span>
+                  <span>{collapsed ? "Expand" : "Collapse"}</span>
+                </button>
+              ) : null}
               {!collapsed ? (
                 <div className="chart-grid">
                   {chartDefinitions

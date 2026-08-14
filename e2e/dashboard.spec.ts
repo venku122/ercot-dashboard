@@ -234,6 +234,7 @@ test("fixed seven-day windows use canonical cacheable history chunks", async ({ 
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect(page.getByText("Viewing a fixed analysis window", { exact: true })).toHaveCount(0);
   await expect.poll(() => chunkRequests.length).toBeGreaterThan(0);
   expect(chunkRequests.every((url) => url.includes("chunk_seconds=86400"))).toBe(true);
 });
@@ -546,6 +547,11 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await operations.getByLabel("Filter operations timeline by severity").selectOption("all");
   await page.getByRole("button", { name: "Market view" }).click();
   await expect(page.getByRole("heading", { name: "Latest settlement point prices" })).toBeVisible();
+  await expect(page.getByLabel("Settlement price summary")).toContainText("Houston Hub");
+  await expect(page.getByLabel("Settlement price summary")).toContainText("15-minute");
+  await page.getByText("Complete hub and load-zone ranking", { exact: true }).click();
+  await expect(page.getByText("West Load Zone", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Load Zone · LZ_WEST/)).toBeVisible();
 
   await page.getByRole("button", { name: "Overview view" }).click();
 

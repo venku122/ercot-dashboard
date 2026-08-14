@@ -1168,8 +1168,68 @@ main {
   font-size: 0.75rem;
 }
 
-.ranking-panel > .table-scroll {
-  display: contents;
+.market-price-context {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.market-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.market-summary-grid article {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 5px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.market-summary-grid span,
+.market-summary-grid small,
+.market-ranking-details td small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.market-summary-grid span {
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.market-summary-grid strong {
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.market-ranking-details {
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  padding-top: 10px;
+}
+
+.market-ranking-details summary {
+  color: #bae6fd;
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.market-ranking-details td strong {
+  font-size: 0.76rem;
+}
+
+@media (max-width: 900px) {
+  .market-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .panel-lifecycle-message {
