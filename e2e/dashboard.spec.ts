@@ -862,7 +862,8 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   await expect(page.getByRole("heading", { name: "Nearby METAR temperature" })).toBeAttached();
 
   await openMoreView(page, "Advanced");
-  await expect(page.getByRole("heading", { name: "Time error and delta" })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "Instantaneous time error" })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "Time error recovery trend" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "System inertia" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "Collector duty cycle" })).toHaveCount(0);
 
