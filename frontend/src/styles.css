@@ -2331,6 +2331,10 @@ footer p {
     color: #dce8f7;
   }
 
+  .mobile-quick-controls select {
+    height: 44px;
+  }
+
   .quick-live-action {
     max-width: 76px;
   }
@@ -3072,6 +3076,7 @@ main[data-dashboard-view="overview"] {
   }
   .compact-control-bar button,
   .compact-control-bar select {
+    height: 44px;
     min-height: 44px;
   }
   main > * {
