@@ -316,10 +316,10 @@ test("P0 API failure remains distinct from an empty selected window @mobile-core
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
   const errorAlert = page.getByLabel("Active grid alerts");
+  await expect(errorAlert).toContainText("not an empty-data state");
   await errorAlert.evaluate((element) => {
     (element as HTMLDetailsElement).open = true;
   });
-  await expect(errorAlert).toContainText("not an empty-data state");
   await expect(errorAlert.getByRole("button", { name: "Retry data" })).toBeVisible();
   await expect(errorAlert).not.toContainText("fixture upstream unavailable");
   await expect(card.getByText("Temporarily unavailable…")).toBeVisible();
