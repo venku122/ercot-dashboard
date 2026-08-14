@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { liveQuerySince, mergePoints } from "./api";
+import { canonicalChunkUrl, liveQuerySince, mergePoints } from "./api";
 import { alignComparison, alignComparisonForMode, compareOffset, compareWindow } from "./compare";
 import { freshnessState } from "./freshness";
 import { seriesStats } from "./stats";
@@ -148,6 +148,19 @@ describe("statistics, freshness, and units", () => {
 });
 
 describe("live request planning", () => {
+  it("serializes equivalent historical chunk tags to one canonical GET URL", () => {
+    const base = {
+      chunkSeconds: 86400 as const,
+      end: 172800,
+      metric: "ercot.pricing",
+      resolution: 300,
+      start: 86400,
+    };
+    expect(canonicalChunkUrl({ ...base, tags: ["zone:b", "zone:a"] })).toBe(
+      canonicalChunkUrl({ ...base, tags: ["zone:a", "zone:b", "zone:a"] }),
+    );
+  });
+
   it("fetches only the unseen tail and timestamp-dedupes the rolling window", () => {
     const time = { mode: "live", paused: false, start: 100, end: 400, rangeSeconds: 300 } as const;
     const previous: Array<[number, number]> = [

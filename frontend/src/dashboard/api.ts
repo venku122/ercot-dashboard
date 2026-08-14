@@ -36,6 +36,16 @@ type SeriesResult = {
   points?: Point[];
 };
 
+type ChunkResult = {
+  aggregation: "average" | "minmax";
+  end: number;
+  metric: string;
+  points: Point[];
+  resolution: number;
+  start: number;
+  tags: string[];
+};
+
 async function fetchJson<T>(url: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { ...init, ...(signal ? { signal } : {}) });
   if (!response.ok) {
@@ -43,6 +53,140 @@ async function fetchJson<T>(url: string, init: RequestInit, signal?: AbortSignal
     throw new Error(`api_${response.status}:${detail.slice(0, 160)}`);
   }
   return (await response.json()) as T;
+}
+
+export function canonicalChunkUrl({
+  aggregation = "average",
+  chunkSeconds,
+  end,
+  metric,
+  resolution,
+  rollup,
+  start,
+  tags = [],
+}: {
+  aggregation?: "average" | "minmax";
+  chunkSeconds: 3600 | 86400;
+  end: number;
+  metric: string;
+  resolution: number;
+  rollup?: "sum";
+  start: number;
+  tags?: readonly string[];
+}): string {
+  const params = new URLSearchParams({
+    aggregation,
+    chunk_seconds: String(chunkSeconds),
+    end: String(Math.round(end)),
+    metric,
+    resolution: String(Math.round(resolution)),
+    start: String(Math.round(start)),
+  });
+  if (rollup) params.set("rollup", rollup);
+  for (const tag of [...new Set(tags)].sort()) params.append("tag", tag);
+  return `/api/v1/series/chunk?${params.toString()}`;
+}
+
+function historicalChunkWindows(start: number, end: number, current: number) {
+  const output: Array<{ chunkSeconds: 3600 | 86400; end: number; start: number }> = [];
+  let cursor = Math.floor(start / 86400) * 86400;
+  while (cursor < end) {
+    const canUseDay = cursor + 86400 <= current - 86400;
+    const chunkSeconds = canUseDay ? 86400 : 3600;
+    if (!canUseDay) cursor = Math.floor(Math.max(cursor, start) / 3600) * 3600;
+    output.push({ chunkSeconds, end: cursor + chunkSeconds, start: cursor });
+    cursor += chunkSeconds;
+  }
+  return output;
+}
+
+function pointStatistics(points: Point[]) {
+  if (!points.length) {
+    return {
+      average: null,
+      count: 0,
+      energy_mwh: null,
+      latest: null,
+      maximum: null,
+      minimum: null,
+    };
+  }
+  const values = points.map((point) => point[1]);
+  let energy = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    energy += (points[index - 1]![1] * (points[index]![0] - points[index - 1]![0])) / 3600;
+  }
+  return {
+    average: values.reduce((total, value) => total + value, 0) / values.length,
+    count: values.length,
+    energy_mwh: energy,
+    latest: values.at(-1) ?? null,
+    maximum: Math.max(...values),
+    minimum: Math.min(...values),
+  };
+}
+
+async function loadFixedSeriesFromChunks(
+  charts: ChartDefinition[],
+  time: TimeState,
+  signal: AbortSignal,
+): Promise<Map<string, LoadedSeries>> {
+  const windows = historicalChunkWindows(time.start, time.end, Math.floor(Date.now() / 1000));
+  const resolution = Math.max(1, Math.ceil(time.rangeSeconds / 1200));
+  const output = new Map<string, LoadedSeries>();
+  for (const chart of charts) {
+    for (const series of chart.series) {
+      if (!series.metric) continue;
+      const chunks = await Promise.all(
+        windows.map((window) =>
+          fetchJson<ChunkResult>(
+            canonicalChunkUrl({
+              aggregation: chart.spikeCritical ? "minmax" : "average",
+              ...window,
+              metric: series.metric!,
+              resolution,
+              ...(series.rollup ? { rollup: series.rollup } : {}),
+              ...(series.tags ? { tags: series.tags } : {}),
+            }),
+            { method: "GET" },
+            signal,
+          ),
+        ),
+      );
+      const points = mergePoints(
+        [],
+        chunks.flatMap((chunk) => chunk.points),
+        time.start,
+        time.end,
+      );
+      output.set(seriesKey(chart.id, series.id), {
+        compare: [],
+        error: null,
+        meta: {
+          bucket_seconds: resolution,
+          max_points: 1200,
+          partial_current_bucket: false,
+          since: time.start,
+          stats: pointStatistics(points),
+          until: time.end,
+        },
+        points,
+      });
+    }
+    for (const series of chart.series) {
+      if (!series.derive) continue;
+      const inputs = series.derive.from.map(
+        (id) => output.get(seriesKey(chart.id, id))?.points ?? [],
+      );
+      output.set(seriesKey(chart.id, series.id), {
+        compare: [],
+        error: null,
+        meta: {},
+        points: deriveSeries(series.derive.operation, inputs),
+      });
+    }
+  }
+  return output;
 }
 
 export async function loadSeries(
@@ -53,6 +197,14 @@ export async function loadSeries(
   signal: AbortSignal,
   previousData: Map<string, LoadedSeries> = new Map(),
 ): Promise<Map<string, LoadedSeries>> {
+  if (time.mode === "fixed" && compare === "none") {
+    try {
+      return await loadFixedSeriesFromChunks(charts, time, signal);
+    } catch (error) {
+      if (signal.aborted) throw error;
+      // Preserve compatibility while an older receiver is still serving production.
+    }
+  }
   const comparison = compareWindow(compare, time, customCompareSeconds);
   const queries: SeriesQuery[] = [];
   for (const chart of charts) {

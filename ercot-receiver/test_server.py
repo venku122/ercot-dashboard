@@ -509,6 +509,32 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         cache.set("d", 4, {"metric.d"})
         self.assertLessEqual(cache.stats()["entries"], 2)
 
+    def test_sealed_range_cache_survives_unrelated_live_ingest(self):
+        cache = server.Cache(60)
+        cache.set(
+            "sealed-demand-day",
+            {"points": [[86_400, 10.0]]},
+            {"ercot.demand"},
+            ranges={"ercot.demand": (86_400, 172_799)},
+            ttl_seconds=86_400,
+            category="sealed",
+        )
+
+        cache.invalidate_changes({"ercot.demand": [(900_000, 900_000)]})
+        self.assertIsNotNone(cache.get("sealed-demand-day"))
+        cache.invalidate_changes({"ercot.demand": [(100_000, 100_000)]})
+        self.assertIsNone(cache.get("sealed-demand-day"))
+
+    def test_cache_identity_normalizes_tag_order(self):
+        handler = server.Handler.__new__(server.Handler)
+        first = handler._cache_key(
+            "chunk", {"metric": "m", "tags": server.normalize_tags(["b", "a"])}
+        )
+        second = handler._cache_key(
+            "chunk", {"tags": server.normalize_tags(["a", "b", "a"]), "metric": "m"}
+        )
+        self.assertEqual(first, second)
+
 
 class HttpQueryBoundsTests(unittest.TestCase):
     def setUp(self):
@@ -530,7 +556,7 @@ class HttpQueryBoundsTests(unittest.TestCase):
             conn.close()
         self.tmp.cleanup()
 
-    def invoke(self, method, path, payload=None):
+    def invoke(self, method, path, payload=None, request_headers=None, expected_status=200):
         body = json.dumps(payload).encode() if payload is not None else b""
         handler = server.Handler.__new__(server.Handler)
         handler.path = path
@@ -539,21 +565,27 @@ class HttpQueryBoundsTests(unittest.TestCase):
         handler.headers = {
             "Content-Length": str(len(body)),
             "Content-Type": "application/json",
+            **(request_headers or {}),
         }
         handler.rfile = io.BytesIO(body)
         handler.wfile = io.BytesIO()
         handler.send_response = lambda status: setattr(handler, "response_status", status)
-        handler.send_header = lambda _name, _value: None
+        handler.response_headers = {}
+        handler.send_header = lambda name, value: handler.response_headers.__setitem__(name, value)
         handler.end_headers = lambda: None
         if method == "GET":
             handler.do_GET()
         else:
             handler.do_POST()
-        self.assertEqual(handler.response_status, 200)
-        return json.loads(handler.wfile.getvalue())
+        self.assertEqual(handler.response_status, expected_status)
+        response_body = handler.wfile.getvalue()
+        return (
+            json.loads(response_body) if response_body else None,
+            handler.response_headers,
+        )
 
     def test_get_without_since_defaults_to_bounded_window(self):
-        payload = self.invoke("GET", "/api/series?metric=fixture.raw")
+        payload, _headers = self.invoke("GET", "/api/series?metric=fixture.raw")
 
         self.assertIsNotNone(payload["meta"]["since"])
         self.assertLessEqual(
@@ -562,7 +594,7 @@ class HttpQueryBoundsTests(unittest.TestCase):
         )
 
     def test_batch_without_since_uses_the_same_bounded_window(self):
-        payload = self.invoke(
+        payload, _headers = self.invoke(
             "POST",
             "/api/series/batch",
             {"queries": [{"id": "raw", "metric": "fixture.raw"}]},
@@ -585,7 +617,7 @@ class HttpQueryBoundsTests(unittest.TestCase):
         conn.commit()
         conn.close()
 
-        payload = self.invoke(
+        payload, _headers = self.invoke(
             "POST",
             "/api/series/batch",
             {
@@ -605,6 +637,41 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(len(result["points"]), 1)
         self.assertEqual(result["meta"]["stats"]["count"], 3)
         self.assertEqual(result["meta"]["stats"]["latest"], 30)
+
+    def test_canonical_chunk_has_strong_etag_and_returns_304(self):
+        conn = sqlite3.connect(server.DB_PATH)
+        conn.execute(
+            """
+            INSERT INTO metrics (metric_name, ts, value, interval, metric_type, tags)
+            VALUES ('fixture.chunk', 90000, 42, 300, 'gauge', '["zone:a"]')
+            """
+        )
+        metric_id = conn.execute("SELECT id FROM metrics").fetchone()[0]
+        conn.execute(
+            "INSERT INTO metric_tags (metric_id, tag) VALUES (?, 'zone:a')", (metric_id,)
+        )
+        conn.commit()
+        conn.close()
+        path = (
+            "/api/v1/series/chunk?metric=fixture.chunk&start=86400&end=172800"
+            "&chunk_seconds=86400&tag=zone%3Aa&resolution=300"
+        )
+
+        payload, headers = self.invoke("GET", path)
+        self.assertEqual(payload["points"], [[90000, 42.0]])
+        self.assertTrue(headers["ETag"].startswith('"'))
+        self.assertIn("immutable", headers["Cache-Control"])
+        self.assertEqual(headers["X-ERCOT-Cache"], "MISS")
+
+        payload_304, repeat_headers = self.invoke(
+            "GET",
+            path,
+            request_headers={"If-None-Match": headers["ETag"]},
+            expected_status=304,
+        )
+        self.assertIsNone(payload_304)
+        self.assertEqual(repeat_headers["ETag"], headers["ETag"])
+        self.assertEqual(repeat_headers["X-ERCOT-Cache"], "HIT")
 
 
 if __name__ == "__main__":

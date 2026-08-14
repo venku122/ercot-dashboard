@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import json
+import hashlib
 import math
 import mimetypes
 import os
 import sqlite3
 import threading
 import time
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from typing import cast
@@ -18,6 +19,9 @@ API_KEY = os.environ.get("METRICS_API_KEY")
 CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", "10"))
 CACHE_MAX_ENTRIES = int(os.environ.get("CACHE_MAX_ENTRIES", "512"))
 CACHE_CONTROL_MAX_AGE = int(os.environ.get("CACHE_CONTROL_MAX_AGE", "30"))
+SEALED_HISTORY_AGE_SECONDS = int(os.environ.get("SEALED_HISTORY_AGE_SECONDS", "86400"))
+SEALED_CACHE_TTL_SECONDS = int(os.environ.get("SEALED_CACHE_TTL_SECONDS", "86400"))
+RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300"))
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
@@ -253,6 +257,7 @@ def ingest_metrics(conn, payload, current_ts=None):
     unchanged = 0
     invalid = 0
     dependencies = set()
+    changes = defaultdict(list)
     ts_now = current_ts if current_ts is not None else now_ts()
     conn.execute("BEGIN")
     try:
@@ -334,6 +339,7 @@ def ingest_metrics(conn, payload, current_ts=None):
                     conn.execute("DELETE FROM metric_tags WHERE metric_id = ?", (metric_id,))
                     updated += 1
                     dependencies.add(existing[1])
+                    changes[existing[1]].append((int(existing[2]), int(existing[2])))
                 else:
                     cur = conn.execute(
                         """
@@ -351,6 +357,7 @@ def ingest_metrics(conn, payload, current_ts=None):
                         [(metric_id, tag) for tag in tags],
                     )
                 dependencies.add(metric_name)
+                changes[metric_name].append((int(ts), int(ts)))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -361,6 +368,7 @@ def ingest_metrics(conn, payload, current_ts=None):
         "unchanged": unchanged,
         "invalid": invalid,
         "dependencies": dependencies,
+        "changes": dict(changes),
     }
 
 
@@ -806,7 +814,7 @@ class Cache:
             if not entry:
                 self.misses += 1
                 return None
-            expires_at, value, _dependencies = entry
+            expires_at, value, _dependencies, _ranges, _category = entry
             if expires_at < now:
                 del self.data[key]
                 self.misses += 1
@@ -815,10 +823,24 @@ class Cache:
             self.hits += 1
             return value
 
-    def set(self, key, value, dependencies=None):
-        expires_at = time.time() + self.ttl
+    def set(
+        self,
+        key,
+        value,
+        dependencies=None,
+        ranges=None,
+        ttl_seconds=None,
+        category="generic",
+    ):
+        expires_at = time.time() + (ttl_seconds if ttl_seconds is not None else self.ttl)
         with self.lock:
-            self.data[key] = (expires_at, value, frozenset(dependencies or []))
+            self.data[key] = (
+                expires_at,
+                value,
+                frozenset(dependencies or []),
+                dict(ranges or {}),
+                category,
+            )
             self.data.move_to_end(key)
             while len(self.data) > self.max_entries:
                 self.data.popitem(last=False)
@@ -830,9 +852,35 @@ class Cache:
         with self.lock:
             keys = [
                 key
-                for key, (_expires, _value, entry_dependencies) in self.data.items()
+                for key, (_expires, _value, entry_dependencies, _ranges, _category) in self.data.items()
                 if targets.intersection(entry_dependencies)
             ]
+            for key in keys:
+                del self.data[key]
+
+    def invalidate_changes(self, changes):
+        if not changes:
+            return
+        with self.lock:
+            keys = []
+            for key, (_expires, _value, dependencies, ranges, _category) in self.data.items():
+                invalidate = False
+                for metric, changed_ranges in changes.items():
+                    if metric not in dependencies:
+                        continue
+                    cached_range = ranges.get(metric)
+                    if cached_range is None:
+                        invalidate = True
+                        break
+                    cached_start, cached_end = cached_range
+                    if any(
+                        changed_start <= cached_end and changed_end >= cached_start
+                        for changed_start, changed_end in changed_ranges
+                    ):
+                        invalidate = True
+                        break
+                if invalidate:
+                    keys.append(key)
             for key in keys:
                 del self.data[key]
 
@@ -845,6 +893,7 @@ class Cache:
                 "hits": self.hits,
                 "misses": self.misses,
                 "hit_ratio": self.hits / total if total else 0.0,
+                "categories": dict(Counter(entry[4] for entry in self.data.values())),
             }
 
 
@@ -878,14 +927,27 @@ class Handler(BaseHTTPRequestHandler):
     def _app_server(self) -> "Server":
         return cast("Server", self.server)
 
-    def _send_json(self, status, payload, cache_control=None):
-        body = json.dumps(payload).encode("utf-8")
-        self.send_response(status)
+    def _send_json(self, status, payload, cache_control=None, etag=False, extra_headers=None):
+        body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        resolved_etag = f'"{hashlib.sha256(body).hexdigest()}"' if etag else None
+        not_modified = bool(
+            resolved_etag and self.headers.get("If-None-Match") == resolved_etag
+        )
+        self.send_response(304 if not_modified else status)
+        if resolved_etag:
+            self.send_header("ETag", resolved_etag)
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
+        if self.path.startswith("/api/"):
+            self._set_cors_headers()
+        if not_modified:
+            if cache_control:
+                self.send_header("Cache-Control", cache_control)
+            self.end_headers()
+            return
         self.send_header("Content-Type", "application/json")
         if cache_control:
             self.send_header("Cache-Control", cache_control)
-        if self.path.startswith("/api/"):
-            self._set_cors_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -1149,7 +1211,8 @@ class Handler(BaseHTTPRequestHandler):
             conn = get_db()
             result = ingest_metrics(conn, payload)
             dependencies = result.pop("dependencies")
-            self._app_server().cache.invalidate(dependencies)
+            changes = result.pop("changes")
+            self._app_server().cache.invalidate_changes(changes)
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -1388,6 +1451,105 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/series/chunk":
+            if not self._rate_limit("series_chunk", RATE_LIMIT_SERIES_RPM):
+                return
+            qs = parse_qs(parsed.query)
+            metric = (qs.get("metric") or [None])[0]
+            start = parse_timestamp((qs.get("start") or [None])[0])
+            end = parse_timestamp((qs.get("end") or [None])[0])
+            chunk_seconds = parse_positive_int((qs.get("chunk_seconds") or [None])[0])
+            resolution = parse_positive_int((qs.get("resolution") or [None])[0])
+            tags = normalize_tags(qs.get("tag", []))
+            aggregation = (qs.get("aggregation") or ["average"])[0]
+            rollup = (qs.get("rollup") or [None])[0]
+            if (
+                not metric
+                or start is None
+                or end is None
+                or chunk_seconds not in (3600, 86400)
+                or start % chunk_seconds != 0
+                or end != start + chunk_seconds
+                or resolution is None
+                or resolution > chunk_seconds
+                or aggregation not in ("average", "minmax")
+                or rollup not in (None, "sum")
+            ):
+                self._send_json(
+                    400, {"error": "invalid_canonical_chunk"}, cache_control="no-store"
+                )
+                return
+            identity = {
+                "schema": 1,
+                "metric": metric,
+                "tags": tags,
+                "start": start,
+                "end": end,
+                "chunk_seconds": chunk_seconds,
+                "resolution": resolution,
+                "aggregation": aggregation,
+                "rollup": rollup,
+            }
+            cache_key = self._cache_key("series_chunk", identity)
+            cached = self._app_server().cache.get(cache_key)
+            current = now_ts()
+            if end <= current - SEALED_HISTORY_AGE_SECONDS:
+                category = "sealed"
+                ttl_seconds = SEALED_CACHE_TTL_SECONDS
+                cache_control = "public, max-age=3600, s-maxage=86400, immutable"
+            elif end <= current - 300:
+                category = "recent"
+                ttl_seconds = RECENT_CACHE_TTL_SECONDS
+                cache_control = "public, max-age=60, s-maxage=300, stale-while-revalidate=60"
+            else:
+                category = "live"
+                ttl_seconds = CACHE_TTL_SECONDS
+                cache_control = "public, max-age=5, s-maxage=15, stale-while-revalidate=30"
+            if cached is not None:
+                metrics = getattr(self._app_server(), "cache_metrics", None)
+                if metrics is not None:
+                    metrics["historical_chunk_hits"] += 1
+                self._send_json(
+                    200,
+                    cached,
+                    cache_control=cache_control,
+                    etag=True,
+                    extra_headers={"X-ERCOT-Cache": "HIT", "X-ERCOT-Cache-Class": category},
+                )
+                return
+            started = time.perf_counter()
+            points = self._series_query(
+                get_db(),
+                metric,
+                start,
+                end - 1,
+                tags,
+                resolution,
+                aggregation,
+                rollup,
+            )
+            payload_out = {**identity, "points": points}
+            self._app_server().cache.set(
+                cache_key,
+                payload_out,
+                {metric},
+                ranges={metric: (start, end - 1)},
+                ttl_seconds=ttl_seconds,
+                category=category,
+            )
+            metrics = getattr(self._app_server(), "cache_metrics", None)
+            if metrics is not None:
+                metrics["historical_chunk_misses"] += 1
+                metrics["query_executions"] += 1
+                metrics["query_seconds"] += time.perf_counter() - started
+            self._send_json(
+                200,
+                payload_out,
+                cache_control=cache_control,
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": "MISS", "X-ERCOT-Cache-Class": category},
+            )
+            return
         if parsed.path == "/api/source-checkpoint":
             if not self._rate_limit("source_checkpoint", RATE_LIMIT_STATUS_RPM):
                 return
@@ -1577,7 +1739,13 @@ class Handler(BaseHTTPRequestHandler):
             total = conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0]
             self._send_json(
                 200,
-                {"rows": total, "cache": self._app_server().cache.stats()},
+                {
+                    "rows": total,
+                    "cache": self._app_server().cache.stats(),
+                    "cache_metrics": dict(
+                        getattr(self._app_server(), "cache_metrics", {})
+                    ),
+                },
                 cache_control="no-store",
             )
             return
@@ -1753,6 +1921,10 @@ class Handler(BaseHTTPRequestHandler):
             data = f.read()
         self.send_response(200)
         self.send_header("Content-Type", content_type)
+        if path.startswith("/assets/"):
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        elif path == "/index.html":
+            self.send_header("Cache-Control", "no-cache")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -1781,6 +1953,7 @@ class Server(ThreadingHTTPServer):
         conn.execute("PRAGMA optimize")
         conn.close()
         self.cache = Cache(CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
+        self.cache_metrics = defaultdict(float)
         self.limiter = RateLimiter()
 
 

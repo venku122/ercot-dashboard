@@ -64,6 +64,70 @@ def main():
         handler = server.Handler.__new__(server.Handler)
         end = start + rows * 300
 
+        processed_cache = server.Cache(10, max_entries=32)
+
+        def cached_window(label, window_start, window_end, resolution):
+            cached = processed_cache.get(label)
+            if cached is not None:
+                return cached
+            points = handler._series_query(
+                conn,
+                "ercot.pricing",
+                window_start,
+                window_end,
+                ["ercot_region:HB_HOUSTON"],
+                bucket_seconds=resolution,
+            )
+            processed_cache.set(
+                label,
+                points,
+                {"ercot.pricing"},
+                ranges={"ercot.pricing": (window_start, window_end)},
+                ttl_seconds=86_400,
+                category="sealed",
+            )
+            return points
+
+        cache_benchmarks = {}
+        for label, span, resolution in (
+            ("six_hour", 6 * 3600, 300),
+            ("seven_day", 7 * 86400, 900),
+        ):
+            window_start = end - span - 86400
+            window_end = end - 86400
+            cold, cold_points = timed(
+                lambda: cached_window(label, window_start, window_end, resolution),
+                iterations=1,
+            )
+            warm, warm_points = timed(
+                lambda: cached_window(label, window_start, window_end, resolution),
+                iterations=5,
+            )
+            cache_benchmarks[label] = {
+                "cold_seconds": cold["best_seconds"],
+                "warm_median_seconds": warm["median_seconds"],
+                "speedup": (
+                    cold["best_seconds"] / warm["median_seconds"]
+                    if warm["median_seconds"]
+                    else None
+                ),
+                "points": len(cold_points),
+                "warm_points": len(warm_points),
+            }
+
+        live_ingest = server.ingest_metrics(
+            conn,
+            [
+                {
+                    "metric_name": "ercot.pricing",
+                    "tags": ["ercot_region:HB_HOUSTON"],
+                    "points": [[end + 300, 51.0]],
+                }
+            ],
+        )
+        processed_cache.invalidate_changes(live_ingest["changes"])
+        sealed_survived_live_ingest = processed_cache.get("seven_day") is not None
+
         tagged, raw_points = timed(
             lambda: handler._series_query(
                 conn,
@@ -126,6 +190,11 @@ def main():
                 {**extrema, "points": len(extrema_points)} if extrema else None
             ),
             "dedupe": dedupe,
+            "processed_chunk_cache": {
+                "benchmarks": cache_benchmarks,
+                "sealed_survived_live_ingest": sealed_survived_live_ingest,
+                "stats": processed_cache.stats(),
+            },
             "server_path": str(args.server_path.resolve()),
         }
         print(json.dumps(evidence, indent=2, sort_keys=True))
