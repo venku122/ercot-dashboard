@@ -4,7 +4,7 @@ import { parseGenerationOutages } from "./generation_outages.ts";
 import { parseOperationsMessages, parseOperationsTimestamp } from "./operations_messages.ts";
 import { parseStorage } from "./storage.ts";
 import { parseSupplyDemand } from "./supply_demand.ts";
-import { parseWindSolar } from "./wind_solar.ts";
+import { adapter as windSolarAdapter, parseWindSolar } from "./wind_solar.ts";
 
 const fixture = (name: string) => new URL(`./fixtures/${name}`, import.meta.url);
 
@@ -55,6 +55,43 @@ Deno.test("supply and demand fixture includes actual and forecast series", async
   assert(names.has("ercot.supply_demand.demand_mw"), "actual demand");
   assert(names.has("ercot.supply_demand.forecast_demand_mw"), "forecast demand");
   assert(names.has("ercot.supply_demand.committed_capacity_mw"), "committed capacity");
+  assert(result.dataTimestamp === 1784610000, "actual data timestamp");
+});
+
+Deno.test("supply and demand actual series exclude future forecast rows", async () => {
+  const result = await parseSupplyDemand({
+    lastUpdated: "2026-07-28 22:55:00-0500",
+    data: [
+      {
+        capacity: 94_000,
+        available: 93_000,
+        demand: 73_000,
+        epoch: 1_785_297_000_000,
+        forecast: 0,
+      },
+      {
+        capacity: 97_000,
+        available: 96_000,
+        demand: 71_000,
+        epoch: 1_785_301_200_000,
+        forecast: 1,
+      },
+    ],
+    forecast: [
+      {
+        availCapGen: 100_000,
+        forecastedDemand: 72_000,
+        epoch: 1_785_304_800_000,
+      },
+    ],
+  });
+  const actual = result.metrics.find(
+    (entry) => entry.metric_name === "ercot.supply_demand.demand_mw",
+  );
+
+  assert(actual?.points.length === 1, "one observed demand point");
+  assert(actual.points[0]!.timestamp === 1_785_297_000, "observed timestamp");
+  assert(result.dataTimestamp === 1_785_297_000, "freshness follows actual data");
 });
 
 Deno.test("generation outage fixture preserves bounded category tags", async () => {
@@ -80,6 +117,13 @@ Deno.test("wind and solar live schema remains useful", async () => {
     result.metrics.some((entry) => entry.metric_name.endsWith("hsl_mw")),
     "hsl",
   );
+  const latestActual = Math.max(
+    ...result.metrics
+      .filter((entry) => entry.metric_name === "ercot.renewables.actual_mw")
+      .flatMap((entry) => entry.points.map((point) => point.timestamp ?? 0)),
+  );
+  assert(result.dataTimestamp === latestActual, "freshness follows renewable actuals");
+  assert(windSolarAdapter.publicationIntervalSeconds === 3600, "hourly publication");
 });
 
 Deno.test("operations message HTML becomes stable structured events", async () => {
@@ -151,13 +195,18 @@ Deno.test("rolling ingestion resumes from a persisted checkpoint and submits onl
     {
       metric_name: "ercot.forecast",
       points: [
-        { timestamp: 300, value: 30, dedupe_key: "forecast:300" },
-        { timestamp: 400, value: 40, dedupe_key: "forecast:400" },
+        { timestamp: 10_000, value: 30, dedupe_key: "forecast:10000" },
+        { timestamp: 20_000, value: 40, dedupe_key: "forecast:20000" },
       ],
     },
   ];
   const first = incrementalMetrics(initial, null, ["ercot.forecast"], 120);
   assert(first.metrics.flatMap((entry) => entry.points).length === 4, "initial full submit");
+  assert(first.checkpoint.version === 2, "series-aware checkpoint");
+  assert(
+    Object.keys(first.checkpoint.high_water_ts_by_series).length === 2,
+    "one watermark per series",
+  );
 
   const restartedCheckpoint = JSON.parse(JSON.stringify(first.checkpoint));
   const revised = structuredClone(initial);
@@ -172,10 +221,104 @@ Deno.test("rolling ingestion resumes from a persisted checkpoint and submits onl
     "new actual",
   );
   assert(
-    submitted.some((point) => point.dedupe_key === "forecast:300"),
+    submitted.some((point) => point.dedupe_key === "forecast:10000"),
     "forecast revision",
   );
 
   const unchanged = incrementalMetrics(revised, second.checkpoint, ["ercot.forecast"], 120);
   assert(unchanged.metrics.length === 0, "steady-state identical replay is empty");
+});
+
+Deno.test("legacy global checkpoint replays suppressed actuals during v2 migration", () => {
+  const legacy = {
+    version: 1 as const,
+    high_water_ts: 20_000,
+    values: { "forecast:20000": 40 },
+  };
+  const recovered = incrementalMetrics(
+    [
+      {
+        metric_name: "ercot.actual",
+        points: [
+          { timestamp: 100, value: 10, dedupe_key: "actual:100" },
+          { timestamp: 200, value: 20, dedupe_key: "actual:200" },
+          { timestamp: 300, value: 25, dedupe_key: "actual:300" },
+        ],
+      },
+      {
+        metric_name: "ercot.forecast",
+        points: [{ timestamp: 20_000, value: 40, dedupe_key: "forecast:20000" }],
+      },
+    ],
+    legacy,
+    ["ercot.forecast"],
+    120,
+  );
+  const submitted = recovered.metrics.flatMap((entry) => entry.points);
+
+  assert(recovered.checkpoint.version === 2, "checkpoint upgraded");
+  assert(submitted.length === 3, "actual history replayed through receiver dedupe");
+  assert(
+    submitted.some((point) => point.dedupe_key === "actual:300"),
+    "latest actual recovered",
+  );
+  assert(
+    !submitted.some((point) => point.dedupe_key === "forecast:20000"),
+    "unchanged forecast omitted",
+  );
+});
+
+Deno.test("series watermarks distinguish tags on the same metric", () => {
+  const initial = incrementalMetrics(
+    [
+      {
+        metric_name: "ercot.renewables.actual_mw",
+        tags: ["source:wind_solar", "resource:wind"],
+        points: [{ timestamp: 100, value: 10, dedupe_key: "wind:100" }],
+      },
+      {
+        metric_name: "ercot.renewables.actual_mw",
+        tags: ["resource:solar", "source:wind_solar"],
+        points: [{ timestamp: 200, value: 20, dedupe_key: "solar:200" }],
+      },
+    ],
+    null,
+  );
+  assert(initial.checkpoint.version === 2, "series-aware checkpoint");
+  assert(
+    Object.keys(initial.checkpoint.high_water_ts_by_series).length === 2,
+    "tagged series have independent watermarks",
+  );
+
+  const updated = incrementalMetrics(
+    [
+      {
+        metric_name: "ercot.renewables.actual_mw",
+        tags: ["resource:wind", "source:wind_solar"],
+        points: [
+          { timestamp: 100, value: 10, dedupe_key: "wind:100" },
+          { timestamp: 150, value: 15, dedupe_key: "wind:150" },
+        ],
+      },
+      {
+        metric_name: "ercot.renewables.actual_mw",
+        tags: ["source:wind_solar", "resource:solar"],
+        points: [
+          { timestamp: 200, value: 20, dedupe_key: "solar:200" },
+          { timestamp: 250, value: 25, dedupe_key: "solar:250" },
+        ],
+      },
+    ],
+    initial.checkpoint,
+  );
+  const submitted = updated.metrics.flatMap((entry) => entry.points);
+  assert(submitted.length === 2, "one new point from each tagged series");
+  assert(
+    submitted.some((point) => point.dedupe_key === "wind:150"),
+    "new wind point",
+  );
+  assert(
+    submitted.some((point) => point.dedupe_key === "solar:250"),
+    "new solar point",
+  );
 });

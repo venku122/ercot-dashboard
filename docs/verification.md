@@ -1,6 +1,6 @@
 # Verification evidence
 
-Date: 2026-07-21
+Date: 2026-07-28
 
 Mobile-specific browser, visual, performance, and physical-device evidence is recorded in
 [mobile-verification.md](mobile-verification.md).
@@ -10,21 +10,22 @@ Mobile-specific browser, visual, performance, and physical-device evidence is re
 - Host shell Node: 25.2.1; pinned pnpm: 10.30.3. The standalone pnpm executable reports its
   embedded Node 20.11.1, so it prints an engine warning; the clean receiver image builds with Node 24.
 - Python: 3.10.12 locally and 3.12 in the receiver image.
-- Docker: 29.0.1; Compose: 2.40.3.
-- Deno tests run in the collector image because Deno is not installed on the host.
+- Docker Desktop was not exposed to this WSL session; CI performs the container image builds.
+- Collector tests were run directly with Deno 2.9.4; CI repeats them in the collector image.
 
 ## Deterministic and live source checks
 
-- Collector: 9 fixture tests cover six success schemas, malformed JSON, zero-core data, repeated
-  DST hour, revision-aware metric checkpoints, persisted restart recovery, stable event dedupe,
-  and linear receiver-size chunking through a 20,000-row payload.
-- One-shot live validation: fuel 2,896 points; storage 1,083; supply/demand 1,081; generation
-  outages 18,020; operations messages 46 events; wind/solar 298 points.
-- Receiver: 23 tests cover fresh/legacy migration, backup/restore, insert/update/unchanged ingest,
-  event upsert, persisted source checkpoints, collection versus freshness health, handler-level
-  query/body/cache bounds, tag queries, SQL average/minmax bucketing, full-window raw statistics,
-  MW-to-MWh integration, and seasonal transforms.
-- Frontend: 12 unit tests cover live/fixed time, pause/navigation/zoom, URL restoration, comparison
+- Collector: 12 fixture tests cover six success schemas, malformed JSON, zero-core data, repeated
+  DST hour, per-series revision-aware metric checkpoints, version 1 checkpoint recovery, tagged
+  series isolation, persisted restart recovery, stable event dedupe, and linear receiver-size
+  chunking through a 20,000-row payload.
+- One-shot live validation: fuel 4,544 points; storage 1,704; supply/demand 848; generation outages
+  20,080; operations messages 74 events; wind/solar 428 points.
+- Receiver: 24 tests cover fresh/legacy migration, backup/restore, insert/update/unchanged ingest,
+  event upsert, persisted source checkpoints, collection versus core-data freshness health,
+  handler-level query/body/cache bounds, tag queries, SQL average/minmax bucketing, full-window raw
+  statistics, MW-to-MWh integration, and seasonal transforms.
+- Frontend: 15 unit tests cover live/fixed time, pause/navigation/zoom, URL restoration, comparison
   alignment, derived series, exact-latest behavior, statistics, freshness, parity configuration,
   Chicago calendar/DST behavior, tail-query merging, and unit formatting.
 
@@ -102,12 +103,19 @@ the entire source history. The receiver was healthy, both containers logged norm
 the temporary containers/network were then removed without deploying production. The bind-mounted
 development database was retained locally and remains gitignored.
 
+The 2026-07-28 checkpoint regression fixture puts actual observations behind far-future forecast
+timestamps, reproducing the production failure mode. A version 1 checkpoint now replays missing
+actual rows through receiver dedupe and is persisted as version 2 with one watermark per
+metric-and-tag series. The live-source verifier repeats this migration assertion against current
+official supply/demand and wind/solar payloads and rejects stale core observations even when the
+payload publication timestamp is current.
+
 ## Review remediation traceability
 
 | Review area               | Regression evidence                                         | Implemented contract                                                                                              | Verification                            |
 | ------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | A. Mutable telemetry      | Receiver revision/replay tests                              | Metric current-view upsert with `inserted`, `updated`, `unchanged`, and `invalid` accounting                      | 23 receiver tests                       |
-| B. Incremental collection | Collector restart and 20k-payload fixtures                  | Actual high-water overlap, forecast key/value checkpoints, persisted receiver checkpoints, linear batching        | 9 collector tests plus live restart     |
+| B. Incremental collection | Collector restart and 20k-payload fixtures                  | Per-series actual high-water overlap, forecast key/value checkpoints, v1 migration, linear batching               | 12 collector tests plus live validation |
 | C. Exact KPIs/statistics  | Raw-stat and MWh receiver tests; exact-latest frontend test | Exact latest endpoints, raw-window metadata independent of decimation, trapezoidal MWh                            | Receiver/frontend suites                |
 | D. Legacy parity          | Chart configuration contract                                | 19-chart parity matrix including capacity, frequency, ties, reserves, outages, weather, and duty cycle            | Unit contract and full-dashboard VRI    |
 | E. Bounded reads          | Handler-level GET/batch tests                               | Shared default window and request/body limits that cannot be bypassed by omitted parameters                       | Receiver suite and Compose contract     |

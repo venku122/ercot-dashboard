@@ -33,6 +33,7 @@ export type NormalizedEvent = {
 };
 
 export type SourceResult = {
+  dataTimestamp?: number;
   diagnostics?: Record<string, unknown>;
   events: NormalizedEvent[];
   metrics: NormalizedMetric[];
@@ -51,15 +52,24 @@ export type SourceAdapter = {
   sourceId: string;
 };
 
-export type SourceCheckpoint = {
+type SourceCheckpointBase = {
   events?: Record<string, string>;
   high_water_ts: number;
   values: Record<string, number>;
-  version: 1;
 };
+
+export type SourceCheckpoint =
+  | (SourceCheckpointBase & {
+      version: 1;
+    })
+  | (SourceCheckpointBase & {
+      high_water_ts_by_series: Record<string, number>;
+      version: 2;
+    });
 
 type SourceAttempt = {
   attempted_at: number;
+  data_timestamp_ts?: number;
   display_name: string;
   error?: string;
   expected_interval_seconds: number;
@@ -197,16 +207,26 @@ export function incrementalMetrics(
 ): { checkpoint: SourceCheckpoint; metrics: NormalizedMetric[] } {
   const mutable = new Set(mutableMetricNames);
   const priorValues = checkpoint?.values ?? {};
-  const previousHighWater = checkpoint?.high_water_ts ?? 0;
-  let highWater = previousHighWater;
+  const hasSeriesWatermarks = checkpoint?.version === 2;
+  const previousHighWaterBySeries = hasSeriesWatermarks ? checkpoint.high_water_ts_by_series : {};
+  const highWaterBySeries = { ...previousHighWaterBySeries };
+  const seriesIdentity = (entry: NormalizedMetric) =>
+    JSON.stringify([entry.metric_name, [...(entry.tags ?? [])].sort()]);
   for (const entry of metrics) {
+    const identity = seriesIdentity(entry);
+    let highWater = highWaterBySeries[identity] ?? 0;
     for (const point of entry.points) highWater = Math.max(highWater, point.timestamp ?? 0);
+    highWaterBySeries[identity] = highWater;
   }
   const retainedValues: Record<string, number> = {};
   const output: NormalizedMetric[] = [];
-  const cutoff = Math.max(0, highWater - Math.max(0, overlapSeconds));
   for (const entry of metrics) {
+    const series = seriesIdentity(entry);
     const isMutable = mutable.has(entry.metric_name);
+    const hasPriorSeriesWatermark = Object.hasOwn(previousHighWaterBySeries, series);
+    const previousHighWater = previousHighWaterBySeries[series] ?? 0;
+    const highWater = highWaterBySeries[series] ?? previousHighWater;
+    const cutoff = Math.max(0, highWater - Math.max(0, overlapSeconds));
     const changed: MetricPoint[] = [];
     for (const point of entry.points) {
       const identity = point.dedupe_key;
@@ -218,6 +238,7 @@ export function incrementalMetrics(
       if (isMutable || timestamp >= cutoff) retainedValues[identity] = point.value;
       const isCandidate =
         !checkpoint ||
+        !hasPriorSeriesWatermark ||
         isMutable ||
         timestamp > previousHighWater ||
         timestamp >= previousHighWater - overlapSeconds;
@@ -228,8 +249,9 @@ export function incrementalMetrics(
   return {
     metrics: output,
     checkpoint: {
-      version: 1,
-      high_water_ts: highWater,
+      version: 2,
+      high_water_ts: Math.max(0, ...Object.values(highWaterBySeries)),
+      high_water_ts_by_series: highWaterBySeries,
       values: retainedValues,
       events: checkpoint?.events ?? {},
     },
@@ -459,6 +481,7 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         attempted_at: attemptedAt,
         success: true,
         source_timestamp_ts: result.sourceTimestamp,
+        data_timestamp_ts: result.dataTimestamp ?? result.sourceTimestamp,
         payload_hash: result.payloadHash,
         row_count: rowCount,
         checkpoint: incrementalEventResult.checkpoint,

@@ -16,10 +16,12 @@ ERCOT public JSON and HTML
 Every new source returns a `SourceResult` containing normalized metric series, normalized events,
 the source timestamp, a stable SHA-256 payload hash, and diagnostics. Each metric point carries a
 stable dedupe key. Rolling results are reduced to new or changed identities. The collector recovers
-a compact receiver-persisted checkpoint after restart, applies high-water plus overlap to immutable
-actuals, and key/value-diffs mutable forecasts. Invalid or zero-core payloads submit no data and
-report a failed attempt. Five-minute sources begin at staggered offsets, and one adapter failure
-cannot terminate the other loops.
+a compact receiver-persisted checkpoint after restart, applies an independent high-water plus
+overlap to every metric-and-tag series, and key/value-diffs mutable forecasts. Version 1 global
+high-water checkpoints are migrated by replaying rows not retained in the old value map; receiver
+dedupe makes this recovery idempotent. Invalid or zero-core payloads submit no data and report a
+failed attempt. Five-minute sources begin at staggered offsets, and one adapter failure cannot
+terminate the other loops.
 
 Receiver submissions are chunked below 400 KiB so they remain below the default 512 KiB body
 limit, including the multi-day generation-outage history. Batch sizing uses a linear encoded-byte
@@ -71,8 +73,10 @@ timestamp-deduped tails. The shared cursor publishes at most once per animation 
 only subscribers currently within the observer margin, while mounted off-screen charts remain
 idle. Click-to-pin state follows the user between visible charts.
 
-Source status exposes collection/poll state independently from observation freshness. Event-driven
-Operations Messages remains collection-healthy when a successful quiet poll has no newer event.
+Source status exposes collection/poll state independently from observation freshness. Adapters can
+report the newest core observation separately from a payload publication timestamp, preventing a
+fresh forecast envelope from masking stale actual telemetry. Event-driven Operations Messages
+remains collection-healthy when a successful quiet poll has no newer event.
 
 ## Mobile product mode
 

@@ -173,6 +173,10 @@ class MigrationAndIngestTests(unittest.TestCase):
         columns = {
             row[1] for row in self.conn.execute("PRAGMA table_info(metrics)")
         }
+        source_columns = {
+            row[1]
+            for row in self.conn.execute("PRAGMA table_info(collector_sources)")
+        }
         indexes = {
             row[1] for row in self.conn.execute("PRAGMA index_list(metrics)")
         }
@@ -180,6 +184,7 @@ class MigrationAndIngestTests(unittest.TestCase):
         self.assertIn("collector_sources", tables)
         self.assertIn("events", tables)
         self.assertIn("dedupe_key", columns)
+        self.assertIn("data_timestamp_ts", source_columns)
         self.assertIn("idx_metrics_dedupe_key", indexes)
 
     def test_existing_database_migrates_without_rewriting_rows(self):
@@ -201,13 +206,48 @@ class MigrationAndIngestTests(unittest.TestCase):
         legacy.execute(
             "INSERT INTO metrics (metric_name, ts, value) VALUES ('legacy.metric', 1, 2)"
         )
+        legacy.execute(
+            """
+            CREATE TABLE collector_sources (
+                source_id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                expected_interval_seconds INTEGER NOT NULL,
+                last_attempt_ts INTEGER,
+                last_success_ts INTEGER,
+                source_timestamp_ts INTEGER,
+                last_payload_hash TEXT,
+                last_row_count INTEGER,
+                consecutive_failures INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
+                publication_mode TEXT NOT NULL DEFAULT 'polling',
+                publication_interval_seconds INTEGER,
+                checkpoint_json TEXT,
+                updated_at INTEGER NOT NULL
+            )
+            """
+        )
         legacy.commit()
 
+        server.init_db(legacy)
         server.init_db(legacy)
 
         self.assertEqual(legacy.execute("SELECT COUNT(*) FROM metrics").fetchone()[0], 1)
         self.assertIn(
             "dedupe_key", {row[1] for row in legacy.execute("PRAGMA table_info(metrics)")}
+        )
+        self.assertIn(
+            "data_timestamp_ts",
+            {
+                row[1]
+                for row in legacy.execute("PRAGMA table_info(collector_sources)")
+            },
+        )
+        self.assertEqual(
+            sum(
+                row[1] == "data_timestamp_ts"
+                for row in legacy.execute("PRAGMA table_info(collector_sources)")
+            ),
+            1,
         )
         legacy.close()
 
@@ -376,6 +416,46 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         self.assertEqual(health["freshness_state"], "event_driven")
         self.assertEqual(health["collection_age_seconds"], 60)
         self.assertEqual(health["data_age_seconds"], 9_060)
+
+    def test_core_data_timestamp_drives_freshness_instead_of_payload_timestamp(self):
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "supply_demand",
+                "display_name": "ERCOT Supply and Demand",
+                "expected_interval_seconds": 300,
+                "attempted_at": 10_000,
+                "success": True,
+                "source_timestamp_ts": 10_000,
+                "data_timestamp_ts": 1_000,
+                "row_count": 800,
+            },
+            current_ts=10_000,
+        )
+
+        health = server.list_source_health(self.conn, 10_060)[0]
+
+        self.assertEqual(health["state"], "stale")
+        self.assertEqual(health["source_age_seconds"], 60)
+        self.assertEqual(health["data_age_seconds"], 9_060)
+        self.assertEqual(health["data_timestamp_ts"], 1_000)
+
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "supply_demand",
+                "display_name": "ERCOT Supply and Demand",
+                "expected_interval_seconds": 300,
+                "attempted_at": 10_070,
+                "success": False,
+                "row_count": 0,
+                "error": "source_http_503",
+            },
+            current_ts=10_070,
+        )
+        failed_health = server.list_source_health(self.conn, 10_080)[0]
+        self.assertEqual(failed_health["data_timestamp_ts"], 1_000)
+        self.assertEqual(failed_health["data_age_seconds"], 9_080)
 
     def test_query_limits_reject_unbounded_or_oversized_requests(self):
         with self.assertRaisesRegex(ValueError, "max_points_exceeds_limit"):

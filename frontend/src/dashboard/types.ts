@@ -122,7 +122,9 @@ export type SourceHealth = {
   last_success_ts: number | null;
   source_id: string;
   source_timestamp_ts: number | null;
+  data_timestamp_ts?: number | null;
   collection_age_seconds: number | null;
+  source_age_seconds?: number | null;
   collection_state: "delayed" | "failed" | "healthy";
   data_age_seconds: number | null;
   freshness_state: "delayed" | "event_driven" | "fresh" | "stale" | "unknown";

@@ -66,11 +66,18 @@ export async function parseWindSolar(payload: RenewablePayload): Promise<SourceR
       );
     }
   }
-  if (!metrics.length) throw new Error("wind_solar_zero_core_rows");
+  const actualMetrics = metrics.filter(
+    (entry) => entry.metric_name === "ercot.renewables.actual_mw",
+  );
+  const actualTimestamps = actualMetrics.flatMap((entry) =>
+    entry.points.map((point) => point.timestamp ?? 0),
+  );
+  if (!actualTimestamps.length) throw new Error("wind_solar_zero_core_rows");
   return {
     metrics,
     events: [],
     sourceTimestamp,
+    dataTimestamp: Math.max(...actualTimestamps),
     payloadHash: await payloadHash(payload),
     diagnostics: { rows: Object.keys(rows).length },
   };
@@ -94,6 +101,7 @@ export const adapter: SourceAdapter = {
     "ercot.renewables.hsl_day_ahead_mw",
   ],
   overlapSeconds: 7200,
+  publicationIntervalSeconds: 3600,
   gather,
 };
 
