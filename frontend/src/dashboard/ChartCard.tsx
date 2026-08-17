@@ -89,7 +89,7 @@ const interpretationFill = {
 
 function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
   const rows = ["series,timestamp_iso,timestamp_epoch,value"];
-  for (const series of chart.series) {
+  for (const series of chart.series.filter((candidate) => !candidate.inputOnly)) {
     const loaded = data.get(seriesKey(chart.id, series.id));
     for (const [timestamp, value] of loaded?.points ?? []) {
       rows.push(
@@ -157,6 +157,10 @@ export function ChartCard({
   const resolvedInterpretation = interpretation
     ? resolveInterpretationBands(interpretation, seriesData)
     : [];
+  const visibleSeries = useMemo(
+    () => chart.series.filter((series) => !series.inputOnly),
+    [chart.series],
+  );
 
   useEffect(() => {
     cursorActive.current = visible && interactionPolicy.cursorPin;
@@ -186,7 +190,7 @@ export function ChartCard({
 
   const datasets = useMemo<Array<ChartDataset<"line", ScatterDataPoint[]>>>(() => {
     const output: Array<ChartDataset<"line", ScatterDataPoint[]>> = [];
-    for (const series of chart.series) {
+    for (const series of visibleSeries) {
       const key = seriesKey(chart.id, series.id);
       const loaded = seriesData.get(key);
       const hidden = hiddenSeries.has(key);
@@ -221,8 +225,8 @@ export function ChartCard({
       }
     }
     return output;
-  }, [chart, compare, hiddenSeries, seriesData]);
-  const hasData = chart.series.some(
+  }, [chart, compare, hiddenSeries, seriesData, visibleSeries]);
+  const hasData = visibleSeries.some(
     (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
   );
 
@@ -314,7 +318,7 @@ export function ChartCard({
           }
           context.restore();
         }
-        const partial = chart.series.some(
+        const partial = visibleSeries.some(
           (series) =>
             dynamic.current.seriesData.get(seriesKey(chart.id, series.id))?.meta
               .partial_current_bucket,
@@ -398,6 +402,24 @@ export function ChartCard({
             grid: { color: "rgba(148, 163, 184, 0.08)" },
           },
           y: {
+            ...(chart.zeroCentered
+              ? {
+                  suggestedMin:
+                    -Math.max(
+                      0,
+                      ...datasets.flatMap((dataset) =>
+                        dataset.data.map((point) => Math.abs(point.y ?? 0)),
+                      ),
+                    ) || -1,
+                  suggestedMax:
+                    Math.max(
+                      0,
+                      ...datasets.flatMap((dataset) =>
+                        dataset.data.map((point) => Math.abs(point.y ?? 0)),
+                      ),
+                    ) || 1,
+                }
+              : {}),
             ticks: {
               color: "#94a3b8",
               callback: (value) => formatValue(Number(value), chart.unit),
@@ -483,7 +505,7 @@ export function ChartCard({
     window.__ercotChartLifecycle.updated += 1;
   }, [datasets, events, seriesData, time.end, time.start]);
 
-  const allPoints = chart.series.flatMap(
+  const allPoints = visibleSeries.flatMap(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.points ?? [],
   );
   const errors = chart.series
@@ -506,7 +528,7 @@ export function ChartCard({
           : ` · last valid observation ${formatAge(sourceHealth?.data_age_seconds ?? null)}.`
       }`
     : undefined;
-  const partial = chart.series.some(
+  const partial = visibleSeries.some(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.meta.partial_current_bucket,
   );
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
@@ -753,7 +775,7 @@ export function ChartCard({
         <div
           className={`series-legend legend-${presentation === "featured" && !inspect ? "compact" : legendMode}`}
         >
-          {chart.series.map((series) => {
+          {visibleSeries.map((series) => {
             const key = seriesKey(chart.id, series.id);
             const loaded = seriesData.get(key);
             const sampledStats = seriesStats(loaded?.points ?? []);
@@ -816,7 +838,7 @@ export function ChartCard({
                 </tr>
               </thead>
               <tbody>
-                {chart.series.flatMap((series) =>
+                {visibleSeries.flatMap((series) =>
                   (seriesData.get(seriesKey(chart.id, series.id))?.points ?? [])
                     .slice(-250)
                     .map(([timestamp, value]) => (

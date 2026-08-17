@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type CSSProperties,
   type FormEvent,
   type RefObject,
   type SetStateAction,
@@ -46,6 +47,8 @@ import {
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
+import { settlementFreshness, settlementPointMetadata } from "./dashboard/settlement-points";
+import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import {
   navigateWindow,
   resetLive,
@@ -95,6 +98,38 @@ const overviewQueries = [
   { id: "frequency", metric: "ercot.Frequency.Current_Frequency" },
   { id: "price", metric: "ercot.pricing", tags: ["ercot_region:HB_HOUSTON"] },
 ] as const;
+
+function WeatherConditions({
+  latest,
+}: {
+  latest: Map<string, { ts: number; value: number } | null>;
+}) {
+  return (
+    <section aria-labelledby="weather-conditions-title" className="weather-conditions">
+      <div className="weather-conditions-heading">
+        <p className="eyebrow">Latest METAR</p>
+        <h2 id="weather-conditions-title">Current wind conditions</h2>
+        <p>Arrows show where the air is moving; the compass label shows where it comes from.</p>
+      </div>
+      <div className="weather-conditions-grid">
+        {weatherStations.map((station) => {
+          const condition = formatWindCondition(
+            latest.get(`weather-${station.id}-speed`) ?? undefined,
+            latest.get(`weather-${station.id}-direction`) ?? undefined,
+            latest.get(`weather-${station.id}-gust`) ?? undefined,
+          );
+          return (
+            <article aria-label={`${station.label}: ${condition.accessible}`} key={station.code}>
+              <span>{station.label}</span>
+              <strong>{condition.headline}</strong>
+              <small>{condition.detail}</small>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 const rangeOptions = [
   [3600, "1 hour"],
@@ -374,20 +409,94 @@ function MetricOverviewCard({
   loading: boolean;
 }) {
   const trendUnavailable = !loading && item.trend.direction === "unavailable";
+  const valueLabel = loading
+    ? "Loading…"
+    : item.unit === null
+      ? "—"
+      : formatValue(item.value, item.unit);
   return (
     <article
-      aria-label={`${item.label}: ${loading ? "loading" : item.unit === null ? "unavailable" : formatValue(item.value, item.unit)}. ${trendUnavailable ? "Recent comparison unavailable." : ""}`}
+      aria-label={`${item.label}: ${loading ? "loading" : item.unit === null ? "unavailable" : valueLabel}.`}
       className="overview-card"
       data-metric-id={item.id}
     >
       <span>{item.label}</span>
-      <strong>
-        {loading ? "Loading…" : item.unit === null ? "—" : formatValue(item.value, item.unit)}
-      </strong>
-      {trendUnavailable ? null : (
+      <strong>{valueLabel}</strong>
+      {trendUnavailable ? (
+        <div aria-hidden="true" className="hero-trend hero-trend-empty" />
+      ) : (
         <HeroTrendDetail id={item.id} label={item.label} loading={loading} trend={item.trend} />
       )}
     </article>
+  );
+}
+
+function GridHealthSummary({
+  gridHealth,
+}: {
+  gridHealth: ReturnType<typeof buildGridHealthScore>;
+}) {
+  const pressures = gridHealth.factors
+    .filter((factor) => factor.penalty !== null && factor.penalty > 0)
+    .sort((left, right) => (right.penalty ?? 0) - (left.penalty ?? 0))
+    .slice(0, 2)
+    .map((factor) => factor.label.toLowerCase());
+  const accessibleFactors = gridHealth.factors
+    .map((factor) => {
+      if (factor.penalty === null) {
+        return `${factor.label}: unavailable, ${String(factor.weight)} points possible`;
+      }
+      return `${factor.label}: ${String(Math.round(factor.weight - factor.penalty))} of ${String(factor.weight)} points retained`;
+    })
+    .join(". ");
+  return (
+    <section
+      aria-label={`Grid Health: ${gridHealth.label}. ${gridHealth.score === null ? "Not enough fresh inputs to calculate the score." : `${String(gridHealth.score)} of 100 with ${String(gridHealth.coveragePercent)} percent input coverage.`} ${accessibleFactors}`}
+      className="grid-health-summary"
+      data-health-status={gridHealth.status}
+    >
+      <div className="grid-health-summary-heading">
+        <div>
+          <span>Grid Health</span>
+          <strong>{gridHealth.label}</strong>
+        </div>
+        <div className="grid-health-summary-score">
+          {gridHealth.score === null ? (
+            <strong>Not enough fresh inputs</strong>
+          ) : (
+            <strong>
+              {String(gridHealth.score)} <span>/ 100</span>
+            </strong>
+          )}
+          <small>{String(gridHealth.coveragePercent)}% input coverage</small>
+        </div>
+      </div>
+      <div aria-hidden="true" className="grid-health-contribution-bar">
+        {gridHealth.factors.map((factor) => {
+          const retained = factor.penalty === null ? 0 : factor.weight - factor.penalty;
+          const style = {
+            "--factor-retained": `${String((retained / factor.weight) * 100)}%`,
+            "--factor-weight": String(factor.weight),
+          } as CSSProperties;
+          return (
+            <span
+              className="grid-health-contribution"
+              data-available={factor.available}
+              key={factor.id}
+              style={style}
+              title={`${factor.label}: ${factor.available ? `${String(Math.round(retained))} of ${String(factor.weight)} points` : "input unavailable"}`}
+            />
+          );
+        })}
+      </div>
+      <p>
+        {gridHealth.score === null
+          ? "Fresh demand, capacity, frequency, and sufficient weighted coverage are required."
+          : pressures.length
+            ? `Main pressure: ${pressures.join(", ")}.`
+            : "No material pressure is present in the available inputs."}
+      </p>
+    </section>
   );
 }
 
@@ -841,18 +950,19 @@ export function App() {
         limited: "Limited",
         unavailable: "Unavailable",
       }[operatingSummary.coreDataState];
-  const unavailableTrendCount = visibleOverview.filter(
-    (item) => !overviewLoading && item.trend.direction === "unavailable",
-  ).length;
   const updatedAge = operatingSummary.coreObservedAt
     ? formatAge(Math.max(0, nowSeconds() - operatingSummary.coreObservedAt)).replace(" old", " ago")
-    : "time unavailable";
+    : null;
   const freshnessLabel =
     state.time.mode === "fixed"
       ? "Viewing a fixed analysis window"
       : state.time.paused
-        ? `Paused · updated ${updatedAge}`
-        : `Updated ${updatedAge}`;
+        ? updatedAge
+          ? `Paused · updated ${updatedAge}`
+          : "Paused"
+        : updatedAge
+          ? `Updated ${updatedAge}`
+          : "Live";
   const sourceDetail = diagnostics.worstSource
     ? diagnostics.worstSource.display_name.replace(/^ERCOT /, "") +
       " " +
@@ -875,6 +985,19 @@ export function App() {
     loading: overviewLoading,
     unavailable: Boolean(effectiveRequestError),
   });
+  const settlementRows = priceRanking.map((row) => ({
+    ...row,
+    metadata: settlementPointMetadata(row.tag),
+  }));
+  const houstonSettlement = settlementRows.find((row) => row.metadata.code === "HB_HOUSTON");
+  const settlementValues = settlementRows.map((row) => row.value);
+  const settlementSpread = settlementValues.length
+    ? Math.max(...settlementValues) - Math.min(...settlementValues)
+    : null;
+  const settlementObservedAt = Math.max(...settlementRows.map((row) => row.ts), 0);
+  const settlementAge = settlementObservedAt
+    ? Math.max(0, nowSeconds() - settlementObservedAt)
+    : null;
   const sourceHeadline =
     sourceLifecycleState === "ready"
       ? diagnostics.headline
@@ -969,9 +1092,11 @@ export function App() {
             ERCOT Grid Status
           </h1>
         </div>
-        <p className="freshness-state" data-mode={state.time.mode}>
-          {freshnessLabel}
-        </p>
+        {state.time.mode === "fixed" ? null : (
+          <p className="freshness-state" data-mode={state.time.mode}>
+            {freshnessLabel}
+          </p>
+        )}
         <section aria-label="Global dashboard controls" className="control-bar compact-control-bar">
           <TimeRangeSelect setState={setState} state={state} />
           <Button
@@ -1021,16 +1146,11 @@ export function App() {
                 <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
               ))}
             </section>
-            {unavailableTrendCount ? (
-              <p className="trend-availability-note">
-                Recent comparison unavailable for {String(unavailableTrendCount)} reading
-                {unavailableTrendCount === 1 ? "" : "s"}.
-              </p>
-            ) : null}
-
             <section aria-label="Featured grid trend" className="featured-chart-section">
               {renderChart(featuredChart, "featured")}
             </section>
+
+            <GridHealthSummary gridHealth={gridHealth} />
 
             {isMobile ? (
               <details className="mobile-supporting-metrics">
@@ -1146,7 +1266,9 @@ export function App() {
                 </p>
                 <p className="grid-health-current-result">
                   Current result:{" "}
-                  {gridHealth.score === null ? "unavailable" : `${String(gridHealth.score)} / 100`}{" "}
+                  {gridHealth.score === null
+                    ? "not enough fresh inputs"
+                    : `${String(gridHealth.score)} / 100`}{" "}
                   · {gridHealth.detail}
                 </p>
                 <ol aria-label="Grid Health Score factors">
@@ -1236,25 +1358,70 @@ export function App() {
               <h2>Latest settlement point prices</h2>
             </div>
             {priceLifecycleState === "ready" ? (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Settlement point</th>
-                      <th>Price</th>
-                      <th>Observed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {priceRanking.map((row) => (
-                      <tr key={row.tag}>
-                        <td>{row.tag.replace("ercot_region:", "")}</td>
-                        <td>{formatValue(row.value, "$/MWh")}</td>
-                        <td>{new Date(row.ts * 1000).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="market-price-context">
+                <div aria-label="Settlement price summary" className="market-summary-grid">
+                  <article>
+                    <span>Houston Hub</span>
+                    <strong>
+                      {houstonSettlement
+                        ? formatValue(houstonSettlement.value, "$/MWh")
+                        : "Not reported"}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>High–low spread</span>
+                    <strong>
+                      {settlementSpread === null
+                        ? "Not reported"
+                        : formatValue(settlementSpread, "$/MWh")}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>Regional context</span>
+                    <strong>
+                      {settlementSpread !== null && settlementSpread >= 100
+                        ? "Material divergence"
+                        : "Broadly aligned"}
+                    </strong>
+                  </article>
+                  <article>
+                    <span>Publication</span>
+                    <strong>
+                      {settlementAge === null ? "Not reported" : formatAge(settlementAge)}
+                    </strong>
+                    {settlementAge === null ? null : (
+                      <small>{settlementFreshness(settlementAge)}</small>
+                    )}
+                  </article>
+                </div>
+                <details className="market-ranking-details">
+                  <summary>Complete hub and load-zone ranking</summary>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Settlement point</th>
+                          <th>Price</th>
+                          <th>Observed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {settlementRows.map((row) => (
+                          <tr key={row.tag}>
+                            <td>
+                              <strong>{row.metadata.label}</strong>
+                              <small>
+                                {row.metadata.type} · {row.metadata.code}
+                              </small>
+                            </td>
+                            <td>{formatValue(row.value, "$/MWh")}</td>
+                            <td>{new Date(row.ts * 1000).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
               </div>
             ) : (
               <DataLifecycleMessage
@@ -1270,8 +1437,11 @@ export function App() {
           </section>
         ) : null}
 
+        {selectedView === "weather" ? <WeatherConditions latest={latest} /> : null}
+
         {activeChartGroups.map((group) => {
-          const collapsed = collapsedGroups.has(group);
+          const showGroupHeading = activeView.groups.length > 1;
+          const collapsed = showGroupHeading && collapsedGroups.has(group);
           const groupInformation = chartGroupDefinition(group);
           return (
             <section
@@ -1280,25 +1450,27 @@ export function App() {
               data-information-level={groupInformation.level}
               key={group}
             >
-              <button
-                aria-expanded={!collapsed}
-                aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
-                className="group-heading"
-                onClick={() =>
-                  setCollapsedGroups((current) => {
-                    const next = new Set(current);
-                    if (next.has(group)) next.delete(group);
-                    else next.add(group);
-                    return next;
-                  })
-                }
-              >
-                <span>
-                  {group}
-                  <small>{groupInformation.description}</small>
-                </span>
-                <span>{collapsed ? "Expand" : "Collapse"}</span>
-              </button>
+              {showGroupHeading ? (
+                <button
+                  aria-expanded={!collapsed}
+                  aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
+                  className="group-heading"
+                  onClick={() =>
+                    setCollapsedGroups((current) => {
+                      const next = new Set(current);
+                      if (next.has(group)) next.delete(group);
+                      else next.add(group);
+                      return next;
+                    })
+                  }
+                >
+                  <span>
+                    {group}
+                    <small>{groupInformation.description}</small>
+                  </span>
+                  <span>{collapsed ? "Expand" : "Collapse"}</span>
+                </button>
+              ) : null}
               {!collapsed ? (
                 <div className="chart-grid">
                   {chartDefinitions

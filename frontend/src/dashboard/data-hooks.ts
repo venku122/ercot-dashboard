@@ -13,6 +13,7 @@ import {
 import { derivedLatestQueries } from "./derived-metrics";
 import { healthLatestQueries } from "./grid-health-score";
 import type { EventRecord, TimeState } from "./types";
+import { weatherLatestQueries } from "./weather";
 
 export const REFRESH_CADENCE_MS = {
   events: 180_000,
@@ -61,7 +62,12 @@ export function useOverviewData({
   time: TimeState;
 }) {
   const allLatestQueries = useMemo(
-    () => [...overviewQueries, ...derivedLatestQueries, ...healthLatestQueries],
+    () => [
+      ...overviewQueries,
+      ...derivedLatestQueries,
+      ...healthLatestQueries,
+      ...weatherLatestQueries,
+    ],
     [overviewQueries],
   );
   const fastQueries = useMemo(

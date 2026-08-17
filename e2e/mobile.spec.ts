@@ -76,7 +76,7 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
   await page.keyboard.press("Enter");
   await expect(page.getByLabel("Global dashboard controls")).toBeVisible();
   await expect(page.getByRole("button", { name: "Analyze" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Grid conditions Collapse" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Grid conditions Collapse" })).toHaveCount(0);
   await expect(page.locator('[data-group="Generation"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Generation view" })).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("legend")).toBe("compact");
@@ -185,7 +185,6 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
     page.locator(".mobile-supporting-metrics > summary"),
     page.getByRole("button", { name: "Analyze" }),
     page.getByLabel("Time range"),
-    page.getByRole("button", { name: "Grid conditions Collapse" }),
     card.getByRole("button", { name: "Open Supply and demand inspect mode" }),
     card.getByLabel("Supply and demand chart menu"),
     card.getByRole("button", { name: "Actual demand", exact: true }),
@@ -261,10 +260,11 @@ test("P0 negative price ranking remains accessible in Market @mobile-core", asyn
   await expect(page.getByLabel("Settlement price summary")).toHaveCount(0);
   await page.getByRole("button", { name: "Market view" }).click();
   const ranking = page.getByLabel("Settlement price ranking");
+  await ranking.getByText("Complete hub and load-zone ranking", { exact: true }).click();
   await expect(ranking.getByRole("table")).toBeVisible();
-  await expect(ranking.getByText("HB_NORTH", { exact: true })).toBeVisible();
+  await expect(ranking.getByText(/Hub · HB_NORTH/)).toBeVisible();
   await expect(ranking.getByText(/-\$42\.16\/MWh/)).toBeVisible();
-  await expect(ranking.getByText("HB_SOUTH", { exact: true })).toBeVisible();
+  await expect(ranking.getByText(/Hub · HB_SOUTH/)).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
@@ -349,8 +349,7 @@ test("P0 view navigation updates URL, content, and focus @mobile-core", async ({
   await installMobileApi(page, "normal", requests);
   await page.goto("/");
   await page.getByRole("button", { name: "Market view" }).click();
-  const heading = page.getByRole("button", { name: "Market Collapse" });
-  await expect(heading).toBeVisible();
+  await expect(page.getByRole("button", { name: "Market Collapse" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Market", exact: true })).toBeFocused();
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("market");
   await page.locator('[data-chart-id="pricing"]').scrollIntoViewIfNeeded();
@@ -368,7 +367,7 @@ test("P0 all canonical views are reachable and browser history restores them @mo
   await expect(
     navigation.getByRole("button", { name: /More views, Weather selected/ }),
   ).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("button", { name: "Weather Collapse" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Weather Collapse" })).toHaveCount(0);
   await expect(page.locator('[data-group="Grid conditions"]')).toHaveCount(0);
 
   await openMoreView(page, "Advanced");
@@ -376,7 +375,7 @@ test("P0 all canonical views are reachable and browser history restores them @mo
     await expect(page.getByRole("button", { name: `${group} Collapse` })).toBeVisible();
   }
   await openMoreView(page, "Diagnostics");
-  await expect(page.getByRole("button", { name: "Diagnostics Collapse" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Diagnostics Collapse" })).toHaveCount(0);
   await expect(page.getByLabel("System health details")).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("diagnostics");
 
@@ -388,7 +387,7 @@ test("P0 all canonical views are reachable and browser history restores them @mo
   );
   await page.goBack();
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("weather");
-  await expect(page.getByRole("button", { name: "Weather Collapse" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Weather Collapse" })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });
 
@@ -627,4 +626,42 @@ test("landscape inspect remains usable @landscape-vri", async ({ page }) => {
   await expect(inspect).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expect(inspect).toHaveScreenshot("mobile-inspect-landscape.png");
+});
+
+test("iPad weather and advanced analytics remain readable in both orientations @tablet", async ({
+  page,
+}, testInfo) => {
+  await openPopulated(page, "normal", "/?view=weather");
+  const conditions = page.getByLabel("Current wind conditions");
+  await expect(conditions.getByRole("article")).toHaveCount(4);
+  await expect(
+    conditions.getByRole("article", { name: /Dallas\/Fort Worth: Wind from northwest/ }),
+  ).toBeVisible();
+  await expect(page.locator('[data-chart-id="weather-wind"]')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  if (process.env["CAMPAIGN_CAPTURE_DIR"]) {
+    await page.screenshot({
+      fullPage: true,
+      path: `${process.env["CAMPAIGN_CAPTURE_DIR"]}/${testInfo.project.name}-weather.png`,
+    });
+  }
+
+  await page.unrouteAll({ behavior: "wait" });
+  await openPopulated(page, "normal", "/?view=advanced");
+  const recovery = page.locator('[data-chart-id="time-error-recovery"]');
+  await recovery.scrollIntoViewIfNeeded();
+  await expect(recovery).toBeVisible();
+  await expect(
+    recovery.getByRole("button", { name: "Absolute error trend", exact: true }),
+  ).toBeVisible();
+  await expect(recovery.getByText("Instantaneous time error input", { exact: true })).toHaveCount(
+    0,
+  );
+  await expectNoHorizontalOverflow(page);
+  if (process.env["CAMPAIGN_CAPTURE_DIR"]) {
+    await page.screenshot({
+      fullPage: true,
+      path: `${process.env["CAMPAIGN_CAPTURE_DIR"]}/${testInfo.project.name}-advanced.png`,
+    });
+  }
 });
