@@ -219,8 +219,47 @@ test("production regression fixture keeps actual demand and available capacity v
   await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
 });
 
-async function installApi(page: Page, scenario: Scenario = "normal", requests: string[][] = []) {
+test("fixed seven-day windows use canonical cacheable history chunks", async ({ page }) => {
+  const chunkRequests: string[] = [];
+  await installApi(page, "normal", [], chunkRequests);
+  const to = FIXED_NOW_SECONDS - 2 * 86_400;
+  const from = to - 7 * 86_400;
+  await page.goto(
+    `/?range=604800&live=0&from=${String(from)}&to=${String(to)}&compare=none&events=1`,
+  );
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect.poll(() => chunkRequests.length).toBeGreaterThan(0);
+  expect(chunkRequests.every((url) => url.includes("chunk_seconds=86400"))).toBe(true);
+});
+
+async function installApi(
+  page: Page,
+  scenario: Scenario = "normal",
+  requests: string[][] = [],
+  chunkRequests: string[] = [],
+) {
   await page.clock.setFixedTime(FIXED_NOW);
+  await page.route("**/api/v1/series/chunk**", async (route) => {
+    const url = new URL(route.request().url());
+    chunkRequests.push(url.toString());
+    const metric = url.searchParams.get("metric") ?? "fixture";
+    const tags = url.searchParams.getAll("tag");
+    const start = Number(url.searchParams.get("start"));
+    const end = Number(url.searchParams.get("end"));
+    const resolution = Number(url.searchParams.get("resolution"));
+    const points: Array<[number, number]> = [];
+    for (let timestamp = start; timestamp < end; timestamp += resolution) {
+      points.push([
+        timestamp,
+        metricValue(metric, tags, Math.round((timestamp - start) / resolution), scenario),
+      ]);
+    }
+    await route.fulfill({
+      json: { aggregation: "average", end, metric, points, resolution, start, tags },
+    });
+  });
   await page.route("**/api/series/batch", async (route) => {
     if (scenario === "error") {
       await route.fulfill({ status: 503, body: "fixture upstream unavailable" });
