@@ -36,8 +36,8 @@ type SeriesResult = {
   points?: Point[];
 };
 
-async function fetchJson<T>(url: string, init: RequestInit, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { ...init, signal });
+async function fetchJson<T>(url: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, { ...init, ...(signal ? { signal } : {}) });
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(`api_${response.status}:${detail.slice(0, 160)}`);
@@ -151,7 +151,7 @@ export function mergePoints(previous: Point[], next: Point[], start: number, end
 
 export async function loadLatest(
   queries: LatestQuery[],
-  signal: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<Map<string, LatestResult["point"]>> {
   const response = await fetchJson<{
     latest: Array<{ id: string; point: LatestResult["point"] }>;
@@ -172,7 +172,7 @@ export async function loadLatest(
 export async function loadTrendBaselines(
   queries: LatestQuery[],
   until: number,
-  signal: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<Map<string, TrendBaseline>> {
   const since = Math.round(until - 3600);
   const response = await fetchJson<{ series: SeriesResult[] }>(
@@ -214,7 +214,7 @@ export async function loadTrendBaselines(
 
 export async function loadDerivedContext(
   now: number,
-  signal: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<Map<string, Point[]>> {
   const queries: SeriesQuery[] = [
     {
@@ -264,7 +264,7 @@ export async function loadDerivedContext(
   );
 }
 
-export async function loadPriceRanking(signal: AbortSignal): Promise<RankingRow[]> {
+export async function loadPriceRanking(signal?: AbortSignal): Promise<RankingRow[]> {
   const params = new URLSearchParams({
     metric: "ercot.pricing",
     tag_prefix: "ercot_region:",
@@ -278,7 +278,7 @@ export async function loadPriceRanking(signal: AbortSignal): Promise<RankingRow[
   return response.rows;
 }
 
-export async function loadSourceHealth(signal: AbortSignal): Promise<SourceHealth[]> {
+export async function loadSourceHealth(signal?: AbortSignal): Promise<SourceHealth[]> {
   const response = await fetchJson<{ sources: SourceHealth[] }>(
     "/api/v1/source-health",
     { method: "GET" },
@@ -287,7 +287,7 @@ export async function loadSourceHealth(signal: AbortSignal): Promise<SourceHealt
   return response.sources;
 }
 
-export async function loadEvents(time: TimeState, signal: AbortSignal): Promise<EventRecord[]> {
+export async function loadEvents(time: TimeState, signal?: AbortSignal): Promise<EventRecord[]> {
   const params = new URLSearchParams({
     since: String(Math.round(time.start)),
     until: String(Math.round(time.end)),

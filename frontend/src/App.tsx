@@ -15,17 +15,7 @@ import {
 import { MobileDialog } from "./components/MobileDialog";
 import { DataLifecycleMessage } from "./components/DataLifecycleMessage";
 import { Button } from "./components/ui/button";
-import {
-  loadEvents,
-  loadDerivedContext,
-  loadLatest,
-  loadPriceRanking,
-  loadSeries,
-  loadSourceHealth,
-  loadTrendBaselines,
-  type RankingRow,
-  type TrendBaseline,
-} from "./dashboard/api";
+import { loadSeries } from "./dashboard/api";
 import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
@@ -36,11 +26,8 @@ import {
   type DataLifecycleState,
 } from "./dashboard/data-lifecycle";
 import { OperationsTimeline } from "./dashboard/OperationsTimeline";
-import {
-  buildDerivedMetrics,
-  derivedLatestQueries,
-  type LatestPoint,
-} from "./dashboard/derived-metrics";
+import { buildDerivedMetrics } from "./dashboard/derived-metrics";
+import { useOverviewData } from "./dashboard/data-hooks";
 import {
   chartGroupDefinition,
   criticalMetricDefinitions,
@@ -57,7 +44,7 @@ import {
   type DashboardViewId,
 } from "./dashboard/information-architecture";
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
-import { buildGridHealthScore, healthLatestQueries } from "./dashboard/grid-health-score";
+import { buildGridHealthScore } from "./dashboard/grid-health-score";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
 import {
   navigateWindow,
@@ -71,7 +58,6 @@ import {
 import type {
   CompareMode,
   DashboardState,
-  EventRecord,
   LegendMode,
   LoadedSeries,
   SourceHealth,
@@ -514,16 +500,7 @@ export function App() {
   const [seriesData, setSeriesData] = useState<Map<string, LoadedSeries>>(new Map());
   const seriesDataRef = useRef(seriesData);
   const zoomOriginRef = useRef<TimeState | null>(null);
-  const [sourceHealth, setSourceHealth] = useState<SourceHealth[]>([]);
-  const [latest, setLatest] = useState<Map<string, LatestPoint>>(new Map());
-  const [trendBaselines, setTrendBaselines] = useState<Map<string, TrendBaseline>>(new Map());
-  const [derivedContext, setDerivedContext] = useState<Map<string, [number, number][]>>(new Map());
-  const [overviewAsOf, setOverviewAsOf] = useState(nowSeconds());
-  const [priceRanking, setPriceRanking] = useState<RankingRow[]>([]);
-  const [events, setEvents] = useState<EventRecord[]>([]);
-  const [statusEvents, setStatusEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [overviewLoading, setOverviewLoading] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestRevision, setRequestRevision] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
@@ -543,6 +520,21 @@ export function App() {
   const eventsTriggerRef = useRef<HTMLButtonElement>(null);
   const dashboardTitleRef = useRef<HTMLHeadingElement>(null);
   const viewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const {
+    derivedContext,
+    error: overviewError,
+    events,
+    isLoading: overviewLoading,
+    isValidating: overviewValidating,
+    latest,
+    observedAt: overviewAsOf,
+    priceRanking,
+    retry: retryOverview,
+    sourceHealth,
+    statusEvents,
+    trendBaselines,
+  } = useOverviewData({ eventsEnabled: state.events, overviewQueries, time: state.time });
+  const effectiveRequestError = overviewError ?? requestError;
 
   useEffect(() => {
     seriesDataRef.current = seriesData;
@@ -637,62 +629,6 @@ export function App() {
   }, [selectedView]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    setOverviewLoading(true);
-    const trendUntil = nowSeconds();
-    const currentEventWindow = setRange(resetLive(state.time, trendUntil), 86_400, trendUntil);
-    const statusEventsRequest = loadEvents(currentEventWindow, controller.signal).catch(() => []);
-    const selectedEventsRequest = state.events
-      ? state.time.mode === "live" && state.time.rangeSeconds === currentEventWindow.rangeSeconds
-        ? statusEventsRequest
-        : loadEvents(state.time, controller.signal)
-      : Promise.resolve([]);
-    void Promise.all([
-      loadSourceHealth(controller.signal),
-      loadLatest(
-        [...overviewQueries, ...derivedLatestQueries, ...healthLatestQueries],
-        controller.signal,
-      ),
-      loadTrendBaselines([...overviewQueries], trendUntil, controller.signal).catch(
-        () => new Map<string, TrendBaseline>(),
-      ),
-      loadDerivedContext(trendUntil, controller.signal).catch(() => new Map()),
-      loadPriceRanking(controller.signal),
-      statusEventsRequest,
-      selectedEventsRequest,
-    ])
-      .then(
-        ([
-          nextHealth,
-          nextLatest,
-          nextTrendBaselines,
-          nextDerivedContext,
-          nextRanking,
-          nextStatusEvents,
-          nextEvents,
-        ]) => {
-          setSourceHealth(nextHealth);
-          setLatest(nextLatest);
-          setTrendBaselines(nextTrendBaselines);
-          setDerivedContext(nextDerivedContext);
-          setOverviewAsOf(trendUntil);
-          setPriceRanking(nextRanking);
-          setStatusEvents(nextStatusEvents);
-          setEvents(nextEvents);
-        },
-      )
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setRequestError(error instanceof Error ? error.message : String(error));
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setOverviewLoading(false);
-      });
-    return () => controller.abort();
-  }, [requestRevision, state.events, state.time.end, state.time.start]);
-
-  useEffect(() => {
     const closeInspect = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       chartCoordinator.clearPin();
@@ -719,8 +655,8 @@ export function App() {
   const diagnostics = useMemo(() => summarizeDiagnostics(sourceHealth), [sourceHealth]);
   const healthCounts = diagnostics.counts;
   const publicAlerts = useMemo(
-    () => rationalizeAlerts(statusEvents, sourceHealth, Boolean(requestError)),
-    [requestError, sourceHealth, statusEvents],
+    () => rationalizeAlerts(statusEvents, sourceHealth, Boolean(effectiveRequestError)),
+    [effectiveRequestError, sourceHealth, statusEvents],
   );
 
   const onZoom = useCallback((start: number, end: number) => {
@@ -885,10 +821,10 @@ export function App() {
         events: statusEvents,
         latest,
         now: overviewAsOf,
-        requestFailed: Boolean(requestError),
+        requestFailed: Boolean(effectiveRequestError),
         sources: sourceHealth,
       }),
-    [latest, overviewAsOf, requestError, sourceHealth, statusEvents],
+    [effectiveRequestError, latest, overviewAsOf, sourceHealth, statusEvents],
   );
   const compactOperatingLabel = overviewLoading
     ? "Checking…"
@@ -932,12 +868,12 @@ export function App() {
   const sourceLifecycleState = resolveDataLifecycleState({
     hasData: sourceHealth.length > 0,
     loading: overviewLoading,
-    unavailable: Boolean(requestError),
+    unavailable: Boolean(effectiveRequestError),
   });
   const priceLifecycleState = resolveDataLifecycleState({
     hasData: priceRanking.length > 0,
     loading: overviewLoading,
-    unavailable: Boolean(requestError),
+    unavailable: Boolean(effectiveRequestError),
   });
   const sourceHeadline =
     sourceLifecycleState === "ready"
@@ -951,7 +887,7 @@ export function App() {
         : dataLifecycleCopy[sourceLifecycleState].detail;
   const eventsLoading = Boolean(state.events && overviewLoading && !events.length);
   const eventsUnavailable = Boolean(
-    state.events && !overviewLoading && requestError && !events.length,
+    state.events && !overviewLoading && effectiveRequestError && !events.length,
   );
   const activeView = dashboardViewDefinition(selectedView);
   const activeChartGroups = chartGroups.filter(
@@ -977,6 +913,7 @@ export function App() {
     else {
       setRequestError(null);
       setRequestRevision((current) => current + 1);
+      void retryOverview();
     }
   };
 
@@ -1016,7 +953,7 @@ export function App() {
         onVisibilityChange={setChartVisible}
         onZoom={onZoom}
         presentation={presentation}
-        requestError={requestError}
+        requestError={effectiveRequestError}
         seriesData={seriesData}
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
         time={state.time}
@@ -1057,7 +994,12 @@ export function App() {
         />
       ) : null}
 
-      <main aria-label={`${activeView.label} dashboard view`} data-dashboard-view={selectedView}>
+      <main
+        aria-busy={overviewValidating && !overviewLoading}
+        aria-label={`${activeView.label} dashboard view`}
+        data-dashboard-view={selectedView}
+        data-overview-refresh={overviewValidating && !overviewLoading ? "background" : "idle"}
+      >
         {selectedView !== "overview" ? (
           <section className="dashboard-view-heading">
             <p className="eyebrow">Dashboard view</p>
