@@ -1,26 +1,33 @@
 # ERCOT scraper sources
 
-Live schemas were verified against official ERCOT resources on 2026-07-28. Success fixtures are
+Live schemas were rechecked against official ERCOT resources on 2026-08-14. Success fixtures are
 small immutable excerpts of those payloads under `ercot-collector/fixtures/`; an invalid JSON
-fixture, a zero-core fixture, and a repeated-hour storage fixture cover failures and DST.
+fixture, a zero-core fixture, and a repeated-hour storage fixture cover failures and DST. Fuel Mix
+has both the prior shape and the current no-`types` shape under fixture coverage.
 
-| Source                          | Content                                                                                      |   Poll | Source timestamp                          | Normalized output                                                               |
-| ------------------------------- | -------------------------------------------------------------------------------------------- | -----: | ----------------------------------------- | ------------------------------------------------------------------------------- |
-| `fuel-mix.json`                 | JSON: `lastUpdated`, `types`, `monthlyCapacity`, day/time/fuel maps                          |  5 min | `lastUpdated` includes numeric UTC offset | `ercot.fuel_mix.generation_mw`, `ercot.fuel_mix.seasonal_capacity_mw`; `fuel:*` |
-| `energy-storage-resources.json` | JSON: current/previous arrays with `epoch`, `timestamp`, `dstFlag`, charging/discharging/net |  5 min | `lastUpdated`; points use `epoch`         | charging, discharging, and net-output MW                                        |
-| `supply-demand.json`            | JSON: mixed actual/forecast rows plus hourly forecast rows                                   |  5 min | `lastUpdated`; points use `epoch`         | demand, committed/available capacity, forecast demand/capacity                  |
-| `generation-outages.json`       | JSON: current/previous epoch maps                                                            |  5 min | `lastUpdated`; map key is point epoch     | bounded Combined/Dispatchable/Renewable and planned/unplanned/total series      |
-| Operations Messages             | HTML table with datetime, summary, type, priority                                            |  3 min | newest message timestamp                  | structured deduped `events` rows                                                |
-| `combine-wind-solar.json`       | JSON: current/next-day epoch maps                                                            | 1 hour | `lastUpdated`; points use `epoch`         | wind/solar actual, short-term forecast, HSL, and day-ahead variants             |
+| Source                          | Content                                                                                      |   Poll | Source timestamp                                      | Normalized output                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------- | -----: | ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `fuel-mix.json`                 | JSON: `lastUpdated`, `monthlyCapacity`, day/time/fuel maps                                   |  5 min | `lastUpdated`; freshness uses newest generation point | `ercot.fuel_mix.generation_mw`, `ercot.fuel_mix.seasonal_capacity_mw`; `fuel:*` |
+| `energy-storage-resources.json` | JSON: current/previous arrays with `epoch`, `timestamp`, `dstFlag`, charging/discharging/net |  5 min | `lastUpdated`; points use `epoch`                     | charging, discharging, and net-output MW                                        |
+| `supply-demand.json`            | JSON: mixed actual/forecast rows plus hourly forecast rows                                   |  5 min | `lastUpdated`; points use `epoch`                     | demand, committed/available capacity, forecast demand/capacity                  |
+| `generation-outages.json`       | JSON: current/previous epoch maps                                                            |  5 min | `lastUpdated`; map key is point epoch                 | bounded Combined/Dispatchable/Renewable and planned/unplanned/total series      |
+| Operations Messages             | HTML table with datetime, summary, type, priority                                            |  3 min | newest message timestamp                              | structured deduped `events` rows                                                |
+| `combine-wind-solar.json`       | JSON: current/next-day epoch maps                                                            | 1 hour | `lastUpdated`; points use `epoch`                     | wind/solar actual, short-term forecast, HSL, and day-ahead variants             |
 
 Official resource URLs are defined beside each adapter. The dashboard links users to the matching
 ERCOT context page.
+
+PowerOutage.us is intentionally disabled: the deployment will not be configured with its paid API
+credential. The collector does not poll it, the public Reliability view does not expose its chart,
+and any legacy receiver health row is excluded from active diagnostics and Grid Health.
 
 ## Schema decisions
 
 - Fuel mix currently publishes generation and monthly seasonal capacity. It does **not** expose a
   per-fuel HSL field, so the collector does not fabricate one. Wind/solar HSL is collected from the
   combined renewable resource, where the live schema does publish `copHslWind` and `copHslSolar`.
+  The official Fuel Mix payload removed its former `types` array; fuel identities are derived from
+  the actual day/time maps instead.
 - Storage, supply/demand, outages, and combined wind/solar publish an epoch plus a DST flag. Epoch is
   authoritative, so repeated local hours remain distinct. Actuals retain a bounded overlap for
   corrections; mutable forecast identities are value-diffed from a receiver-persisted checkpoint.

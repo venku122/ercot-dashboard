@@ -4,6 +4,7 @@ type Scenario =
   | "empty"
   | "empty-panels"
   | "error"
+  | "fuel-failed"
   | "missing-core"
   | "negative"
   | "no-events"
@@ -204,6 +205,20 @@ test("chart thresholds pair semantic bands with non-color interpretation text", 
   );
 });
 
+test("production regression fixture keeps actual demand and available capacity visible", async ({
+  page,
+}) => {
+  await installApi(page);
+  await page.goto("/");
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect(card.getByRole("button", { name: "Actual demand", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Available capacity", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Forecast demand", exact: true })).toBeVisible();
+  await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
+});
+
 async function installApi(page: Page, scenario: Scenario = "normal", requests: string[][] = []) {
   await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/series/batch", async (route) => {
@@ -228,7 +243,7 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
         id: query.id,
         metric: query.metric,
         points:
-          scenario === "empty"
+          scenario === "empty" || (scenario === "fuel-failed" && query.metric.includes("fuel_mix"))
             ? []
             : Array.from({ length: count }, (_, index) => [
                 query.since + index * step,
@@ -298,15 +313,43 @@ async function installApi(page: Page, scenario: Scenario = "normal", requests: s
       source_timestamp_ts:
         scenario === "stale" && sourceId === "energy_storage" ? now - 4000 : now - 60,
       last_row_count: 25,
-      consecutive_failures: scenario === "stale" && sourceId === "energy_storage" ? 3 : 0,
-      last_error: scenario === "stale" && sourceId === "energy_storage" ? "fixture timeout" : null,
-      age_seconds: scenario === "stale" && sourceId === "energy_storage" ? 4000 : 60,
-      state: scenario === "stale" && sourceId === "energy_storage" ? "failed" : "healthy",
+      consecutive_failures:
+        (scenario === "stale" && sourceId === "energy_storage") ||
+        (scenario === "fuel-failed" && sourceId === "fuel_mix")
+          ? 3
+          : 0,
+      last_error:
+        scenario === "stale" && sourceId === "energy_storage"
+          ? "fixture timeout"
+          : scenario === "fuel-failed" && sourceId === "fuel_mix"
+            ? "fixture schema drift"
+            : null,
+      age_seconds:
+        (scenario === "stale" && sourceId === "energy_storage") ||
+        (scenario === "fuel-failed" && sourceId === "fuel_mix")
+          ? 4000
+          : 60,
+      state:
+        (scenario === "stale" && sourceId === "energy_storage") ||
+        (scenario === "fuel-failed" && sourceId === "fuel_mix")
+          ? "failed"
+          : "healthy",
       collection_age_seconds: 30,
       collection_state:
-        scenario === "stale" && sourceId === "energy_storage" ? "failed" : "healthy",
-      data_age_seconds: scenario === "stale" && sourceId === "energy_storage" ? 4000 : 60,
-      freshness_state: scenario === "stale" && sourceId === "energy_storage" ? "stale" : "fresh",
+        (scenario === "stale" && sourceId === "energy_storage") ||
+        (scenario === "fuel-failed" && sourceId === "fuel_mix")
+          ? "failed"
+          : "healthy",
+      data_age_seconds:
+        (scenario === "stale" && sourceId === "energy_storage") ||
+        (scenario === "fuel-failed" && sourceId === "fuel_mix")
+          ? 4000
+          : 60,
+      freshness_state:
+        (scenario === "stale" && sourceId === "energy_storage") ||
+        (scenario === "fuel-failed" && sourceId === "fuel_mix")
+          ? "stale"
+          : "fresh",
       publication_mode: sourceId === "operations_messages" ? "event" : "polling",
       publication_interval_seconds: 300,
     }));
@@ -530,6 +573,16 @@ test("failure, no-data distinction, and stale source state are explicit", async 
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.getByText("Data stale", { exact: false }).first()).toBeVisible();
   await expect(storage.getByText("Showing stale data")).toBeVisible();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApi(page, "fuel-failed");
+  await page.reload();
+  await page.getByRole("button", { name: "Generation view" }).click();
+  const fuelMix = page.locator('[data-chart-id="fuel-mix"]');
+  await fuelMix.scrollIntoViewIfNeeded();
+  await expect(fuelMix.getByText("Fuel mix generation unavailable")).toBeVisible();
+  await expect(fuelMix.getByText(/Collection failed · last valid observation/)).toBeVisible();
+  await expect(fuelMix.getByText("Waiting for first sample…")).toHaveCount(0);
 });
 
 test("loading resolves to a first-sample wait without blank chart detail", async ({ page }) => {
@@ -699,9 +752,9 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   await page.getByRole("button", { name: "Reliability view" }).click();
   await expect(page.getByRole("heading", { name: "Unused capacity and headroom" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "Emergency Energy Alert level" })).toBeAttached();
-  await expect(
-    page.getByRole("heading", { name: "PowerOutage.us customer outages" }),
-  ).toBeAttached();
+  await expect(page.getByRole("heading", { name: "PowerOutage.us customer outages" })).toHaveCount(
+    0,
+  );
 
   await openMoreView(page, "Weather");
   await expect(page.getByRole("heading", { name: "Nearby METAR temperature" })).toBeAttached();
@@ -709,6 +762,9 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Time error and delta" })).toBeAttached();
   await expect(page.getByRole("heading", { name: "System inertia" })).toBeAttached();
+  await expect(page.getByRole("heading", { name: "Collector duty cycle" })).toHaveCount(0);
+
+  await openMoreView(page, "Diagnostics");
   await expect(page.getByRole("heading", { name: "Collector duty cycle" })).toBeAttached();
 
   await page.getByRole("button", { name: "Market view" }).click();

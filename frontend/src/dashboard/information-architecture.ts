@@ -102,7 +102,7 @@ export const chartGroupDefinitions = [
     description: "Regulation awards and detailed reserve products.",
   },
   {
-    name: "Operations",
+    name: "Diagnostics",
     level: "advanced",
     description: "Internal collector utilization telemetry.",
   },
@@ -146,14 +146,14 @@ export const dashboardViewDefinitions = [
   {
     id: "advanced",
     label: "Advanced",
-    description: "Engineering signals, ancillary products, and collector telemetry.",
-    groups: ["Advanced grid", "Ancillary services", "Operations"],
+    description: "Engineering signals and ancillary products.",
+    groups: ["Advanced grid", "Ancillary services"],
   },
   {
     id: "diagnostics",
     label: "Diagnostics",
     description: "Collection health, source freshness, timestamps, and failure detail.",
-    groups: [],
+    groups: ["Diagnostics"],
   },
 ] as const satisfies ReadonlyArray<{
   description: string;

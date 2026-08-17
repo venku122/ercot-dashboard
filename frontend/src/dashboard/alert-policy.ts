@@ -1,4 +1,5 @@
 import type { EventRecord, SourceHealth } from "./types";
+import { isPublicOperationsEvent } from "./operations-timeline";
 
 export type PublicAlert = {
   action: "retry-data" | "review-diagnostics" | "review-operations";
@@ -69,6 +70,7 @@ export function rationalizeAlerts(
   requestFailed: boolean,
 ): PublicAlert[] {
   const operationalAlerts = events
+    .filter(isPublicOperationsEvent)
     .map(operationalAlert)
     .filter((alert): alert is PublicAlert => alert !== null)
     .sort((left, right) => eventPriority[left.severity] - eventPriority[right.severity]);

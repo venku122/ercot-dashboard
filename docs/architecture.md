@@ -78,6 +78,11 @@ report the newest core observation separately from a payload publication timesta
 fresh forecast envelope from masking stale actual telemetry. Event-driven Operations Messages
 remains collection-healthy when a successful quiet poll has no newer event.
 
+Viewer lifecycle copy also consumes source status. A healthy request with no points in the selected
+range remains a valid empty range; a failed or stale source with no usable points is identified as
+source-unavailable with the age of its last valid observation. Detailed adapter errors remain in
+Diagnostics. Intentionally disabled sources are neither polled nor included in active health.
+
 ## Mobile product mode
 
 The mobile interface is a responsive composition over the same dashboard state, exact-latest

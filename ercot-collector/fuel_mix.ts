@@ -20,12 +20,11 @@ type FuelPayload = {
   data?: Record<string, Record<string, Record<string, { gen?: unknown }>>>;
   lastUpdated?: unknown;
   monthlyCapacity?: Record<string, unknown>;
-  types?: unknown;
 };
 
 export async function parseFuelMix(payload: FuelPayload): Promise<SourceResult> {
   const sourceTimestamp = parseErcotTimestamp(payload.lastUpdated);
-  if (!payload.data || !Array.isArray(payload.types) || payload.types.length === 0) {
+  if (!payload.data || typeof payload.data !== "object") {
     throw new Error("fuel_mix_schema_invalid");
   }
   const byFuel = new Map<string, Array<{ timestamp: number; value: number }>>();
@@ -59,10 +58,12 @@ export async function parseFuelMix(payload: FuelPayload): Promise<SourceResult> 
     );
   }
   if (byFuel.size === 0) throw new Error("fuel_mix_zero_core_rows");
+  const dataTimestamp = Math.max(...[...byFuel.values()].flat().map((point) => point.timestamp));
   return {
     metrics,
     events: [],
     sourceTimestamp,
+    dataTimestamp,
     payloadHash: await payloadHash(payload),
     diagnostics: { fuels: byFuel.size, generationPoints: [...byFuel.values()].flat().length },
   };

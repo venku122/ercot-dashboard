@@ -316,10 +316,10 @@ test("P0 API failure remains distinct from an empty selected window @mobile-core
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
   const errorAlert = page.getByLabel("Active grid alerts");
+  await expect(errorAlert).toContainText("not an empty-data state");
   await errorAlert.evaluate((element) => {
     (element as HTMLDetailsElement).open = true;
   });
-  await expect(errorAlert).toContainText("not an empty-data state");
   await expect(errorAlert.getByRole("button", { name: "Retry data" })).toBeVisible();
   await expect(errorAlert).not.toContainText("fixture upstream unavailable");
   await expect(card.getByText("Temporarily unavailable…")).toBeVisible();
@@ -372,10 +372,11 @@ test("P0 all canonical views are reachable and browser history restores them @mo
   await expect(page.locator('[data-group="Grid conditions"]')).toHaveCount(0);
 
   await openMoreView(page, "Advanced");
-  for (const group of ["Advanced grid", "Ancillary services", "Operations"]) {
+  for (const group of ["Advanced grid", "Ancillary services"]) {
     await expect(page.getByRole("button", { name: `${group} Collapse` })).toBeVisible();
   }
   await openMoreView(page, "Diagnostics");
+  await expect(page.getByRole("button", { name: "Diagnostics Collapse" })).toBeVisible();
   await expect(page.getByLabel("System health details")).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("diagnostics");
 

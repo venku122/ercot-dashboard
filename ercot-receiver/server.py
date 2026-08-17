@@ -34,6 +34,7 @@ RATE_LIMIT_METRICS_RPM = int(os.environ.get("RATE_LIMIT_METRICS_RPM", "120"))
 ALLOWED_ORIGINS = {
     "https://ercot.tarazevits.io",
 }
+DISABLED_SOURCE_IDS = {"poweroutages_us"}
 if CORS_ORIGINS_EXTRA:
     for origin in CORS_ORIGINS_EXTRA.split(","):
         origin = origin.strip()
@@ -593,6 +594,8 @@ def list_source_health(conn, current_ts=None):
     ).fetchall()
     output = []
     for row in rows:
+        if row[0] in DISABLED_SOURCE_IDS:
+            continue
         states = source_state(row, current_ts)
         output.append(
             {

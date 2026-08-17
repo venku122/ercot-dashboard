@@ -40,6 +40,13 @@ Deno.test("fuel mix success fixture normalizes generation and seasonal capacity"
   assert(result.sourceTimestamp === 1784628660, "source timestamp");
 });
 
+Deno.test("fuel mix accepts the current official schema without the retired types field", async () => {
+  const payload = await jsonFixture("fuel_mix.current_schema.json");
+  const result = await parseFuelMix(payload);
+  assert(result.metrics.length === 8, "current fuel mix metric count");
+  assert(result.dataTimestamp === 1_786_689_000, "current fuel mix observation timestamp");
+});
+
 Deno.test("storage success and repeated DST hour retain distinct epochs", async () => {
   const result = await parseStorage(await jsonFixture("storage.success.json"));
   assert(result.metrics.length === 3, "three storage metrics");

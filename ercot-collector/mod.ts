@@ -5,7 +5,6 @@ import { start as startGenerationOutages } from "./generation_outages.ts";
 import { start as startGrid } from "./grid.ts";
 import { start as startMetar } from "./metar.ts";
 import { start as startOperationsMessages } from "./operations_messages.ts";
-import { start as startOutages } from "./outages.ts";
 import { start as startPrices } from "./prices.ts";
 import { start as startStorage } from "./storage.ts";
 import { start as startSupplyDemand } from "./supply_demand.ts";
@@ -27,7 +26,6 @@ if (import.meta.main) {
     // 10+ minute loops, they can overlap, it's ok
     startEea(),
     startMetar(),
-    startOutages(),
     startPrices(),
     startFuelMix(),
     startStorage(),
