@@ -29,7 +29,10 @@ function metricKey(value: string): string {
     .replace(/[ -]+/g, "_");
 }
 
-function parseGridMetrics(body: string): NormalizedMetric[] {
+function parseGridMetrics(body: string, capturedAt: number): NormalizedMetric[] {
+  if (!Number.isSafeInteger(capturedAt) || capturedAt < 0) {
+    throw new Error("ercot_realtime_capture_timestamp_invalid");
+  }
   const rowPattern = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   const headerPattern =
     /<td\b[^>]*class=["'][^"']*\bheaderValueClass\b[^"']*["'][^>]*>([\s\S]*?)<\/td>/i;
@@ -56,7 +59,7 @@ function parseGridMetrics(body: string): NormalizedMetric[] {
       metrics.push({
         metric_name: `ercot.${metricKey(section)}`,
         tags: [`ercot_dc_tie:${label.split("(")[0].trim()}`],
-        points: [{ value: parsedValue }],
+        points: [{ timestamp: capturedAt, value: parsedValue }],
         interval: 60,
         metric_type: "gauge",
       });
@@ -65,12 +68,27 @@ function parseGridMetrics(body: string): NormalizedMetric[] {
 
     metrics.push({
       metric_name: `ercot.${metricKey(section)}.${metricKey(label)}`,
-      points: [{ value: parsedValue }],
+      points: [{ timestamp: capturedAt, value: parsedValue }],
       interval: 60,
       metric_type: "gauge",
     });
   }
   return metrics;
+}
+
+const NET_LOAD_QUARTET = [
+  "ercot.Real_Time_Data.Actual_System_Demand",
+  "ercot.Real_Time_Data.Total_Wind_Output",
+  "ercot.Real_Time_Data.Total_PVGR_Output",
+  "ercot.Real_Time_Data.Average_Net_Load",
+] as const;
+
+function validateNetLoadQuartet(metrics: readonly NormalizedMetric[]): void {
+  for (const metricName of NET_LOAD_QUARTET) {
+    const count = metrics.filter((metric) => metric.metric_name === metricName).length;
+    if (count === 0) throw new Error("ercot_realtime_net_load_contract_missing");
+    if (count !== 1) throw new Error("ercot_realtime_net_load_contract_duplicate");
+  }
 }
 
 async function grabUserMetrics(): Promise<NormalizedMetric[]> {
@@ -79,12 +97,14 @@ async function grabUserMetrics(): Promise<NormalizedMetric[]> {
     headers("text/html"),
   ).then((x) => x.text());
 
-  const metrics = parseGridMetrics(body);
+  const capturedAt = Math.floor(Date.now() / 1000);
+  const metrics = parseGridMetrics(body, capturedAt);
   if (!metrics.length) throw new Error("ercot_realtime_parse_empty");
+  validateNetLoadQuartet(metrics);
 
   console.log(new Date(), "grid", metrics[0]?.points[0]?.value);
 
   return metrics;
 }
 
-export { parseGridMetrics };
+export { parseGridMetrics, validateNetLoadQuartet };

@@ -82,6 +82,9 @@ const ChartCard = lazy(() =>
 const OutlookView = lazy(() =>
   import("./dashboard/OutlookView").then((module) => ({ default: module.OutlookView })),
 );
+const NetLoadPanel = lazy(() =>
+  import("./dashboard/NetLoadPanel").then((module) => ({ default: module.NetLoadPanel })),
+);
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -1468,6 +1471,12 @@ export function App() {
         ) : null}
 
         {selectedView === "weather" ? <WeatherConditions latest={latest} /> : null}
+
+        {selectedView === "generation" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <NetLoadPanel enabled={selectedView === "generation"} />
+          </Suspense>
+        ) : null}
 
         {activeChartGroups.map((group) => {
           const showGroupHeading = activeView.groups.length > 1;
