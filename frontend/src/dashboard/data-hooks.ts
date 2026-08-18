@@ -1,10 +1,11 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import useSWR, { type SWRConfiguration } from "swr";
 
 import {
   loadDerivedContext,
   loadEvents,
   loadLatest,
+  loadOutlook,
   loadPriceRanking,
   loadSourceHealth,
   loadTrendBaselines,
@@ -34,6 +35,28 @@ const swrPolicy: SWRConfiguration = {
 
 const fastQueryIds = new Set(["frequency", "health-eea"]);
 
+export function useOutlookData(enabled: boolean) {
+  const controller = useRef<AbortController | null>(null);
+  const fetchOutlook = useCallback(() => {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loadOutlook(next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, []);
+  useEffect(() => {
+    if (!enabled) controller.current?.abort();
+    return () => {
+      if (enabled) controller.current?.abort();
+    };
+  }, [enabled]);
+  return useSWR(enabled ? ["outlook", "current"] : null, fetchOutlook, {
+    ...swrPolicy,
+    refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
+  });
+}
+
 export function canonicalLatestKey(queries: readonly LatestQuery[]): string {
   return queries
     .map((query) => `${query.id}:${query.metric}:${[...(query.tags ?? [])].sort().join(",")}`)
@@ -53,10 +76,12 @@ function errorMessage(errors: unknown[]): string | null {
 }
 
 export function useOverviewData({
+  enabled,
   eventsEnabled,
   overviewQueries,
   time,
 }: {
+  enabled: boolean;
   eventsEnabled: boolean;
   overviewQueries: readonly LatestQuery[];
   time: TimeState;
@@ -79,30 +104,30 @@ export function useOverviewData({
     [allLatestQueries],
   );
   const latestFast = useSWR(
-    ["latest", "fast", canonicalLatestKey(fastQueries)],
+    enabled ? ["latest", "fast", canonicalLatestKey(fastQueries)] : null,
     () => loadLatest(fastQueries),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.fastTelemetry },
   );
   const latestStandard = useSWR(
-    ["latest", "five-minute", canonicalLatestKey(standardQueries)],
+    enabled ? ["latest", "five-minute", canonicalLatestKey(standardQueries)] : null,
     () => loadLatest(standardQueries),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute },
   );
-  const health = useSWR(["source-health"], () => loadSourceHealth(), {
+  const health = useSWR(enabled ? ["source-health"] : null, () => loadSourceHealth(), {
     ...swrPolicy,
     refreshInterval: REFRESH_CADENCE_MS.sourceHealth,
   });
   const baselines = useSWR(
-    ["trend-baselines", canonicalLatestKey(overviewQueries)],
+    enabled ? ["trend-baselines", canonicalLatestKey(overviewQueries)] : null,
     () => loadTrendBaselines([...overviewQueries], Math.floor(Date.now() / 1000)),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute },
   );
   const context = useSWR(
-    ["derived-context"],
+    enabled ? ["derived-context"] : null,
     () => loadDerivedContext(Math.floor(Date.now() / 1000)),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute },
   );
-  const ranking = useSWR(["price-ranking"], () => loadPriceRanking(), {
+  const ranking = useSWR(enabled ? ["price-ranking"] : null, () => loadPriceRanking(), {
     ...swrPolicy,
     refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
   });
@@ -113,14 +138,14 @@ export function useOverviewData({
   );
   const selectedWindow = normalizeEventWindow(time, REFRESH_CADENCE_MS.events / 1_000);
   const statusEvents = useSWR(
-    ["events", statusWindow.start, statusWindow.end],
+    enabled ? ["events", statusWindow.start, statusWindow.end] : null,
     () => loadEvents(statusWindow),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.events },
   );
   const selectedMatchesStatus =
     selectedWindow.start === statusWindow.start && selectedWindow.end === statusWindow.end;
   const selectedEvents = useSWR(
-    eventsEnabled && !selectedMatchesStatus
+    enabled && eventsEnabled && !selectedMatchesStatus
       ? ["events", selectedWindow.start, selectedWindow.end]
       : null,
     () => loadEvents(selectedWindow),
