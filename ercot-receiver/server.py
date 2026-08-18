@@ -25,11 +25,13 @@ from tile_aggregates import (
 )
 from forecast_vintages import (
     PRODUCT_NP3_565,
+    PRODUCT_NP3_763,
     PRODUCT_NP6_345,
     comparison_rows,
     ingest_forecast_publication,
     init_forecast_schema,
     list_publications,
+    outlook_snapshot,
     publication_rows,
     resolve_publication,
 )
@@ -2460,6 +2462,79 @@ class Handler(BaseHTTPRequestHandler):
         }
         return payload, dependencies, ranges
 
+    def _generate_outlook(self):
+        conn = get_db()
+        payload = outlook_snapshot(conn)
+        source_health = {
+            source["source_id"]: source for source in list_source_health(conn)
+        }
+
+        def outlook_source_health(source_id):
+            source = source_health.get(source_id)
+            if source is None:
+                return None
+            return {
+                "source_id": source_id,
+                "display_name": source["display_name"],
+                "availability_status": source["availability_status"],
+                "state": source["state"],
+                "freshness_state": source["freshness_state"],
+                "consecutive_failures": source["consecutive_failures"],
+                "last_success_ts": source["last_success_ts"],
+                "source_timestamp_ts": source["source_timestamp_ts"],
+                "data_timestamp_ts": source["data_timestamp_ts"],
+            }
+
+        payload["forecast"]["source_health"] = outlook_source_health(
+            "ercot_public_np3_565_weather_zone_forecast"
+        )
+        payload["adequacy"]["source_health"] = outlook_source_health(
+            "ercot_public_np3_763_system_adequacy"
+        )
+        stations = (
+            ("KDFW", "Dallas/Fort Worth"),
+            ("KAUS", "Austin"),
+            ("KHOU", "Houston"),
+            ("KSAT", "San Antonio"),
+        )
+        observations = []
+        for code, label in stations:
+            point = self._latest_query(
+                conn, "metar.temperature", [f"metar_code:{code}"]
+            )
+            observations.append(
+                {
+                    "station_code": code,
+                    "label": label,
+                    "observed_at": None if point is None else point["ts"],
+                    "temperature_c": None if point is None else point["value"],
+                }
+            )
+        metar_health = source_health.get("metar")
+        payload["weather_context"] = {
+            "state": "current_observations_only",
+            "forecast_driver_available": False,
+            "driver": None,
+            "source": None
+            if metar_health is None
+            else {
+                "source_id": "metar",
+                "display_name": metar_health["display_name"],
+                "expected_interval_seconds": metar_health[
+                    "expected_interval_seconds"
+                ],
+                "availability_status": metar_health["availability_status"],
+                "state": metar_health["state"],
+                "freshness_state": metar_health["freshness_state"],
+                "consecutive_failures": metar_health["consecutive_failures"],
+                "last_success_ts": metar_health["last_success_ts"],
+                "source_timestamp_ts": metar_health["source_timestamp_ts"],
+                "data_timestamp_ts": metar_health["data_timestamp_ts"],
+            },
+            "observations": observations,
+        }
+        return payload
+
     def do_POST(self):
         if self.path == "/api/forecast-publications/ingest":
             if not self._rate_limit("forecast_vintages_ingest", RATE_LIMIT_INGEST_RPM):
@@ -2481,6 +2556,8 @@ class Handler(BaseHTTPRequestHandler):
                     cache_control="no-store",
                 )
                 return
+            if result["status"] == "inserted":
+                self._app_server().cache.invalidate({"forecast-outlook"})
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -2798,6 +2875,74 @@ class Handler(BaseHTTPRequestHandler):
                     "cache_semantics": "bounded_diagnostic_no_store",
                 },
                 cache_control="no-store",
+            )
+            return
+        if parsed.path == "/api/v1/outlook":
+            if not self._rate_limit("forecast_outlook", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_outlook_query"}, cache_control="no-store"
+                )
+                return
+            cache_key = "forecast-outlook:v1"
+            app = self._app_server()
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            singleflight_state = "NONE"
+            store_state = "EXISTING"
+            if payload is None:
+                request_generation = app.cache.snapshot_generation()
+
+                def generate():
+                    cached_after_election = app.cache.get(cache_key)
+                    if cached_after_election is not None:
+                        return cached_after_election, True, False
+                    generated_payload = self._generate_outlook()
+                    stored = app.cache.set_if_generation(
+                        cache_key,
+                        generated_payload,
+                        request_generation,
+                        {"forecast-outlook", "source-health", "metar.temperature"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="forecast-outlook:current",
+                    )
+                    return generated_payload, stored, True
+
+                try:
+                    (payload, stored, generated), shared = app.singleflight.do(
+                        (cache_key, request_generation), generate
+                    )
+                except ValueError:
+                    self._send_json(
+                        503,
+                        {"error": "forecast_outlook_unavailable"},
+                        cache_control="no-store",
+                    )
+                    return
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "forecast_outlook_generation_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                cache_state = "MISS" if generated else "HIT"
+                singleflight_state = "SHARED" if shared else "LEADER"
+                store_state = "STORED" if stored else "SKIPPED_RACE"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={
+                    "X-ERCOT-Cache": cache_state,
+                    "X-ERCOT-Singleflight": singleflight_state,
+                    "X-ERCOT-Cache-Store": store_state,
+                },
             )
             return
         if parsed.path == "/api/v1/forecast-comparison":

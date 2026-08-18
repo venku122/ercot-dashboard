@@ -6,6 +6,7 @@ export type DashboardViewId =
   | "generation"
   | "market"
   | "overview"
+  | "outlook"
   | "reliability"
   | "weather";
 
@@ -120,6 +121,12 @@ export const dashboardViewDefinitions = [
     groups: ["Grid conditions"],
   },
   {
+    id: "outlook",
+    label: "Outlook",
+    description: "Published demand and system-adequacy outlooks for the next day and week.",
+    groups: [],
+  },
+  {
     id: "generation",
     label: "Generation",
     description: "Fuel mix, renewable output, and storage behavior.",
@@ -164,6 +171,7 @@ export const dashboardViewDefinitions = [
 
 export const primaryDashboardViewIds: ReadonlyArray<DashboardViewId> = [
   "overview",
+  "outlook",
   "generation",
   "reliability",
   "market",

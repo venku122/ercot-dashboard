@@ -614,6 +614,87 @@ class ForecastStorageTests(unittest.TestCase):
         self.assertEqual(actuals[0]["vintage_key"], trusted["vintage_key"])
         self.assertEqual(rows[0]["actual_value"], 12)
 
+    def test_outlook_selects_active_load_day_prior_revision_and_avail_cap_res(self):
+        issued = 1_700_000_000
+        self.ingest(
+            fv.PRODUCT_NP3_565,
+            "prior",
+            [row_565(TARGET_1, 9), row_565(TARGET_2, 18, hour="2:00")],
+            issued=issued - 86_400,
+            unit="MW",
+        )
+        self.ingest(
+            fv.PRODUCT_NP3_565,
+            "current",
+            [
+                row_565(TARGET_1, 10),
+                row_565(TARGET_1, 999, model="X", in_use=False),
+                row_565(TARGET_2, 20, hour="2:00"),
+            ],
+            issued=issued,
+            unit="MW",
+        )
+        adequacy_row = row_763(TARGET_1, 1)
+        adequacy_row["availCapGen"] = 100
+        adequacy_row["availCapRes"] = 30
+        self.ingest(
+            fv.PRODUCT_NP3_763,
+            "adequacy",
+            [adequacy_row],
+            issued=issued + 60,
+            unit="MW",
+        )
+
+        result = fv.outlook_snapshot(self.conn)
+
+        self.assertEqual(
+            [row["demand_mw"] for row in result["forecast"]["rows"]], [10, 20]
+        )
+        self.assertEqual(
+            [row["revision_mw"] for row in result["forecast"]["rows"]], [1, 2]
+        )
+        self.assertEqual(result["adequacy"]["headroom_field"], "availCapRes")
+        self.assertEqual(
+            result["adequacy"]["rows"][0]["projected_headroom_mw"], 30
+        )
+        self.assertEqual(
+            result["adequacy"]["rows"][0]["available_generation_mw"], 100
+        )
+        self.assertNotIn("capGenRes", result["adequacy"]["rows"][0])
+        self.assertFalse(result["interpretation"]["official_ercot_status"])
+
+    def test_outlook_rejects_ambiguous_active_models(self):
+        self.ingest(
+            fv.PRODUCT_NP3_565,
+            "ambiguous",
+            [row_565(model="A3"), row_565(model="X")],
+            unit="MW",
+        )
+        with self.assertRaisesRegex(ValueError, "ambiguous_active_outlook_model"):
+            fv.outlook_snapshot(self.conn)
+
+    def test_outlook_revision_requires_same_model_and_target(self):
+        issued = 1_700_000_000
+        self.ingest(
+            fv.PRODUCT_NP3_565,
+            "prior-model",
+            [row_565(value=9, model="X")],
+            issued=issued - 86_400,
+            unit="MW",
+        )
+        self.ingest(
+            fv.PRODUCT_NP3_565,
+            "current-model",
+            [row_565(value=10, model="A3")],
+            issued=issued,
+            unit="MW",
+        )
+
+        result = fv.outlook_snapshot(self.conn)
+
+        self.assertIsNotNone(result["forecast"]["revision_reference"])
+        self.assertIsNone(result["forecast"]["rows"][0]["revision_mw"])
+
     def test_query_bounds_and_target_first_eqp(self):
         ingested = self.ingest(fv.PRODUCT_NP3_565, "eqp", [row_565()])
         plan = " ".join(
@@ -695,10 +776,12 @@ class ForecastHttpTests(unittest.TestCase):
             },
         )()
         self.original_api_key = server.API_KEY
+        self.original_now_ts = server.now_ts
         server.API_KEY = "forecast-test-key"
 
     def tearDown(self):
         server.API_KEY = self.original_api_key
+        server.now_ts = self.original_now_ts
         conn = getattr(server.DB_LOCAL, "conn", None)
         if conn is not None:
             conn.close()
@@ -781,6 +864,337 @@ class ForecastHttpTests(unittest.TestCase):
         self.assertEqual(second_headers["X-ERCOT-Cache"], "HIT")
         self.assertEqual({first_headers["ETag"], second_headers["ETag"], third_headers["ETag"]}, {first_headers["ETag"]})
         self.assertIn("immutable", first_headers["Cache-Control"])
+
+    def test_outlook_is_bounded_cached_invalidated_and_weather_is_observation_only(self):
+        auth = {"X-API-Key": "forecast-test-key"}
+        issued = 1_700_000_000
+        server.now_ts = lambda: issued + 180
+        for name, value, publication_issued in (
+            ("prior", 8, issued - 86_400),
+            ("current", 10, issued),
+        ):
+            self.invoke(
+                "POST",
+                "/api/forecast-publications/ingest",
+                publication_payload(
+                    fv.PRODUCT_NP3_565,
+                    name,
+                    [row_565(value=value)],
+                    publication_issued,
+                    "MW",
+                ),
+                headers=auth,
+            )
+        adequacy = row_763(value=1)
+        adequacy["availCapGen"] = 90
+        adequacy["availCapRes"] = 25
+        self.invoke(
+            "POST",
+            "/api/forecast-publications/ingest",
+            publication_payload(
+                fv.PRODUCT_NP3_763,
+                "adequacy",
+                [adequacy],
+                issued + 60,
+                "MW",
+            ),
+            headers=auth,
+        )
+        conn = server.get_db()
+        server.ingest_metrics(
+            conn,
+            [
+                {
+                    "metric_name": "metar.temperature",
+                    "tags": ["metar_code:KDFW"],
+                    "points": [{"timestamp": issued, "value": 38}],
+                }
+            ],
+            current_ts=issued,
+        )
+        server.update_source_health(
+            conn,
+            {
+                "source_id": "metar",
+                "display_name": "Aviation weather observations",
+                "expected_interval_seconds": 300,
+                "attempted_at": issued,
+                "success": True,
+                "data_timestamp_ts": issued,
+                "row_count": 1,
+            },
+            current_ts=issued,
+        )
+        for product_id, display_name in (
+            (fv.PRODUCT_NP3_565, "ERCOT seven-day load forecast"),
+            (fv.PRODUCT_NP3_763, "ERCOT short-term system adequacy"),
+        ):
+            server.update_source_health(
+                conn,
+                {
+                    "source_id": fv.SOURCE_CONTRACTS[product_id]["source_id"],
+                    "display_name": display_name,
+                    "expected_interval_seconds": 3_600,
+                    "attempted_at": issued,
+                    "success": True,
+                    "source_timestamp_ts": issued,
+                    "data_timestamp_ts": issued,
+                    "availability_status": "available",
+                    "row_count": 1,
+                },
+                current_ts=issued,
+            )
+
+        first, first_headers, first_raw = self.invoke("GET", "/api/v1/outlook")
+        second, second_headers, second_raw = self.invoke("GET", "/api/v1/outlook")
+        not_modified, not_modified_headers, not_modified_raw = self.invoke(
+            "GET",
+            "/api/v1/outlook",
+            headers={"If-None-Match": first_headers["ETag"]},
+            status=304,
+        )
+
+        self.assertEqual(first_raw, second_raw)
+        self.assertEqual(first_headers["ETag"], second_headers["ETag"])
+        self.assertEqual(first_headers["ETag"], not_modified_headers["ETag"])
+        self.assertIsNone(not_modified)
+        self.assertEqual(not_modified_raw, b"")
+        self.assertEqual(first_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(second_headers["X-ERCOT-Cache"], "HIT")
+        self.assertIn("must-revalidate", first_headers["Cache-Control"])
+        self.assertEqual(first["forecast"]["rows"][0]["revision_mw"], 2)
+        self.assertEqual(
+            first["adequacy"]["rows"][0]["projected_headroom_mw"], 25
+        )
+        self.assertEqual(first["adequacy"]["headroom_field"], "availCapRes")
+        self.assertEqual(
+            first["forecast"]["source_health"]["availability_status"], "available"
+        )
+        self.assertEqual(first["forecast"]["source_health"]["freshness_state"], "fresh")
+        self.assertEqual(
+            first["adequacy"]["source_health"]["source_id"],
+            fv.SOURCE_CONTRACTS[fv.PRODUCT_NP3_763]["source_id"],
+        )
+        self.assertEqual(
+            first["weather_context"]["state"], "current_observations_only"
+        )
+        self.assertFalse(first["weather_context"]["forecast_driver_available"])
+        self.assertIsNone(first["weather_context"]["driver"])
+        self.assertEqual(first["weather_context"]["source"]["state"], "healthy")
+        self.assertEqual(
+            first["weather_context"]["source"]["freshness_state"], "fresh"
+        )
+        self.assertEqual(
+            first["weather_context"]["source"]["availability_status"], None
+        )
+        self.assertEqual(first["weather_context"]["source"]["consecutive_failures"], 0)
+        self.assertEqual(
+            first["weather_context"]["observations"][0]["temperature_c"], 38
+        )
+        self.assertIsNone(first["interpretation"]["status"])
+        self.invoke("GET", "/api/v1/outlook?days=7", status=400)
+
+        server.now_ts = lambda: issued + 5_000
+        for offset in (300, 600, 900):
+            self.invoke(
+                "POST",
+                "/api/source-health",
+                {
+                    "source_id": "metar",
+                    "display_name": "Aviation weather observations",
+                    "expected_interval_seconds": 300,
+                    "attempted_at": issued + offset,
+                    "success": False,
+                    "row_count": 0,
+                    "error": "source_http_503",
+                },
+                headers=auth,
+            )
+        stale_weather, stale_headers, _raw = self.invoke("GET", "/api/v1/outlook")
+        self.assertEqual(stale_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(stale_weather["weather_context"]["source"]["state"], "failed")
+        self.assertEqual(
+            stale_weather["weather_context"]["source"]["freshness_state"], "stale"
+        )
+        self.assertEqual(
+            stale_weather["weather_context"]["source"]["consecutive_failures"], 3
+        )
+
+        self.invoke(
+            "POST",
+            "/api/forecast-publications/ingest",
+            publication_payload(
+                fv.PRODUCT_NP3_565,
+                "new-current",
+                [row_565(value=11)],
+                issued + 120,
+                "MW",
+            ),
+            headers=auth,
+        )
+        refreshed, refreshed_headers, _raw = self.invoke("GET", "/api/v1/outlook")
+        self.assertEqual(refreshed_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(refreshed["forecast"]["rows"][0]["demand_mw"], 11)
+
+    def test_outlook_cold_concurrency_singleflights_one_generation(self):
+        auth = {"X-API-Key": "forecast-test-key"}
+        self.invoke(
+            "POST",
+            "/api/forecast-publications/ingest",
+            publication_payload(
+                fv.PRODUCT_NP3_565,
+                "concurrent",
+                [row_565(value=10)],
+                unit="MW",
+            ),
+            headers=auth,
+        )
+        original = server.Handler._generate_outlook
+        started = threading.Event()
+        release = threading.Event()
+        count_lock = threading.Lock()
+        generation_count = 0
+        all_entered = threading.Event()
+        entered_count = 0
+        original_do = self.app.singleflight.do
+
+        def observed_do(*args, **kwargs):
+            nonlocal entered_count
+            with count_lock:
+                entered_count += 1
+                if entered_count == 10:
+                    all_entered.set()
+            return original_do(*args, **kwargs)
+
+        self.app.singleflight.do = observed_do
+
+        def delayed(handler):
+            nonlocal generation_count
+            with count_lock:
+                generation_count += 1
+            started.set()
+            self.assertTrue(release.wait(5))
+            return original(handler)
+
+        server.Handler._generate_outlook = delayed
+        results = []
+        errors = []
+
+        def request():
+            try:
+                results.append(self.invoke("GET", "/api/v1/outlook"))
+            except Exception as error:
+                errors.append(error)
+            finally:
+                conn = getattr(server.DB_LOCAL, "conn", None)
+                if conn is not None:
+                    conn.close()
+                    delattr(server.DB_LOCAL, "conn")
+
+        threads = [threading.Thread(target=request) for _index in range(10)]
+        try:
+            for thread in threads:
+                thread.start()
+            self.assertTrue(started.wait(5))
+            self.assertTrue(all_entered.wait(5))
+            release.set()
+            for thread in threads:
+                thread.join(5)
+        finally:
+            server.Handler._generate_outlook = original
+            self.app.singleflight.do = original_do
+            release.set()
+        self.assertFalse(errors)
+        self.assertEqual(generation_count, 1)
+        self.assertEqual(len(results), 10)
+        self.assertEqual(len({raw for _body, _headers, raw in results}), 1)
+        self.assertEqual(
+            sum(headers["X-ERCOT-Singleflight"] == "LEADER" for _body, headers, _raw in results),
+            1,
+        )
+        self.assertEqual(
+            sum(headers["X-ERCOT-Singleflight"] == "SHARED" for _body, headers, _raw in results),
+            9,
+        )
+
+    def test_outlook_inflight_invalidation_cannot_repopulate_stale_cache(self):
+        auth = {"X-API-Key": "forecast-test-key"}
+        issued = 1_700_000_000
+        self.invoke(
+            "POST",
+            "/api/forecast-publications/ingest",
+            publication_payload(
+                fv.PRODUCT_NP3_565,
+                "race-old",
+                [row_565(value=10)],
+                issued,
+                "MW",
+            ),
+            headers=auth,
+        )
+        original = server.Handler._generate_outlook
+        old_generated = threading.Event()
+        release_old = threading.Event()
+        count_lock = threading.Lock()
+        generation_count = 0
+
+        def pause_first(handler):
+            nonlocal generation_count
+            with count_lock:
+                generation_count += 1
+                call = generation_count
+            payload = original(handler)
+            if call == 1:
+                old_generated.set()
+                self.assertTrue(release_old.wait(5))
+            return payload
+
+        server.Handler._generate_outlook = pause_first
+        old_result = []
+        errors = []
+
+        def old_request():
+            try:
+                old_result.append(self.invoke("GET", "/api/v1/outlook"))
+            except Exception as error:
+                errors.append(error)
+            finally:
+                conn = getattr(server.DB_LOCAL, "conn", None)
+                if conn is not None:
+                    conn.close()
+                    delattr(server.DB_LOCAL, "conn")
+
+        thread = threading.Thread(target=old_request)
+        try:
+            thread.start()
+            self.assertTrue(old_generated.wait(5))
+            self.invoke(
+                "POST",
+                "/api/forecast-publications/ingest",
+                publication_payload(
+                    fv.PRODUCT_NP3_565,
+                    "race-new",
+                    [row_565(value=11)],
+                    issued + 120,
+                    "MW",
+                ),
+                headers=auth,
+            )
+            fresh, fresh_headers, _fresh_raw = self.invoke("GET", "/api/v1/outlook")
+            release_old.set()
+            thread.join(5)
+        finally:
+            server.Handler._generate_outlook = original
+            release_old.set()
+        self.assertFalse(errors)
+        self.assertEqual(generation_count, 2)
+        self.assertEqual(old_result[0][0]["forecast"]["rows"][0]["demand_mw"], 10)
+        self.assertEqual(old_result[0][1]["X-ERCOT-Cache-Store"], "SKIPPED_RACE")
+        self.assertEqual(fresh["forecast"]["rows"][0]["demand_mw"], 11)
+        self.assertEqual(fresh_headers["X-ERCOT-Cache-Store"], "STORED")
+        warm, warm_headers, _warm_raw = self.invoke("GET", "/api/v1/outlook")
+        self.assertEqual(warm["forecast"]["rows"][0]["demand_mw"], 11)
+        self.assertEqual(warm_headers["X-ERCOT-Cache"], "HIT")
 
     def test_forecast_ingest_has_reviewed_route_specific_one_mib_cap(self):
         self.assertEqual(server.MAX_FORECAST_BODY_BYTES, 1024 * 1024)

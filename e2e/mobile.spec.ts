@@ -363,7 +363,7 @@ test("P0 all canonical views are reachable and browser history restores them @mo
   await installMobileApi(page, "normal");
   await page.goto("/?view=weather");
   const navigation = page.getByRole("navigation", { name: "Dashboard views" });
-  await expect(navigation.getByRole("button")).toHaveCount(5);
+  await expect(navigation.getByRole("button")).toHaveCount(6);
   await expect(
     navigation.getByRole("button", { name: /More views, Weather selected/ }),
   ).toHaveAttribute("aria-current", "page");
@@ -389,6 +389,30 @@ test("P0 all canonical views are reachable and browser history restores them @mo
   await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("weather");
   await expect(page.getByRole("button", { name: "Weather Collapse" })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
+});
+
+test("P0 Grid Outlook remains exact, accessible, and contained on mobile @mobile-core", async ({
+  page,
+}) => {
+  await openPopulated(page, "normal", "/?view=outlook");
+  await expect(page.getByRole("heading", { name: "Outlook", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Hourly detail shown" })).toBeVisible();
+  await page.getByText("Hourly forecast values", { exact: true }).click();
+  await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeVisible();
+  await expect(page.getByText("Current observations only", { exact: true })).toBeVisible();
+  await expect(page.getByText("No weather cause is inferred.", { exact: false })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  for (const target of [
+    page.getByRole("button", { name: "Outlook view" }),
+    page.getByRole("button", { name: "Hourly detail shown" }),
+    page.getByText("Hourly forecast values", { exact: true }),
+  ]) {
+    const bounds = await target.boundingBox();
+    expect(bounds?.height ?? 0).toBeGreaterThanOrEqual(44);
+    expect(bounds?.width ?? 0).toBeGreaterThanOrEqual(44);
+  }
 });
 
 test("mobile interaction evidence flow @mobile-core @interaction-evidence", async ({ page }) => {
@@ -494,7 +518,15 @@ test("P0 viewport metadata opts into safe-area layout @mobile-core", async ({ pa
 
 test("progressive-disclosure mobile visual states @mobile-vri", async ({ page }) => {
   await openPopulated(page);
+  await expect(page.locator('[data-chart-id="supply-demand"] canvas')).toHaveAttribute(
+    "aria-label",
+    /[1-9]\d* observations/,
+  );
   await expect(page).toHaveScreenshot("progressive-overview-mobile.png");
+
+  await page.getByRole("button", { name: "Outlook view" }).click();
+  await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
+  await expect(page).toHaveScreenshot("progressive-outlook-mobile.png");
 
   await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Advanced", exact: true })).toBeVisible();

@@ -18,6 +18,14 @@ The `MW` adapter declaration is grounded in ERCOT's System-Wide Demand display
 for the NP3-565/NP6-345 load sources and ERCOT STAR Help definitions for the
 NP3-763 capacity and forecast-demand measures. The receiver does not infer any
 other unit.
+
+For Grid Outlook, the current ERCOT
+[`STAR_help_description_20251205.docx`](https://www.ercot.com/files/docs/2021/06/10/STAR_help_description_20251205.docx)
+defines API field `availCapRes` (help field `AvailCapReserve`) as `AvailCapGen`
+minus forecasted demand for each hour. The bounded Outlook contract therefore
+uses only `availCapRes` as projected headroom and exposes `availCapGen` as
+projected available generation capacity. It does not use `capGenRes` as
+headroom; that field is available online generation capacity from COP HSL.
 Query provenance accepts only each product adapter's exact ERCOT filter
 allowlist. Values must be bounded scalars; unknown, nested, or sensitive-looking
 keys never reach storage or public responses. Keys are normalized and sorted
@@ -66,6 +74,23 @@ new content snapshot. Internal SQLite IDs are never returned.
   Rows whose target precedes the selected forecast issue are omitted. Remaining
   errors are explicitly known-at diagnostics with a nonnegative horizon, not a
   general forecast-quality analytics contract.
+- `GET /api/v1/outlook` is the fixed, no-query current-view contract used only
+  when the Outlook view is opened. It selects the latest NP3-565 publication,
+  requires at most one `inUseFlag=true` model per target, joins the latest
+  publication issued at least 24 hours earlier for target-matched revisions,
+  and aligns the latest NP3-763 `availCapRes` values. Results are ordered and
+  bounded to 193 target hours, use a short mutable cache with a strong ETag,
+  and are invalidated when a new forecast publication is inserted. It also
+  carries bounded NP3-565/NP3-763 collector health so valid-empty, stale, and
+  failed collection states remain distinct from target-hour coverage, plus
+  optional latest KDFW/KAUS/KHOU/KSAT METAR temperatures in a clearly
+  labeled `current_observations_only` block with METAR availability,
+  collection, and freshness state. The UI changes that label when the source is
+  stale or failed. These observations are not a weather forecast and no causal
+  weather driver or ERCOT status is inferred.
+  Predictive weather-driver integration is explicitly deferred to PR18.
+  Current outage and reserve context is not part of this PR10 contract and is
+  not claimed by its cards.
 - `GET /api/v2/forecast-publications/{source}/{product}/{vintage}/1d/{start}` is
   a canonical UTC-aligned, content-addressed target-axis resource with a strong
   ETag and immutable cache policy. It omits observational retrieval/query

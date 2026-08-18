@@ -79,6 +79,9 @@ import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./dashboard/zo
 const ChartCard = lazy(() =>
   import("./dashboard/ChartCard").then((module) => ({ default: module.ChartCard })),
 );
+const OutlookView = lazy(() =>
+  import("./dashboard/OutlookView").then((module) => ({ default: module.OutlookView })),
+);
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -642,7 +645,12 @@ export function App() {
     sourceHealth,
     statusEvents,
     trendBaselines,
-  } = useOverviewData({ eventsEnabled: state.events, overviewQueries, time: state.time });
+  } = useOverviewData({
+    enabled: selectedView !== "outlook",
+    eventsEnabled: state.events,
+    overviewQueries,
+    time: state.time,
+  });
   const effectiveRequestError = overviewError ?? requestError;
 
   useEffect(() => {
@@ -1092,21 +1100,26 @@ export function App() {
             ERCOT Grid Status
           </h1>
         </div>
-        {state.time.mode === "fixed" ? null : (
+        {state.time.mode === "fixed" || selectedView === "outlook" ? null : (
           <p className="freshness-state" data-mode={state.time.mode}>
             {freshnessLabel}
           </p>
         )}
-        <section aria-label="Global dashboard controls" className="control-bar compact-control-bar">
-          <TimeRangeSelect setState={setState} state={state} />
-          <Button
-            aria-haspopup="dialog"
-            onClick={() => setMobileDialog("controls")}
-            ref={controlsTriggerRef}
+        {selectedView === "outlook" ? null : (
+          <section
+            aria-label="Global dashboard controls"
+            className="control-bar compact-control-bar"
           >
-            Analyze
-          </Button>
-        </section>
+            <TimeRangeSelect setState={setState} state={state} />
+            <Button
+              aria-haspopup="dialog"
+              onClick={() => setMobileDialog("controls")}
+              ref={controlsTriggerRef}
+            >
+              Analyze
+            </Button>
+          </section>
+        )}
       </header>
 
       {!isMobile ? (
@@ -1137,6 +1150,17 @@ export function App() {
 
         {selectedView === "overview" ? (
           <>
+            <section aria-labelledby="dashboard-outlook-title" className="outlook-promo">
+              <div>
+                <p className="eyebrow">Forward view</p>
+                <h2 id="dashboard-outlook-title">Dashboard outlook — not an ERCOT declaration</h2>
+                <p>
+                  Review published ERCOT demand and system-adequacy outlooks for the next day and
+                  week.
+                </p>
+              </div>
+              <Button onClick={() => navigateToView("outlook")}>Open Grid Outlook</Button>
+            </section>
             <section
               aria-label="Grid overview"
               className="overview-grid overview-readings"
@@ -1325,6 +1349,12 @@ export function App() {
               </div>
             </div>
           </details>
+        ) : null}
+
+        {selectedView === "outlook" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <OutlookView enabled={selectedView === "outlook"} />
+          </Suspense>
         ) : null}
 
         {selectedView === "reliability" ? (

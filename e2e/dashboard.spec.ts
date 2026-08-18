@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { outlookFixture } from "./mobile-fixtures";
+
 type Scenario =
   | "empty"
   | "empty-panels"
@@ -9,6 +11,7 @@ type Scenario =
   | "negative"
   | "no-events"
   | "normal"
+  | "outlook-stale"
   | "spike"
   | "stale";
 
@@ -683,6 +686,9 @@ async function installApi(
       },
     });
   });
+  await page.route("**/api/v1/outlook", (route) =>
+    route.fulfill({ json: outlookFixture(scenario === "outlook-stale") }),
+  );
 }
 
 test("time, inspect, cursor, legend, compare, events, CSV and URL state", async ({ page }) => {
@@ -1014,8 +1020,12 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   ).toHaveAttribute("aria-label", /ERCOT grid watch active|No active ERCOT emergency/);
   await expect(page.getByLabel("Featured grid trend")).toBeVisible();
   await expect(
+    page.getByRole("heading", { name: "Dashboard outlook — not an ERCOT declaration" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Grid Outlook" })).toBeVisible();
+  await expect(
     page.getByRole("navigation", { name: "Dashboard views" }).getByRole("button"),
-  ).toHaveCount(5);
+  ).toHaveCount(6);
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(false);
@@ -1055,6 +1065,53 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   ).toBe(false);
 });
 
+test("direct Outlook loads once without Overview requests and exposes exact values", async ({
+  page,
+}) => {
+  const apiRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) apiRequests.push(url.pathname);
+  });
+  await installApi(page);
+  await page.goto("/?view=outlook");
+
+  await expect(page.getByRole("heading", { name: "Outlook", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Global dashboard controls")).toHaveCount(0);
+  await expect(page.locator(".freshness-state")).toHaveCount(0);
+  await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
+  await expect(page.getByText("Dashboard outlook — not an ERCOT declaration")).toBeVisible();
+  await expect(
+    page.getByText("Forecast weather driver unavailable. No weather cause is inferred."),
+  ).toBeVisible();
+  await page.getByText("Hourly forecast values", { exact: true }).click();
+  await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeVisible();
+  await expect(page.getByRole("table", { name: /hourly outlook/ })).toBeVisible();
+  await expect(page.locator("main")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("main")).toHaveAttribute("data-overview-refresh", "idle");
+
+  await expect.poll(() => apiRequests.filter((path) => path === "/api/v1/outlook").length).toBe(1);
+  const overviewPaths = new Set([
+    "/api/latest/batch",
+    "/api/series/batch",
+    "/api/v1/events",
+    "/api/v1/ranking",
+    "/api/v1/source-health",
+  ]);
+  expect(apiRequests.filter((path) => overviewPaths.has(path))).toEqual([]);
+});
+
+test("Outlook reports stale forecast input without converting it into an ERCOT status", async ({
+  page,
+}) => {
+  await installApi(page, "outlook-stale");
+  await page.goto("/?view=outlook");
+  const warning = page.getByLabel("Outlook source freshness");
+  await expect(warning).toHaveAttribute("data-outlook-source-state", "partial");
+  await expect(warning).toContainText("Load forecast: stale, data stale");
+  await expect(page.getByText("Dashboard outlook — not an ERCOT declaration")).toBeVisible();
+});
+
 test("view changes clear chart-specific inspect state and legacy inspect links find their view", async ({
   page,
 }) => {
@@ -1075,6 +1132,10 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
   await installApi(page);
   await page.goto("/?view=overview");
   await expect(page).toHaveScreenshot("progressive-overview-desktop.png");
+
+  await page.getByRole("button", { name: "Outlook view" }).click();
+  await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
+  await expect(page).toHaveScreenshot("progressive-outlook-desktop.png");
 
   await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Advanced", exact: true })).toBeVisible();

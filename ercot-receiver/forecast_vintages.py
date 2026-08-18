@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 MAX_PUBLICATION_ROWS = 50_000
 MAX_QUERY_ROWS = 5_000
 MAX_TARGET_SPAN = 366 * 86_400
+MAX_OUTLOOK_TARGETS = 193
 MAX_EPOCH_SECONDS = 32_503_680_000
 MAX_RETRIEVED_FUTURE_SKEW = 300
 
@@ -855,6 +856,153 @@ def list_publications(conn, source_id, product_id, limit=100, issued_lte=None):
         (*params, limit),
     ).fetchall()
     return [_publication_dict(row) for row in rows]
+
+
+def _latest_publication(conn, product_id, issued_lte=None):
+    contract = SOURCE_CONTRACTS[product_id]
+    clauses = ["source_id = ?", "product_id = ?", "issued_at IS NOT NULL"]
+    params = [contract["source_id"], product_id]
+    if issued_lte is not None:
+        clauses.append("issued_at <= ?")
+        params.append(issued_lte)
+    return conn.execute(
+        "SELECT * FROM forecast_publications WHERE "
+        + " AND ".join(clauses)
+        + " ORDER BY issued_at DESC, id DESC LIMIT 1",
+        params,
+    ).fetchone()
+
+
+def _outlook_publication(publication):
+    if publication is None:
+        return None
+    return {
+        "source_id": publication[1],
+        "product_id": publication[2],
+        "vintage_key": publication[3],
+        "issued_at": publication[4],
+        "retrieved_at": publication[7],
+        "declared_unit": publication[12],
+    }
+
+
+def _active_load_rows(conn, publication):
+    if publication is None:
+        return []
+    rows = conn.execute(
+        """
+        SELECT target_ts, delivery_date, hour_ending, dst_flag, model, system_total
+        FROM forecast_np3_565_rows
+        WHERE publication_id = ? AND in_use_flag = 1
+        ORDER BY target_ts, model
+        LIMIT ?
+        """,
+        (publication[0], MAX_OUTLOOK_TARGETS + 1),
+    ).fetchall()
+    if len(rows) > MAX_OUTLOOK_TARGETS:
+        raise ValueError("outlook_target_limit_exceeded")
+    targets = [row[0] for row in rows]
+    if len(targets) != len(set(targets)):
+        raise ValueError("ambiguous_active_outlook_model")
+    return [
+        {
+            "target_ts": row[0],
+            "delivery_date": row[1],
+            "hour_ending": row[2],
+            "dst_flag": bool(row[3]),
+            "model": row[4],
+            "demand_mw": row[5],
+        }
+        for row in rows
+    ]
+
+
+def _adequacy_rows(conn, publication, start, end):
+    if publication is None or start is None or end is None:
+        return []
+    rows = conn.execute(
+        """
+        SELECT target_ts, delivery_date, hour_ending, repeat_hour_flag,
+               avail_cap_gen, avail_cap_res
+        FROM forecast_np3_763_rows
+        WHERE publication_id = ? AND target_ts >= ? AND target_ts <= ?
+        ORDER BY target_ts
+        LIMIT ?
+        """,
+        (publication[0], start, end, MAX_OUTLOOK_TARGETS + 1),
+    ).fetchall()
+    if len(rows) > MAX_OUTLOOK_TARGETS:
+        raise ValueError("outlook_target_limit_exceeded")
+    return [
+        {
+            "target_ts": row[0],
+            "delivery_date": row[1],
+            "hour_ending": row[2],
+            "repeat_hour_flag": bool(row[3]),
+            "available_generation_mw": row[4],
+            "projected_headroom_mw": row[5],
+        }
+        for row in rows
+    ]
+
+
+def outlook_snapshot(conn):
+    """Return the bounded current Grid Outlook source contract.
+
+    NP3-763 ``availCapRes`` is the only projected-headroom field. ERCOT STAR
+    defines it as available generation capacity minus forecast demand.
+    """
+    current = _latest_publication(conn, PRODUCT_NP3_565)
+    current_rows = _active_load_rows(conn, current)
+    revision = None
+    revision_rows = []
+    if current is not None:
+        revision = _latest_publication(conn, PRODUCT_NP3_565, current[4] - 86_400)
+        revision_rows = _active_load_rows(conn, revision)
+    revision_by_target = {row["target_ts"]: row for row in revision_rows}
+    for row in current_rows:
+        reference = revision_by_target.get(row["target_ts"])
+        row["revision_mw"] = (
+            None
+            if reference is None
+            or reference["model"] != row["model"]
+            or reference["demand_mw"] is None
+            or row["demand_mw"] is None
+            else row["demand_mw"] - reference["demand_mw"]
+        )
+
+    adequacy = _latest_publication(conn, PRODUCT_NP3_763)
+    start = current_rows[0]["target_ts"] if current_rows else None
+    end = current_rows[-1]["target_ts"] if current_rows else None
+    adequacy_rows = _adequacy_rows(conn, adequacy, start, end)
+    return {
+        "schema": 1,
+        "forecast": {
+            "publication": _outlook_publication(current) if current_rows else None,
+            "selection_policy": "in_use_flag_true",
+            "revision_reference": _outlook_publication(revision)
+            if current_rows and revision_rows
+            else None,
+            "revision_policy": "latest_issued_at_least_24h_before_current",
+            "rows": current_rows,
+        },
+        "adequacy": {
+            "publication": _outlook_publication(adequacy) if adequacy_rows else None,
+            "headroom_field": "availCapRes",
+            "headroom_definition": "AvailCapGen minus forecasted Demand for each hour",
+            "rows": adequacy_rows,
+        },
+        "weather_context": {
+            "state": "not_integrated",
+            "provider": None,
+            "driver": None,
+        },
+        "interpretation": {
+            "kind": "dashboard_outlook",
+            "official_ercot_status": False,
+            "status": None,
+        },
+    }
 
 
 def resolve_publication(conn, source_id, product_id, vintage_key):
