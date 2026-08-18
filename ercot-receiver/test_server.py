@@ -183,6 +183,7 @@ class MigrationAndIngestTests(unittest.TestCase):
 
         self.assertIn("collector_sources", tables)
         self.assertIn("events", tables)
+        self.assertIn("metric_correction_age", tables)
         self.assertIn("dedupe_key", columns)
         self.assertIn("data_timestamp_ts", source_columns)
         self.assertIn("diagnostics_json", source_columns)
@@ -235,6 +236,12 @@ class MigrationAndIngestTests(unittest.TestCase):
         server.init_db(legacy)
 
         self.assertEqual(legacy.execute("SELECT COUNT(*) FROM metrics").fetchone()[0], 1)
+        self.assertIsNotNone(
+            legacy.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                ("metric_correction_age",),
+            ).fetchone()
+        )
         self.assertIn(
             "dedupe_key", {row[1] for row in legacy.execute("PRAGMA table_info(metrics)")}
         )
@@ -289,6 +296,7 @@ class MigrationAndIngestTests(unittest.TestCase):
 
         first = server.ingest_metrics(self.conn, payload, current_ts=100)
         unchanged = server.ingest_metrics(self.conn, payload[:2], current_ts=100)
+        self.assertEqual(server.list_metric_correction_age(self.conn), [])
         payload[0]["points"][0]["value"] = 50_250
         payload[1]["points"][0]["value"] = 54_750
         revised = server.ingest_metrics(self.conn, payload[:2], current_ts=101)
@@ -302,6 +310,15 @@ class MigrationAndIngestTests(unittest.TestCase):
             {key: revised[key] for key in ("inserted", "updated", "unchanged", "invalid")},
             {"inserted": 0, "updated": 2, "unchanged": 0, "invalid": 0},
         )
+        self.assertEqual(revised["correction_age_buckets"]["under_5m"], 1)
+        self.assertEqual(revised["correction_age_buckets"]["future"], 1)
+        self.assertEqual(sum(revised["correction_age_buckets"].values()), 2)
+        persisted_corrections = server.list_metric_correction_age(self.conn)
+        self.assertEqual(len(persisted_corrections), 2)
+        self.assertEqual(
+            {row["source_id"] for row in persisted_corrections}, {"supply_demand"}
+        )
+        self.assertEqual(sum(row["correction_count"] for row in persisted_corrections), 2)
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0], 2)
         self.assertEqual(
             self.conn.execute(
@@ -317,6 +334,51 @@ class MigrationAndIngestTests(unittest.TestCase):
         )
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM metric_tags").fetchone()[0], 2
+        )
+
+    def test_correction_age_boundaries_and_missing_timestamp_use_prior_observation(self):
+        boundaries = {
+            -1: "future",
+            0: "under_5m",
+            299: "under_5m",
+            300: "5m_to_1h",
+            3599: "5m_to_1h",
+            3600: "1h_to_24h",
+            86399: "1h_to_24h",
+            86400: "1d_to_7d",
+            7 * 86400: "7d_to_30d",
+            30 * 86400: "over_30d",
+        }
+        for age, expected in boundaries.items():
+            self.assertEqual(server.correction_age_bucket(4_000_000, 4_000_000 - age), expected)
+
+        server.ingest_metrics(
+            self.conn,
+            [
+                {
+                    "metric_name": "ercot.fixture",
+                    "tags": ["source:fixture"],
+                    "points": [
+                        {"timestamp": 1_000, "value": 1, "dedupe_key": "fixture:one"}
+                    ],
+                }
+            ],
+            current_ts=1_000,
+        )
+        result = server.ingest_metrics(
+            self.conn,
+            [
+                {
+                    "metric_name": "ercot.fixture",
+                    "tags": ["source:fixture"],
+                    "points": [{"value": 2, "dedupe_key": "fixture:one"}],
+                }
+            ],
+            current_ts=2_000,
+        )
+        self.assertEqual(result["correction_age_buckets"]["5m_to_1h"], 1)
+        self.assertEqual(
+            server.list_metric_correction_age(self.conn)[0]["source_id"], "fixture"
         )
 
     def test_event_retry_upserts_without_duplicate(self):
@@ -810,6 +872,54 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(source["availability_status"], "empty")
         self.assertEqual(source["diagnostics"], {"field_count": 5})
         self.assertEqual(source["provenance"]["provider"], "ERCOT")
+        self.assertIn("public", headers["Cache-Control"])
+
+    def test_correction_age_api_exposes_durable_source_metric_buckets(self):
+        observed_at = server.now_ts()
+        payload = [
+            {
+                "metric_name": "ercot.fixture",
+                "tags": ["source:fixture"],
+                "points": [
+                    {
+                        "timestamp": observed_at - 400,
+                        "value": 1,
+                        "dedupe_key": "fixture:one",
+                    }
+                ],
+            }
+        ]
+
+        cached_empty, _headers = self.invoke("GET", "/api/v1/correction-age")
+        self.assertEqual(cached_empty, {"corrections": []})
+
+        original_api_key = server.API_KEY
+        server.API_KEY = "fixture-api-key"
+        try:
+            request_headers = {"X-API-Key": "fixture-api-key"}
+            self.invoke("POST", "/api/ingest", payload, request_headers)
+            payload[0]["points"][0]["value"] = 2
+            self.invoke("POST", "/api/ingest", payload, request_headers)
+        finally:
+            server.API_KEY = original_api_key
+
+        response, headers = self.invoke("GET", "/api/v1/correction-age")
+
+        self.assertEqual(
+            response,
+            {
+                "corrections": [
+                    {
+                        "age_bucket": "5m_to_1h",
+                        "correction_count": 1,
+                        "last_observed_at": observed_at,
+                        "metric_name": "ercot.fixture",
+                        "source_id": "fixture",
+                        "tags": ["source:fixture"],
+                    }
+                ]
+            },
+        )
         self.assertIn("public", headers["Cache-Control"])
 
     def test_batch_statistics_use_raw_window_not_max_points_plot(self):

@@ -107,6 +107,19 @@ def init_db(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS metric_correction_age (
+            source_id TEXT NOT NULL,
+            metric_name TEXT NOT NULL,
+            series_tags TEXT NOT NULL,
+            age_bucket TEXT NOT NULL,
+            correction_count INTEGER NOT NULL,
+            last_observed_at INTEGER NOT NULL,
+            PRIMARY KEY (source_id, metric_name, series_tags, age_bucket)
+        )
+        """
+    )
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS collector_sources (
             source_id TEXT PRIMARY KEY,
             display_name TEXT NOT NULL,
@@ -369,6 +382,68 @@ def normalize_query_window(
     return bounded_since, end_ts
 
 
+CORRECTION_AGE_BUCKETS = (
+    "future",
+    "under_5m",
+    "5m_to_1h",
+    "1h_to_24h",
+    "1d_to_7d",
+    "7d_to_30d",
+    "over_30d",
+)
+
+
+def correction_age_bucket(observed_at, data_timestamp):
+    age = int(observed_at) - int(data_timestamp)
+    if age < 0:
+        return "future"
+    if age < 300:
+        return "under_5m"
+    if age < 3600:
+        return "5m_to_1h"
+    if age < 86400:
+        return "1h_to_24h"
+    if age < 7 * 86400:
+        return "1d_to_7d"
+    if age < 30 * 86400:
+        return "7d_to_30d"
+    return "over_30d"
+
+
+def correction_source_id(tags):
+    sources = sorted(
+        {
+            tag.split(":", 1)[1]
+            for tag in tags
+            if tag.startswith("source:") and tag.split(":", 1)[1]
+        }
+    )
+    if len(sources) == 1:
+        return sources[0][:120]
+    return "multiple" if sources else "unknown"
+
+
+def list_metric_correction_age(conn):
+    return [
+        {
+            "source_id": row[0],
+            "metric_name": row[1],
+            "tags": json.loads(row[2]),
+            "age_bucket": row[3],
+            "correction_count": row[4],
+            "last_observed_at": row[5],
+        }
+        for row in conn.execute(
+            """
+            SELECT source_id, metric_name, series_tags, age_bucket,
+                   correction_count, last_observed_at
+            FROM metric_correction_age
+            ORDER BY source_id, metric_name, series_tags, age_bucket
+            """
+        ).fetchall()
+    ]
+
+
 def ingest_metrics(conn, payload, current_ts=None):
     inserted = 0
     updated = 0
@@ -376,6 +451,7 @@ def ingest_metrics(conn, payload, current_ts=None):
     invalid = 0
     dependencies = set()
     changes = defaultdict(list)
+    correction_age_buckets = {bucket: 0 for bucket in CORRECTION_AGE_BUCKETS}
     ts_now = current_ts if current_ts is not None else now_ts()
     conn.execute("BEGIN")
     try:
@@ -403,10 +479,14 @@ def ingest_metrics(conn, payload, current_ts=None):
                 if isinstance(point, dict):
                     value = point.get("value")
                     ts = parse_timestamp(point.get("timestamp"))
+                    timestamp_was_provided = ts is not None
                     point_dedupe = point.get("dedupe_key")
                 elif isinstance(point, (list, tuple)) and len(point) >= 2:
                     ts = parse_timestamp(point[0])
+                    timestamp_was_provided = ts is not None
                     value = point[1]
+                else:
+                    timestamp_was_provided = False
                 if ts is None:
                     ts = ts_now
                 try:
@@ -456,6 +536,22 @@ def ingest_metrics(conn, payload, current_ts=None):
                     )
                     conn.execute("DELETE FROM metric_tags WHERE metric_id = ?", (metric_id,))
                     updated += 1
+                    correction_timestamp = ts if timestamp_was_provided else existing[2]
+                    age_bucket = correction_age_bucket(ts_now, correction_timestamp)
+                    correction_age_buckets[age_bucket] += 1
+                    source_id = correction_source_id(tags)
+                    conn.execute(
+                        """
+                        INSERT INTO metric_correction_age (
+                            source_id, metric_name, series_tags, age_bucket,
+                            correction_count, last_observed_at
+                        ) VALUES (?, ?, ?, ?, 1, ?)
+                        ON CONFLICT(source_id, metric_name, series_tags, age_bucket) DO UPDATE SET
+                            correction_count = metric_correction_age.correction_count + 1,
+                            last_observed_at = excluded.last_observed_at
+                        """,
+                        (source_id, metric_name, tags_json, age_bucket, ts_now),
+                    )
                     dependencies.add(existing[1])
                     changes[existing[1]].append((int(existing[2]), int(existing[2])))
                 else:
@@ -485,6 +581,7 @@ def ingest_metrics(conn, payload, current_ts=None):
         "updated": updated,
         "unchanged": unchanged,
         "invalid": invalid,
+        "correction_age_buckets": correction_age_buckets,
         "dependencies": dependencies,
         "changes": dict(changes),
     }
@@ -1371,6 +1468,8 @@ class Handler(BaseHTTPRequestHandler):
             dependencies = result.pop("dependencies")
             changes = result.pop("changes")
             self._app_server().cache.invalidate_changes(changes)
+            if result["updated"]:
+                self._app_server().cache.invalidate({"correction-age"})
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -1609,6 +1708,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/correction-age":
+            if not self._rate_limit("correction_age", RATE_LIMIT_LATEST_RPM):
+                return
+            cache_key = "correction-age"
+            cached = self._app_server().cache.get(cache_key)
+            if cached is None:
+                cached = {"corrections": list_metric_correction_age(get_db())}
+                self._app_server().cache.set(cache_key, cached, {"correction-age"})
+            self._send_json(
+                200,
+                cached,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+            )
+            return
         if parsed.path == "/api/v1/series/chunk":
             if not self._rate_limit("series_chunk", RATE_LIMIT_SERIES_RPM):
                 return
