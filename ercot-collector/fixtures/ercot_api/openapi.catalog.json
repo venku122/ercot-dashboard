@@ -1,0 +1,57 @@
+{
+  "openapi": "3.0.1",
+  "paths": {
+    "/np3-565-cd/actual_loads_by_forecast_zone": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "operatingDayFrom",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/OperatingDayTo"
+          }
+        ]
+      }
+    },
+    "/np3-565-cd/seven_day_load_forecast": {
+      "parameters": [
+        {
+          "in": "query",
+          "name": "page",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "postedDatetimeFrom",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/spec-only/example": {
+      "get": {}
+    }
+  },
+  "components": {
+    "parameters": {
+      "OperatingDayTo": {
+        "in": "query",
+        "name": "operatingDayTo",
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

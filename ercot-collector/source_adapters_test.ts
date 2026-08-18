@@ -1,4 +1,10 @@
-import { incrementalMetrics, metricBatches, payloadHash } from "./_lib.ts";
+import {
+  boundedSourceMetadata,
+  incrementalMetrics,
+  metricBatches,
+  payloadHash,
+  sourceResultAvailability,
+} from "./_lib.ts";
 import { parseFuelMix } from "./fuel_mix.ts";
 import { parseGenerationOutages } from "./generation_outages.ts";
 import { parseMetar } from "./metar.ts";
@@ -27,6 +33,34 @@ async function assertRejects(callback: () => Promise<unknown>, expected: string)
   }
   throw new Error(`expected rejection containing ${expected}`);
 }
+
+Deno.test("source health metadata is bounded, redacted, and supports valid empty availability", () => {
+  const metadata = boundedSourceMetadata({
+    provider: "ERCOT",
+    access_token: "must-not-leak",
+    nested: { subscriptionKey: "must-not-leak", fields: ["one", "two"] },
+  });
+  assert(metadata?.provider === "ERCOT", "safe provenance preserved");
+  assert(metadata?.access_token === "[redacted]", "token redacted");
+  const nested = metadata?.nested as Record<string, unknown> | undefined;
+  assert(nested?.subscriptionKey === "[redacted]", "nested key redacted");
+
+  const empty = { events: [], metrics: [] };
+  assert(sourceResultAvailability(empty, true).availability === "empty", "valid empty accepted");
+  try {
+    sourceResultAvailability(empty);
+    throw new Error("expected zero_core_rows");
+  } catch (error) {
+    assert(
+      error instanceof Error && error.message === "zero_core_rows",
+      "empty rejected by default",
+    );
+  }
+
+  const oversized = boundedSourceMetadata({ value: "x".repeat(20_000) });
+  assert(oversized?.truncated !== true, "per-value limit keeps metadata bounded");
+  assert(JSON.stringify(oversized).length < 8_192, "metadata byte bound");
+});
 
 Deno.test("fuel mix success fixture normalizes generation and seasonal capacity", async () => {
   const result = await parseFuelMix(await jsonFixture("fuel_mix.success.json"));

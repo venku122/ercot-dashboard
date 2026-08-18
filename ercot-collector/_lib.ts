@@ -38,6 +38,7 @@ export type SourceResult = {
   events: NormalizedEvent[];
   metrics: NormalizedMetric[];
   payloadHash: string;
+  provenance?: Record<string, unknown>;
   sourceTimestamp: number;
 };
 
@@ -45,6 +46,7 @@ export type SourceAdapter = {
   displayName: string;
   expectedIntervalSeconds: number;
   gather: () => Promise<SourceResult>;
+  allowValidEmpty?: boolean;
   mutableMetricNames?: string[];
   overlapSeconds?: number;
   publicationIntervalSeconds?: number;
@@ -68,8 +70,10 @@ export type SourceCheckpoint =
     });
 
 type SourceAttempt = {
+  availability_status?: "available" | "empty";
   attempted_at: number;
   data_timestamp_ts?: number;
+  diagnostics?: Record<string, unknown>;
   display_name: string;
   error?: string;
   expected_interval_seconds: number;
@@ -77,11 +81,56 @@ type SourceAttempt = {
   payload_hash?: string;
   publication_interval_seconds?: number;
   publication_mode?: "event" | "polling";
+  provenance?: Record<string, unknown>;
   row_count: number;
   source_id: string;
   source_timestamp_ts?: number;
   success: boolean;
 };
+
+const sourceMetadataByteLimit = 8 * 1024;
+const sourceMetadataSecretKey =
+  /(?:authorization|cookie|password|secret|token|subscription.?key|api.?key|email)/i;
+
+function sanitizedMetadataValue(value: unknown, depth: number): unknown {
+  if (depth > 4) return "[depth-limited]";
+  if (value === null || typeof value === "boolean" || typeof value === "number") return value;
+  if (typeof value === "string") return value.slice(0, 512);
+  if (Array.isArray(value)) {
+    return value.slice(0, 32).map((entry) => sanitizedMetadataValue(entry, depth + 1));
+  }
+  if (value && typeof value === "object") {
+    const output: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value).slice(0, 64)) {
+      output[key] = sourceMetadataSecretKey.test(key)
+        ? "[redacted]"
+        : sanitizedMetadataValue(entry, depth + 1);
+    }
+    return output;
+  }
+  return String(value).slice(0, 512);
+}
+
+export function boundedSourceMetadata(
+  value: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!value) return undefined;
+  const sanitized = sanitizedMetadataValue(value, 0) as Record<string, unknown>;
+  const bytes = new TextEncoder().encode(JSON.stringify(sanitized)).length;
+  return bytes <= sourceMetadataByteLimit
+    ? sanitized
+    : { truncated: true, original_sanitized_bytes: bytes };
+}
+
+export function sourceResultAvailability(
+  result: Pick<SourceResult, "events" | "metrics">,
+  allowValidEmpty = false,
+): { availability: "available" | "empty"; rowCount: number } {
+  const rowCount =
+    result.metrics.reduce((total, entry) => total + entry.points.length, 0) + result.events.length;
+  if (rowCount === 0 && !allowValidEmpty) throw new Error("zero_core_rows");
+  return { availability: rowCount === 0 ? "empty" : "available", rowCount };
+}
 
 const metricsEndpoint = Deno.env.get("METRICS_ENDPOINT");
 const metricsApiKey = Deno.env.get("METRICS_API_KEY");
@@ -450,10 +499,7 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
     const attemptedAt = Math.floor(Date.now() / 1000);
     try {
       const result = await adapter.gather();
-      const rowCount =
-        result.metrics.reduce((total, entry) => total + entry.points.length, 0) +
-        result.events.length;
-      if (rowCount === 0) throw new Error("zero_core_rows");
+      const { availability, rowCount } = sourceResultAvailability(result, adapter.allowValidEmpty);
       const unchanged = previousHash === result.payloadHash;
       const incremental = incrementalMetrics(
         result.metrics,
@@ -481,7 +527,11 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         attempted_at: attemptedAt,
         success: true,
         source_timestamp_ts: result.sourceTimestamp,
-        data_timestamp_ts: result.dataTimestamp ?? result.sourceTimestamp,
+        data_timestamp_ts:
+          availability === "empty" ? undefined : (result.dataTimestamp ?? result.sourceTimestamp),
+        availability_status: availability,
+        diagnostics: boundedSourceMetadata(result.diagnostics),
+        provenance: boundedSourceMetadata(result.provenance),
         payload_hash: result.payloadHash,
         row_count: rowCount,
         checkpoint: incrementalEventResult.checkpoint,

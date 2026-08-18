@@ -4,6 +4,7 @@ import hashlib
 import math
 import mimetypes
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -28,6 +29,12 @@ MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
 MAX_RAW_SPAN_SECONDS = int(os.environ.get("MAX_RAW_SPAN_SECONDS", str(31 * 86400)))
 MAX_EVENTS = int(os.environ.get("MAX_EVENTS", "1000"))
+MAX_SOURCE_METADATA_BYTES = int(
+    os.environ.get("MAX_SOURCE_METADATA_BYTES", str(16 * 1024))
+)
+MAX_SOURCE_METADATA_DEPTH = 5
+MAX_SOURCE_METADATA_ITEMS = 50
+MAX_SOURCE_METADATA_STRING = 500
 CORS_ORIGINS_EXTRA = os.environ.get("CORS_ORIGINS_EXTRA", "")
 TRUST_PROXY = os.environ.get("TRUST_PROXY", "0") in ("1", "true", "TRUE", "yes", "YES")
 RATE_LIMIT_INGEST_RPM = int(os.environ.get("RATE_LIMIT_INGEST_RPM", "600"))
@@ -115,6 +122,9 @@ def init_db(conn: sqlite3.Connection) -> None:
             publication_mode TEXT NOT NULL DEFAULT 'polling',
             publication_interval_seconds INTEGER,
             checkpoint_json TEXT,
+            diagnostics_json TEXT,
+            provenance_json TEXT,
+            availability_status TEXT,
             updated_at INTEGER NOT NULL
         )
         """
@@ -134,6 +144,12 @@ def init_db(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE collector_sources ADD COLUMN checkpoint_json TEXT")
     if "data_timestamp_ts" not in source_columns:
         conn.execute("ALTER TABLE collector_sources ADD COLUMN data_timestamp_ts INTEGER")
+    if "diagnostics_json" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN diagnostics_json TEXT")
+    if "provenance_json" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN provenance_json TEXT")
+    if "availability_status" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN availability_status TEXT")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS events (
@@ -202,6 +218,108 @@ def parse_positive_int(value):
     if parsed is None or parsed <= 0:
         return None
     return parsed
+
+
+SENSITIVE_SOURCE_METADATA_KEYS = {
+    "accesstoken",
+    "apikey",
+    "authorization",
+    "bearertoken",
+    "clientsecret",
+    "cookie",
+    "credentials",
+    "idtoken",
+    "password",
+    "primarykey",
+    "refreshtoken",
+    "secondarykey",
+    "secret",
+    "subscriptionkey",
+}
+
+
+def sanitize_source_metadata_string(value):
+    sanitized = re.sub(r"(?i)bearer\s+[^\s,;]+", "Bearer [redacted]", str(value))
+    sanitized = re.sub(
+        r"(?i)(subscription-key|api[_-]?key|access[_-]?token|bearer[_-]?token|"
+        r"client[_-]?secret|id[_-]?token|password|primary[_-]?key|"
+        r"refresh[_-]?token|secondary[_-]?key|subscription[_-]?key)=[^&\s]+",
+        r"\1=[redacted]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+        "[redacted-email]",
+        sanitized,
+    )
+    if len(sanitized) > MAX_SOURCE_METADATA_STRING:
+        return sanitized[:MAX_SOURCE_METADATA_STRING] + "...[truncated]"
+    return sanitized
+
+
+def sanitize_source_metadata(value, depth=0):
+    if depth >= MAX_SOURCE_METADATA_DEPTH:
+        return "[truncated]"
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, str):
+        return sanitize_source_metadata_string(value)
+    if isinstance(value, dict):
+        output = {}
+        items = list(value.items())
+        for raw_key, item in items[:MAX_SOURCE_METADATA_ITEMS]:
+            key = str(raw_key)[:120]
+            normalized_key = re.sub(r"[^a-z0-9]", "", key.lower())
+            if normalized_key in SENSITIVE_SOURCE_METADATA_KEYS:
+                output[key] = "[redacted]"
+            else:
+                output[key] = sanitize_source_metadata(item, depth + 1)
+        if len(items) > MAX_SOURCE_METADATA_ITEMS:
+            output["_truncated_entries"] = len(items) - MAX_SOURCE_METADATA_ITEMS
+        return output
+    if isinstance(value, (list, tuple)):
+        output = [
+            sanitize_source_metadata(item, depth + 1)
+            for item in value[:MAX_SOURCE_METADATA_ITEMS]
+        ]
+        if len(value) > MAX_SOURCE_METADATA_ITEMS:
+            output.append(
+                {"_truncated_entries": len(value) - MAX_SOURCE_METADATA_ITEMS}
+            )
+        return output
+    return sanitize_source_metadata_string(value)
+
+
+def bounded_source_metadata_json(value, field):
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"invalid_{field}")
+    sanitized = sanitize_source_metadata(value)
+    encoded = json.dumps(sanitized, sort_keys=True, separators=(",", ":"))
+    encoded_bytes = len(encoded.encode("utf-8"))
+    if encoded_bytes <= MAX_SOURCE_METADATA_BYTES:
+        return encoded
+    return json.dumps(
+        {
+            "_original_sanitized_bytes": encoded_bytes,
+            "_truncated": True,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def parse_source_metadata_json(value):
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def normalize_tags(tags):
@@ -475,6 +593,19 @@ def update_source_health(conn, attempt, current_ts=None):
         checkpoint_json = json.dumps(checkpoint, sort_keys=True, separators=(",", ":"))
         if len(checkpoint_json.encode("utf-8")) > MAX_BODY_BYTES:
             raise ValueError("checkpoint_too_large")
+    diagnostics_json = bounded_source_metadata_json(
+        attempt.get("diagnostics"), "source_diagnostics"
+    )
+    provenance_json = bounded_source_metadata_json(
+        attempt.get("provenance"), "source_provenance"
+    )
+    availability_status = attempt.get("availability_status")
+    if availability_status is not None:
+        availability_status = str(availability_status)
+        if availability_status not in ("available", "empty"):
+            raise ValueError("invalid_availability_status")
+    if not success:
+        availability_status = None
     previous = conn.execute(
         "SELECT consecutive_failures, last_success_ts FROM collector_sources WHERE source_id = ?",
         (str(source_id),),
@@ -488,8 +619,8 @@ def update_source_health(conn, attempt, current_ts=None):
             last_success_ts, source_timestamp_ts, last_payload_hash,
             last_row_count, consecutive_failures, last_error, updated_at
             , publication_mode, publication_interval_seconds, checkpoint_json,
-            data_timestamp_ts
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            data_timestamp_ts, diagnostics_json, provenance_json, availability_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_id) DO UPDATE SET
             display_name = excluded.display_name,
             expected_interval_seconds = excluded.expected_interval_seconds,
@@ -516,9 +647,26 @@ def update_source_health(conn, attempt, current_ts=None):
                 ELSE excluded.checkpoint_json
             END,
             data_timestamp_ts = CASE
+                WHEN excluded.availability_status = 'empty'
+                THEN NULL
                 WHEN excluded.data_timestamp_ts IS NULL
                 THEN collector_sources.data_timestamp_ts
                 ELSE excluded.data_timestamp_ts
+            END,
+            diagnostics_json = CASE
+                WHEN excluded.diagnostics_json IS NULL
+                THEN collector_sources.diagnostics_json
+                ELSE excluded.diagnostics_json
+            END,
+            provenance_json = CASE
+                WHEN excluded.provenance_json IS NULL
+                THEN collector_sources.provenance_json
+                ELSE excluded.provenance_json
+            END,
+            availability_status = CASE
+                WHEN excluded.availability_status IS NULL
+                THEN collector_sources.availability_status
+                ELSE excluded.availability_status
             END,
             updated_at = excluded.updated_at
         """,
@@ -540,6 +688,9 @@ def update_source_health(conn, attempt, current_ts=None):
             publication_interval,
             checkpoint_json,
             parse_timestamp(attempt.get("data_timestamp_ts")),
+            diagnostics_json,
+            provenance_json,
+            availability_status,
         ),
     )
     conn.commit()
@@ -550,7 +701,10 @@ def source_state(row, current_ts=None):
     interval = max(1, int(row[2]))
     last_success = row[4]
     source_ts = row[5]
-    data_ts = row[14] if row[14] is not None else source_ts
+    availability_status = row[17] if len(row) > 17 else None
+    data_ts = row[14]
+    if data_ts is None and availability_status != "empty":
+        data_ts = source_ts
     failures = int(row[8] or 0)
     publication_mode = row[11] or "polling"
     publication_interval = row[12] or interval
@@ -596,7 +750,8 @@ def list_source_health(conn, current_ts=None):
                last_payload_hash, last_row_count, consecutive_failures,
                last_error, updated_at, publication_mode,
                publication_interval_seconds, checkpoint_json,
-               data_timestamp_ts
+               data_timestamp_ts, diagnostics_json, provenance_json,
+               availability_status
         FROM collector_sources ORDER BY display_name
         """
     ).fetchall()
@@ -628,6 +783,9 @@ def list_source_health(conn, current_ts=None):
                 "collection_age_seconds": states["collection_age_seconds"],
                 "source_age_seconds": states["source_age_seconds"],
                 "data_age_seconds": states["data_age_seconds"],
+                "diagnostics": parse_source_metadata_json(row[15]),
+                "provenance": parse_source_metadata_json(row[16]),
+                "availability_status": row[17],
             }
         )
     return output
