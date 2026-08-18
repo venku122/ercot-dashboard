@@ -4,6 +4,12 @@ import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
 import { parseOutlookResponse, type OutlookResponse } from "./outlook";
 import {
+  parseForecastQualityManifest,
+  parseForecastQualityResource,
+  type ForecastQualityManifest,
+  type ForecastQualityResource,
+} from "./forecast-quality";
+import {
   parseTileCatalog,
   planTileRequests,
   resolveTileSeries,
@@ -910,6 +916,21 @@ export async function loadSourceHealth(signal?: AbortSignal): Promise<SourceHeal
 export async function loadOutlook(signal?: AbortSignal): Promise<OutlookResponse> {
   const response = await fetchJson<unknown>("/api/v1/outlook", { method: "GET" }, signal);
   return parseOutlookResponse(response);
+}
+
+export async function loadForecastQualityManifest(
+  signal?: AbortSignal,
+): Promise<ForecastQualityManifest> {
+  const response = await fetchJson<unknown>("/api/v1/forecast-quality", { method: "GET" }, signal);
+  return parseForecastQualityManifest(response);
+}
+
+export async function loadForecastQualityResource(
+  resource: ForecastQualityManifest["resources"][number],
+  signal?: AbortSignal,
+): Promise<ForecastQualityResource> {
+  const response = await fetchJson<unknown>(resource.url, { method: "GET" }, signal);
+  return parseForecastQualityResource(response, resource);
 }
 
 export async function loadEvents(time: TimeState, signal?: AbortSignal): Promise<EventRecord[]> {
