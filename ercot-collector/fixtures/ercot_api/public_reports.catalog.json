@@ -1,0 +1,52 @@
+{
+  "_embedded": {
+    "products": [
+      {
+        "emilId": "NP3-565-CD",
+        "name": "Sanitized Load Forecast Product",
+        "status": "Active",
+        "artifacts": [
+          {
+            "displayName": "Actual Loads by Forecast Zone",
+            "_links": {
+              "endpoint": {
+                "href": "/api/public-reports/np3-565-cd/actual_loads_by_forecast_zone"
+              },
+              "archive": {
+                "href": "/archive/NP3-565-CD"
+              }
+            }
+          },
+          {
+            "displayName": "Seven-Day Load Forecast",
+            "_links": {
+              "endpoint": {
+                "href": "https://api.test/api/public-reports/np3-565-cd/seven_day_load_forecast"
+              }
+            }
+          }
+        ],
+        "_links": {
+          "self": {
+            "href": "/api/public-reports/NP3-565-CD"
+          }
+        }
+      },
+      {
+        "emilId": "NP3-763-CD",
+        "name": "Sanitized Capacity Product",
+        "status": "Active",
+        "artifacts": [
+          {
+            "displayName": "Capacity Forecast",
+            "_links": {
+              "endpoint": {
+                "href": "/api/public-reports/np3-763-cd/capacity_forecast"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

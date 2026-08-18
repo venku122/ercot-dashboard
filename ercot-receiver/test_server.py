@@ -185,6 +185,9 @@ class MigrationAndIngestTests(unittest.TestCase):
         self.assertIn("events", tables)
         self.assertIn("dedupe_key", columns)
         self.assertIn("data_timestamp_ts", source_columns)
+        self.assertIn("diagnostics_json", source_columns)
+        self.assertIn("provenance_json", source_columns)
+        self.assertIn("availability_status", source_columns)
         self.assertIn("idx_metrics_dedupe_key", indexes)
 
     def test_existing_database_migrates_without_rewriting_rows(self):
@@ -249,6 +252,12 @@ class MigrationAndIngestTests(unittest.TestCase):
             ),
             1,
         )
+        migrated_source_columns = [
+            row[1] for row in legacy.execute("PRAGMA table_info(collector_sources)")
+        ]
+        self.assertEqual(migrated_source_columns.count("diagnostics_json"), 1)
+        self.assertEqual(migrated_source_columns.count("provenance_json"), 1)
+        self.assertEqual(migrated_source_columns.count("availability_status"), 1)
         legacy.close()
 
     def test_metric_dedupe_upserts_revisions_and_identical_replay_is_unchanged(self):
@@ -474,6 +483,176 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         self.assertEqual(failed_health["data_timestamp_ts"], 1_000)
         self.assertEqual(failed_health["data_age_seconds"], 9_080)
 
+    def test_source_metadata_is_sanitized_persisted_and_preserved_on_failure(self):
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "ercot_public_api",
+                "display_name": "ERCOT Public API",
+                "expected_interval_seconds": 300,
+                "attempted_at": 10_000,
+                "success": True,
+                "source_timestamp_ts": 10_000,
+                "row_count": 12,
+                "diagnostics": {
+                    "pages": 2,
+                    "authorization": "Bearer fixture-sensitive-value",
+                    "clientSecret": "fixture-sensitive-value",
+                    "request_url": (
+                        "https://api.ercot.test/report?"
+                        "subscription_key=fixture-sensitive-value"
+                    ),
+                    "contact": "fixture@example.test",
+                },
+                "provenance": {
+                    "provider": "ERCOT",
+                    "emil_id": "NP3-565-CD",
+                    "artifact_path": "/np3-565-cd/lf_by_model_weather_zone",
+                    "access_token": "fixture-sensitive-value",
+                    "primaryKey": "fixture-sensitive-value",
+                },
+            },
+            current_ts=10_000,
+        )
+
+        health = server.list_source_health(self.conn, 10_060)[0]
+        self.assertEqual(health["diagnostics"]["pages"], 2)
+        self.assertEqual(health["diagnostics"]["authorization"], "[redacted]")
+        self.assertEqual(health["diagnostics"]["clientSecret"], "[redacted]")
+        self.assertNotIn(
+            "fixture-sensitive-value", health["diagnostics"]["request_url"]
+        )
+        self.assertEqual(health["diagnostics"]["contact"], "[redacted-email]")
+        self.assertEqual(health["provenance"]["emil_id"], "NP3-565-CD")
+        self.assertEqual(health["provenance"]["access_token"], "[redacted]")
+        self.assertEqual(health["provenance"]["primaryKey"], "[redacted]")
+
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "ercot_public_api",
+                "display_name": "ERCOT Public API",
+                "expected_interval_seconds": 300,
+                "attempted_at": 10_100,
+                "success": False,
+                "row_count": 0,
+                "error": "source_http_503",
+            },
+            current_ts=10_100,
+        )
+
+        failed_health = server.list_source_health(self.conn, 10_110)[0]
+        self.assertEqual(failed_health["diagnostics"], health["diagnostics"])
+        self.assertEqual(failed_health["provenance"], health["provenance"])
+
+    def test_source_metadata_is_bounded_and_requires_objects(self):
+        oversized = {f"field_{index}": "x" * 1_000 for index in range(50)}
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "ercot_public_api",
+                "display_name": "ERCOT Public API",
+                "expected_interval_seconds": 300,
+                "attempted_at": 10_000,
+                "success": True,
+                "row_count": 0,
+                "diagnostics": oversized,
+            },
+            current_ts=10_000,
+        )
+
+        stored = self.conn.execute(
+            "SELECT diagnostics_json FROM collector_sources WHERE source_id = ?",
+            ("ercot_public_api",),
+        ).fetchone()[0]
+        self.assertLessEqual(len(stored.encode("utf-8")), server.MAX_SOURCE_METADATA_BYTES)
+        diagnostics = server.list_source_health(self.conn, 10_010)[0]["diagnostics"]
+        self.assertTrue(diagnostics["_truncated"])
+
+        with self.assertRaisesRegex(ValueError, "invalid_source_diagnostics"):
+            server.update_source_health(
+                self.conn,
+                {
+                    "source_id": "invalid_metadata",
+                    "display_name": "Invalid Metadata",
+                    "expected_interval_seconds": 300,
+                    "success": True,
+                    "row_count": 0,
+                    "diagnostics": ["not", "an", "object"],
+                },
+            )
+
+    def test_valid_empty_availability_is_visible_and_survives_failure(self):
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "ercot_esr_api",
+                "display_name": "ERCOT ESR API",
+                "expected_interval_seconds": 60,
+                "attempted_at": 9_950,
+                "success": True,
+                "source_timestamp_ts": 9_950,
+                "data_timestamp_ts": 9_940,
+                "row_count": 1,
+                "availability_status": "available",
+            },
+            current_ts=9_950,
+        )
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "ercot_esr_api",
+                "display_name": "ERCOT ESR API",
+                "expected_interval_seconds": 60,
+                "attempted_at": 10_000,
+                "success": True,
+                "source_timestamp_ts": 10_000,
+                "row_count": 0,
+                "availability_status": "empty",
+                "diagnostics": {"field_count": 5},
+            },
+            current_ts=10_000,
+        )
+
+        health = server.list_source_health(self.conn, 10_010)[0]
+        self.assertEqual(health["availability_status"], "empty")
+        self.assertEqual(health["collection_state"], "healthy")
+        self.assertEqual(health["freshness_state"], "unknown")
+        self.assertIsNone(health["data_timestamp_ts"])
+        self.assertIsNone(health["data_age_seconds"])
+        self.assertEqual(health["diagnostics"]["field_count"], 5)
+
+        server.update_source_health(
+            self.conn,
+            {
+                "source_id": "ercot_esr_api",
+                "display_name": "ERCOT ESR API",
+                "expected_interval_seconds": 60,
+                "attempted_at": 10_020,
+                "success": False,
+                "row_count": 0,
+                "error": "source_http_503",
+            },
+            current_ts=10_020,
+        )
+        self.assertEqual(
+            server.list_source_health(self.conn, 10_030)[0]["availability_status"],
+            "empty",
+        )
+
+        with self.assertRaisesRegex(ValueError, "invalid_availability_status"):
+            server.update_source_health(
+                self.conn,
+                {
+                    "source_id": "invalid_availability",
+                    "display_name": "Invalid Availability",
+                    "expected_interval_seconds": 300,
+                    "success": True,
+                    "row_count": 0,
+                    "availability_status": "unknown",
+                },
+            )
+
     def test_query_limits_reject_unbounded_or_oversized_requests(self):
         with self.assertRaisesRegex(ValueError, "max_points_exceeds_limit"):
             server.validate_max_points(server.MAX_POINTS_HARD + 1)
@@ -603,6 +782,35 @@ class HttpQueryBoundsTests(unittest.TestCase):
         meta = payload["series"][0]["meta"]
         self.assertIsNotNone(meta["since"])
         self.assertLessEqual(meta["until"] - meta["since"], server.MAX_RAW_SPAN_SECONDS)
+
+    def test_source_health_api_exposes_metadata_and_empty_availability(self):
+        conn = sqlite3.connect(server.DB_PATH)
+        server.update_source_health(
+            conn,
+            {
+                "source_id": "ercot_esr_api",
+                "display_name": "ERCOT ESR API",
+                "expected_interval_seconds": 60,
+                "attempted_at": server.now_ts(),
+                "success": True,
+                "row_count": 0,
+                "availability_status": "empty",
+                "diagnostics": {"field_count": 5},
+                "provenance": {
+                    "provider": "ERCOT",
+                    "artifact_path": "/rptesr-m/4_sec_esr_charging_mw",
+                },
+            },
+        )
+        conn.close()
+
+        payload, headers = self.invoke("GET", "/api/v1/source-health")
+
+        source = payload["sources"][0]
+        self.assertEqual(source["availability_status"], "empty")
+        self.assertEqual(source["diagnostics"], {"field_count": 5})
+        self.assertEqual(source["provenance"]["provider"], "ERCOT")
+        self.assertIn("public", headers["Cache-Control"])
 
     def test_batch_statistics_use_raw_window_not_max_points_plot(self):
         conn = sqlite3.connect(server.DB_PATH)
