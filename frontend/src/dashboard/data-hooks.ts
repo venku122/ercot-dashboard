@@ -7,6 +7,9 @@ import {
   loadForecastQualityManifest,
   loadForecastQualityResource,
   loadLatest,
+  loadNetLoadDailyResource,
+  loadNetLoadManifest,
+  loadNetLoadResource,
   loadOutlook,
   loadPriceRanking,
   loadSourceHealth,
@@ -14,6 +17,7 @@ import {
   type LatestQuery,
 } from "./api";
 import type { ForecastQualityManifest } from "./forecast-quality";
+import type { NetLoadDailyLink, NetLoadResourceLink } from "./net-load";
 import { derivedLatestQueries } from "./derived-metrics";
 import { healthLatestQueries } from "./grid-health-score";
 import type { EventRecord, TimeState } from "./types";
@@ -109,6 +113,67 @@ export function useForecastQualityResource(
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });
+}
+
+function useAbortableResource<T>(
+  enabled: boolean,
+  key: readonly unknown[],
+  loader: (signal: AbortSignal) => Promise<T>,
+) {
+  const controller = useRef<AbortController | null>(null);
+  const fetcher = useCallback(() => {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loader(next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, [loader]);
+  useEffect(() => {
+    if (!enabled) {
+      controller.current?.abort();
+      return;
+    }
+    return () => controller.current?.abort();
+  }, [enabled]);
+  return useSWR(enabled ? key : null, fetcher, {
+    ...swrPolicy,
+    keepPreviousData: false,
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+}
+
+export function useNetLoadManifest(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadNetLoadManifest(signal), []);
+  return useAbortableResource(enabled, ["net-load", "manifest"], loader);
+}
+
+export function useNetLoadResource(enabled: boolean, resource: NetLoadResourceLink | null) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!resource) return Promise.reject(new Error("missing_net_load_resource"));
+      return loadNetLoadResource(resource, signal);
+    },
+    [resource],
+  );
+  return useAbortableResource(enabled && resource !== null, ["net-load", resource?.url], loader);
+}
+
+export function useNetLoadDailyResource(enabled: boolean, resource: NetLoadDailyLink | null) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!resource) return Promise.reject(new Error("missing_net_load_daily_resource"));
+      return loadNetLoadDailyResource(resource, signal);
+    },
+    [resource],
+  );
+  return useAbortableResource(
+    enabled && resource !== null,
+    ["net-load", "daily", resource?.url],
+    loader,
+  );
 }
 
 export function canonicalLatestKey(queries: readonly LatestQuery[]): string {
