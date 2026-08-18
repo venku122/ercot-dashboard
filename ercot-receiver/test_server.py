@@ -95,6 +95,264 @@ class QueryTests(unittest.TestCase):
 
         self.assertIn(("idx_metric_tags_tag_metric",), rows)
         self.assertIn(("idx_metrics_name_ts_value_id",), rows)
+        self.assertIn(("idx_metrics_series_ts_id_value",), rows)
+        self.assertIn(("idx_metrics_unbackfilled_name",), rows)
+        hot_index_sql = self.conn.execute(
+            """
+            SELECT sql FROM sqlite_master
+            WHERE type = 'index' AND name = 'idx_metrics_series_ts_id_value'
+            """
+        ).fetchone()[0]
+        self.assertIn("WHERE series_id IS NOT NULL", hot_index_sql)
+
+    def test_incomplete_backfill_gate_uses_partial_metric_index(self):
+        plan = self.conn.execute(
+            """
+            EXPLAIN QUERY PLAN
+            SELECT 1 FROM metrics
+            WHERE metric_name = ? AND series_id IS NULL
+            LIMIT 1
+            """,
+            ("ercot.fixture",),
+        ).fetchall()
+        details = [row[3] for row in plan]
+
+        self.assertTrue(
+            any("USING INDEX idx_metrics_unbackfilled_name" in detail for detail in details),
+            details,
+        )
+        self.assertFalse(any("SCAN metrics" in detail for detail in details), details)
+
+    def test_normalized_query_path_matches_legacy_for_no_one_and_multiple_tags(self):
+        self.insert_metric("ercot.parity", 100, 1.0, [])
+        self.insert_metric("ercot.parity", 200, 30.0, ["zone:a"])
+        self.insert_metric("ercot.parity", 200, 10.0, ["kind:x", "zone:a"])
+        self.insert_metric(
+            "ercot.parity", 200, 20.0, ["detail:y", "kind:x", "zone:a"]
+        )
+        self.insert_metric("ercot.parity", 400, 4.0, ["kind:x", "zone:b"])
+        filters = ([], ["zone:a"], ["zone:a", "kind:x"])
+        legacy = {
+            tuple(tags): self.handler._series_query(
+                self.conn, "ercot.parity", 0, 500, tags
+            )
+            for tags in filters
+        }
+
+        self.assertEqual(server.backfill_metric_series(self.conn, batch_size=2), 5)
+        normalized = {
+            tuple(tags): self.handler._series_query(
+                self.conn, "ercot.parity", 0, 500, tags
+            )
+            for tags in filters
+        }
+
+        self.assertEqual(normalized, legacy)
+        self.assertEqual(
+            normalized[()],
+            [[100, 1.0], [200, 30.0], [200, 10.0], [200, 20.0], [400, 4.0]],
+        )
+        self.assertEqual(
+            normalized[("zone:a",)],
+            [[200, 30.0], [200, 10.0], [200, 20.0]],
+        )
+        self.assertEqual(
+            normalized[("zone:a", "kind:x")],
+            [[200, 10.0], [200, 20.0]],
+        )
+        self.assertEqual(
+            self.handler._series_query(
+                self.conn,
+                "ercot.parity",
+                0,
+                500,
+                ["zone:a"],
+                rollup="sum",
+            ),
+            [[200, 60.0]],
+        )
+
+    def test_normalized_range_scan_uses_series_timestamp_covering_index(self):
+        result = server.ingest_metrics(
+            self.conn,
+            [
+                {
+                    "metric_name": "ercot.indexed",
+                    "tags": ["zone:a"],
+                    "points": [{"timestamp": 100, "value": 1}],
+                }
+            ],
+        )
+        self.assertEqual(result["inserted"], 1)
+        series_id = self.conn.execute(
+            "SELECT series_id FROM metrics WHERE metric_name = 'ercot.indexed'"
+        ).fetchone()[0]
+
+        plan = self.conn.execute(
+            """
+            EXPLAIN QUERY PLAN
+            SELECT ts, value FROM metrics
+            WHERE series_id = ? AND ts >= ? AND ts <= ?
+            ORDER BY ts, id
+            """,
+            (series_id, 0, 200),
+        ).fetchall()
+
+        self.assertTrue(
+            any(
+                "USING COVERING INDEX idx_metrics_series_ts_id_value" in row[3]
+                for row in plan
+            ),
+            plan,
+        )
+
+        source, clauses, params, needs_legacy_tags = server.series_filter_sql(
+            self.conn, "ercot.indexed", ["zone:a"]
+        )
+        self.assertFalse(needs_legacy_tags)
+        handler_plan = self.conn.execute(
+            "EXPLAIN QUERY PLAN SELECT m.ts, m.value FROM "
+            + source
+            + " WHERE "
+            + " AND ".join([*clauses, "m.ts >= ?", "m.ts <= ?"])
+            + " ORDER BY m.ts, m.id",
+            [*params, 0, 200],
+        ).fetchall()
+        self.assertTrue(
+            any(
+                "USING COVERING INDEX idx_metrics_series_ts_id_value" in row[3]
+                for row in handler_plan
+            ),
+            handler_plan,
+        )
+
+        selector_plan = self.conn.execute(
+            """
+            EXPLAIN QUERY PLAN
+            SELECT s.id FROM series s
+            JOIN series_tags st ON st.series_id = s.id
+            WHERE s.metric_name = ? AND st.tag IN (?)
+            GROUP BY s.id
+            HAVING COUNT(DISTINCT st.tag) = 1
+            """,
+            ("ercot.indexed", "zone:a"),
+        ).fetchall()
+        details = [row[3] for row in selector_plan]
+        self.assertFalse(any("SCAN metrics" in detail for detail in details), details)
+        self.assertTrue(
+            any(
+                "USING COVERING INDEX idx_series_tags_tag_series" in detail
+                for detail in details
+            ),
+            details,
+        )
+
+    def test_normalized_query_parity_covers_aggregates_latest_and_empty(self):
+        self.insert_metric("ercot.aggregate_parity", 0, 5.0, ["zone:a"])
+        self.insert_metric(
+            "ercot.aggregate_parity", 30, 1.0, ["kind:x", "zone:a"]
+        )
+        self.insert_metric(
+            "ercot.aggregate_parity", 60, 9.0, ["kind:x", "zone:a"]
+        )
+        self.insert_metric(
+            "ercot.aggregate_parity",
+            90,
+            3.0,
+            ["detail:y", "kind:x", "zone:a"],
+        )
+
+        def snapshot():
+            return {
+                "average": self.handler._series_query(
+                    self.conn,
+                    "ercot.aggregate_parity",
+                    0,
+                    120,
+                    ["kind:x", "zone:a"],
+                    bucket_seconds=60,
+                ),
+                "empty": self.handler._series_query(
+                    self.conn,
+                    "ercot.aggregate_parity",
+                    0,
+                    120,
+                    ["zone:missing"],
+                ),
+                "latest": self.handler._latest_query(
+                    self.conn,
+                    "ercot.aggregate_parity",
+                    ["zone:a", "kind:x"],
+                ),
+                "minmax": self.handler._series_query(
+                    self.conn,
+                    "ercot.aggregate_parity",
+                    0,
+                    120,
+                    ["zone:a", "kind:x"],
+                    bucket_seconds=60,
+                    aggregation="minmax",
+                ),
+                "statistics": self.handler._series_statistics(
+                    self.conn,
+                    "ercot.aggregate_parity",
+                    0,
+                    120,
+                    ["kind:x", "zone:a"],
+                ),
+            }
+
+        legacy = snapshot()
+        self.assertEqual(server.backfill_metric_series(self.conn), 4)
+        normalized = snapshot()
+
+        self.assertEqual(normalized, legacy)
+        self.assertEqual(normalized["average"], [[0, 1.0], [60, 6.0]])
+        self.assertEqual(normalized["empty"], [])
+        self.assertEqual(normalized["latest"]["value"], 3.0)
+        self.assertEqual(normalized["statistics"]["count"], 3)
+
+    def test_incomplete_backfill_falls_back_without_dropping_null_series_rows(self):
+        server.ingest_metrics(
+            self.conn,
+            [
+                {
+                    "metric_name": "ercot.mixed",
+                    "tags": ["zone:a"],
+                    "points": [{"timestamp": 100, "value": 1}],
+                }
+            ],
+        )
+        self.insert_metric("ercot.mixed", 200, 2.0, ["zone:a"])
+
+        self.assertEqual(
+            self.handler._series_query(
+                self.conn, "ercot.mixed", 0, 300, ["zone:a"]
+            ),
+            [[100, 1.0], [200, 2.0]],
+        )
+
+    def test_no_tag_selector_does_not_expand_unbounded_series_id_parameters(self):
+        for index in range(1_100):
+            server.resolve_series_id(
+                self.conn, "ercot.high_cardinality", [f"node:{index}"]
+            )
+
+        source, clauses, params, needs_legacy_tags = server.series_filter_sql(
+            self.conn, "ercot.high_cardinality", []
+        )
+
+        self.assertEqual(source, "metrics m")
+        self.assertFalse(needs_legacy_tags)
+        self.assertEqual(params, ["ercot.high_cardinality"])
+        self.assertEqual(len(clauses), 1)
+        self.assertIn("SELECT id FROM series", clauses[0])
+        self.assertEqual(
+            self.handler._series_query(
+                self.conn, "ercot.high_cardinality", 0, 100, []
+            ),
+            [],
+        )
 
     def test_series_query_filters_single_tag(self):
         self.insert_metric("ercot.DC_Tie_Flows", 100, 1.0, ["ercot_dc_tie:DC_E"])
@@ -184,12 +442,159 @@ class MigrationAndIngestTests(unittest.TestCase):
         self.assertIn("collector_sources", tables)
         self.assertIn("events", tables)
         self.assertIn("metric_correction_age", tables)
+        self.assertIn("series", tables)
+        self.assertIn("series_tags", tables)
         self.assertIn("dedupe_key", columns)
+        self.assertIn("series_id", columns)
         self.assertIn("data_timestamp_ts", source_columns)
         self.assertIn("diagnostics_json", source_columns)
         self.assertIn("provenance_json", source_columns)
         self.assertIn("availability_status", source_columns)
         self.assertIn("idx_metrics_dedupe_key", indexes)
+        self.assertIn("idx_metrics_series_ts_id_value", indexes)
+        self.assertIn("idx_metrics_unbackfilled_name", indexes)
+        self.assertIn(
+            "idx_series_tags_tag_series",
+            {
+                row[1]
+                for row in self.conn.execute("PRAGMA index_list(series_tags)")
+            },
+        )
+
+    def test_series_identity_normalizes_tag_order_and_duplicates(self):
+        first_id = server.resolve_series_id(
+            self.conn,
+            "ercot.fuel_mix.generation_mw",
+            ["fuel:wind", "source:ercot", "fuel:wind"],
+        )
+        second_id = server.resolve_series_id(
+            self.conn,
+            "ercot.fuel_mix.generation_mw",
+            ["source:ercot", "fuel:wind"],
+        )
+
+        self.assertEqual(first_id, second_id)
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT tags_json FROM series WHERE id = ?", (first_id,)
+            ).fetchone()[0],
+            '["fuel:wind","source:ercot"]',
+        )
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM series").fetchone()[0], 1)
+
+    def test_init_does_not_rescan_series_tags_and_explicit_repair_remains_available(self):
+        series_id = server.resolve_series_id(
+            self.conn, "ercot.interrupted", ["source:fixture"]
+        )
+        self.conn.execute("DELETE FROM series_tags WHERE series_id = ?", (series_id,))
+        self.conn.commit()
+
+        server.init_db(self.conn)
+
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT COUNT(*) FROM series_tags WHERE series_id = ?", (series_id,)
+            ).fetchone()[0],
+            0,
+        )
+        self.assertEqual(server.backfill_series_tags(self.conn), 1)
+        self.assertEqual(server.backfill_series_tags(self.conn), 0)
+
+    def test_incremental_backfill_is_resumable_and_idempotent(self):
+        for tags in ('["zone:a"]', '["zone:a"]', '["zone:b"]'):
+            self.conn.execute(
+                """
+                INSERT INTO metrics (metric_name, ts, value, tags)
+                VALUES ('ercot.backfill', 1, 2, ?)
+                """,
+                (tags,),
+            )
+
+        self.assertEqual(
+            server.backfill_metric_series(
+                self.conn, batch_size=1, max_batches=1
+            ),
+            1,
+        )
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT COUNT(*) FROM metrics WHERE series_id IS NULL"
+            ).fetchone()[0],
+            2,
+        )
+        self.assertEqual(server.backfill_metric_series(self.conn, batch_size=1), 2)
+        self.assertEqual(server.backfill_metric_series(self.conn), 0)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM series").fetchone()[0], 2)
+
+        server.init_db(self.conn)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM series").fetchone()[0], 2)
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT COUNT(*) FROM metrics WHERE series_id IS NULL"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_init_backfill_is_bounded_and_explicit_helper_completes_it(self):
+        self.conn.executemany(
+            """
+            INSERT INTO metrics (metric_name, ts, value, tags)
+            VALUES ('ercot.bounded', ?, ?, '[]')
+            """,
+            [(1, 1), (2, 2), (3, 3)],
+        )
+        original_size = server.SERIES_BACKFILL_BATCH_SIZE
+        original_batches = server.SERIES_BACKFILL_MAX_BATCHES
+        server.SERIES_BACKFILL_BATCH_SIZE = 1
+        server.SERIES_BACKFILL_MAX_BATCHES = 1
+        try:
+            server.init_db(self.conn)
+        finally:
+            server.SERIES_BACKFILL_BATCH_SIZE = original_size
+            server.SERIES_BACKFILL_MAX_BATCHES = original_batches
+
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT COUNT(*) FROM metrics WHERE series_id IS NOT NULL"
+            ).fetchone()[0],
+            1,
+        )
+        self.assertEqual(server.backfill_metric_series(self.conn), 2)
+
+    def test_tag_drift_audit_and_backfill_prefer_lookup_relation(self):
+        cursor = self.conn.execute(
+            """
+            INSERT INTO metrics (metric_name, ts, value, tags)
+            VALUES ('ercot.drift', 1, 2, '["zone:compatibility"]')
+            """
+        )
+        self.conn.execute(
+            "INSERT INTO metric_tags (metric_id, tag) VALUES (?, 'zone:lookup')",
+            (cursor.lastrowid,),
+        )
+
+        self.assertEqual(
+            server.audit_metric_tag_drift(self.conn),
+            [
+                {
+                    "metric_id": cursor.lastrowid,
+                    "metric_tags": ["zone:lookup"],
+                    "tags_json": ["zone:compatibility"],
+                }
+            ],
+        )
+        server.backfill_metric_series(self.conn)
+        self.assertEqual(
+            self.conn.execute(
+                """
+                SELECT s.tags_json FROM metrics m
+                JOIN series s ON s.id = m.series_id
+                WHERE m.id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()[0],
+            '["zone:lookup"]',
+        )
 
     def test_existing_database_migrates_without_rewriting_rows(self):
         legacy_path = Path(self.tmp.name) / "legacy.db"
@@ -244,6 +649,18 @@ class MigrationAndIngestTests(unittest.TestCase):
         )
         self.assertIn(
             "dedupe_key", {row[1] for row in legacy.execute("PRAGMA table_info(metrics)")}
+        )
+        self.assertIn(
+            "series_id", {row[1] for row in legacy.execute("PRAGMA table_info(metrics)")}
+        )
+        self.assertEqual(
+            legacy.execute(
+                "SELECT metric_name, ts, value FROM metrics"
+            ).fetchone(),
+            ("legacy.metric", 1, 2.0),
+        )
+        self.assertIsNotNone(
+            legacy.execute("SELECT series_id FROM metrics").fetchone()[0]
         )
         self.assertIn(
             "data_timestamp_ts",
@@ -334,6 +751,60 @@ class MigrationAndIngestTests(unittest.TestCase):
         )
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM metric_tags").fetchone()[0], 2
+        )
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT COUNT(*) FROM metrics WHERE series_id IS NOT NULL"
+            ).fetchone()[0],
+            2,
+        )
+
+    def test_correction_can_move_sample_to_a_new_normalized_series(self):
+        payload = [
+            {
+                "metric_name": "ercot.corrected",
+                "tags": ["source:fixture", "zone:a"],
+                "points": [
+                    {"timestamp": 100, "value": 1, "dedupe_key": "corrected:100"}
+                ],
+            }
+        ]
+        server.ingest_metrics(self.conn, payload, current_ts=100)
+        original_series = self.conn.execute(
+            "SELECT series_id FROM metrics WHERE dedupe_key = 'corrected:100'"
+        ).fetchone()[0]
+        payload[0]["metric_name"] = "ercot.corrected.revised"
+        payload[0]["tags"] = ["zone:b", "source:fixture"]
+        payload[0]["points"][0]["timestamp"] = 200
+        payload[0]["points"][0]["value"] = 2
+
+        corrected = server.ingest_metrics(self.conn, payload, current_ts=300)
+        row = self.conn.execute(
+            """
+            SELECT m.series_id, s.tags_json, m.value, m.metric_name, m.ts
+            FROM metrics m JOIN series s ON s.id = m.series_id
+            WHERE m.dedupe_key = 'corrected:100'
+            """
+        ).fetchone()
+
+        self.assertEqual(corrected["updated"], 1)
+        self.assertEqual(
+            corrected["dependencies"],
+            {"ercot.corrected", "ercot.corrected.revised"},
+        )
+        self.assertEqual(corrected["changes"]["ercot.corrected"], [(100, 100)])
+        self.assertEqual(
+            corrected["changes"]["ercot.corrected.revised"], [(200, 200)]
+        )
+        self.assertNotEqual(row[0], original_series)
+        self.assertEqual(row[1], '["source:fixture","zone:b"]')
+        self.assertEqual(row[2], 2)
+        self.assertEqual(row[3:], ("ercot.corrected.revised", 200))
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT tag FROM metric_tags ORDER BY tag"
+            ).fetchall(),
+            [("source:fixture",), ("zone:b",)],
         )
 
     def test_correction_age_boundaries_and_missing_timestamp_use_prior_observation(self):
@@ -952,6 +1423,7 @@ class HttpQueryBoundsTests(unittest.TestCase):
         )
 
         result = payload["series"][0]
+        self.assertNotIn("series_id", json.dumps(payload))
         self.assertEqual(len(result["points"]), 1)
         self.assertEqual(result["meta"]["stats"]["count"], 3)
         self.assertEqual(result["meta"]["stats"]["latest"], 30)

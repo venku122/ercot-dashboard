@@ -27,6 +27,12 @@ MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
+SERIES_BACKFILL_BATCH_SIZE = max(
+    1, int(os.environ.get("SERIES_BACKFILL_BATCH_SIZE", "1000"))
+)
+SERIES_BACKFILL_MAX_BATCHES = max(
+    0, int(os.environ.get("SERIES_BACKFILL_MAX_BATCHES", "10"))
+)
 MAX_RAW_SPAN_SECONDS = int(os.environ.get("MAX_RAW_SPAN_SECONDS", str(31 * 86400)))
 MAX_EVENTS = int(os.environ.get("MAX_EVENTS", "1000"))
 MAX_SOURCE_METADATA_BYTES = int(
@@ -54,6 +60,163 @@ if CORS_ORIGINS_EXTRA:
 DB_LOCAL = threading.local()
 
 
+def canonical_series_tags(tags) -> str:
+    return json.dumps(
+        normalize_tags(tags),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def canonical_series_identity(metric_name, tags) -> tuple[str, str]:
+    normalized_metric = metric_name.strip()[:240]
+    tags_json = canonical_series_tags(tags)
+    identity = json.dumps(
+        [normalized_metric, json.loads(tags_json)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return tags_json, hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def resolve_series_id(conn, metric_name, tags) -> int:
+    tags_json, identity_hash = canonical_series_identity(metric_name, tags)
+    normalized_metric = metric_name.strip()[:240]
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO series (metric_name, tags_json, identity_hash)
+        VALUES (?, ?, ?)
+        """,
+        (normalized_metric, tags_json, identity_hash),
+    )
+    row = conn.execute(
+        "SELECT id, identity_hash FROM series WHERE metric_name = ? AND tags_json = ?",
+        (normalized_metric, tags_json),
+    ).fetchone()
+    if row is None or row[1] != identity_hash:
+        raise sqlite3.IntegrityError("series identity hash collision")
+    series_id = int(row[0])
+    normalized_tags = json.loads(tags_json)
+    if normalized_tags:
+        conn.executemany(
+            "INSERT OR IGNORE INTO series_tags (series_id, tag) VALUES (?, ?)",
+            [(series_id, tag) for tag in normalized_tags],
+        )
+    return series_id
+
+
+def backfill_metric_series(
+    conn: sqlite3.Connection,
+    *,
+    batch_size: int = 1_000,
+    commit_each_batch: bool = False,
+    max_batches: int | None = None,
+) -> int:
+    """Associate legacy samples incrementally; safe to stop and resume."""
+    if batch_size < 1:
+        raise ValueError("batch_size must be positive")
+    updated = 0
+    batches = 0
+    last_metric_id = 0
+    while max_batches is None or batches < max_batches:
+        rows = conn.execute(
+            """
+            SELECT id, metric_name, tags
+            FROM metrics
+            WHERE series_id IS NULL AND id > ?
+            ORDER BY id
+            LIMIT ?
+            """,
+            (last_metric_id, batch_size),
+        ).fetchall()
+        if not rows:
+            break
+        metric_ids = [int(row[0]) for row in rows]
+        placeholders = ",".join("?" for _ in metric_ids)
+        tags_by_metric = defaultdict(list)
+        for metric_id, tag in conn.execute(
+            f"""
+            SELECT metric_id, tag FROM metric_tags
+            WHERE metric_id IN ({placeholders})
+            ORDER BY metric_id, tag
+            """,
+            metric_ids,
+        ):
+            tags_by_metric[int(metric_id)].append(tag)
+        for metric_id, metric_name, raw_tags in rows:
+            tags = tags_by_metric.get(int(metric_id))
+            if not tags:
+                try:
+                    decoded_tags = json.loads(raw_tags or "[]")
+                    tags = decoded_tags if isinstance(decoded_tags, list) else []
+                except (json.JSONDecodeError, TypeError):
+                    tags = []
+            series_id = resolve_series_id(conn, metric_name, tags)
+            conn.execute(
+                "UPDATE metrics SET series_id = ? WHERE id = ? AND series_id IS NULL",
+                (series_id, metric_id),
+            )
+            updated += 1
+        last_metric_id = metric_ids[-1]
+        batches += 1
+        if commit_each_batch:
+            conn.commit()
+    return updated
+
+
+def backfill_series_tags(conn: sqlite3.Connection) -> int:
+    inserted = 0
+    for series_id, tags_json in conn.execute(
+        "SELECT id, tags_json FROM series ORDER BY id"
+    ).fetchall():
+        for tag in normalize_tags(json.loads(tags_json)):
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO series_tags (series_id, tag) VALUES (?, ?)",
+                (series_id, tag),
+            )
+            inserted += cursor.rowcount
+    return inserted
+
+
+def audit_metric_tag_drift(conn: sqlite3.Connection, *, limit: int = 100):
+    if limit < 1:
+        raise ValueError("limit must be positive")
+    rows = conn.execute(
+        "SELECT id, tags FROM metrics ORDER BY id LIMIT ?", (limit,)
+    ).fetchall()
+    if not rows:
+        return []
+    metric_ids = [int(row[0]) for row in rows]
+    placeholders = ",".join("?" for _ in metric_ids)
+    tags_by_metric = defaultdict(list)
+    for metric_id, tag in conn.execute(
+        f"""
+        SELECT metric_id, tag FROM metric_tags
+        WHERE metric_id IN ({placeholders})
+        ORDER BY metric_id, tag
+        """,
+        metric_ids,
+    ):
+        tags_by_metric[int(metric_id)].append(tag)
+    drift = []
+    for metric_id, raw_tags in rows:
+        try:
+            decoded = json.loads(raw_tags or "[]")
+            compatibility_tags = normalize_tags(decoded if isinstance(decoded, list) else [])
+        except (json.JSONDecodeError, TypeError):
+            compatibility_tags = []
+        lookup_tags = normalize_tags(tags_by_metric.get(int(metric_id), []))
+        if compatibility_tags != lookup_tags:
+            drift.append(
+                {
+                    "metric_id": int(metric_id),
+                    "metric_tags": lookup_tags,
+                    "tags_json": compatibility_tags,
+                }
+            )
+    return drift
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
@@ -64,7 +227,8 @@ def init_db(conn: sqlite3.Connection) -> None:
             value REAL NOT NULL,
             interval INTEGER,
             metric_type TEXT,
-            tags TEXT
+            tags TEXT,
+            series_id INTEGER
         )
         """
     )
@@ -99,6 +263,56 @@ def init_db(conn: sqlite3.Connection) -> None:
     metric_columns = {row[1] for row in conn.execute("PRAGMA table_info(metrics)")}
     if "dedupe_key" not in metric_columns:
         conn.execute("ALTER TABLE metrics ADD COLUMN dedupe_key TEXT")
+    if "series_id" not in metric_columns:
+        conn.execute("ALTER TABLE metrics ADD COLUMN series_id INTEGER")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS series (
+            id INTEGER PRIMARY KEY,
+            metric_name TEXT NOT NULL,
+            tags_json TEXT NOT NULL,
+            identity_hash TEXT NOT NULL UNIQUE,
+            UNIQUE(metric_name, tags_json)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS series_tags (
+            series_id INTEGER NOT NULL,
+            tag TEXT NOT NULL,
+            PRIMARY KEY (series_id, tag),
+            FOREIGN KEY(series_id) REFERENCES series(id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_series_tags_tag_series
+        ON series_tags(tag, series_id)
+        """
+    )
+    conn.commit()
+    backfill_metric_series(
+        conn,
+        batch_size=SERIES_BACKFILL_BATCH_SIZE,
+        commit_each_batch=True,
+        max_batches=SERIES_BACKFILL_MAX_BATCHES,
+    )
+    # Build these once, after the bounded startup pass, so each partial index
+    # contains only the rows needed by its corresponding read path.
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_metrics_series_ts_id_value
+        ON metrics(series_id, ts, id, value) WHERE series_id IS NOT NULL
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_metrics_unbackfilled_name
+        ON metrics(metric_name) WHERE series_id IS NULL
+        """
+    )
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_dedupe_key
@@ -503,11 +717,13 @@ def ingest_metrics(conn, payload, current_ts=None):
                 if dedupe_key is not None:
                     dedupe_key = str(dedupe_key)[:500]
                 tags_json = json.dumps(tags)
+                series_id = resolve_series_id(conn, metric_name, tags)
                 existing = None
                 if dedupe_key is not None:
                     existing = conn.execute(
                         """
-                        SELECT id, metric_name, ts, value, interval, metric_type, tags
+                        SELECT id, metric_name, ts, value, interval, metric_type, tags,
+                               series_id
                         FROM metrics WHERE dedupe_key = ?
                         """,
                         (dedupe_key,),
@@ -522,17 +738,17 @@ def ingest_metrics(conn, payload, current_ts=None):
                 )
                 if existing is not None:
                     metric_id = existing[0]
-                    if tuple(existing[1:]) == values:
+                    if tuple(existing[1:7]) == values and existing[7] == series_id:
                         unchanged += 1
                         continue
                     conn.execute(
                         """
                         UPDATE metrics
                         SET metric_name = ?, ts = ?, value = ?, interval = ?,
-                            metric_type = ?, tags = ?
+                            metric_type = ?, tags = ?, series_id = ?
                         WHERE id = ?
                         """,
-                        (*values, metric_id),
+                        (*values, series_id, metric_id),
                     )
                     conn.execute("DELETE FROM metric_tags WHERE metric_id = ?", (metric_id,))
                     updated += 1
@@ -558,10 +774,11 @@ def ingest_metrics(conn, payload, current_ts=None):
                     cur = conn.execute(
                         """
                         INSERT INTO metrics
-                        (metric_name, ts, value, interval, metric_type, tags, dedupe_key)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (metric_name, ts, value, interval, metric_type, tags, dedupe_key,
+                         series_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (*values, dedupe_key),
+                        (*values, dedupe_key, series_id),
                     )
                     metric_id = cur.lastrowid
                     inserted += 1
@@ -896,7 +1113,7 @@ def tags_filter_clause(tags):
     return clause, tags
 
 
-def series_filter_sql(tags):
+def legacy_series_filter_sql(tags):
     if len(tags) == 1:
         return (
             "metrics m JOIN metric_tags mt ON mt.metric_id = m.id",
@@ -904,6 +1121,50 @@ def series_filter_sql(tags):
             lambda metric: [metric, tags[0]],
         )
     return "metrics m", ["m.metric_name = ?"], lambda metric: [metric]
+
+
+def normalized_series_selector_sql(metric, tags):
+    normalized_tags = normalize_tags(tags)
+    if not normalized_tags:
+        return "SELECT id FROM series WHERE metric_name = ?", [metric]
+    placeholders = ",".join("?" for _ in normalized_tags)
+    return (
+        f"""
+        SELECT s.id
+        FROM series s
+        JOIN series_tags st ON st.series_id = s.id
+        WHERE s.metric_name = ? AND st.tag IN ({placeholders})
+        GROUP BY s.id
+        HAVING COUNT(DISTINCT st.tag) = ?
+        """,
+        [metric, *normalized_tags, len(normalized_tags)],
+    )
+
+
+def normalized_series_ids(conn, metric, tags):
+    selector_sql, params = normalized_series_selector_sql(metric, tags)
+    return [int(row[0]) for row in conn.execute(selector_sql, params).fetchall()]
+
+
+def series_filter_sql(conn, metric, tags):
+    has_legacy_rows = conn.execute(
+        """
+        SELECT 1 FROM metrics
+        WHERE metric_name = ? AND series_id IS NULL
+        LIMIT 1
+        """,
+        (metric,),
+    ).fetchone()
+    if has_legacy_rows:
+        source, clauses, params_for_metric = legacy_series_filter_sql(tags)
+        return source, clauses, params_for_metric(metric), len(tags) > 1
+    selector_sql, params = normalized_series_selector_sql(metric, tags)
+    return (
+        "metrics m",
+        [f"m.series_id IN ({selector_sql})"],
+        params,
+        False,
+    )
 
 
 def downsample_minmax(points, max_points):
@@ -1293,9 +1554,12 @@ class Handler(BaseHTTPRequestHandler):
         aggregation="average",
         rollup=None,
     ):
-        source, clauses, params_for_metric = series_filter_sql(tags)
+        source, clauses, params, needs_multi_tag_filter = series_filter_sql(
+            conn, metric, tags
+        )
+        if source is None:
+            return []
         clauses = list(clauses)
-        params = params_for_metric(metric)
         if since is not None:
             clauses.append("m.ts >= ?")
             params.append(int(since))
@@ -1304,7 +1568,7 @@ class Handler(BaseHTTPRequestHandler):
             params.append(int(until))
         tag_clause = ""
         tag_params = []
-        if len(tags) > 1:
+        if needs_multi_tag_filter:
             tag_clause, tag_params = tags_filter_clause(tags)
 
         if rollup == "sum":
@@ -1333,14 +1597,17 @@ class Handler(BaseHTTPRequestHandler):
             if aggregation == "minmax":
                 query = (
                     "SELECT ts, value FROM ("
-                    "SELECT m.ts AS ts, m.value AS value, "
-                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) ORDER BY m.value ASC, m.ts ASC) AS min_rank, "
-                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) ORDER BY m.value DESC, m.ts ASC) AS max_rank "
+                    "SELECT m.ts AS ts, m.value AS value, m.id AS metric_id, "
+                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) "
+                    "ORDER BY m.value ASC, m.ts ASC, m.id ASC) AS min_rank, "
+                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) "
+                    "ORDER BY m.value DESC, m.ts ASC, m.id ASC) AS max_rank "
                     f"FROM {source} WHERE "
                     + " AND ".join(clauses)
                     + " "
                     + tag_clause
-                    + ") WHERE min_rank = 1 OR max_rank = 1 ORDER BY ts"
+                    + ") WHERE min_rank = 1 OR max_rank = 1 "
+                    "ORDER BY ts, metric_id"
                 )
                 rows = conn.execute(
                     query, [bucket_seconds, bucket_seconds, *params, *tag_params]
@@ -1359,12 +1626,15 @@ class Handler(BaseHTTPRequestHandler):
             ).fetchall()
             return [[r[0], r[1]] for r in rows]
 
+        # Stable sample ordering is timestamp then insertion identity. The hot
+        # index uses the same prefix so equal-timestamp results do not change
+        # when a metric moves from the legacy tag path to normalized series.
         query = (
             f"SELECT m.ts, m.value FROM {source} WHERE "
             + " AND ".join(clauses)
             + " "
             + tag_clause
-            + " ORDER BY m.ts"
+            + " ORDER BY m.ts, m.id"
         )
         rows = conn.execute(query, params + tag_params).fetchall()
         return [[r[0], r[1]] for r in rows]
@@ -1408,11 +1678,14 @@ class Handler(BaseHTTPRequestHandler):
         return bucket_seconds, seasonal_period
 
     def _latest_query(self, conn, metric, tags):
-        source, clauses, params_for_metric = series_filter_sql(tags)
-        params = params_for_metric(metric)
+        source, clauses, params, needs_multi_tag_filter = series_filter_sql(
+            conn, metric, tags
+        )
+        if source is None:
+            return None
         tag_clause = ""
         tag_params = []
-        if len(tags) > 1:
+        if needs_multi_tag_filter:
             tag_clause, tag_params = tags_filter_clause(tags)
         row = conn.execute(
             "SELECT m.ts, m.value, m.tags FROM "
@@ -1421,7 +1694,7 @@ class Handler(BaseHTTPRequestHandler):
             + " AND ".join(clauses)
             + " "
             + tag_clause
-            + " ORDER BY m.ts DESC LIMIT 1",
+            + " ORDER BY m.ts DESC, m.id DESC LIMIT 1",
             [*params, *tag_params],
         ).fetchone()
         if not row:

@@ -20,6 +20,8 @@ services:
       # RATE_LIMIT_LATEST_RPM: 300
       # RATE_LIMIT_STATUS_RPM: 120
       # RATE_LIMIT_METRICS_RPM: 120
+      # SERIES_BACKFILL_BATCH_SIZE: 1000
+      # SERIES_BACKFILL_MAX_BATCHES: 10
     volumes:
       - ./ercot-receiver/data:/app/data
     healthcheck:
