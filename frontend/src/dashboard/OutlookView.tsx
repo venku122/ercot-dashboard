@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { Button } from "../components/ui/button";
 import { useOutlookData } from "./data-hooks";
+import { ForecastQualityPanel } from "./ForecastQualityPanel";
 import { buildGridOutlook, type GridOutlook, type OutlookDayCard } from "./outlook";
 import { formatAge, formatValue } from "./units";
 
@@ -304,6 +305,8 @@ export function OutlookContent({ outlook }: { outlook: GridOutlook }) {
           <p className="outlook-empty">METAR observations unavailable.</p>
         ) : null}
       </section>
+
+      <ForecastQualityPanel enabled />
 
       <footer className="outlook-provenance">
         <strong>Dashboard outlook — not an ERCOT declaration</strong>

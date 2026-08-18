@@ -1,13 +1,13 @@
 // deno run --allow-net --allow-env examples/emit-metrics.ts
 
-import { runMetricsLoop, MetricSubmission, headers, fetch } from "./_lib.ts";
+import { fetch, headers, runMetricsLoop, type NormalizedMetric } from "./_lib.ts";
 export async function start() {
   await waitForNextPrices();
   await runMetricsLoop(grabUserMetrics, 15, "ercot_pricing");
 }
 if (import.meta.main) start();
 
-async function grabUserMetrics(): Promise<MetricSubmission[]> {
+async function grabUserMetrics(): Promise<NormalizedMetric[]> {
   const body = await fetch(
     `https://www.ercot.com/content/cdr/html/real_time_spp.html`,
     headers("text/html"),

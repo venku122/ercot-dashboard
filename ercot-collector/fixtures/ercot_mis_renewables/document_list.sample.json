@@ -1,0 +1,25 @@
+{
+  "ListDocsByRptType": {
+    "RespData": [
+      {
+        "DocID": 900001,
+        "PublishDate": "2026-08-18T10:00:00-05:00",
+        "ConstructedName": "synthetic_np4_732_csv.zip",
+        "ContentSize": 128,
+        "SecurityStatus": "P",
+        "Extension": "zip",
+        "FriendlyName": "synthetic_np4_732_csv"
+      },
+      {
+        "DocID": 900002,
+        "PublishDate": "2026-08-18T10:00:00-05:00",
+        "ConstructedName": "synthetic_np4_732_xml.zip",
+        "ContentSize": 128,
+        "SecurityStatus": "P",
+        "Extension": "zip",
+        "FriendlyName": "synthetic_np4_732_xml"
+      }
+    ]
+  },
+  "sanitized": true
+}

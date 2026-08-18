@@ -1,12 +1,12 @@
 // deno run --allow-net --allow-env examples/emit-metrics.ts
 
-import { runMetricsLoop, MetricSubmission, headers, fetch } from "./_lib.ts";
+import { fetch, headers, runMetricsLoop, type NormalizedMetric } from "./_lib.ts";
 export async function start() {
   await runMetricsLoop(grabUserMetrics, 10, "ercot_eea");
 }
 if (import.meta.main) start();
 
-async function grabUserMetrics(): Promise<MetricSubmission[]> {
+async function grabUserMetrics(): Promise<NormalizedMetric[]> {
   const body = (await fetch(
     "https://www.ercot.com/api/1/services/read/dashboards/daily-prc.json",
     headers("application/json"),
