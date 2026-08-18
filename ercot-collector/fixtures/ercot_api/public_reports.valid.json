@@ -1,0 +1,33 @@
+{
+  "_embedded": {
+    "products": [
+      {
+        "emilId": "NP3-565-CD",
+        "reportName": "Sanitized Public API Product",
+        "artifacts": [
+          {
+            "name": "Sanitized artifact",
+            "_links": {
+              "endpoint": {
+                "href": "/api/public-reports/NP3-565-CD/actual_loads_by_forecast_zone"
+              },
+              "archive": {
+                "href": "/archive/not-an-api-artifact"
+              }
+            }
+          }
+        ],
+        "_links": {
+          "self": {
+            "href": "https://api.test/api/public-reports/NP3-565-CD"
+          }
+        }
+      }
+    ]
+  },
+  "_links": {
+    "self": {
+      "href": "https://api.test/api/public-reports"
+    }
+  }
+}

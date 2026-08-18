@@ -1,0 +1,28 @@
+{
+  "fields": [
+    {
+      "name": "AGCExecTime",
+      "dataType": "datetime"
+    },
+    {
+      "name": "ResourceName",
+      "dataType": "string"
+    },
+    {
+      "name": "ResourceStatus",
+      "dataType": "string"
+    },
+    {
+      "name": "MaxPowerConsumption",
+      "dataType": "number"
+    },
+    {
+      "name": "BasePoint",
+      "dataType": "number"
+    }
+  ],
+  "data": [],
+  "_meta": {
+    "totalRecords": 0
+  }
+}
