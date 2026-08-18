@@ -1,4 +1,5 @@
 import { seriesKey } from "./chart-config";
+import { CanonicalUrlCache } from "./canonical-url-cache";
 import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
 import {
@@ -68,6 +69,31 @@ type TileResult = {
   tile_start: number;
   unit: string;
 };
+
+const CATALOG_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
+const RECENT_TILE_CACHE_TTL_MS = 30 * 1_000;
+const SEALED_TILE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
+let catalogCache = new CanonicalUrlCache<unknown>(4);
+let tileCache = new CanonicalUrlCache<TileResult>(512);
+let cacheFetchIdentity: typeof fetch | null = null;
+let catalogFingerprint: string | null = null;
+
+export function resetCanonicalApiCachesForTests(): void {
+  catalogCache.clear();
+  tileCache.clear();
+  catalogCache = new CanonicalUrlCache<unknown>(4);
+  tileCache = new CanonicalUrlCache<TileResult>(512);
+  cacheFetchIdentity = null;
+  catalogFingerprint = null;
+}
+
+function resetCachesForChangedTransport(): void {
+  if (cacheFetchIdentity === fetch) return;
+  catalogCache.clear();
+  tileCache.clear();
+  catalogFingerprint = null;
+  cacheFetchIdentity = fetch;
+}
 
 async function fetchJson<T>(url: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { ...init, ...(signal ? { signal } : {}) });
@@ -169,6 +195,29 @@ function parseTileResult(
     return { end, start, state };
   });
   return { ...(result as TileResult), buckets };
+}
+
+function assertCachedTileContext(
+  result: TileResult,
+  request: TileRequest,
+  entry: TileCatalogSeries,
+): TileResult {
+  if (
+    result.schema !== 2 ||
+    result.series_key !== entry.key ||
+    result.tile_span !== request.tileSpan ||
+    result.tile_start !== request.tileStart ||
+    result.tile_end !== request.tileEnd ||
+    result.lod !== request.lod ||
+    result.native_interval_seconds !== entry.native_interval_seconds ||
+    result.unit !== entry.unit ||
+    result.statistic_policy !== entry.statistic_policy ||
+    result.rollup !== entry.rollup ||
+    result.boundary_policy !== "native_edges_coarse_aligned_interiors"
+  ) {
+    throw new Error("cached_tile_context_mismatch");
+  }
+  return result;
 }
 
 export function canonicalChunkUrl({
@@ -307,13 +356,22 @@ async function loadFixedPhysicalSeriesFromChunks(
   chart: ChartDefinition,
   series: ChartDefinition["series"][number],
   time: TimeState,
+  compare: CompareMode,
+  customCompareSeconds: number,
   signal: AbortSignal,
 ): Promise<LoadedSeries> {
   if (!series.metric) throw new Error("physical_series_metric_required");
-  const windows = historicalChunkWindows(time.start, time.end, Math.floor(Date.now() / 1000));
+  const comparison = compareWindow(compare, time, customCompareSeconds);
   const resolution = Math.max(1, Math.ceil(time.rangeSeconds / 1200));
-  const chunks = await mapWithConcurrency(windows, 8, (window) =>
-    fetchJson<ChunkResult>(
+  const current = Math.floor(Date.now() / 1000);
+  const plans = [
+    { id: "current", start: time.start, end: time.end },
+    ...(compare === "none"
+      ? []
+      : [{ id: "compare", start: comparison.start, end: comparison.end }]),
+  ].map((planned) => ({
+    ...planned,
+    urls: historicalChunkWindows(planned.start, planned.end, current).map((window) =>
       canonicalChunkUrl({
         aggregation: chart.spikeCritical ? "minmax" : "average",
         ...window,
@@ -322,18 +380,23 @@ async function loadFixedPhysicalSeriesFromChunks(
         ...(series.rollup ? { rollup: series.rollup } : {}),
         ...(series.tags ? { tags: series.tags } : {}),
       }),
-      { method: "GET" },
-      signal,
     ),
-  );
-  const points = mergePoints(
-    [],
-    chunks.flatMap((chunk) => chunk.points),
-    time.start,
-    time.end,
-  );
+  }));
+  const chunkByUrl = new Map<string, ChunkResult>();
+  await mapWithConcurrency([...new Set(plans.flatMap((plan) => plan.urls))], 8, async (url) => {
+    chunkByUrl.set(url, await fetchJson<ChunkResult>(url, { method: "GET" }, signal));
+  });
+  const pointsFor = (plan: (typeof plans)[number]) =>
+    mergePoints(
+      [],
+      plan.urls.flatMap((url) => chunkByUrl.get(url)?.points ?? []),
+      plan.start,
+      plan.end,
+    );
+  const points = pointsFor(plans[0]!);
+  const comparisonPoints = plans[1] ? pointsFor(plans[1]) : [];
   return {
-    compare: [],
+    compare: alignComparisonForMode(comparisonPoints, compare, comparison.offset),
     error: null,
     meta: {
       bucket_seconds: resolution,
@@ -347,15 +410,77 @@ async function loadFixedPhysicalSeriesFromChunks(
   };
 }
 
+async function loadFixedComparedSeriesFromChunks(
+  charts: ChartDefinition[],
+  time: TimeState,
+  compare: CompareMode,
+  customCompareSeconds: number,
+  signal: AbortSignal,
+): Promise<Map<string, LoadedSeries>> {
+  const output = new Map<string, LoadedSeries>();
+  for (const chart of charts) {
+    for (const series of chart.series) {
+      if (!series.metric) continue;
+      output.set(
+        seriesKey(chart.id, series.id),
+        await loadFixedPhysicalSeriesFromChunks(
+          chart,
+          series,
+          time,
+          compare,
+          customCompareSeconds,
+          signal,
+        ),
+      );
+    }
+    for (const series of chart.series) {
+      if (!series.derive) continue;
+      const inputs = series.derive.from.map(
+        (id) => output.get(seriesKey(chart.id, id))?.points ?? [],
+      );
+      const comparisonInputs = series.derive.from.map(
+        (id) => output.get(seriesKey(chart.id, id))?.compare ?? [],
+      );
+      output.set(seriesKey(chart.id, series.id), {
+        compare: deriveSeries(series.derive.operation, comparisonInputs),
+        error: null,
+        meta: {},
+        points: deriveSeries(series.derive.operation, inputs),
+      });
+    }
+  }
+  return output;
+}
+
 async function loadFixedSeriesFromTiles(
   charts: ChartDefinition[],
   time: TimeState,
+  compare: CompareMode,
+  customCompareSeconds: number,
   signal: AbortSignal,
 ): Promise<Map<string, LoadedSeries>> {
+  resetCachesForChangedTransport();
   const catalog = parseTileCatalog(
-    await fetchJson<unknown>("/api/v2/tile-catalog", { method: "GET" }, signal),
+    await catalogCache.get(
+      "/api/v2/tile-catalog",
+      (sharedSignal) => fetchJson<unknown>("/api/v2/tile-catalog", { method: "GET" }, sharedSignal),
+      signal,
+      CATALOG_CACHE_TTL_MS,
+    ),
   );
+  const nextCatalogFingerprint = JSON.stringify(catalog);
+  if (catalogFingerprint !== null && catalogFingerprint !== nextCatalogFingerprint) {
+    tileCache.clear();
+  }
+  catalogFingerprint = nextCatalogFingerprint;
   const now = Math.floor(Date.now() / 1000);
+  const comparison = compareWindow(compare, time, customCompareSeconds);
+  const comparisonTime: TimeState = {
+    ...time,
+    end: comparison.end,
+    rangeSeconds: comparison.end - comparison.start,
+    start: comparison.start,
+  };
   const jobs = charts.flatMap((chart) =>
     chart.series.flatMap((series) => {
       if (!series.metric) return [];
@@ -371,7 +496,18 @@ async function loadFixedSeriesFromTiles(
           chart,
           entry,
           key: seriesKey(chart.id, series.id),
-          requests: entry
+          comparisonRequests:
+            entry && compare !== "none"
+              ? planTileRequests({
+                  catalog,
+                  end: Math.round(comparison.end),
+                  entry,
+                  now,
+                  start: Math.round(comparison.start),
+                  targetPoints: chart.spikeCritical ? 600 : 1200,
+                })
+              : [],
+          currentRequests: entry
             ? planTileRequests({
                 catalog,
                 end: Math.round(time.end),
@@ -389,15 +525,29 @@ async function loadFixedSeriesFromTiles(
   const requestByUrl = new Map<string, { entry: TileCatalogSeries; request: TileRequest }>();
   for (const job of jobs) {
     if (!job.entry) continue;
-    for (const request of job.requests) {
+    for (const request of [...job.currentRequests, ...job.comparisonRequests]) {
       requestByUrl.set(request.url, { entry: job.entry, request });
     }
   }
   const tileByUrl = new Map<string, TileResult | Error>();
   await mapWithConcurrency([...requestByUrl.entries()], 8, async ([url, context]) => {
     try {
-      const value = await fetchJson<unknown>(url, { method: "GET" }, signal);
-      tileByUrl.set(url, parseTileResult(value, context.request, context.entry));
+      const ttlMs =
+        context.request.tileEnd <= now - 86_400
+          ? SEALED_TILE_CACHE_TTL_MS
+          : RECENT_TILE_CACHE_TTL_MS;
+      const cached = await tileCache.get(
+        url,
+        async (sharedSignal) =>
+          parseTileResult(
+            await fetchJson<unknown>(url, { method: "GET" }, sharedSignal),
+            context.request,
+            context.entry,
+          ),
+        signal,
+        ttlMs,
+      );
+      tileByUrl.set(url, assertCachedTileContext(cached, context.request, context.entry));
     } catch (error) {
       if (isAbortError(error, signal)) throw error;
       tileByUrl.set(url, error instanceof Error ? error : new Error("tile_request_failed"));
@@ -409,37 +559,46 @@ async function loadFixedSeriesFromTiles(
     let loaded: LoadedSeries | null = null;
     if (job.entry) {
       try {
-        const tiles = job.requests.map((request) => {
-          const tile = tileByUrl.get(request.url);
-          if (!tile || tile instanceof Error) throw tile ?? new Error("missing_tile_response");
-          return { request, tile };
-        });
-        const projection = composeTileWindow({
-          coarseInterior: tiles.flatMap(({ request, tile }) =>
-            request.lod === "native"
-              ? []
-              : tile.buckets.filter(
-                  (bucket) => bucket.start >= time.start && bucket.end <= time.end + 1,
-                ),
-          ),
-          end: Math.round(time.end),
-          endInclusive: true,
-          nativeEdges: tiles.flatMap(({ request, tile }) =>
-            request.lod === "native"
-              ? tile.buckets.filter(
-                  (bucket) =>
-                    bucket.state.first_ts !== null &&
-                    bucket.state.first_ts >= time.start &&
-                    bucket.state.first_ts <= time.end,
-                )
-              : [],
-          ),
-          power: job.entry.statistic_policy === "power",
-          projection: job.chart.spikeCritical ? "spike-envelope" : "average",
-          start: Math.round(time.start),
-        });
+        const project = (requests: TileRequest[], window: TimeState) => {
+          const tiles = requests.map((request) => {
+            const tile = tileByUrl.get(request.url);
+            if (!tile || tile instanceof Error) throw tile ?? new Error("missing_tile_response");
+            return { request, tile };
+          });
+          return composeTileWindow({
+            coarseInterior: tiles.flatMap(({ request, tile }) =>
+              request.lod === "native"
+                ? []
+                : tile.buckets.filter(
+                    (bucket) => bucket.start >= window.start && bucket.end <= window.end + 1,
+                  ),
+            ),
+            end: Math.round(window.end),
+            endInclusive: true,
+            nativeEdges: tiles.flatMap(({ request, tile }) =>
+              request.lod === "native"
+                ? tile.buckets.filter(
+                    (bucket) =>
+                      bucket.state.first_ts !== null &&
+                      bucket.state.first_ts >= window.start &&
+                      bucket.state.first_ts <= window.end,
+                  )
+                : [],
+            ),
+            power: job.entry!.statistic_policy === "power",
+            projection: job.chart.spikeCritical ? "spike-envelope" : "average",
+            start: Math.round(window.start),
+          });
+        };
+        const projection = project(job.currentRequests, time);
+        const comparisonProjection =
+          compare === "none" ? null : project(job.comparisonRequests, comparisonTime);
         loaded = {
-          compare: [],
+          compare: alignComparisonForMode(
+            comparisonProjection?.points ?? [],
+            compare,
+            comparison.offset,
+          ),
           error: null,
           meta: {
             bucket_seconds: null,
@@ -457,7 +616,15 @@ async function loadFixedSeriesFromTiles(
     }
     output.set(
       job.key,
-      loaded ?? (await loadFixedPhysicalSeriesFromChunks(job.chart, job.series, time, signal)),
+      loaded ??
+        (await loadFixedPhysicalSeriesFromChunks(
+          job.chart,
+          job.series,
+          time,
+          compare,
+          customCompareSeconds,
+          signal,
+        )),
     );
   }
   for (const chart of charts) {
@@ -466,8 +633,11 @@ async function loadFixedSeriesFromTiles(
       const inputs = series.derive.from.map(
         (id) => output.get(seriesKey(chart.id, id))?.points ?? [],
       );
+      const comparisonInputs = series.derive.from.map(
+        (id) => output.get(seriesKey(chart.id, id))?.compare ?? [],
+      );
       output.set(seriesKey(chart.id, series.id), {
-        compare: [],
+        compare: deriveSeries(series.derive.operation, comparisonInputs),
         error: null,
         meta: {},
         points: deriveSeries(series.derive.operation, inputs),
@@ -485,13 +655,21 @@ export async function loadSeries(
   signal: AbortSignal,
   previousData: Map<string, LoadedSeries> = new Map(),
 ): Promise<Map<string, LoadedSeries>> {
-  if (time.mode === "fixed" && compare === "none") {
+  if (time.mode === "fixed") {
     try {
-      return await loadFixedSeriesFromTiles(charts, time, signal);
+      return await loadFixedSeriesFromTiles(charts, time, compare, customCompareSeconds, signal);
     } catch (error) {
       if (isAbortError(error, signal)) throw error;
       // Preserve compatibility while an older receiver is still serving production.
-      return await loadFixedSeriesFromChunks(charts, time, signal);
+      return compare === "none"
+        ? await loadFixedSeriesFromChunks(charts, time, signal)
+        : await loadFixedComparedSeriesFromChunks(
+            charts,
+            time,
+            compare,
+            customCompareSeconds,
+            signal,
+          );
     }
   }
   const comparison = compareWindow(compare, time, customCompareSeconds);
