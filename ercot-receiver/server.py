@@ -77,6 +77,102 @@ TILE_SCHEMA_VERSION = 2
 TILE_CONTENT_VERSION_RE = re.compile(r"^t2-[0-9a-f]{64}$")
 TILE_SPANS = {"1h": 3600, "1d": 86400}
 TILE_LOD_SECONDS = {"native": None, "5m": 300, "15m": 900, "1h": 3600}
+TILE_OBSERVABILITY_KEYS = frozenset(
+    {
+        "tile_cache_election_hits_total",
+        "tile_cache_store_skipped_race_total",
+        "tile_cache_store_stored_total",
+        "tile_errors_backfill_total",
+        "tile_errors_generation_total",
+        "tile_generation_latency_seconds_count",
+        "tile_generation_latency_seconds_max",
+        "tile_generation_latency_seconds_sum",
+        "tile_invalidated_entries_total",
+        "tile_invalidation_calls_total",
+        "tile_invalidation_empty_total",
+        "tile_invalidation_nonempty_total",
+        "tile_origin_requests_cache_class_live_total",
+        "tile_origin_requests_cache_class_recent_total",
+        "tile_origin_requests_cache_class_sealed_total",
+        "tile_origin_requests_total",
+        "tile_receiver_lru_hits_total",
+        "tile_receiver_lru_misses_total",
+        "tile_responses_200_total",
+        "tile_responses_304_total",
+        "tile_responses_400_total",
+        "tile_responses_404_total",
+        "tile_responses_429_total",
+        "tile_responses_500_total",
+        "tile_responses_503_total",
+        "tile_singleflight_leaders_total",
+        "tile_singleflight_results_error_total",
+        "tile_singleflight_results_success_total",
+        "tile_singleflight_waits_total",
+        "tile_sqlite_generation_attempts_total",
+        "tile_sqlite_generations_total",
+    }
+)
+LEGACY_CACHE_METRIC_KEYS = frozenset(
+    {
+        "historical_chunk_hits",
+        "historical_chunk_misses",
+        "query_executions",
+        "query_seconds",
+        "tile_generation_seconds",
+        "tile_generation_store_races",
+        "tile_generations",
+        "tile_lru_hits",
+        "tile_lru_misses",
+        "tile_lru_race_hits",
+        "tile_singleflight_waits",
+    }
+)
+INTERNAL_CACHE_METRIC_KEYS = TILE_OBSERVABILITY_KEYS | LEGACY_CACHE_METRIC_KEYS
+TILE_METRICS_INIT_LOCK = threading.Lock()
+TILE_CACHE_CLASS_METRICS = {
+    "live": "tile_origin_requests_cache_class_live_total",
+    "recent": "tile_origin_requests_cache_class_recent_total",
+    "sealed": "tile_origin_requests_cache_class_sealed_total",
+}
+
+
+def record_cache_metric(app, key, amount=1.0, *, maximum=False):
+    if key not in INTERNAL_CACHE_METRIC_KEYS:
+        raise ValueError("unbounded_cache_metric_key")
+    metrics = getattr(app, "cache_metrics", None)
+    if metrics is None:
+        return
+    lock = getattr(app, "cache_metrics_lock", None)
+    if lock is None:
+        with TILE_METRICS_INIT_LOCK:
+            lock = getattr(app, "cache_metrics_lock", None)
+            if lock is None:
+                lock = threading.Lock()
+                app.cache_metrics_lock = lock
+    with lock:
+        if maximum:
+            metrics[key] = max(float(metrics[key]), float(amount))
+        else:
+            metrics[key] += float(amount)
+
+
+def record_tile_metric(app, key, amount=1.0, *, maximum=False):
+    if key not in TILE_OBSERVABILITY_KEYS:
+        raise ValueError("unbounded_tile_metric_key")
+    record_cache_metric(app, key, amount, maximum=maximum)
+
+
+def tile_metrics_snapshot(app):
+    metrics = getattr(app, "cache_metrics", {})
+    lock = getattr(app, "cache_metrics_lock", None)
+    if lock is None:
+        current = dict(metrics)
+    else:
+        with lock:
+            current = dict(metrics)
+    for key in TILE_OBSERVABILITY_KEYS:
+        current.setdefault(key, 0.0)
+    return current
 TILE_SERIES_CATALOG = (
     {
         "key": "supply-demand.demand",
@@ -1938,10 +2034,11 @@ class Cache:
 
     def invalidate_changes(self, changes):
         if not changes:
-            return
+            return {"entries": 0, "tile_entries": 0}
         with self.lock:
             self.generation += 1
             keys = []
+            tile_keys = []
             for key, (_expires, _value, dependencies, ranges, _category) in self.data.items():
                 invalidate = False
                 for metric, changed_ranges in changes.items():
@@ -1960,8 +2057,11 @@ class Cache:
                         break
                 if invalidate:
                     keys.append(key)
+                    if _category.startswith("tile:"):
+                        tile_keys.append(key)
             for key in keys:
                 del self.data[key]
+            return {"entries": len(keys), "tile_entries": len(tile_keys)}
 
     def stats(self):
         with self.lock:
@@ -1988,7 +2088,7 @@ class SingleFlight:
         self.lock = threading.Lock()
         self.flights = {}
 
-    def do(self, key, generate):
+    def do(self, key, generate, role_callback=None):
         with self.lock:
             flight = self.flights.get(key)
             if flight is None:
@@ -1997,6 +2097,8 @@ class SingleFlight:
                 leader = True
             else:
                 leader = False
+        if role_callback is not None:
+            role_callback("leader" if leader else "wait")
         if not leader:
             flight.event.wait()
             if flight.error is not None:
@@ -2071,13 +2173,14 @@ class Handler(BaseHTTPRequestHandler):
             if cache_control:
                 self.send_header("Cache-Control", cache_control)
             self.end_headers()
-            return
+            return True
         self.send_header("Content-Type", "application/json")
         if cache_control:
             self.send_header("Cache-Control", cache_control)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+        return False
 
     def _send_text(
         self, status, body, content_type="text/plain; charset=utf-8", cache_control=None
@@ -2457,9 +2560,22 @@ class Handler(BaseHTTPRequestHandler):
             result = ingest_metrics(conn, payload)
             dependencies = result.pop("dependencies")
             changes = result.pop("changes")
-            self._app_server().cache.invalidate_changes(changes)
+            app = self._app_server()
+            invalidated = app.cache.invalidate_changes(changes)
+            record_tile_metric(app, "tile_invalidation_calls_total")
+            record_tile_metric(
+                app,
+                "tile_invalidated_entries_total",
+                invalidated["tile_entries"],
+            )
+            record_tile_metric(
+                app,
+                "tile_invalidation_nonempty_total"
+                if invalidated["tile_entries"]
+                else "tile_invalidation_empty_total",
+            )
             if result["updated"]:
-                self._app_server().cache.invalidate({"correction-age"})
+                app.cache.invalidate({"correction-age"})
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -2698,6 +2814,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/v2/tiles/"):
+            record_tile_metric(self._app_server(), "tile_origin_requests_total")
         if parsed.path == "/api/v2/tile-catalog":
             if parsed.query:
                 self._send_json(
@@ -2766,10 +2884,16 @@ class Handler(BaseHTTPRequestHandler):
         )
         if tile_match:
             if not self._rate_limit("series_tile_v2", RATE_LIMIT_SERIES_RPM):
+                record_tile_metric(
+                    self._app_server(), "tile_responses_429_total"
+                )
                 return
             series_key, tile_span, tile_start_raw, lod = tile_match.groups()
             definition = TILE_CATALOG_BY_KEY.get(series_key)
             if definition is None:
+                record_tile_metric(
+                    self._app_server(), "tile_responses_404_total"
+                )
                 self._send_json(
                     404, {"error": "unknown_tile_series"}, cache_control="no-store"
                 )
@@ -2787,6 +2911,9 @@ class Handler(BaseHTTPRequestHandler):
                 or tile_start % tile_seconds != 0
                 or lod not in definition["supported_lods"]
             ):
+                record_tile_metric(
+                    self._app_server(), "tile_responses_400_total"
+                )
                 self._send_json(
                     400, {"error": "invalid_canonical_tile"}, cache_control="no-store"
                 )
@@ -2802,11 +2929,9 @@ class Handler(BaseHTTPRequestHandler):
             tile_end = tile_start + tile_seconds
             category, ttl_seconds, cache_control = historical_cache_policy(tile_end)
             app = self._app_server()
+            record_tile_metric(app, TILE_CACHE_CLASS_METRICS[category])
             cached = app.cache.get(cache_key)
             if cached is not None:
-                metrics = getattr(app, "cache_metrics", None)
-                if metrics is not None:
-                    metrics["tile_lru_hits"] += 1
                 extra_headers = {
                     "X-ERCOT-Cache": "HIT",
                     "X-ERCOT-Cache-Class": category,
@@ -2819,25 +2944,58 @@ class Handler(BaseHTTPRequestHandler):
                             "X-ERCOT-Content-Version": content_version,
                         }
                     )
-                self._send_json(
+                record_tile_metric(app, "tile_receiver_lru_hits_total")
+                record_cache_metric(app, "tile_lru_hits")
+                not_modified = self._send_json(
                     200,
                     cached,
                     cache_control=cache_control,
                     etag=True,
                     extra_headers=extra_headers,
                 )
+                record_tile_metric(
+                    app,
+                    "tile_responses_304_total"
+                    if not_modified
+                    else "tile_responses_200_total",
+                )
                 return
 
+            record_tile_metric(app, "tile_receiver_lru_misses_total")
             request_generation = app.cache.snapshot_generation()
 
             def generate():
                 cached_after_election = app.cache.get(cache_key)
                 if cached_after_election is not None:
+                    record_tile_metric(app, "tile_cache_election_hits_total")
                     return cached_after_election, True, False
                 started = time.perf_counter()
-                payload_out, dependencies, ranges = self._generate_tile(
-                    definition, tile_span, tile_start, lod
-                )
+                record_tile_metric(app, "tile_sqlite_generation_attempts_total")
+                try:
+                    try:
+                        payload_out, dependencies, ranges = self._generate_tile(
+                            definition, tile_span, tile_start, lod
+                        )
+                    except TileBackfillIncomplete:
+                        record_tile_metric(app, "tile_errors_backfill_total")
+                        raise
+                    except Exception:
+                        record_tile_metric(app, "tile_errors_generation_total")
+                        raise
+                finally:
+                    elapsed = time.perf_counter() - started
+                    record_tile_metric(
+                        app, "tile_generation_latency_seconds_count"
+                    )
+                    record_tile_metric(
+                        app, "tile_generation_latency_seconds_sum", elapsed
+                    )
+                    record_tile_metric(
+                        app,
+                        "tile_generation_latency_seconds_max",
+                        elapsed,
+                        maximum=True,
+                    )
                 if category == "sealed":
                     persist_tile_resource(get_db(), identity, payload_out)
                 stored = app.cache.set_if_generation(
@@ -2849,19 +3007,34 @@ class Handler(BaseHTTPRequestHandler):
                     ttl_seconds=ttl_seconds,
                     category=f"tile:{category}",
                 )
-                metrics = getattr(app, "cache_metrics", None)
-                if metrics is not None:
-                    metrics["tile_generations"] += 1
-                    metrics["tile_generation_seconds"] += time.perf_counter() - started
-                    if not stored:
-                        metrics["tile_generation_store_races"] += 1
+                record_cache_metric(app, "tile_generations")
+                record_cache_metric(app, "tile_generation_seconds", elapsed)
+                if not stored:
+                    record_cache_metric(app, "tile_generation_store_races")
+                record_tile_metric(app, "tile_sqlite_generations_total")
+                record_tile_metric(
+                    app,
+                    "tile_cache_store_stored_total"
+                    if stored
+                    else "tile_cache_store_skipped_race_total",
+                )
                 return payload_out, stored, True
+
+            def record_singleflight_role(role):
+                record_tile_metric(
+                    app,
+                    "tile_singleflight_leaders_total"
+                    if role == "leader"
+                    else "tile_singleflight_waits_total",
+                )
 
             try:
                 (payload_out, stored, generated), shared = app.singleflight.do(
-                    (cache_key, request_generation), generate
+                    (cache_key, request_generation), generate, record_singleflight_role
                 )
             except TileBackfillIncomplete:
+                record_tile_metric(app, "tile_singleflight_results_error_total")
+                record_tile_metric(app, "tile_responses_503_total")
                 self._send_json(
                     503,
                     {"error": "tile_series_backfill_incomplete"},
@@ -2869,17 +3042,18 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             except Exception:
+                record_tile_metric(app, "tile_singleflight_results_error_total")
+                record_tile_metric(app, "tile_responses_500_total")
                 self._send_json(
                     500, {"error": "tile_generation_failed"}, cache_control="no-store"
                 )
                 return
-            metrics = getattr(app, "cache_metrics", None)
-            if metrics is not None:
-                metrics["tile_lru_misses"] += 1
-                if shared:
-                    metrics["tile_singleflight_waits"] += 1
-                if not generated:
-                    metrics["tile_lru_race_hits"] += 1
+            record_tile_metric(app, "tile_singleflight_results_success_total")
+            record_cache_metric(app, "tile_lru_misses")
+            if shared:
+                record_cache_metric(app, "tile_singleflight_waits")
+            if not generated:
+                record_cache_metric(app, "tile_lru_race_hits")
             extra_headers = {
                 "X-ERCOT-Cache": "MISS" if generated else "HIT",
                 "X-ERCOT-Cache-Class": category,
@@ -2894,15 +3068,22 @@ class Handler(BaseHTTPRequestHandler):
                         "X-ERCOT-Content-Version": content_version,
                     }
                 )
-            self._send_json(
+            not_modified = self._send_json(
                 200,
                 payload_out,
                 cache_control=cache_control,
                 etag=True,
                 extra_headers=extra_headers,
             )
+            record_tile_metric(
+                app,
+                "tile_responses_304_total"
+                if not_modified
+                else "tile_responses_200_total",
+            )
             return
         if parsed.path.startswith("/api/v2/tiles/"):
+            record_tile_metric(self._app_server(), "tile_responses_400_total")
             self._send_json(
                 400, {"error": "invalid_canonical_tile"}, cache_control="no-store"
             )
@@ -2976,9 +3157,7 @@ class Handler(BaseHTTPRequestHandler):
                 ttl_seconds = CACHE_TTL_SECONDS
                 cache_control = "public, max-age=5, s-maxage=15, stale-while-revalidate=30"
             if cached is not None:
-                metrics = getattr(self._app_server(), "cache_metrics", None)
-                if metrics is not None:
-                    metrics["historical_chunk_hits"] += 1
+                record_cache_metric(self._app_server(), "historical_chunk_hits")
                 self._send_json(
                     200,
                     cached,
@@ -3007,11 +3186,11 @@ class Handler(BaseHTTPRequestHandler):
                 ttl_seconds=ttl_seconds,
                 category=category,
             )
-            metrics = getattr(self._app_server(), "cache_metrics", None)
-            if metrics is not None:
-                metrics["historical_chunk_misses"] += 1
-                metrics["query_executions"] += 1
-                metrics["query_seconds"] += time.perf_counter() - started
+            record_cache_metric(self._app_server(), "historical_chunk_misses")
+            record_cache_metric(self._app_server(), "query_executions")
+            record_cache_metric(
+                self._app_server(), "query_seconds", time.perf_counter() - started
+            )
             self._send_json(
                 200,
                 payload_out,
@@ -3213,9 +3392,7 @@ class Handler(BaseHTTPRequestHandler):
                     "rows": total,
                     "normalized_series": normalized_series_readiness(conn),
                     "cache": self._app_server().cache.stats(),
-                    "cache_metrics": dict(
-                        getattr(self._app_server(), "cache_metrics", {})
-                    ),
+                    "cache_metrics": tile_metrics_snapshot(self._app_server()),
                 },
                 cache_control="no-store",
             )
@@ -3425,6 +3602,7 @@ class Server(ThreadingHTTPServer):
         conn.close()
         self.cache = Cache(CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
         self.cache_metrics = defaultdict(float)
+        self.cache_metrics_lock = threading.Lock()
         self.limiter = RateLimiter()
         self.singleflight = SingleFlight()
 
