@@ -1,6 +1,14 @@
 import { seriesKey } from "./chart-config";
 import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
+import {
+  parseTileCatalog,
+  planTileRequests,
+  resolveTileSeries,
+  type TileCatalogSeries,
+  type TileRequest,
+} from "./tile-planner";
+import { composeTileWindow, parseAggregateStateV2, type AggregateBucket } from "./tile-state";
 import type {
   ChartDefinition,
   CompareMode,
@@ -46,6 +54,21 @@ type ChunkResult = {
   tags: string[];
 };
 
+type TileResult = {
+  boundary_policy: "native_edges_coarse_aligned_interiors";
+  buckets: AggregateBucket[];
+  lod: TileRequest["lod"];
+  native_interval_seconds: number;
+  rollup: null | "sum";
+  schema: 2;
+  series_key: string;
+  statistic_policy: "gauge" | "power";
+  tile_end: number;
+  tile_span: TileRequest["tileSpan"];
+  tile_start: number;
+  unit: string;
+};
+
 async function fetchJson<T>(url: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { ...init, ...(signal ? { signal } : {}) });
   if (!response.ok) {
@@ -53,6 +76,99 @@ async function fetchJson<T>(url: string, init: RequestInit, signal?: AbortSignal
     throw new Error(`api_${response.status}:${detail.slice(0, 160)}`);
   }
   return (await response.json()) as T;
+}
+
+function isAbortError(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted || (error instanceof Error && error.name === "AbortError");
+}
+
+async function mapWithConcurrency<T, U>(
+  values: readonly T[],
+  limit: number,
+  worker: (value: T) => Promise<U>,
+): Promise<U[]> {
+  const output: U[] = [];
+  output.length = values.length;
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, async () => {
+      while (cursor < values.length) {
+        const index = cursor;
+        cursor += 1;
+        output[index] = await worker(values[index]!);
+      }
+    }),
+  );
+  return output;
+}
+
+function parseTileResult(
+  value: unknown,
+  request: TileRequest,
+  entry: TileCatalogSeries,
+): TileResult {
+  if (!value || typeof value !== "object") throw new Error("invalid_tile_response");
+  const result = value as Partial<TileResult>;
+  if (
+    Object.keys(value).sort().join(",") !==
+      "boundary_policy,buckets,lod,native_interval_seconds,rollup,schema,series_key,statistic_policy,tile_end,tile_span,tile_start,unit" ||
+    result.schema !== 2 ||
+    result.series_key !== entry.key ||
+    result.tile_span !== request.tileSpan ||
+    result.tile_start !== request.tileStart ||
+    result.tile_end !== request.tileEnd ||
+    result.lod !== request.lod ||
+    result.native_interval_seconds !== entry.native_interval_seconds ||
+    result.unit !== entry.unit ||
+    result.statistic_policy !== entry.statistic_policy ||
+    result.rollup !== entry.rollup ||
+    result.boundary_policy !== "native_edges_coarse_aligned_interiors" ||
+    !Array.isArray(result.buckets)
+  ) {
+    throw new Error("invalid_tile_response_contract");
+  }
+  let priorKey: readonly [number, number] = [-Infinity, -Infinity];
+  const buckets = result.buckets.map((raw) => {
+    if (!raw || typeof raw !== "object") throw new Error("invalid_tile_bucket");
+    const bucket = raw as unknown as Record<string, unknown>;
+    if (
+      Object.keys(bucket).sort().join(",") !== "end,start,state" ||
+      !Number.isSafeInteger(bucket["start"]) ||
+      !Number.isSafeInteger(bucket["end"]) ||
+      (bucket["start"] as number) < request.tileStart ||
+      (bucket["start"] as number) >= request.tileEnd
+    ) {
+      throw new Error("invalid_tile_bucket_contract");
+    }
+    const start = bucket["start"] as number;
+    const end = bucket["end"] as number;
+    const state = parseAggregateStateV2(bucket["state"]);
+    const lodSeconds =
+      request.lod === "5m" ? 300 : request.lod === "15m" ? 900 : request.lod === "1h" ? 3600 : 0;
+    if (
+      (request.lod === "native" &&
+        (end !== start ||
+          state.count !== 1 ||
+          state.first_ts !== start ||
+          state.last_ts !== start)) ||
+      (request.lod !== "native" &&
+        (end - start !== lodSeconds ||
+          start % lodSeconds !== 0 ||
+          end > request.tileEnd ||
+          state.count === 0 ||
+          state.first_ts! < start ||
+          state.last_ts! >= end))
+    ) {
+      throw new Error("invalid_tile_bucket_bounds");
+    }
+    const key: readonly [number, number] = [start, state.first_ordinal ?? -1];
+    if (key[0] < priorKey[0] || (key[0] === priorKey[0] && key[1] <= priorKey[1])) {
+      throw new Error("invalid_tile_bucket_order");
+    }
+    priorKey = key;
+    return { end, start, state };
+  });
+  return { ...(result as TileResult), buckets };
 }
 
 export function canonicalChunkUrl({
@@ -137,20 +253,18 @@ async function loadFixedSeriesFromChunks(
   for (const chart of charts) {
     for (const series of chart.series) {
       if (!series.metric) continue;
-      const chunks = await Promise.all(
-        windows.map((window) =>
-          fetchJson<ChunkResult>(
-            canonicalChunkUrl({
-              aggregation: chart.spikeCritical ? "minmax" : "average",
-              ...window,
-              metric: series.metric!,
-              resolution,
-              ...(series.rollup ? { rollup: series.rollup } : {}),
-              ...(series.tags ? { tags: series.tags } : {}),
-            }),
-            { method: "GET" },
-            signal,
-          ),
+      const chunks = await mapWithConcurrency(windows, 8, (window) =>
+        fetchJson<ChunkResult>(
+          canonicalChunkUrl({
+            aggregation: chart.spikeCritical ? "minmax" : "average",
+            ...window,
+            metric: series.metric!,
+            resolution,
+            ...(series.rollup ? { rollup: series.rollup } : {}),
+            ...(series.tags ? { tags: series.tags } : {}),
+          }),
+          { method: "GET" },
+          signal,
         ),
       );
       const points = mergePoints(
@@ -189,6 +303,180 @@ async function loadFixedSeriesFromChunks(
   return output;
 }
 
+async function loadFixedPhysicalSeriesFromChunks(
+  chart: ChartDefinition,
+  series: ChartDefinition["series"][number],
+  time: TimeState,
+  signal: AbortSignal,
+): Promise<LoadedSeries> {
+  if (!series.metric) throw new Error("physical_series_metric_required");
+  const windows = historicalChunkWindows(time.start, time.end, Math.floor(Date.now() / 1000));
+  const resolution = Math.max(1, Math.ceil(time.rangeSeconds / 1200));
+  const chunks = await mapWithConcurrency(windows, 8, (window) =>
+    fetchJson<ChunkResult>(
+      canonicalChunkUrl({
+        aggregation: chart.spikeCritical ? "minmax" : "average",
+        ...window,
+        metric: series.metric!,
+        resolution,
+        ...(series.rollup ? { rollup: series.rollup } : {}),
+        ...(series.tags ? { tags: series.tags } : {}),
+      }),
+      { method: "GET" },
+      signal,
+    ),
+  );
+  const points = mergePoints(
+    [],
+    chunks.flatMap((chunk) => chunk.points),
+    time.start,
+    time.end,
+  );
+  return {
+    compare: [],
+    error: null,
+    meta: {
+      bucket_seconds: resolution,
+      max_points: 1200,
+      partial_current_bucket: false,
+      since: time.start,
+      stats: pointStatistics(points),
+      until: time.end,
+    },
+    points,
+  };
+}
+
+async function loadFixedSeriesFromTiles(
+  charts: ChartDefinition[],
+  time: TimeState,
+  signal: AbortSignal,
+): Promise<Map<string, LoadedSeries>> {
+  const catalog = parseTileCatalog(
+    await fetchJson<unknown>("/api/v2/tile-catalog", { method: "GET" }, signal),
+  );
+  const now = Math.floor(Date.now() / 1000);
+  const jobs = charts.flatMap((chart) =>
+    chart.series.flatMap((series) => {
+      if (!series.metric) return [];
+      const entry = resolveTileSeries(catalog, {
+        metric: series.metric,
+        ...(series.rollup ? { rollup: series.rollup } : {}),
+        statisticPolicy: chart.statisticPolicy,
+        ...(series.tags ? { tags: series.tags } : {}),
+        unit: chart.unit,
+      });
+      return [
+        {
+          chart,
+          entry,
+          key: seriesKey(chart.id, series.id),
+          requests: entry
+            ? planTileRequests({
+                catalog,
+                end: Math.round(time.end),
+                entry,
+                now,
+                start: Math.round(time.start),
+                targetPoints: chart.spikeCritical ? 600 : 1200,
+              })
+            : [],
+          series,
+        },
+      ];
+    }),
+  );
+  const requestByUrl = new Map<string, { entry: TileCatalogSeries; request: TileRequest }>();
+  for (const job of jobs) {
+    if (!job.entry) continue;
+    for (const request of job.requests) {
+      requestByUrl.set(request.url, { entry: job.entry, request });
+    }
+  }
+  const tileByUrl = new Map<string, TileResult | Error>();
+  await mapWithConcurrency([...requestByUrl.entries()], 8, async ([url, context]) => {
+    try {
+      const value = await fetchJson<unknown>(url, { method: "GET" }, signal);
+      tileByUrl.set(url, parseTileResult(value, context.request, context.entry));
+    } catch (error) {
+      if (isAbortError(error, signal)) throw error;
+      tileByUrl.set(url, error instanceof Error ? error : new Error("tile_request_failed"));
+    }
+  });
+
+  const output = new Map<string, LoadedSeries>();
+  for (const job of jobs) {
+    let loaded: LoadedSeries | null = null;
+    if (job.entry) {
+      try {
+        const tiles = job.requests.map((request) => {
+          const tile = tileByUrl.get(request.url);
+          if (!tile || tile instanceof Error) throw tile ?? new Error("missing_tile_response");
+          return { request, tile };
+        });
+        const projection = composeTileWindow({
+          coarseInterior: tiles.flatMap(({ request, tile }) =>
+            request.lod === "native"
+              ? []
+              : tile.buckets.filter(
+                  (bucket) => bucket.start >= time.start && bucket.end <= time.end + 1,
+                ),
+          ),
+          end: Math.round(time.end),
+          endInclusive: true,
+          nativeEdges: tiles.flatMap(({ request, tile }) =>
+            request.lod === "native"
+              ? tile.buckets.filter(
+                  (bucket) =>
+                    bucket.state.first_ts !== null &&
+                    bucket.state.first_ts >= time.start &&
+                    bucket.state.first_ts <= time.end,
+                )
+              : [],
+          ),
+          power: job.entry.statistic_policy === "power",
+          projection: job.chart.spikeCritical ? "spike-envelope" : "average",
+          start: Math.round(time.start),
+        });
+        loaded = {
+          compare: [],
+          error: null,
+          meta: {
+            bucket_seconds: null,
+            max_points: 1200,
+            partial_current_bucket: false,
+            since: time.start,
+            stats: projection.stats,
+            until: time.end,
+          },
+          points: projection.points,
+        };
+      } catch (error) {
+        if (isAbortError(error, signal)) throw error;
+      }
+    }
+    output.set(
+      job.key,
+      loaded ?? (await loadFixedPhysicalSeriesFromChunks(job.chart, job.series, time, signal)),
+    );
+  }
+  for (const chart of charts) {
+    for (const series of chart.series) {
+      if (!series.derive) continue;
+      const inputs = series.derive.from.map(
+        (id) => output.get(seriesKey(chart.id, id))?.points ?? [],
+      );
+      output.set(seriesKey(chart.id, series.id), {
+        compare: [],
+        error: null,
+        meta: {},
+        points: deriveSeries(series.derive.operation, inputs),
+      });
+    }
+  }
+  return output;
+}
+
 export async function loadSeries(
   charts: ChartDefinition[],
   time: TimeState,
@@ -199,10 +487,11 @@ export async function loadSeries(
 ): Promise<Map<string, LoadedSeries>> {
   if (time.mode === "fixed" && compare === "none") {
     try {
-      return await loadFixedSeriesFromChunks(charts, time, signal);
+      return await loadFixedSeriesFromTiles(charts, time, signal);
     } catch (error) {
-      if (signal.aborted) throw error;
+      if (isAbortError(error, signal)) throw error;
       // Preserve compatibility while an older receiver is still serving production.
+      return await loadFixedSeriesFromChunks(charts, time, signal);
     }
   }
   const comparison = compareWindow(compare, time, customCompareSeconds);
