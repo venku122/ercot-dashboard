@@ -22,6 +22,89 @@
   --red: #f87171;
 }
 
+.regional-geography-panel button {
+  min-height: 44px;
+}
+
+.regional-geography-panel,
+.regional-geography-panel p,
+.regional-geography-panel li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.regional-schematic {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+.regional-schematic-button {
+  align-items: flex-start;
+  background: var(--panel-strong);
+  border: 2px solid currentColor;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.regional-schematic-button[aria-pressed="true"] {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+.regional-history-chart {
+  aspect-ratio: 100 / 44;
+  display: block;
+  height: clamp(9rem, 16vw, 12rem);
+  max-width: 100%;
+  width: 100%;
+}
+
+.regional-geography-panel .table-scroll th,
+.regional-geography-panel .table-scroll td {
+  padding: 0.55rem 0.75rem;
+  vertical-align: top;
+}
+
+.regional-geography-panel .table-scroll th {
+  white-space: nowrap;
+}
+
+.regional-geography-panel .table-scroll th:last-child,
+.regional-geography-panel .table-scroll td:last-child {
+  min-width: 12rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.regional-current-table {
+  min-width: 48rem;
+}
+
+.regional-history-table {
+  min-width: 40rem;
+}
+
+@media (max-width: 640px) {
+  .regional-schematic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .regional-schematic-button {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .regional-schematic {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 * {
   box-sizing: border-box;
 }

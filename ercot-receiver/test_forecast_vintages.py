@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote, urlencode
 
 
@@ -848,6 +848,7 @@ class ForecastHttpTests(unittest.TestCase):
             + quote(inserted["vintage_key"], safe="")
             + f"/1d/{TARGET_1 // 86_400 * 86_400}"
         )
+
         first, first_headers, first_raw = self.invoke("GET", path)
         second, second_headers, second_raw = self.invoke("GET", path)
         not_modified, third_headers, third_raw = self.invoke(
@@ -864,6 +865,63 @@ class ForecastHttpTests(unittest.TestCase):
         self.assertEqual(second_headers["X-ERCOT-Cache"], "HIT")
         self.assertEqual({first_headers["ETag"], second_headers["ETag"], third_headers["ETag"]}, {first_headers["ETag"]})
         self.assertIn("immutable", first_headers["Cache-Control"])
+
+    def test_unchanged_replay_repairs_failed_regional_load_materialization(self):
+        day_start = TARGET_1 // 86_400 * 86_400
+        rows = []
+        for target in range(day_start, day_start + 86_400, 3_600):
+            local_end = datetime.fromtimestamp(target, fv.CHICAGO)
+            if local_end.hour == 0:
+                delivery = (local_end.date() - timedelta(days=1)).isoformat()
+                hour = "24:00"
+            else:
+                delivery = local_end.date().isoformat()
+                hour = f"{local_end.hour}:00"
+            row = row_565(target=target, day=delivery, hour=hour, value=42)
+            row["systemTotal"] = 336
+            rows.append(row)
+        payload = publication_payload(
+            fv.PRODUCT_NP3_565, "regional-repair", rows,
+            issued=day_start - 7_200, unit="MW"
+        )
+        server.now_ts = lambda: day_start + 100
+        original = server.materialize_load_day
+        server.materialize_load_day = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("forced regional failure")
+        )
+        try:
+            failed, _, _ = self.invoke(
+                "POST", "/api/forecast-publications/ingest", payload,
+                headers={"X-API-Key": server.API_KEY},
+            )
+        finally:
+            server.materialize_load_day = original
+        self.assertEqual(("inserted", "failed"),
+                         (failed["status"], failed["regional_load_materialization"]))
+        conn = sqlite3.connect(server.DB_PATH)
+        self.assertEqual(0, conn.execute("SELECT COUNT(*) FROM regional_geography_current").fetchone()[0])
+        self.assertEqual("failed", server.regional_geography_manifest(conn, now=day_start + 100)["materialization_health"]["state"])
+        conn.close()
+
+        repaired, _, _ = self.invoke(
+            "POST", "/api/forecast-publications/ingest", payload,
+            headers={"X-API-Key": server.API_KEY},
+        )
+        self.assertEqual(("unchanged", "updated"),
+                         (repaired["status"], repaired["regional_load_materialization"]))
+        conn = sqlite3.connect(server.DB_PATH)
+        self.assertEqual(8, conn.execute("SELECT COUNT(*) FROM regional_geography_current").fetchone()[0])
+        blob_count = conn.execute("SELECT COUNT(*) FROM regional_geography_resources").fetchone()[0]
+        self.assertEqual("healthy", server.regional_geography_manifest(conn, now=day_start + 100)["materialization_health"]["state"])
+        conn.close()
+        replayed, _, _ = self.invoke(
+            "POST", "/api/forecast-publications/ingest", payload,
+            headers={"X-API-Key": server.API_KEY},
+        )
+        self.assertEqual("unchanged", replayed["status"])
+        conn = sqlite3.connect(server.DB_PATH)
+        self.assertEqual(blob_count, conn.execute("SELECT COUNT(*) FROM regional_geography_resources").fetchone()[0])
+        conn.close()
 
     def test_outlook_is_bounded_cached_invalidated_and_weather_is_observation_only(self):
         auth = {"X-API-Key": "forecast-test-key"}

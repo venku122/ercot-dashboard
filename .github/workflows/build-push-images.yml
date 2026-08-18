@@ -121,7 +121,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Run populated mobile Chromium and WebKit coverage
         run: >-
-          pnpm exec playwright test e2e/mobile.spec.ts
+          pnpm exec playwright test e2e/mobile.spec.ts e2e/mobile-regional-geography.spec.ts
           --project=mobile
           --project=iphone-pro-max-webkit
           --project=compact-mobile
