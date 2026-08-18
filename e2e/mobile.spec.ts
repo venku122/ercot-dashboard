@@ -515,6 +515,11 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   }
   const supplyDemand = page.locator('[data-chart-id="supply-demand"]');
   await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(supplyDemand.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect(supplyDemand.locator("canvas")).toHaveAttribute(
+    "aria-label",
+    /[1-9]\d* observations/,
+  );
   await expect.soft(page).toHaveScreenshot("mobile-after-first-viewport.png");
   const supportingReadings = page.locator(".mobile-supporting-metrics");
   await supportingReadings.locator("summary").click();
