@@ -11,7 +11,7 @@ import threading
 import time
 from collections import Counter, OrderedDict, defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 from typing import cast
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +22,16 @@ from tile_aggregates import (
     deserialize_aggregate,
     merge_aggregates,
     serialize_aggregate,
+)
+from forecast_vintages import (
+    PRODUCT_NP3_565,
+    PRODUCT_NP6_345,
+    comparison_rows,
+    ingest_forecast_publication,
+    init_forecast_schema,
+    list_publications,
+    publication_rows,
+    resolve_publication,
 )
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -34,6 +44,7 @@ SEALED_HISTORY_AGE_SECONDS = int(os.environ.get("SEALED_HISTORY_AGE_SECONDS", "8
 SEALED_CACHE_TTL_SECONDS = int(os.environ.get("SEALED_CACHE_TTL_SECONDS", "86400"))
 RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300"))
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
+MAX_FORECAST_BODY_BYTES = 1024 * 1024
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
@@ -911,6 +922,7 @@ def init_db(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_events_type_status ON events(event_type, status)"
     )
     conn.commit()
+    init_forecast_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -2128,23 +2140,23 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
-    def _read_json(self):
+    def _read_json(self, max_bytes=MAX_BODY_BYTES):
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError as exc:
             raise ValueError("invalid_content_length") from exc
         if length < 0:
             raise ValueError("invalid_content_length")
-        if length > MAX_BODY_BYTES:
+        if length > max_bytes:
             raise RequestTooLarge("body_too_large")
         raw = self.rfile.read(length) if length else b""
         if not raw:
             return None
         return json.loads(raw.decode("utf-8"))
 
-    def _read_json_or_error(self):
+    def _read_json_or_error(self, max_bytes=MAX_BODY_BYTES):
         try:
-            return self._read_json()
+            return self._read_json(max_bytes)
         except RequestTooLarge:
             self._send_json(413, {"error": "body_too_large"}, cache_control="no-store")
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -2449,6 +2461,29 @@ class Handler(BaseHTTPRequestHandler):
         return payload, dependencies, ranges
 
     def do_POST(self):
+        if self.path == "/api/forecast-publications/ingest":
+            if not self._rate_limit("forecast_vintages_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_forecast_publication(get_db(), payload)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400,
+                    {"error": "forecast_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/ingest":
             if not self._rate_limit("ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -2733,6 +2768,181 @@ class Handler(BaseHTTPRequestHandler):
                 tile_catalog_payload(),
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
+            )
+            return
+        if parsed.path == "/api/v1/forecast-publications":
+            if not self._rate_limit("forecast_vintages_query", RATE_LIMIT_SERIES_RPM):
+                return
+            params = parse_qs(parsed.query)
+            try:
+                source_id = (params.get("source_id") or [None])[0]
+                product_id = (params.get("product_id") or [None])[0]
+                limit = int((params.get("limit") or ["100"])[0])
+                issued_raw = (params.get("issued_lte") or [None])[0]
+                issued_lte = None if issued_raw is None else int(issued_raw)
+                rows = list_publications(
+                    get_db(), source_id, product_id, limit, issued_lte
+                )
+            except (TypeError, ValueError):
+                self._send_json(
+                    400, {"error": "invalid_forecast_query"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200,
+                {
+                    "source_id": source_id,
+                    "product_id": product_id,
+                    "publications": rows,
+                    "count": len(rows),
+                    "cache_semantics": "bounded_diagnostic_no_store",
+                },
+                cache_control="no-store",
+            )
+            return
+        if parsed.path == "/api/v1/forecast-comparison":
+            if not self._rate_limit("forecast_comparison", RATE_LIMIT_SERIES_RPM):
+                return
+            params = parse_qs(parsed.query)
+            try:
+                if (params.get("forecast_product_id") or [None])[0] != PRODUCT_NP3_565:
+                    raise ValueError("invalid_forecast_product")
+                if (params.get("actual_product_id") or [None])[0] != PRODUCT_NP6_345:
+                    raise ValueError("invalid_actual_product")
+                in_use_flag_raw = (params.get("in_use_flag") or [None])[0]
+                if in_use_flag_raw not in ("true", "false"):
+                    raise ValueError("invalid_in_use_flag")
+                forecast_publication, actual_publications, rows = comparison_rows(
+                    get_db(),
+                    (params.get("forecast_source_id") or [None])[0],
+                    (params.get("actual_source_id") or [None])[0],
+                    int((params.get("as_of") or [None])[0]),
+                    int((params.get("target_start") or [None])[0]),
+                    int((params.get("target_end") or [None])[0]),
+                    (params.get("model") or [None])[0],
+                    in_use_flag_raw == "true",
+                    (params.get("forecast_measure") or [None])[0],
+                )
+            except (TypeError, ValueError):
+                self._send_json(
+                    400, {"error": "invalid_forecast_query"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200,
+                {
+                    "as_of": int((params.get("as_of") or [None])[0]),
+                    "as_of_semantics": "forecast_publication_known_at_or_before",
+                    "comparison_semantics": "known_at_nonnegative_horizon_diagnostic",
+                    "selected_forecast_vintage": None
+                    if forecast_publication is None
+                    else forecast_publication[3],
+                    "selected_issued_at": None
+                    if forecast_publication is None
+                    else forecast_publication[4],
+                    "actual_publications": actual_publications,
+                    "rows": rows,
+                    "count": len(rows),
+                    "cache_semantics": "bounded_diagnostic_no_store",
+                },
+                cache_control="no-store",
+            )
+            return
+        forecast_tile_match = re.fullmatch(
+            r"/api/v2/forecast-publications/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)",
+            parsed.path,
+        )
+        if forecast_tile_match:
+            source_raw, product_raw, vintage_raw, tile_start_raw = (
+                forecast_tile_match.groups()
+            )
+            source_id, product_id, vintage_key = map(
+                unquote, (source_raw, product_raw, vintage_raw)
+            )
+            try:
+                tile_start = int(tile_start_raw)
+                if (
+                    parsed.query
+                    or tile_start < 0
+                    or str(tile_start) != tile_start_raw
+                    or tile_start % 86_400 != 0
+                    or len(source_id) > 120
+                    or len(product_id) > 40
+                    or len(vintage_key) > 300
+                    or any("/" in value for value in (source_id, product_id, vintage_key))
+                    or quote(source_id, safe="") != source_raw
+                    or quote(product_id, safe="") != product_raw
+                    or quote(vintage_key, safe="") != vintage_raw
+                ):
+                    raise ValueError("invalid_canonical_forecast_tile")
+            except ValueError:
+                self._send_json(
+                    400,
+                    {"error": "invalid_canonical_forecast_tile"},
+                    cache_control="no-store",
+                )
+                return
+            publication = resolve_publication(
+                get_db(), source_id, product_id, vintage_key
+            )
+            if publication is None:
+                self._send_json(
+                    404, {"error": "unknown_forecast_publication"}, cache_control="no-store"
+                )
+                return
+            identity = {
+                "schema": 1,
+                "source_id": source_id,
+                "product_id": product_id,
+                "vintage_key": vintage_key,
+                "tile_span": "1d",
+                "tile_start": tile_start,
+            }
+            cache_key = self._cache_key("forecast-publication:v2", identity)
+            app = self._app_server()
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                cache_state = "MISS"
+                payload = {
+                    **identity,
+                    "tile_end": tile_start + 86_400,
+                    "publication": {
+                        "issued_at": publication[4],
+                        "published_at": publication[5],
+                        "raw_posted_datetime": publication[6],
+                        "parser_schema_version": publication[10],
+                        "schema_fingerprint": publication[11],
+                        "declared_unit": publication[12],
+                        "content_hash": publication[13],
+                        "row_count": publication[14],
+                        "publication_key_kind": publication[16],
+                        "publication_key": publication[17],
+                    },
+                    "rows": publication_rows(
+                        get_db(), publication, tile_start, tile_start + 86_400
+                    ),
+                }
+                app.cache.set(
+                    cache_key,
+                    payload,
+                    {f"forecast-publication:{source_id}:{product_id}:{vintage_key}"},
+                    ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                    category="forecast-publication:immutable",
+                )
+            self._send_json(
+                200,
+                payload,
+                cache_control="public, max-age=3600, s-maxage=86400, immutable",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        if parsed.path.startswith("/api/v2/forecast-publications/"):
+            self._send_json(
+                400,
+                {"error": "invalid_canonical_forecast_tile"},
+                cache_control="no-store",
             )
             return
         tile_match = re.fullmatch(

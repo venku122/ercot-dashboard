@@ -1,6 +1,7 @@
 import { start as startAncillary } from "./ancillary.ts";
 import { start as startEea } from "./eea.ts";
 import { start as startFuelMix } from "./fuel_mix.ts";
+import { startForecastPublications } from "./ercot_public_load_collector.ts";
 import { start as startGenerationOutages } from "./generation_outages.ts";
 import { start as startGrid } from "./grid.ts";
 import { start as startMetar } from "./metar.ts";
@@ -33,5 +34,6 @@ if (import.meta.main) {
     startGenerationOutages(),
     startOperationsMessages(),
     startWindSolar(),
+    startForecastPublications(),
   ]);
 }

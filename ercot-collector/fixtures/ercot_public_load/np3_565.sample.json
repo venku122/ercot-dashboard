@@ -1,0 +1,44 @@
+{
+  "fields": [
+    { "name": "postedDatetime", "dataType": "DATETIME" },
+    { "name": "deliveryDate", "dataType": "DATE" },
+    { "name": "hourEnding", "dataType": "VARCHAR" },
+    { "name": "coast", "dataType": "DOUBLE" },
+    { "name": "east", "dataType": "DOUBLE" },
+    { "name": "farWest", "dataType": "DOUBLE" },
+    { "name": "north", "dataType": "DOUBLE" },
+    { "name": "northCentral", "dataType": "DOUBLE" },
+    { "name": "southCentral", "dataType": "DOUBLE" },
+    { "name": "southern", "dataType": "DOUBLE" },
+    { "name": "west", "dataType": "DOUBLE" },
+    { "name": "systemTotal", "dataType": "DOUBLE" },
+    { "name": "model", "dataType": "VARCHAR" },
+    { "name": "inUseFlag", "dataType": "BOOLEAN" },
+    { "name": "DSTFlag", "dataType": "BOOLEAN" }
+  ],
+  "data": [
+    [
+      "2026-08-18T06:30:00",
+      "2026-08-18",
+      "1:00",
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      936,
+      "A3",
+      false,
+      false
+    ]
+  ],
+  "_meta": {
+    "currentPage": 1,
+    "totalPages": 33600,
+    "pageSize": 1,
+    "totalRecords": 33600
+  }
+}
