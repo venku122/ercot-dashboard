@@ -46,6 +46,7 @@ export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
     compare: compareParam && compareModes.has(compareParam) ? compareParam : "none",
     customCompareSeconds,
     events: params.get("events") !== "0",
+    history: params.get("history") === "1",
     expandedChart: params.get("inspect"),
     hiddenSeries: new Set(
       (params.get("hidden") ?? "")
@@ -76,6 +77,8 @@ export function dashboardStateToUrl(state: DashboardState, base: URL): URL {
   if (state.compare === "custom") params.set("compare_offset", String(state.customCompareSeconds));
   else params.delete("compare_offset");
   params.set("events", state.events ? "1" : "0");
+  if (state.history) params.set("history", "1");
+  else params.delete("history");
   params.set("legend", state.legendMode);
   if (state.expandedChart) params.set("inspect", state.expandedChart);
   else params.delete("inspect");

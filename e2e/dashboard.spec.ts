@@ -99,14 +99,14 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
   await expect(page.locator('[data-hero-trend="demand"]')).toHaveCount(0);
 });
 
-test("derived insights expose nine formulas and honest history availability", async ({ page }) => {
+test("derived insights exclude the superseded unconditioned history cards", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
 
   await page.getByText("Calculated grid insights", { exact: true }).click();
   const metrics = page.getByLabel("Derived grid metrics");
-  await expect(metrics.getByRole("article")).toHaveCount(9);
-  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(9);
+  await expect(metrics.getByRole("article")).toHaveCount(7);
+  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(7);
   for (const label of [
     "Reserve Margin %",
     "Capacity Utilization %",
@@ -115,12 +115,12 @@ test("derived insights expose nine formulas and honest history availability", as
     "Demand Growth",
     "Forecast Peak",
     "Hours Until Peak",
-    "Price Percentile",
-    "Historical Comparison",
   ]) {
     await expect(metrics).toContainText(label);
   }
-  await expect(metrics.getByText("Formula", { exact: true })).toHaveCount(9);
+  await expect(metrics.getByText("Formula", { exact: true })).toHaveCount(7);
+  await expect(metrics).not.toContainText("Price Percentile");
+  await expect(metrics).not.toContainText("Historical Comparison");
 
   await page.route("**/api/series/batch", async (route) => {
     const payload = route.request().postDataJSON() as { queries: Array<{ id: string }> };
@@ -131,12 +131,7 @@ test("derived insights expose nine formulas and honest history availability", as
     await route.fallback();
   });
   await page.reload();
-  for (const id of [
-    "forecast-peak",
-    "hours-until-peak",
-    "price-percentile",
-    "historical-comparison",
-  ]) {
+  for (const id of ["forecast-peak", "hours-until-peak"]) {
     const card = metrics.locator(`[data-derived-metric="${id}"]`);
     await expect(card).toHaveAttribute("data-derived-available", "false");
     await expect(card).toContainText("Required source data or comparison history is unavailable.");
