@@ -110,6 +110,9 @@ const GridEventTimeline = lazy(() =>
     default: module.GridEventTimeline,
   })),
 );
+const TexasGridView = lazy(() =>
+  import("./dashboard/TexasGridView").then((module) => ({ default: module.TexasGridView })),
+);
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -1133,12 +1136,14 @@ export function App() {
             ERCOT Grid Status
           </h1>
         </div>
-        {state.time.mode === "fixed" || selectedView === "outlook" ? null : (
+        {state.time.mode === "fixed" ||
+        selectedView === "outlook" ||
+        selectedView === "texas-grid" ? null : (
           <p className="freshness-state" data-mode={state.time.mode}>
             {freshnessLabel}
           </p>
         )}
-        {selectedView === "outlook" ? null : (
+        {selectedView === "outlook" || selectedView === "texas-grid" ? null : (
           <section
             aria-label="Global dashboard controls"
             className="control-bar compact-control-bar"
@@ -1398,6 +1403,12 @@ export function App() {
         {selectedView === "outlook" ? (
           <Suspense fallback={<DataLifecycleMessage state="loading" />}>
             <OutlookView enabled={selectedView === "outlook"} />
+          </Suspense>
+        ) : null}
+
+        {selectedView === "texas-grid" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <TexasGridView enabled={selectedView === "texas-grid"} />
           </Suspense>
         ) : null}
 
