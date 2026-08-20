@@ -1,5 +1,23 @@
 # ERCOT Receiver
 
+## Texas Grid long-horizon snapshots
+
+The long-horizon collector is disabled by default. Set
+`ERCOT_LONG_HORIZON_INGEST_ENABLED=true` to poll the credential-free official
+ERCOT GIS monthly XLSX listing and Resource Capacity Trend page every six
+hours. It publishes only phase/fuel and capacity-category aggregates; project
+rows and live GIS document identifiers are discarded and never stored or
+served. Long-term load forecast, large-load status, and retirements remain
+explicitly unavailable until authoritative machine-readable contracts exist.
+
+The authenticated collector routes are `POST /api/texas-grid/ingest` and
+`POST /api/texas-grid/source-attempt`. Public reads use the queryless resolver
+`GET /api/v1/texas-grid` and content-versioned immutable resources under
+`GET /api/v2/texas-grid/{gis|resource_capacity_trend}/v1/{content_version}`.
+Resolver responses revalidate after 15 seconds. Retired immutable bytes remain
+available for at least their advertised one-year cache lifetime; after that
+grace, storage is bounded to 120 source months and four corrections per month.
+
 Local metrics receiver + SQLite store + dashboard UI.
 
 ## Run
