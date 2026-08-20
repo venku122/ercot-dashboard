@@ -79,6 +79,12 @@ from market_geography import (
     market_geography_manifest,
     market_geography_resource,
 )
+from predictive_weather import (
+    ingest_predictive_weather,
+    init_predictive_weather_schema,
+    predictive_weather_manifest,
+    record_predictive_weather_failure,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -93,6 +99,7 @@ RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300")
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
 MAX_FORECAST_BODY_BYTES = 1024 * 1024
 MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
+MAX_PREDICTIVE_WEATHER_BODY_BYTES = 8 * 1024 * 1024
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
@@ -1036,6 +1043,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_regional_geography_schema(conn)
     init_market_mechanics_schema(conn)
     init_market_geography_schema(conn)
+    init_predictive_weather_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -2696,6 +2704,49 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/predictive-weather/ingest":
+            if not self._rate_limit("predictive_weather_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_PREDICTIVE_WEATHER_BODY_BYTES)
+            if payload is None:
+                return
+            conn = get_db()
+            stream = payload.get("stream") if isinstance(payload, dict) else None
+            try:
+                result = ingest_predictive_weather(conn, payload, current_ts=now_ts())
+            except ValueError as exc:
+                record_predictive_weather_failure(conn, stream, str(exc), now_ts())
+                self._app_server().cache.invalidate({"predictive-weather-manifest"})
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                record_predictive_weather_failure(
+                    conn, stream, "predictive_weather_constraint_conflict", now_ts()
+                )
+                self._app_server().cache.invalidate({"predictive-weather-manifest"})
+                self._send_json(
+                    400,
+                    {"error": "predictive_weather_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                record_predictive_weather_failure(
+                    conn, stream, "predictive_weather_ingest_failed", now_ts()
+                )
+                self._app_server().cache.invalidate({"predictive-weather-manifest"})
+                self._send_json(
+                    500,
+                    {"error": "predictive_weather_ingest_failed"},
+                    cache_control="no-store",
+                )
+                return
+            self._app_server().cache.invalidate({"predictive-weather-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/market-geography-publications/ingest":
             if not self._rate_limit("market_geography_ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -3128,7 +3179,19 @@ class Handler(BaseHTTPRequestHandler):
                     500, {"error": "source_health_update_failed"}, cache_control="no-store"
                 )
                 return
-            self._app_server().cache.invalidate({"source-health", "overview"})
+            dependencies = {"source-health", "overview"}
+            if any(
+                isinstance(attempt, dict)
+                and isinstance(attempt.get("source_id"), str)
+                and (
+                    attempt["source_id"] == "nws_alerts_tx"
+                    or attempt["source_id"].startswith("nws_point_")
+                    or attempt["source_id"].startswith("nws_grid_")
+                )
+                for attempt in attempts
+            ):
+                dependencies.add("predictive-weather-manifest")
+            self._app_server().cache.invalidate(dependencies)
             self._send_json(200, {"updated": len(attempts)}, cache_control="no-store")
             return
 
@@ -3342,6 +3405,61 @@ class Handler(BaseHTTPRequestHandler):
                 tile_catalog_payload(),
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
+            )
+            return
+        if parsed.path == "/api/v1/predictive-weather":
+            if not self._rate_limit("predictive_weather_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_predictive_weather_query"},
+                    cache_control="no-store",
+                )
+                return
+            app = self._app_server()
+            key = "predictive-weather-manifest:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_predictive_weather_manifest():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = predictive_weather_manifest(get_db(), current_ts=now_ts())
+                    app.cache.set_if_generation(
+                        key,
+                        value,
+                        generation,
+                        {"predictive-weather-manifest"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="predictive-weather:manifest",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_predictive_weather_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "predictive_weather_manifest_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
             )
             return
         if parsed.path == "/api/v1/market-geography":
