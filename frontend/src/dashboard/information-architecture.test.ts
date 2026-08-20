@@ -55,6 +55,7 @@ describe("dashboard information architecture", () => {
       "reliability",
       "market",
       "texas-grid",
+      "external-context",
       "weather",
       "advanced",
       "diagnostics",

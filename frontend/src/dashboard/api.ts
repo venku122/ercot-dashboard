@@ -2,6 +2,14 @@ import { seriesKey } from "./chart-config";
 import { CanonicalUrlCache } from "./canonical-url-cache";
 import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
+import {
+  parseExternalContextManifest,
+  parseExternalContextResource,
+  type ExternalContextManifest,
+  type ExternalContextResource,
+  type ExternalContextSelected,
+  type ExternalContextStream,
+} from "./external-context";
 import { parseOutlookResponse, type OutlookResponse } from "./outlook";
 import {
   parseForecastQualityManifest,
@@ -972,6 +980,26 @@ export async function loadTexasGridResource(
   return parseTexasGridResource(
     await fetchJson<unknown>(resource.url, { method: "GET" }, signal),
     resource,
+  );
+}
+
+export async function loadExternalContextManifest(
+  signal?: AbortSignal,
+): Promise<ExternalContextManifest> {
+  return parseExternalContextManifest(
+    await fetchJson<unknown>("/api/v1/external-context", { method: "GET" }, signal),
+  );
+}
+
+export async function loadExternalContextResource(
+  stream: ExternalContextStream,
+  selected: ExternalContextSelected,
+  signal?: AbortSignal,
+): Promise<ExternalContextResource> {
+  return parseExternalContextResource(
+    await fetchJson<unknown>(selected.url, { method: "GET" }, signal),
+    stream,
+    selected,
   );
 }
 
