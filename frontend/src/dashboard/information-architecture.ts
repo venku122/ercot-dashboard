@@ -135,7 +135,8 @@ export const dashboardViewDefinitions = [
   {
     id: "reliability",
     label: "Reliability",
-    description: "Capacity headroom, outages, emergency conditions, and ERCOT notices.",
+    description:
+      "Capacity headroom, outages, and a provenance-labeled grid and weather event timeline.",
     groups: ["Reliability"],
   },
   {

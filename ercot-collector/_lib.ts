@@ -1,6 +1,7 @@
 export * from "./deps.ts";
 import { DatadogApi, fetch as instrumentedFetch, fixedInterval } from "./deps.ts";
 import type { MetricSubmission as DatadogMetricSubmission } from "./deps.ts";
+import type { GridEventIngestEvent, GridEventPublication, GridEventStream } from "./grid_events.ts";
 
 export type MetricPoint = {
   dedupe_key?: string;
@@ -36,6 +37,8 @@ export type SourceResult = {
   dataTimestamp?: number;
   diagnostics?: Record<string, unknown>;
   events: NormalizedEvent[];
+  gridEvents?: GridEventIngestEvent[];
+  gridEventStream?: Exclude<GridEventStream, "derived_annotations">;
   metrics: NormalizedMetric[];
   payloadHash: string;
   provenance?: Record<string, unknown>;
@@ -123,11 +126,13 @@ export function boundedSourceMetadata(
 }
 
 export function sourceResultAvailability(
-  result: Pick<SourceResult, "events" | "metrics">,
+  result: Pick<SourceResult, "events" | "gridEvents" | "metrics">,
   allowValidEmpty = false,
 ): { availability: "available" | "empty"; rowCount: number } {
   const rowCount =
-    result.metrics.reduce((total, entry) => total + entry.points.length, 0) + result.events.length;
+    result.metrics.reduce((total, entry) => total + entry.points.length, 0) +
+    result.events.length +
+    (result.gridEvents?.length ?? 0);
   if (rowCount === 0 && !allowValidEmpty) throw new Error("zero_core_rows");
   return { availability: rowCount === 0 ? "empty" : "available", rowCount };
 }
@@ -164,7 +169,10 @@ export async function fetch(
   }
 
   try {
-    const response = await instrumentedFetch(input, { ...init, signal: controller.signal });
+    const response = await instrumentedFetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
     if (!response.ok) {
       throw new Error(`source_http_${response.status}`);
     }
@@ -217,7 +225,10 @@ export function metricBatches(data: NormalizedMetric[], maximumBytes = 400 * 102
       const pointBytes = encoder.encode(JSON.stringify(point)).byteLength;
       const candidateBytes = baseBytes + 2 + pointsBytes + (points.length ? 1 : 0) + pointBytes;
       if (points.length && candidateBytes > maximumBytes - 2) {
-        split.push({ entry: { ...entry, points }, bytes: baseBytes + 2 + pointsBytes });
+        split.push({
+          entry: { ...entry, points },
+          bytes: baseBytes + 2 + pointsBytes,
+        });
         points = [];
         pointsBytes = 0;
       }
@@ -226,7 +237,9 @@ export function metricBatches(data: NormalizedMetric[], maximumBytes = 400 * 102
     }
     if (points.length) {
       const bytes = baseBytes + 2 + pointsBytes;
-      if (bytes > maximumBytes - 2) throw new Error("metric_point_exceeds_batch_limit");
+      if (bytes > maximumBytes - 2) {
+        throw new Error("metric_point_exceeds_batch_limit");
+      }
       split.push({ entry: { ...entry, points }, bytes });
     }
   }
@@ -264,7 +277,9 @@ export function incrementalMetrics(
   for (const entry of metrics) {
     const identity = seriesIdentity(entry);
     let highWater = highWaterBySeries[identity] ?? 0;
-    for (const point of entry.points) highWater = Math.max(highWater, point.timestamp ?? 0);
+    for (const point of entry.points) {
+      highWater = Math.max(highWater, point.timestamp ?? 0);
+    }
     highWaterBySeries[identity] = highWater;
   }
   const retainedValues: Record<string, number> = {};
@@ -284,14 +299,18 @@ export function incrementalMetrics(
         changed.push(point);
         continue;
       }
-      if (isMutable || timestamp >= cutoff) retainedValues[identity] = point.value;
+      if (isMutable || timestamp >= cutoff) {
+        retainedValues[identity] = point.value;
+      }
       const isCandidate =
         !checkpoint ||
         !hasPriorSeriesWatermark ||
         isMutable ||
         timestamp > previousHighWater ||
         timestamp >= previousHighWater - overlapSeconds;
-      if (isCandidate && priorValues[identity] !== point.value) changed.push(point);
+      if (isCandidate && priorValues[identity] !== point.value) {
+        changed.push(point);
+      }
     }
     if (changed.length) output.push({ ...entry, points: changed });
   }
@@ -312,7 +331,9 @@ function incrementalEvents(
   checkpoint: SourceCheckpoint,
 ): { checkpoint: SourceCheckpoint; events: NormalizedEvent[] } {
   const previous = checkpoint.events ?? {};
-  const next: Record<string, string> = {};
+  const next: Record<string, string> = Object.fromEntries(
+    Object.entries(previous).filter(([key]) => key.startsWith("grid:")),
+  );
   const changed: NormalizedEvent[] = [];
   for (const event of events) {
     const fingerprint = JSON.stringify(stableValue(event));
@@ -322,10 +343,38 @@ function incrementalEvents(
   return { events: changed, checkpoint: { ...checkpoint, events: next } };
 }
 
+export function incrementalGridEvents(
+  stream: GridEventStream,
+  events: GridEventIngestEvent[],
+  checkpoint: SourceCheckpoint,
+): { checkpoint: SourceCheckpoint; events: GridEventIngestEvent[] } {
+  const previous = checkpoint.events ?? {};
+  const prefix = `grid:${stream}:`;
+  const next = Object.fromEntries(
+    Object.entries(previous).filter(([key]) => !key.startsWith(prefix)),
+  );
+  const changed: GridEventIngestEvent[] = [];
+  for (const event of events) {
+    const key = `${prefix}${event.identity}`;
+    const fingerprint = JSON.stringify(
+      stableValue({
+        ...event,
+        observed_at: 0,
+        source_updated_at: 0,
+      }),
+    );
+    next[key] = fingerprint;
+    if (previous[key] !== fingerprint) changed.push(event);
+  }
+  return { checkpoint: { ...checkpoint, events: next }, events: changed };
+}
+
 export async function submitMetrics(data: NormalizedMetric[]) {
   if (!data.length) return;
   if (metricsEndpoint) {
-    for (const batch of metricBatches(data)) await submitJson(metricsEndpoint, batch);
+    for (const batch of metricBatches(data)) {
+      await submitJson(metricsEndpoint, batch);
+    }
     return;
   }
   const submissions = data.flatMap((entry) =>
@@ -360,6 +409,46 @@ async function submitEvents(data: NormalizedEvent[]) {
     bytes += (batch.length > 1 ? 1 : 0) + eventBytes;
   }
   if (batch.length) await submitJson(endpoint, batch);
+}
+
+async function submitGridEvents(publication: GridEventPublication) {
+  if (!publication.events.length) return;
+  const endpoint = receiverEndpoint("/api/grid-events/ingest");
+  if (!endpoint) return;
+  if (jsonBytes(publication) > 400 * 1024) {
+    throw new Error("grid_events_batch_too_large");
+  }
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(metricsApiKey ? { "X-API-Key": metricsApiKey } : {}),
+    },
+    body: JSON.stringify(publication),
+  });
+  const result = (await response.json()) as Record<string, unknown>;
+  const expected = [
+    "content_version",
+    "ignored_older",
+    "inserted",
+    "pruned",
+    "revised",
+    "schema",
+    "status",
+    "stream",
+    "unchanged",
+  ];
+  if (
+    Object.keys(result).sort().join(",") !== expected.sort().join(",") ||
+    result.schema !== 1 ||
+    result.stream !== publication.stream ||
+    result.status !== "accepted" ||
+    !["inserted", "revised", "unchanged", "ignored_older", "pruned"].every(
+      (key) => Number.isInteger(result[key]) && Number(result[key]) >= 0,
+    ) ||
+    typeof result.content_version !== "string"
+  )
+    throw new Error("grid_events_receiver_response");
 }
 
 async function submitSourceAttempt(attempt: SourceAttempt) {
@@ -407,7 +496,9 @@ export function parseErcotTimestamp(value: unknown): number {
     .replace(/^(\d{4}-\d{2}-\d{2}) /, "$1T")
     .replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
   const milliseconds = Date.parse(normalized);
-  if (!Number.isFinite(milliseconds)) throw new Error("invalid_source_timestamp");
+  if (!Number.isFinite(milliseconds)) {
+    throw new Error("invalid_source_timestamp");
+  }
   return Math.floor(milliseconds / 1000);
 }
 
@@ -508,8 +599,28 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         adapter.overlapSeconds,
       );
       const incrementalEventResult = incrementalEvents(result.events, incremental.checkpoint);
+      const hasGridEventCheckpoint =
+        result.gridEventStream &&
+        Object.keys(incrementalEventResult.checkpoint.events ?? {}).some((key) =>
+          key.startsWith(`grid:${result.gridEventStream}:`),
+        );
+      const gridEventResult =
+        result.gridEventStream && result.gridEvents && (!unchanged || !hasGridEventCheckpoint)
+          ? incrementalGridEvents(
+              result.gridEventStream,
+              result.gridEvents,
+              incrementalEventResult.checkpoint,
+            )
+          : { checkpoint: incrementalEventResult.checkpoint, events: [] };
       await submitMetrics(incremental.metrics);
       await submitEvents(incrementalEventResult.events);
+      if (result.gridEventStream) {
+        await submitGridEvents({
+          events: gridEventResult.events,
+          schema: 1,
+          stream: result.gridEventStream,
+        });
+      }
       await submitMetrics([
         metric(
           adapter.sourceId,
@@ -534,11 +645,11 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         provenance: boundedSourceMetadata(result.provenance),
         payload_hash: result.payloadHash,
         row_count: rowCount,
-        checkpoint: incrementalEventResult.checkpoint,
+        checkpoint: gridEventResult.checkpoint,
         publication_mode: adapter.publicationMode ?? "polling",
         publication_interval_seconds: adapter.publicationIntervalSeconds,
       });
-      checkpoint = incrementalEventResult.checkpoint;
+      checkpoint = gridEventResult.checkpoint;
       previousHash = result.payloadHash;
       console.log(
         new Date().toISOString(),
