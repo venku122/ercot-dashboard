@@ -1,5 +1,27 @@
 # ERCOT Receiver
 
+## External EIA/EPA/natural-gas context
+
+The PR22 collector is disabled by default. Set
+`EXTERNAL_CONTEXT_INGEST_ENABLED=true` to poll EPA's credential-free eGRID
+summary-data discovery page weekly. It retains only the seven annual ERCT
+total-output emission rates and their reviewed publication identity; workbook
+bytes and unfiltered tables are discarded. These retrospective annual rates
+are methodology context, not live ERCOT emissions, and are never multiplied by
+current generation.
+
+Without a non-DEMO individual `EIA_API_KEY`, EIA-930 and Henry Hub remain
+explicitly disabled. This bounded slice performs no EIA request. EPA CAMD
+remains unavailable because ERCOT-footprint and reporting-coverage methodology
+is not frozen.
+
+Authenticated writes use `POST /api/external-context/ingest` and
+`POST /api/external-context/source-attempt`. Public reads use queryless
+`GET /api/v1/external-context` and immutable resources under
+`GET /api/v2/external-context/{eia930_demand|henry_hub_daily|epa_egrid}/v1/{content_version}`.
+Resolver responses revalidate after 15 seconds; retired eGRID publication URLs
+remain available for ten years, exceeding the advertised one-year cache life.
+
 ## Texas Grid long-horizon snapshots
 
 The long-horizon collector is disabled by default. Set

@@ -4489,6 +4489,139 @@ main[data-dashboard-view="overview"] {
   }
 }
 
+.external-context-view {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.external-context-policy,
+.external-context-family-grid article,
+.external-context-resource {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+
+.external-context-policy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.external-context-policy span,
+.external-context-family-grid article > span {
+  color: var(--text-muted);
+}
+
+.external-context-family-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.external-context-family-grid article {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+}
+
+.external-context-family-grid h3,
+.external-context-family-grid p {
+  margin: 0;
+}
+
+.external-context-family-grid button {
+  min-height: 44px;
+}
+
+.external-context-resource {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.external-context-resource > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.external-context-resource > header > div {
+  min-width: 0;
+  max-width: 75ch;
+}
+
+.external-context-resource > header h3,
+.external-context-resource > header p {
+  margin-block: 0 0.45rem;
+}
+
+.external-context-table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.external-context-table table {
+  min-width: 54rem;
+}
+
+.external-context-table th,
+.external-context-table td {
+  min-width: 9rem;
+  padding: 0.65rem 0.75rem;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: top;
+}
+
+.external-context-provenance {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.75rem 0 0;
+}
+
+.external-context-provenance div {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.3fr) minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.external-context-provenance dt {
+  color: var(--text-muted);
+}
+
+.external-context-provenance dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .external-context-family-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .external-context-resource > header {
+    display: grid;
+  }
+
+  .external-context-resource > header a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .external-context-provenance div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}
+
 .texas-grid-view {
   display: grid;
   gap: 1rem;
