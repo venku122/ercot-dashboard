@@ -401,7 +401,9 @@ test("P0 Grid Outlook remains exact, accessible, and contained on mobile @mobile
   await page.getByText("Hourly forecast values", { exact: true }).click();
   await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeVisible();
   await expect(page.getByText("Current observations only", { exact: true })).toBeVisible();
-  await expect(page.getByText("No weather cause is inferred.", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("Current METAR observations are displayed independently", { exact: false }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   for (const target of [

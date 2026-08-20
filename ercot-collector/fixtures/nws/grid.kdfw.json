@@ -1,0 +1,29 @@
+{
+  "properties": {
+    "updateTime": "2026-08-20T06:26:53+00:00",
+    "temperature": {
+      "uom": "wmoUnit:degC",
+      "values": [{ "validTime": "2026-08-20T00:00:00+00:00/PT1H", "value": 38.9 }]
+    },
+    "apparentTemperature": {
+      "uom": "wmoUnit:degC",
+      "values": [{ "validTime": "2026-08-20T00:00:00+00:00/PT1H", "value": 40 }]
+    },
+    "heatIndex": {
+      "uom": "wmoUnit:degC",
+      "values": [{ "validTime": "2026-08-20T00:00:00+00:00/PT1H", "value": 40 }]
+    },
+    "windChill": {
+      "uom": "wmoUnit:degC",
+      "values": [{ "validTime": "2026-08-20T00:00:00+00:00/P8DT1H", "value": null }]
+    },
+    "windSpeed": {
+      "uom": "wmoUnit:km_h-1",
+      "values": [{ "validTime": "2026-08-20T00:00:00+00:00/PT1H", "value": 16.668 }]
+    },
+    "windGust": {
+      "uom": "wmoUnit:km_h-1",
+      "values": [{ "validTime": "2026-08-20T00:00:00+00:00/PT1H", "value": 24.076 }]
+    }
+  }
+}
