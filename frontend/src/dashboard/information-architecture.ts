@@ -141,7 +141,7 @@ export const dashboardViewDefinitions = [
   {
     id: "market",
     label: "Market",
-    description: "Real-time prices, settlement-point ranking, and market context.",
+    description: "Coherent settlement-price geography, coincident constraints, and SCED context.",
     groups: ["Market"],
   },
   {

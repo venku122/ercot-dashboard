@@ -11,7 +11,6 @@ import {
   loadNetLoadManifest,
   loadNetLoadResource,
   loadOutlook,
-  loadPriceRanking,
   loadSourceHealth,
   loadTrendBaselines,
   type LatestQuery,
@@ -246,11 +245,6 @@ export function useOverviewData({
     () => loadDerivedContext(Math.floor(Date.now() / 1000)),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute },
   );
-  const ranking = useSWR(enabled ? ["price-ranking"] : null, () => loadPriceRanking(), {
-    ...swrPolicy,
-    refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
-  });
-
   const statusWindow = normalizeEventWindow(
     { ...time, mode: "live", paused: false, rangeSeconds: 86_400 },
     REFRESH_CADENCE_MS.events / 1_000,
@@ -280,7 +274,6 @@ export function useOverviewData({
     health,
     baselines,
     context,
-    ranking,
     statusEvents,
     selectedEvents,
   ];
@@ -309,7 +302,6 @@ export function useOverviewData({
     observedAt: observedTimestamps.length
       ? Math.max(...observedTimestamps)
       : Math.floor(Date.now() / 1000),
-    priceRanking: ranking.data ?? [],
     retry,
     sourceHealth: health.data ?? [],
     statusEvents: statusEvents.data ?? [],
