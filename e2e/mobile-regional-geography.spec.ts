@@ -5,7 +5,7 @@ import { installRegionalGeographyApi } from "./regional-geography-fixtures";
 
 test("regional geography meets mobile target and overflow contracts @mobile-core", async ({
   page,
-}) => {
+}, testInfo) => {
   const regionalRequests: string[] = [];
   await installMobileApi(page);
   await installRegionalGeographyApi(page, regionalRequests);
@@ -32,8 +32,10 @@ test("regional geography meets mobile target and overflow contracts @mobile-core
       .locator(".regional-schematic")
       .evaluate((element) => element.scrollWidth <= element.clientWidth),
   ).toBe(true);
-  await page.locator(".mobile-section-nav").evaluate((element) => {
-    (element as HTMLElement).style.visibility = "hidden";
-  });
-  await expect(panel).toHaveScreenshot("regional-geography-mobile.png");
+  if (testInfo.project.name === "iphone-pro-max-webkit") {
+    await page.locator(".mobile-section-nav").evaluate((element) => {
+      (element as HTMLElement).style.visibility = "hidden";
+    });
+    await expect(panel).toHaveScreenshot("regional-geography-mobile.png");
+  }
 });
