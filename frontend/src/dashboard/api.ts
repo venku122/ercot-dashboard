@@ -24,6 +24,11 @@ import {
   type PredictiveWeatherManifest,
 } from "./predictive-weather";
 import {
+  gridEventRequestUrl,
+  parseGridEventTimeline,
+  type GridEventTimeline,
+} from "./grid-event-timeline";
+import {
   parseTileCatalog,
   planTileRequests,
   resolveTileSeries,
@@ -937,6 +942,17 @@ export async function loadPredictiveWeather(
 ): Promise<PredictiveWeatherManifest> {
   return parsePredictiveWeatherManifest(
     await fetchJson<unknown>("/api/v1/predictive-weather", { method: "GET" }, signal),
+  );
+}
+
+export async function loadGridEventTimeline(
+  from: number,
+  to: number,
+  signal?: AbortSignal,
+  cursor?: string | null,
+): Promise<GridEventTimeline> {
+  return parseGridEventTimeline(
+    await fetchJson<unknown>(gridEventRequestUrl(from, to, cursor), { method: "GET" }, signal),
   );
 }
 

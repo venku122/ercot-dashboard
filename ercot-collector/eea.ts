@@ -1,32 +1,80 @@
-// deno run --allow-net --allow-env examples/emit-metrics.ts
+import {
+  fetch,
+  headers,
+  payloadHash,
+  runSourceLoop,
+  type SourceAdapter,
+  type SourceResult,
+} from "./_lib.ts";
+import { buildEeaGridEvent, ERCOT_DAILY_PRC_URL, parseEeaState } from "./grid_events.ts";
 
-import { fetch, headers, runMetricsLoop, type NormalizedMetric } from "./_lib.ts";
-export async function start() {
-  await runMetricsLoop(grabUserMetrics, 10, "ercot_eea");
-}
-if (import.meta.main) start();
+const SOURCE_ID = "ercot_eea";
 
-async function grabUserMetrics(): Promise<NormalizedMetric[]> {
-  const body = (await fetch(
-    "https://www.ercot.com/api/1/services/read/dashboards/daily-prc.json",
-    headers("application/json"),
-  ).then((x) => x.json())) as { current_condition?: { eea_level?: number; state?: string } };
-
-  const current = body?.current_condition;
-  if (!current || typeof current.eea_level !== "number") {
-    console.log(new Date(), "EEA Unknown");
-    return [];
-  }
-
-  const level = current.eea_level;
-  console.log(new Date(), "EEA Level", level, current.state ?? "");
-
-  return [
-    {
-      metric_name: `ercot.eea_level`,
-      points: [{ value: level }],
-      interval: 60 * 10,
-      metric_type: "gauge",
+export async function parseEeaPayload(
+  value: unknown,
+  retrievedAt = Math.floor(Date.now() / 1_000),
+): Promise<SourceResult> {
+  const state = parseEeaState(value);
+  const semanticState = {
+    condition_note: state.condition_note,
+    eea_level: state.eea_level,
+    state: state.state,
+    title: state.title,
+  };
+  return {
+    dataTimestamp: state.source_epoch,
+    diagnostics: {
+      evidence_class: state.evidence_class,
+      time_basis: state.time_basis,
+      transition_time_is_official_declaration: false,
     },
-  ];
+    events: [],
+    gridEvents: [await buildEeaGridEvent(state, retrievedAt)],
+    gridEventStream: "eea",
+    metrics: [
+      {
+        interval: 600,
+        metric_name: "ercot.eea_level",
+        metric_type: "gauge",
+        points: [
+          {
+            dedupe_key: `${SOURCE_ID}:ercot.eea_level:${state.source_epoch}`,
+            timestamp: state.source_epoch,
+            value: state.eea_level,
+          },
+        ],
+      },
+    ],
+    payloadHash: await payloadHash(semanticState),
+    provenance: {
+      condition_note: state.condition_note,
+      source_epoch: state.source_epoch,
+      source_url: state.source_url,
+      state: state.state,
+      title: state.title,
+    },
+    sourceTimestamp: state.source_epoch,
+  };
 }
+
+async function gather() {
+  const retrievedAt = Math.floor(Date.now() / 1_000);
+  const body = await fetch(ERCOT_DAILY_PRC_URL, headers("application/json")).then((response) =>
+    response.json(),
+  );
+  return parseEeaPayload(body, retrievedAt);
+}
+
+export const adapter: SourceAdapter = {
+  sourceId: SOURCE_ID,
+  displayName: "ERCOT EEA daily PRC state",
+  expectedIntervalSeconds: 600,
+  publicationMode: "polling",
+  gather,
+};
+
+export async function start() {
+  await runSourceLoop(adapter);
+}
+
+if (import.meta.main) await start();

@@ -6,6 +6,7 @@ import {
   loadEvents,
   loadForecastQualityManifest,
   loadForecastQualityResource,
+  loadGridEventTimeline,
   loadLatest,
   loadNetLoadDailyResource,
   loadNetLoadManifest,
@@ -67,6 +68,14 @@ export function useOutlookData(enabled: boolean) {
 export function usePredictiveWeather(enabled: boolean) {
   const loader = useCallback((signal: AbortSignal) => loadPredictiveWeather(signal), []);
   return useAbortableResource(enabled, ["predictive-weather", "current"], loader);
+}
+
+export function useGridEventTimeline(enabled: boolean, from: number, to: number) {
+  const loader = useCallback(
+    (signal: AbortSignal) => loadGridEventTimeline(from, to, signal),
+    [from, to],
+  );
+  return useAbortableResource(enabled, ["grid-events", from, to], loader);
 }
 
 export function useForecastQuality(enabled: boolean) {

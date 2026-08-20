@@ -85,6 +85,13 @@ from predictive_weather import (
     predictive_weather_manifest,
     record_predictive_weather_failure,
 )
+from grid_events import (
+    MAX_PAGE_SIZE as MAX_GRID_EVENT_PAGE_SIZE,
+    grid_events_page,
+    ingest_grid_events,
+    ingest_nws_alert_events,
+    init_grid_events_schema,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -100,6 +107,7 @@ MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
 MAX_FORECAST_BODY_BYTES = 1024 * 1024
 MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
 MAX_PREDICTIVE_WEATHER_BODY_BYTES = 8 * 1024 * 1024
+MAX_GRID_EVENTS_BODY_BYTES = 2 * 1024 * 1024
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
@@ -1044,6 +1052,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_market_mechanics_schema(conn)
     init_market_geography_schema(conn)
     init_predictive_weather_schema(conn)
+    init_grid_events_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -1059,6 +1068,15 @@ def get_db() -> sqlite3.Connection:
 
 def now_ts() -> int:
     return int(time.time())
+
+
+def canonical_unsigned_decimal(value) -> bool:
+    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
+        return False
+    try:
+        return str(int(value)) == value
+    except ValueError:
+        return False
 
 
 def recompute_bounded_forecast_net_load(conn, day_starts, current):
@@ -2704,6 +2722,26 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/grid-events/ingest":
+            if not self._rate_limit("grid_events_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_GRID_EVENTS_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_grid_events(get_db(), payload, current_ts=now_ts())
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "grid_event_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"grid-events"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/predictive-weather/ingest":
             if not self._rate_limit("predictive_weather_ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -2743,7 +2781,26 @@ class Handler(BaseHTTPRequestHandler):
                     cache_control="no-store",
                 )
                 return
+            if isinstance(payload, dict) and payload.get("stream") == "alerts":
+                try:
+                    ingest_nws_alert_events(conn, payload, current_ts=now_ts())
+                except ValueError as exc:
+                    self._app_server().cache.invalidate(
+                        {"predictive-weather-manifest", "grid-events"}
+                    )
+                    self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                    return
+                except Exception:
+                    self._app_server().cache.invalidate(
+                        {"predictive-weather-manifest", "grid-events"}
+                    )
+                    self._send_json(
+                        500, {"error": "grid_event_materialization_failed"}, cache_control="no-store"
+                    )
+                    return
             self._app_server().cache.invalidate({"predictive-weather-manifest"})
+            if isinstance(payload, dict) and payload.get("stream") == "alerts":
+                self._app_server().cache.invalidate({"grid-events"})
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -3405,6 +3462,86 @@ class Handler(BaseHTTPRequestHandler):
                 tile_catalog_payload(),
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
+            )
+            return
+        if parsed.path == "/api/v1/grid-events":
+            if not self._rate_limit("grid_events", RATE_LIMIT_STATUS_RPM):
+                return
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            if (
+                not set(params).issubset({"from", "to", "limit", "cursor"})
+                or set(params) < {"from", "to"}
+                or any(len(values) != 1 for values in params.values())
+                or not canonical_unsigned_decimal(params["from"][0])
+                or not canonical_unsigned_decimal(params["to"][0])
+                or (
+                    "limit" in params
+                    and not canonical_unsigned_decimal(params["limit"][0])
+                )
+                or ("cursor" in params and not params["cursor"][0])
+            ):
+                self._send_json(
+                    400, {"error": "invalid_grid_event_query"}, cache_control="no-store"
+                )
+                return
+            start = int(params["from"][0])
+            end = int(params["to"][0])
+            limit = int(params.get("limit", ["250"])[0])
+            cursor = params.get("cursor", [None])[0]
+            if limit > MAX_GRID_EVENT_PAGE_SIZE:
+                self._send_json(
+                    400, {"error": "invalid_grid_event_limit"}, cache_control="no-store"
+                )
+                return
+            key_material = json.dumps(
+                [start, end, limit, cursor], separators=(",", ":"), ensure_ascii=True
+            )
+            key = "grid-events:v1:" + hashlib.sha256(key_material.encode()).hexdigest()
+            app = self._app_server()
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_grid_events_page():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = grid_events_page(
+                        get_db(), start, end, limit, cursor, current_ts=now_ts()
+                    )
+                    app.cache.set_if_generation(
+                        key,
+                        value,
+                        generation,
+                        {"grid-events"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="grid-events:page",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_grid_events_page
+                    )
+                except ValueError as exc:
+                    self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                    return
+                except Exception:
+                    self._send_json(
+                        500, {"error": "grid_event_query_failed"}, cache_control="no-store"
+                    )
+                    return
+                state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
             )
             return
         if parsed.path == "/api/v1/predictive-weather":

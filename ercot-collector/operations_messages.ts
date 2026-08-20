@@ -1,15 +1,21 @@
 import {
   fetch,
   headers,
+  type NormalizedEvent,
   payloadHash,
   runSourceLoop,
-  type NormalizedEvent,
   type SourceAdapter,
   type SourceResult,
 } from "./_lib.ts";
+import {
+  buildOperationsGridEvent,
+  ERCOT_OPERATIONS_MESSAGES_URL,
+  type OperationsMessageEvidence,
+  parseCentralWallTime,
+} from "./grid_events.ts";
 
 const SOURCE_ID = "operations_messages";
-const URL = "https://www.ercot.com/services/comm/mkt_notices/opsmessages/index";
+const URL = ERCOT_OPERATIONS_MESSAGES_URL;
 
 function decodeHtml(value: string): string {
   return value
@@ -24,32 +30,39 @@ function decodeHtml(value: string): string {
     .trim();
 }
 
-function centralOffsetSuffix(date: Date): string {
-  const year = date.getUTCFullYear();
-  const marchFirst = new Date(Date.UTC(year, 2, 1));
-  const novemberFirst = new Date(Date.UTC(year, 10, 1));
-  const secondSundayMarch = 8 + ((7 - marchFirst.getUTCDay()) % 7);
-  const firstSundayNovember = 1 + ((7 - novemberFirst.getUTCDay()) % 7);
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  const hour = date.getUTCHours();
-  const daylight =
-    (month > 2 && month < 10) ||
-    (month === 2 && (day > secondSundayMarch || (day === secondSundayMarch && hour >= 2))) ||
-    (month === 10 && (day < firstSundayNovember || (day === firstSundayNovember && hour < 2)));
-  return daylight ? "-0500" : "-0600";
+function bounded(value: string, code: string, maximum: number) {
+  if (!value || new TextEncoder().encode(value).length > maximum) {
+    throw new Error(code);
+  }
+  return value;
+}
+
+function titleFor(summary: string) {
+  if (new TextEncoder().encode(summary).length <= 500) return summary;
+  let title = "";
+  for (const character of summary) {
+    if (new TextEncoder().encode(`${title}${character}...`).length > 500) break;
+    title += character;
+  }
+  return `${title}...`;
 }
 
 export function parseOperationsTimestamp(value: string): number {
-  const provisional = new Date(`${value} UTC`);
-  if (!Number.isFinite(provisional.valueOf())) throw new Error("invalid_operations_timestamp");
-  const parsed = Date.parse(`${value} GMT${centralOffsetSuffix(provisional)}`);
-  if (!Number.isFinite(parsed)) throw new Error("invalid_operations_timestamp");
-  return Math.floor(parsed / 1000);
+  const parsed = parseCentralWallTime(value);
+  if (parsed.starts_at === null) {
+    throw new Error("ambiguous_operations_timestamp");
+  }
+  return parsed.starts_at;
 }
 
-export async function parseOperationsMessages(html: string): Promise<SourceResult> {
+export async function parseOperationsMessages(
+  html: string,
+  retrievedAt = Math.floor(Date.now() / 1_000),
+): Promise<SourceResult> {
   const events: NormalizedEvent[] = [];
+  const gridEvents = [];
+  const ambiguous = [];
+  const sourceCandidates: number[] = [];
   const rowPattern = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   for (const [, row] of html.matchAll(rowPattern)) {
     const cells = [...row.matchAll(/<td\b[^>]*class=["']([^"']*)["'][^>]*>([\s\S]*?)<\/td>/gi)];
@@ -59,31 +72,69 @@ export async function parseOperationsMessages(html: string): Promise<SourceResul
     const type = values.get("type");
     const status = values.get("priority");
     if (!datetime || !summary || !type) continue;
-    const startsAt = parseOperationsTimestamp(datetime);
+    bounded(summary, "operations_message_summary_too_large", 10_000);
+    bounded(type, "operations_message_type_too_large", 120);
+    if (status) bounded(status, "operations_message_status_too_large", 80);
+    const wallTime = parseCentralWallTime(datetime);
+    sourceCandidates.push(...wallTime.candidates);
     const keyMaterial = `${datetime}|${summary}|${type}`;
     const key = (await payloadHash(keyMaterial)).slice(0, 32);
+    const dedupeKey = `${SOURCE_ID}:${key}`;
+    const evidence: OperationsMessageEvidence = {
+      ...wallTime,
+      body: summary,
+      dedupe_key: dedupeKey,
+      event_type: type,
+      evidence_class: "official",
+      source_id: "ercot_operations_messages",
+      source_url: URL,
+      status: status ?? "Unknown",
+      title: titleFor(summary),
+    };
+    const gridEvent = buildOperationsGridEvent(evidence, retrievedAt);
+    gridEvents.push(gridEvent);
+    if (wallTime.starts_at === null) {
+      ambiguous.push({
+        candidates: wallTime.candidates,
+        dedupe_key: dedupeKey,
+        source_wall_time: wallTime.source_wall_time,
+      });
+      continue;
+    }
     events.push({
-      dedupe_key: `${SOURCE_ID}:${key}`,
+      dedupe_key: dedupeKey,
       external_key: key,
       source_id: SOURCE_ID,
-      starts_at: startsAt,
-      observed_at: startsAt,
+      starts_at: wallTime.starts_at,
+      observed_at: retrievedAt,
       event_type: type,
       status: status ?? "Unknown",
       severity: /emergency|warning|watch/i.test(summary) ? "warning" : "info",
-      title: summary.length > 180 ? `${summary.slice(0, 177)}...` : summary,
+      title: titleFor(summary),
       body: summary,
-      metadata: { source_url: URL, source_datetime: datetime },
+      metadata: {
+        source_url: URL,
+        source_datetime: datetime,
+        time_basis: wallTime.time_basis,
+      },
     });
   }
-  if (!events.length) throw new Error("operations_messages_zero_core_rows");
-  const sourceTimestamp = Math.max(...events.map((event) => event.starts_at));
+  if (!events.length && !ambiguous.length) {
+    throw new Error("operations_messages_zero_core_rows");
+  }
+  const sourceTimestamp = Math.max(...sourceCandidates);
   return {
     metrics: [],
     events,
     sourceTimestamp,
     payloadHash: await payloadHash(html),
-    diagnostics: { events: events.length },
+    gridEvents,
+    gridEventStream: "operations_messages",
+    diagnostics: {
+      ambiguous_wall_times: ambiguous,
+      ambiguous_wall_time_count: ambiguous.length,
+      events: events.length,
+    },
   };
 }
 
