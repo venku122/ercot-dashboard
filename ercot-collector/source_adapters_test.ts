@@ -9,7 +9,7 @@ import { parseFuelMix } from "./fuel_mix.ts";
 import { parseGenerationOutages } from "./generation_outages.ts";
 import { parseMetar } from "./metar.ts";
 import { parseOperationsMessages, parseOperationsTimestamp } from "./operations_messages.ts";
-import { parseStorage } from "./storage.ts";
+import { adapter as storageAdapter, parseStorage } from "./storage.ts";
 import { parseSupplyDemand } from "./supply_demand.ts";
 import { adapter as windSolarAdapter, parseWindSolar } from "./wind_solar.ts";
 
@@ -109,10 +109,39 @@ Deno.test("METAR current schema preserves observations and optional wind fields"
 Deno.test("storage success and repeated DST hour retain distinct epochs", async () => {
   const result = await parseStorage(await jsonFixture("storage.success.json"));
   assert(result.metrics.length === 3, "three storage metrics");
+  assert(storageAdapter.overlapSeconds === 50 * 3_600, "full two-day correction overlap");
+  assert(result.dataTimestamp === 1_784_610_300, "freshness follows newest storage observation");
   const dst = await parseStorage(await jsonFixture("storage.dst.json"));
   const timestamps = dst.metrics[2].points.map((point) => point.timestamp);
   assert(timestamps.length === 2, "two DST points");
   assert(timestamps[1]! - timestamps[0]! === 3600, "repeated hour is distinct");
+});
+
+Deno.test("storage fails closed on partial, duplicate, or inconsistent source rows", async () => {
+  const base = (await jsonFixture("storage.success.json")) as {
+    currentDay: { data: Array<Record<string, unknown>> };
+    lastUpdated: string;
+    previousDay: { data: Array<Record<string, unknown>> };
+  };
+  const partial = structuredClone(base);
+  delete partial.currentDay.data[0]!["netOutput"];
+  const duplicate = structuredClone(base);
+  duplicate.currentDay.data.push(structuredClone(duplicate.currentDay.data[0]!));
+  const mismatched = structuredClone(base);
+  mismatched.currentDay.data[0]!["epoch"] = Number(mismatched.currentDay.data[0]!["epoch"]) + 1_000;
+  const missingTimestamp = structuredClone(base);
+  delete missingTimestamp.currentDay.data[0]!["timestamp"];
+  const wrongSign = structuredClone(base);
+  wrongSign.currentDay.data[0]!["totalCharging"] = 1;
+  for (const payload of [partial, duplicate, mismatched, missingTimestamp, wrongSign]) {
+    let rejected = false;
+    try {
+      await parseStorage(payload);
+    } catch {
+      rejected = true;
+    }
+    assert(rejected, "invalid storage row rejected");
+  }
 });
 
 Deno.test("supply and demand fixture includes actual and forecast series", async () => {
@@ -221,7 +250,15 @@ Deno.test("invalid, zero-core, and unchanged payload behavior is deterministic",
   );
   const zero = await jsonFixture("zero.json");
   await assertRejects(() => parseFuelMix(zero), "fuel_mix");
-  await assertRejects(() => parseStorage(zero), "zero_core");
+  await assertRejects(
+    () =>
+      parseStorage({
+        currentDay: { data: [], dayDate: "2026-01-02 03:00:00-0600" },
+        lastUpdated: "2026-01-02 03:00:00-0600",
+        previousDay: { data: [], dayDate: "2026-01-01 03:00:00-0600" },
+      }),
+    "zero_core",
+  );
   await assertRejects(() => parseSupplyDemand(zero), "zero_core");
   await assertRejects(() => parseGenerationOutages(zero), "zero_core");
   await assertRejects(() => parseWindSolar(zero), "zero_core");

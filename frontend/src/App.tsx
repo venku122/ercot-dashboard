@@ -640,6 +640,8 @@ export function App() {
     return collapsed;
   });
   const [activeChartIds, setActiveChartIds] = useState<Set<string>>(new Set());
+  const loadedChartContextRef = useRef("");
+  const loadedChartIdsRef = useRef<Set<string>>(new Set());
   const [mobileDialog, setMobileDialog] = useState<MobileDialogName>(null);
   const [selectedView, setSelectedView] = useState<DashboardViewId>(initialView);
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
@@ -712,13 +714,28 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const loadContext = JSON.stringify([
+      selectedView,
+      state.time.start,
+      state.time.end,
+      state.compare,
+      state.customCompareSeconds,
+      requestRevision,
+    ]);
+    if (loadedChartContextRef.current !== loadContext) {
+      loadedChartContextRef.current = loadContext;
+      loadedChartIdsRef.current.clear();
+    }
     const requestedCharts = chartDefinitions.filter(
       (chart) =>
         dashboardViewForGroup(chart.group) === selectedView &&
         activeChartIds.has(chart.id) &&
-        !collapsedGroups.has(chart.group),
+        !collapsedGroups.has(chart.group) &&
+        !loadedChartIdsRef.current.has(chart.id),
     );
     if (!requestedCharts.length) return () => controller.abort();
+    for (const chart of requestedCharts) loadedChartIdsRef.current.add(chart.id);
+    let completed = false;
     setLoading(true);
     setRequestError(null);
     void loadSeries(
@@ -731,8 +748,10 @@ export function App() {
     )
       .then((nextSeries) => {
         setSeriesData((current) => new Map([...current, ...nextSeries]));
+        completed = true;
       })
       .catch((error: unknown) => {
+        for (const chart of requestedCharts) loadedChartIdsRef.current.delete(chart.id);
         if (!controller.signal.aborted) {
           setRequestError(error instanceof Error ? error.message : String(error));
         }
@@ -740,7 +759,12 @@ export function App() {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (!completed) {
+        for (const chart of requestedCharts) loadedChartIdsRef.current.delete(chart.id);
+      }
+    };
   }, [
     activeChartIds,
     collapsedGroups,
