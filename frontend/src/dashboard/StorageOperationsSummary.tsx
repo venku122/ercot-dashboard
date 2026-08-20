@@ -1,9 +1,13 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 
 import { seriesKey } from "./chart-config";
 import { deriveStorageOperationsSnapshot } from "./storage-operations";
 import type { LoadedSeries, SourceHealth, TimeState } from "./types";
 import { formatValue } from "./units";
+
+const StorageContextReplay = lazy(() =>
+  import("./StorageContextReplay").then((module) => ({ default: module.StorageContextReplay })),
+);
 
 export function StorageOperationsSummary({
   seriesData,
@@ -14,6 +18,7 @@ export function StorageOperationsSummary({
   sourceHealth: SourceHealth | null;
   time: TimeState;
 }) {
+  const [replayOpen, setReplayOpen] = useState(false);
   const snapshot = useMemo(
     () =>
       deriveStorageOperationsSnapshot({
@@ -29,6 +34,23 @@ export function StorageOperationsSummary({
       December 5, 2025; it is not used as live or zero data here.
     </p>
   );
+  const replay = (
+    <div className="storage-context-replay-shell">
+      <button
+        aria-expanded={replayOpen}
+        className="storage-context-replay-toggle"
+        onClick={() => setReplayOpen((current) => !current)}
+        type="button"
+      >
+        {replayOpen ? "Close" : "Open"} multi-cadence storage context replay
+      </button>
+      {replayOpen ? (
+        <Suspense fallback={<p role="status">Loading replay interface…</p>}>
+          <StorageContextReplay seriesData={seriesData} sourceHealth={sourceHealth} time={time} />
+        </Suspense>
+      ) : null}
+    </div>
+  );
 
   if (time.mode !== "live") {
     return (
@@ -38,6 +60,7 @@ export function StorageOperationsSummary({
           reviewed history for this fixed window.
         </p>
         {fourSecondNotice}
+        {replay}
       </section>
     );
   }
@@ -52,6 +75,7 @@ export function StorageOperationsSummary({
             : "No aggregate storage observations are available in this window."}
         </p>
         {fourSecondNotice}
+        {replay}
       </section>
     );
   }
@@ -96,6 +120,7 @@ export function StorageOperationsSummary({
         revenue. Nearby price, demand, or ramp changes are context—not attributed causes.
       </p>
       {fourSecondNotice}
+      {replay}
       <details>
         <summary>Exact coherent observation</summary>
         <div
