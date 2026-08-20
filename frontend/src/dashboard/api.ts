@@ -29,6 +29,11 @@ import {
   type GridEventTimeline,
 } from "./grid-event-timeline";
 import {
+  historicalContextResolverUrl,
+  parseHistoricalContextResolver,
+  type HistoricalContextResolver,
+} from "./historical-context";
+import {
   parseTileCatalog,
   planTileRequests,
   resolveTileSeries,
@@ -871,24 +876,6 @@ export async function loadDerivedContext(
       tags: [],
       until: Math.round(now + 24 * 3600),
     },
-    {
-      id: "derived:price-history",
-      max_points: 288,
-      metric: "ercot.pricing",
-      since: Math.round(now - 24 * 3600),
-      stats_since: Math.round(now - 24 * 3600),
-      tags: ["ercot_region:HB_HOUSTON"],
-      until: Math.round(now),
-    },
-    {
-      id: "derived:demand-yesterday",
-      max_points: 60,
-      metric: "ercot.supply_demand.demand_mw",
-      since: Math.round(now - 25 * 3600),
-      stats_since: Math.round(now - 25 * 3600),
-      tags: [],
-      until: Math.round(now - 23 * 3600),
-    },
   ];
   const response = await fetchJson<{ series: SeriesResult[] }>(
     "/api/series/batch",
@@ -953,6 +940,15 @@ export async function loadGridEventTimeline(
 ): Promise<GridEventTimeline> {
   return parseGridEventTimeline(
     await fetchJson<unknown>(gridEventRequestUrl(from, to, cursor), { method: "GET" }, signal),
+  );
+}
+
+export async function loadHistoricalContext(
+  asOf: number,
+  signal?: AbortSignal,
+): Promise<HistoricalContextResolver> {
+  return parseHistoricalContextResolver(
+    await fetchJson<unknown>(historicalContextResolverUrl(asOf), { method: "GET" }, signal),
   );
 }
 

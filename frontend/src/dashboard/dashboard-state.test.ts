@@ -64,18 +64,20 @@ describe("shareable URL state", () => {
   it("round trips fixed time, comparison, events, inspect, legend and hidden series", () => {
     const parsed = dashboardStateFromUrl(
       new URL(
-        "https://example.test/?live=0&from=100&to=700&range=600&compare=day&events=0&inspect=storage&legend=compact&hidden=storage:charging",
+        "https://example.test/?live=0&from=100&to=700&range=600&compare=day&events=0&history=1&inspect=storage&legend=compact&hidden=storage:charging",
       ),
       1000,
     );
     expect(parsed.time.mode).toBe("fixed");
     expect(parsed.compare).toBe("day");
     expect(parsed.events).toBe(false);
+    expect(parsed.history).toBe(true);
     expect(parsed.expandedChart).toBe("storage");
     expect(parsed.hiddenSeries.has("storage:charging")).toBe(true);
     const output = dashboardStateToUrl(parsed, new URL("https://example.test/"));
     expect(output.searchParams.get("from")).toBe("100");
     expect(output.searchParams.get("hidden")).toBe("storage:charging");
+    expect(output.searchParams.get("history")).toBe("1");
   });
 });
 

@@ -105,8 +105,8 @@ test("P0 all derived metrics remain accessible without horizontal overflow @mobi
   await page.getByText("Calculated grid insights", { exact: true }).click();
   const metrics = page.getByLabel("Derived grid metrics");
   await metrics.scrollIntoViewIfNeeded();
-  await expect(metrics.getByRole("article")).toHaveCount(9);
-  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(9);
+  await expect(metrics.getByRole("article")).toHaveCount(7);
+  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(7);
   for (const label of [
     "Reserve Margin %",
     "Capacity Utilization %",
@@ -115,8 +115,6 @@ test("P0 all derived metrics remain accessible without horizontal overflow @mobi
     "Demand Growth",
     "Forecast Peak",
     "Hours Until Peak",
-    "Price Percentile",
-    "Historical Comparison",
   ]) {
     await expect(metrics.getByRole("article", { name: new RegExp(`^${label}:`) })).toBeVisible();
   }
