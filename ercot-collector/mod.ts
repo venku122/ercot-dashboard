@@ -4,6 +4,7 @@ import { start as startFuelMix } from "./fuel_mix.ts";
 import { startForecastPublications } from "./ercot_public_load_collector.ts";
 import { startMisRenewablePublications } from "./ercot_mis_renewable_runner.ts";
 import { startMisRegionalRenewablePublications } from "./ercot_mis_regional_runner.ts";
+import { startMisMarketMechanics } from "./ercot_mis_market_runner.ts";
 import { start as startGenerationOutages } from "./generation_outages.ts";
 import { start as startGrid } from "./grid.ts";
 import { start as startMetar } from "./metar.ts";
@@ -39,5 +40,6 @@ if (import.meta.main) {
     startForecastPublications(),
     startMisRenewablePublications(),
     startMisRegionalRenewablePublications(),
+    startMisMarketMechanics(),
   ]);
 }
