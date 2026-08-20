@@ -693,7 +693,7 @@ export function ChartCard({
         </div>
       ) : null}
 
-      {chart.id === "storage" && hasData ? (
+      {chart.id === "storage" ? (
         <StorageOperationsSummary seriesData={seriesData} sourceHealth={sourceHealth} time={time} />
       ) : null}
 
