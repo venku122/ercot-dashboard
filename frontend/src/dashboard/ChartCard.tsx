@@ -29,6 +29,7 @@ import { chartCoordinator } from "./chart-coordinator";
 import { chartInteractionPolicy } from "./interaction-policy";
 import { resolveDataLifecycleState } from "./data-lifecycle";
 import { seriesStats } from "./stats";
+import { StorageOperationsSummary } from "./StorageOperationsSummary";
 import type {
   ChartDefinition,
   CompareMode,
@@ -690,6 +691,10 @@ export function ChartCard({
           ) : null}
           {pinned ? <span className="status-chip status-pinned">cursor pinned</span> : null}
         </div>
+      ) : null}
+
+      {chart.id === "storage" && hasData ? (
+        <StorageOperationsSummary seriesData={seriesData} sourceHealth={sourceHealth} time={time} />
       ) : null}
 
       {inspect && mobile ? (

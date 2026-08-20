@@ -42,10 +42,10 @@ const credentials = {
 
 const esrFields = [
   { name: "AGCExecTime", dataType: "datetime" },
-  { name: "ResourceName", dataType: "string" },
-  { name: "ResourceStatus", dataType: "string" },
-  { name: "MaxPowerConsumption", dataType: "number" },
-  { name: "BasePoint", dataType: "number" },
+  { name: "DSTFlag", dataType: "boolean" },
+  { name: "AGCExecTimeUTC", dataType: "datetime" },
+  { name: "systemDemand", dataType: "number" },
+  { name: "ESRChargingMW", dataType: "number" },
 ];
 
 type RecordedCall = { init: RequestInit; url: URL };
@@ -579,10 +579,10 @@ Deno.test("validates the live Public _embedded.products envelope and valid empty
       data: [
         {
           AGCExecTime: "now",
-          ResourceName: "fixture",
-          ResourceStatus: "ON",
-          MaxPowerConsumption: 1,
-          BasePoint: 2,
+          DSTFlag: false,
+          AGCExecTimeUTC: "now",
+          systemDemand: 1,
+          ESRChargingMW: 2,
         },
       ],
     }).data.length === 1,
