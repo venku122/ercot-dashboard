@@ -34,6 +34,7 @@ function catalog(series: readonly CatalogEntry[]) {
       edge_lod: "native",
       rule: "native edges, aligned coarse interiors",
     },
+    derived_resources: [],
     lod_seconds: { "15m": 900, "1h": 3600, "5m": 300, native: null },
     schema: 2,
     series,

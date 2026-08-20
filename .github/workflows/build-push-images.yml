@@ -47,6 +47,7 @@ jobs:
       - run: pnpm run check
       - run: pnpm run test:frontend
       - run: pnpm run test:receiver
+      - run: pnpm run test:contracts
       - name: Verify secure Compose contracts
         run: |
           if env -u METRICS_API_KEY docker compose -f docker-compose.yml config --quiet; then

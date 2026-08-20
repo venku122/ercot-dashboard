@@ -244,9 +244,10 @@ export async function runExternalContextCycle(
 
 export async function startExternalContext(
   dependencies: RunnerDependencies = DEFAULT_DEPENDENCIES,
-) {
-  if (dependencies.environment.get("EXTERNAL_CONTEXT_INGEST_ENABLED") !== "true")
+): Promise<never> {
+  if (dependencies.environment.get("EXTERNAL_CONTEXT_INGEST_ENABLED") !== "true") {
     return await new Promise<never>(() => {});
+  }
   const endpoint =
     dependencies.environment.get("EXTERNAL_CONTEXT_ENDPOINT") ??
     "http://receiver:8080/api/external-context/ingest";
@@ -286,4 +287,5 @@ export async function startExternalContext(
       }
     })(),
   ]);
+  throw new Error("external_context_loops_ended");
 }

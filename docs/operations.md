@@ -6,6 +6,7 @@
 pnpm install --frozen-lockfile
 pnpm run validate:commit
 pnpm run test:collector
+pnpm run test:contracts
 pnpm run test:collector:live
 pnpm run test:performance
 pnpm run test:e2e
