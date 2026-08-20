@@ -47,7 +47,6 @@ import {
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
-import { settlementFreshness, settlementPointMetadata } from "./dashboard/settlement-points";
 import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import {
   navigateWindow,
@@ -93,6 +92,11 @@ const RegionalGeographyPanel = lazy(() =>
 const MarketMechanicsPanel = lazy(() =>
   import("./dashboard/MarketMechanicsPanel").then((module) => ({
     default: module.MarketMechanicsPanel,
+  })),
+);
+const MarketGeographyPanel = lazy(() =>
+  import("./dashboard/MarketGeographyPanel").then((module) => ({
+    default: module.MarketGeographyPanel,
   })),
 );
 
@@ -653,7 +657,6 @@ export function App() {
     isValidating: overviewValidating,
     latest,
     observedAt: overviewAsOf,
-    priceRanking,
     retry: retryOverview,
     sourceHealth,
     statusEvents,
@@ -1001,24 +1004,6 @@ export function App() {
     loading: overviewLoading,
     unavailable: Boolean(effectiveRequestError),
   });
-  const priceLifecycleState = resolveDataLifecycleState({
-    hasData: priceRanking.length > 0,
-    loading: overviewLoading,
-    unavailable: Boolean(effectiveRequestError),
-  });
-  const settlementRows = priceRanking.map((row) => ({
-    ...row,
-    metadata: settlementPointMetadata(row.tag),
-  }));
-  const houstonSettlement = settlementRows.find((row) => row.metadata.code === "HB_HOUSTON");
-  const settlementValues = settlementRows.map((row) => row.value);
-  const settlementSpread = settlementValues.length
-    ? Math.max(...settlementValues) - Math.min(...settlementValues)
-    : null;
-  const settlementObservedAt = Math.max(...settlementRows.map((row) => row.ts), 0);
-  const settlementAge = settlementObservedAt
-    ? Math.max(0, nowSeconds() - settlementObservedAt)
-    : null;
   const sourceHeadline =
     sourceLifecycleState === "ready"
       ? diagnostics.headline
@@ -1396,89 +1381,9 @@ export function App() {
 
         {selectedView === "market" ? (
           <>
-            <section aria-label="Settlement price ranking" className="events-panel ranking-panel">
-              <div>
-                <p className="eyebrow">Market ranking</p>
-                <h2>Latest settlement point prices</h2>
-              </div>
-              {priceLifecycleState === "ready" ? (
-                <div className="market-price-context">
-                  <div aria-label="Settlement price summary" className="market-summary-grid">
-                    <article>
-                      <span>Houston Hub</span>
-                      <strong>
-                        {houstonSettlement
-                          ? formatValue(houstonSettlement.value, "$/MWh")
-                          : "Not reported"}
-                      </strong>
-                    </article>
-                    <article>
-                      <span>High–low spread</span>
-                      <strong>
-                        {settlementSpread === null
-                          ? "Not reported"
-                          : formatValue(settlementSpread, "$/MWh")}
-                      </strong>
-                    </article>
-                    <article>
-                      <span>Regional context</span>
-                      <strong>
-                        {settlementSpread !== null && settlementSpread >= 100
-                          ? "Material divergence"
-                          : "Broadly aligned"}
-                      </strong>
-                    </article>
-                    <article>
-                      <span>Publication</span>
-                      <strong>
-                        {settlementAge === null ? "Not reported" : formatAge(settlementAge)}
-                      </strong>
-                      {settlementAge === null ? null : (
-                        <small>{settlementFreshness(settlementAge)}</small>
-                      )}
-                    </article>
-                  </div>
-                  <details className="market-ranking-details">
-                    <summary>Complete hub and load-zone ranking</summary>
-                    <div className="table-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Settlement point</th>
-                            <th>Price</th>
-                            <th>Observed</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {settlementRows.map((row) => (
-                            <tr key={row.tag}>
-                              <td>
-                                <strong>{row.metadata.label}</strong>
-                                <small>
-                                  {row.metadata.type} · {row.metadata.code}
-                                </small>
-                              </td>
-                              <td>{formatValue(row.value, "$/MWh")}</td>
-                              <td>{new Date(row.ts * 1000).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                </div>
-              ) : (
-                <DataLifecycleMessage
-                  className="panel-lifecycle-message"
-                  detail={
-                    priceLifecycleState === "waiting"
-                      ? "No settlement-price sample has been reported yet."
-                      : undefined
-                  }
-                  state={priceLifecycleState}
-                />
-              )}
-            </section>
+            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+              <MarketGeographyPanel enabled={selectedView === "market"} />
+            </Suspense>
             <Suspense fallback={<DataLifecycleMessage state="loading" />}>
               <MarketMechanicsPanel enabled={selectedView === "market"} />
             </Suspense>
