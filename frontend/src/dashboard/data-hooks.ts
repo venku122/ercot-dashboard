@@ -4,6 +4,8 @@ import useSWR, { type SWRConfiguration } from "swr";
 import {
   loadDerivedContext,
   loadEvents,
+  loadForecastQualityManifest,
+  loadForecastQualityResource,
   loadLatest,
   loadOutlook,
   loadPriceRanking,
@@ -11,6 +13,7 @@ import {
   loadTrendBaselines,
   type LatestQuery,
 } from "./api";
+import type { ForecastQualityManifest } from "./forecast-quality";
 import { derivedLatestQueries } from "./derived-metrics";
 import { healthLatestQueries } from "./grid-health-score";
 import type { EventRecord, TimeState } from "./types";
@@ -54,6 +57,57 @@ export function useOutlookData(enabled: boolean) {
   return useSWR(enabled ? ["outlook", "current"] : null, fetchOutlook, {
     ...swrPolicy,
     refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
+  });
+}
+
+export function useForecastQuality(enabled: boolean) {
+  const controller = useRef<AbortController | null>(null);
+  const fetchManifest = useCallback(() => {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loadForecastQualityManifest(next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, []);
+  useEffect(() => {
+    if (!enabled) controller.current?.abort();
+    return () => {
+      if (enabled) controller.current?.abort();
+    };
+  }, [enabled]);
+  return useSWR(enabled ? ["forecast-quality", "manifest"] : null, fetchManifest, {
+    ...swrPolicy,
+    refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
+  });
+}
+
+export function useForecastQualityResource(
+  enabled: boolean,
+  resource: ForecastQualityManifest["resources"][number] | null,
+) {
+  const controller = useRef<AbortController | null>(null);
+  const fetchResource = useCallback(() => {
+    if (resource === null) throw new Error("missing_forecast_quality_resource");
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loadForecastQualityResource(resource, next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, [resource]);
+  useEffect(() => {
+    if (!enabled) controller.current?.abort();
+    return () => {
+      if (enabled) controller.current?.abort();
+    };
+  }, [enabled]);
+  return useSWR(enabled && resource ? ["forecast-quality", resource.url] : null, fetchResource, {
+    ...swrPolicy,
+    keepPreviousData: false,
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
   });
 }
 
