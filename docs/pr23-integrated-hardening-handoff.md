@@ -2,7 +2,8 @@
 
 ## Outcome
 
-The 23-draft Observatory stack is implementation-complete for human review. It
+The 23-draft Observatory stack is ready for human go/no-go review with every
+campaign gate classified explicitly. It
 adds source-time and provenance contracts, correction-safe historical resources,
 lazy analytical views, and explicit unavailable states without replacing ERCOT's
 faster operational feeds. Every campaign branch remains unmerged and nothing in
@@ -63,8 +64,10 @@ preceding branch; reviewing a later draft in isolation hides its dependencies.
 - Texas Grid publishes aggregate official planning snapshots. Installed,
   operational, planned, studied, inactive, cancelled, and retirement concepts
   are never collapsed into one capacity number.
-- PR22's runnable source is credential-free annual EPA eGRID methodology context.
-  EIA-930 and Henry Hub remain disabled in this bounded slice, and EPA CAMD
+- PR22 always supports credential-free annual EPA eGRID methodology context. A
+  non-DEMO key additionally enables bounded EIA-930 hourly ERCO demand/total
+  interchange and Henry Hub daily spot-price context. This campaign had no such
+  credential, so the live smoke is deferred rather than fabricated. EPA CAMD
   remains unavailable until its footprint, coverage, and unit methodology are
   reviewed.
 
@@ -215,8 +218,9 @@ disabled by default:
 
 The associated endpoint variables default to the internal receiver. NWS also
 requires an identifying user agent. Credentialed ERCOT products require the
-username, password, and reviewed subscription keys. `EIA_API_KEY` is optional
-and unused by PR22's bounded runner. Never place real values in Git, PR text,
+username, password, and reviewed subscription keys. `EIA_API_KEY` is optional;
+blank, whitespace, and `DEMO_KEY` values cause zero EIA requests. A real value
+is confined to EIA's required outbound query. Never place real values in Git, PR text,
 screenshots, logs, source-health metadata, or receiver payloads.
 
 Before a Portainer update, export the current stack definition and its complete
@@ -238,20 +242,30 @@ backfill/load must be reviewed per source.
 4. Deploy the receiver first with all new collectors disabled. Use `Prune=false`.
    Verify health, migrations, legacy v1 APIs, v2 catalog/resources, 401 behavior,
    and real-origin browser loading.
-5. Deploy the collector image with all new opt-ins still false. Verify existing
-   source health and data timestamps before enabling any new source.
-6. Enable only authorized, source-reviewed collectors, one complete Env-preserving
-   update at a time. The safest new-surface order is market geography, NWS,
-   Texas Grid, then eGRID; validate each before proceeding. Keep EIA-930, Henry
-   Hub, EPA CAMD, and any credential-dependent source without approved runtime
-   credentials disabled. Verify publication identity, data timestamp, correction
-   behavior, source health, request volume, database growth, and UI truth after
-   each change.
+5. Deploy the collector image with all new opt-ins still false. Verify its
+   loopback `/healthz`, supervisor, fixed runner registry, existing source health,
+   and data timestamps before enabling any new source.
+6. Enable one source family per complete Env-preserving update in this order:
+   forecast vintages; renewable forecasts; regional renewables; market mechanics;
+   market geography; NWS; Texas Grid; external-context eGRID; then EIA-930/Henry
+   Hub after non-DEMO credential validation. After each, verify local cycle,
+   upstream, receiver delivery, source health/publication, public API/UI, DB
+   growth, request volume, restarts, and rollback. Run historical ESR only as a
+   separate controlled import. EPA CAMD stays unavailable.
 7. Run desktop Chromium, physical or pinned WebKit mobile smoke checks through the
    real public origin and confirm the API response body—not only the HTML shell.
 8. Activate or alter Cloudflare cache rules only after origin validation, using
    the separately reviewed rule snapshot and narrow operation. Verify MISS/HIT,
    strong ETag/304, invalid-path non-caching, purge, and rollback at the same PoP.
+
+## Collector-local health
+
+The collector exposes loopback-only `GET http://127.0.0.1:9091/healthz`. Its
+bounded fixed-registry response reports process/supervisor liveness and per-runner
+enabled, cadence, cycle, upstream, receiver-delivery, and counter state. Compose
+uses it for Docker health without publishing another port. Receiver source health
+remains source evidence, but is no longer the only signal for receiver-auth or
+network delivery failures.
 
 ## Rollback
 

@@ -2,6 +2,13 @@ export * from "./deps.ts";
 import { DatadogApi, fetch as instrumentedFetch, fixedInterval } from "./deps.ts";
 import type { MetricSubmission as DatadogMetricSubmission } from "./deps.ts";
 import type { GridEventIngestEvent, GridEventPublication, GridEventStream } from "./grid_events.ts";
+import {
+  collectorCycleStarted,
+  collectorDeliveryFailed,
+  collectorDeliverySucceeded,
+  collectorUpstreamFailed,
+  collectorUpstreamSucceeded,
+} from "./collector_health.ts";
 
 export type MetricPoint = {
   dedupe_key?: string;
@@ -588,8 +595,12 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
   }
   for await (const dutyCycle of fixedInterval(adapter.expectedIntervalSeconds * 1000)) {
     const attemptedAt = Math.floor(Date.now() / 1000);
+    let phase: "upstream" | "delivery" = "upstream";
+    collectorCycleStarted(adapter.sourceId);
     try {
       const result = await adapter.gather();
+      collectorUpstreamSucceeded(adapter.sourceId);
+      phase = "delivery";
       const { availability, rowCount } = sourceResultAvailability(result, adapter.allowValidEmpty);
       const unchanged = previousHash === result.payloadHash;
       const incremental = incrementalMetrics(
@@ -651,6 +662,7 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
       });
       checkpoint = gridEventResult.checkpoint;
       previousHash = result.payloadHash;
+      collectorDeliverySucceeded(adapter.sourceId);
       console.log(
         new Date().toISOString(),
         adapter.sourceId,
@@ -661,6 +673,11 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
           incrementalEventResult.events.length,
       );
     } catch (error) {
+      if (phase === "upstream") collectorUpstreamFailed(adapter.sourceId);
+      else collectorDeliveryFailed(adapter.sourceId);
+      console.error(
+        JSON.stringify({ event: "collector_cycle_failure", runner: adapter.sourceId, phase }),
+      );
       const message = error instanceof Error ? error.message : String(error);
       console.error(new Date().toISOString(), adapter.sourceId, message);
       try {
@@ -676,6 +693,7 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
           publication_interval_seconds: adapter.publicationIntervalSeconds,
         });
       } catch (healthError) {
+        collectorDeliveryFailed(adapter.sourceId);
         console.error(new Date().toISOString(), adapter.sourceId, "health", healthError);
       }
     }
@@ -689,8 +707,12 @@ export async function runMetricsLoop(
 ) {
   for await (const dutyCycle of fixedInterval(intervalMinutes * 60 * 1000)) {
     const attemptedAt = Math.floor(Date.now() / 1000);
+    let phase: "upstream" | "delivery" = "upstream";
+    collectorCycleStarted(loopName);
     try {
       const data = await gather();
+      collectorUpstreamSucceeded(loopName);
+      phase = "delivery";
       if (!data.length) throw new Error("zero_core_rows");
       const pointTimestamps = data.flatMap((entry) =>
         entry.points.flatMap((point) => (point.timestamp ? [point.timestamp] : [])),
@@ -723,7 +745,11 @@ export async function runMetricsLoop(
         row_count: data.reduce((total, entry) => total + entry.points.length, 0),
         publication_mode: "polling",
       });
+      collectorDeliverySucceeded(loopName);
     } catch (error) {
+      if (phase === "upstream") collectorUpstreamFailed(loopName);
+      else collectorDeliveryFailed(loopName);
+      console.error(JSON.stringify({ event: "collector_cycle_failure", runner: loopName, phase }));
       console.error(new Date().toISOString(), loopName, error);
       try {
         await submitSourceAttempt({
@@ -737,6 +763,7 @@ export async function runMetricsLoop(
           publication_mode: "polling",
         });
       } catch (healthError) {
+        collectorDeliveryFailed(loopName);
         console.error(new Date().toISOString(), loopName, "health", healthError);
       }
     }
