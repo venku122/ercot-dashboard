@@ -1,0 +1,148 @@
+ERCOT OBSERVATORY REMEDIATION AND COMPLETION REPORT
+Date: 2026-08-20
+Repository: venku122/ercot-dashboard
+PR stack: #33 through #55, all draft and unmerged
+
+EXECUTIVE OUTCOME
+
+GO for human go/no-go review after exact-head GitHub Actions completes green.
+Implementation blockers assigned to this campaign are remediated. Remaining
+items are explicitly classified external, credential, or promotion deferrals;
+none is represented as deployed or source-complete.
+
+The implementation head before this report-only commit is:
+  b69cb26c1a60d9be65a8cd2bbc8928408689e8b8
+
+The final cumulative branch SHA cannot be embedded in the commit that contains
+this file. The immutable final SHA and workflow run are recorded in PR #55 and
+the user-facing copy of this report after the report commit is pushed.
+
+STARTING STATE
+
+- origin/main remained 4d77d4de7e7c06eee3a7a7a5b8e1c78a0540e71c.
+- Directive reference PR #55 head was
+  cd65f4b5a6cfd368aa39b6a8a9011d4fc8a425be.
+- Production read-only probes remained on the old lineage: root/status served,
+  while new campaign routes returned 404. Production was not changed.
+- Work occurred in isolated clean worktree
+  /Users/tjt/src/agents/projects/ercot-dashboard-observatory. The user's original
+  checkout was not modified.
+
+FINDING DISPOSITION
+
+1. PR #36 normalized-series production migration readiness: PASS.
+   Added explicit-path, read-only status and resumable offline migration tooling,
+   verification, benchmark, and rollback runbook. Synthetic WAL rehearsal used
+   250,000 rows / 32 series; interruption left 240,000 pending, resume completed
+   at 46,985 rows/s in 5.108 s, zero NULL series IDs, integrity/parity/index gates
+   green. Main bytes 56,524,800 before and 107,483,136 after; peak observed WAL
+   13,002,752. Production migration was NOT EXECUTED.
+
+2. PR #37 canonical tile correction safety: PASS.
+   Added SQLite content-versioned tile resources (`t2-<sha256>`), finite
+   revalidated logical URLs, immutable exact-version URLs, Content-Location,
+   strong ETag/304, correction-created versions, and >=365-day retired-version
+   retention. A correction changes the logical pointer while old URL bytes/ETag
+   remain stable. Removed unsupported immutable claims from versionless catalog
+   and legacy chunk surfaces. Cloudflare same-PoP proof is DEFERRED_PROMOTION.
+
+3. PR #48/#49 current four-second ESR: BLOCKED_EXTERNAL.
+   ERCOT confirms the current feed ended 2025-12-05. Five-minute fleet storage
+   remains the truthful current feed and replay remains multi-cadence context,
+   not battery-response attribution.
+
+4. PR #48/#49 historical ESR importer: BLOCKED_EXTERNAL.
+   Required OAuth username/password and separate ESR subscription key were not
+   available. The intended 2025-05-29/30 nonempty probe was not attempted with
+   fake credentials. No row contract, storage schema, retention, or UI was
+   fabricated from an empty/schema-only response.
+
+5. PR #53 Texas Grid LTLF/planning: PASS.
+   Current official monthly workbook and methodology report were re-audited.
+   Workbook SHA-256:
+   cf2f50b9f9846f6d378715b7027a58bbeda926ce43626178e0604e48866e2e75
+   Report SHA-256:
+   1028603e53839ef33ce118f8851de61fe3771320fb41c986b304c95fc6aa208d
+   Strict live parse produced two separate 240-month scenarios, 2025-01 through
+   2044-12. Peak MW and energy MWh are bound through Appendix A annual TWh sums,
+   not guessed. Versioned receiver/UI resource added. Large-load evidence is
+   forecast-methodology context only; no public project-status dataset was
+   invented. Gross retirement remains unavailable because GIS cancellation,
+   commissioning, and net capacity changes do not prove retirements.
+
+6. PR #54 external context: PASS implementation; DEFERRED_CREDENTIAL live smoke.
+   Added bounded independent EIA-930 ERCO hourly D/TI and Henry Hub daily
+   transport, strict schema/units/UTC hour-ending and market-date semantics,
+   correction/collision/retention, immutable resources, health, UI compatibility,
+   401/403/timeout/size redaction behavior, and secret-leak tests. Blank,
+   whitespace, and case-insensitive DEMO_KEY cause zero EIA requests. No non-DEMO
+   key was available, so live EIA row counts/latest periods were not fabricated.
+   Credential-free eGRID remains PASS; EPA CAMD remains methodology-unavailable.
+
+7. PR #55 collector liveness/delivery: PASS.
+   Added loopback-only /healthz on 127.0.0.1:9091, fixed 19-runner registry,
+   enabled/cadence/cycle/upstream/receiver-delivery/counters, process/supervisor
+   liveness, optional build revision, cadence-aware Docker health, and structured
+   upstream-versus-delivery failure logs. No host port is published and the
+   payload contains no source data, URLs, errors, or secrets. Real-container
+   rehearsal returned 200/healthy, supervisor alive, 19 rows, eight disabled,
+   locally visible receiver-delivery failures, running state, and zero restarts.
+
+8. Activation sequence: PASS documentation; DEFERRED_PROMOTION execution.
+   Full order now includes forecast, renewable, regional, market mechanics,
+   market geography, NWS, Texas Grid, eGRID, credentialed EIA/HH, separate
+   historical ESR import, and Cloudflare after origin validation. Every step has
+   local collector, upstream, receiver delivery/health, public API/UI, DB growth,
+   volume/restart, and rollback gates. Complete Portainer Env preservation,
+   pinned matching images, PullImage=true, and Prune=false are mandatory.
+
+TEST AND PERFORMANCE EVIDENCE
+
+- PR53 commit gate: frontend 312/312; receiver 250/250; focused Texas Grid
+  receiver 12/12; focused collector 9/9; live official workbook parse PASS.
+- PR54 commit gate: frontend 328/328; receiver 262/262; checked focused collector
+  external-context 10/10 plus EIA transport tests.
+- PR55 liveness commit gate: frontend 329/329; receiver 262/262; contract/script
+  tests 17/17; collector health/external focused 12/12.
+- Historical-context benchmark: 401 Chicago dates, 115,488 raw points,
+  26,570,752-byte DB, cold ~2.55 s, warm median ~0.038 s, one-day correction
+  ~0.044 s with one bounded raw query and stable old resource bytes.
+- Canonical tile benchmark and complete browser/mobile/VRI evidence are preserved
+  in PR #55 handoff. Exact final-head suites and CI are recorded in PR #55 after
+  this report commit.
+- Compose production and development expansion passed with a dummy secret.
+- `git diff --check`, typecheck, zero-warning lint, and formatting passed.
+
+GATE MATRIX
+
+- PR36 offline migration tooling: PASS
+- Production DB migration/cutover: DEFERRED_PROMOTION
+- PR37 logical/versioned tile correctness: PASS
+- Cloudflare v2 same-PoP activation/proof: DEFERRED_PROMOTION
+- Current post-RTC+B four-second ESR: BLOCKED_EXTERNAL
+- Historical pre-cutoff ESR importer: BLOCKED_EXTERNAL
+- Five-minute storage and truthful replay: PASS
+- PR53 LTLF implementation: PASS
+- Large-load forecast methodology context: PASS
+- Public large-load project status: BLOCKED_EXTERNAL
+- Gross retirement dataset: BLOCKED_EXTERNAL
+- EIA-930 implementation: PASS
+- Henry Hub implementation: PASS
+- EIA live credentialed smoke: DEFERRED_CREDENTIAL
+- EPA eGRID: PASS
+- EPA CAMD: BLOCKED_EXTERNAL
+- Collector local liveness/delivery: PASS
+- Activation/rollback runbook: PASS
+- Portainer/image/collector production promotion: DEFERRED_PROMOTION
+- Production SQLite replacement: DEFERRED_PROMOTION
+- Exact-head GitHub Actions: recorded in PR #55; must be PASS before review-ready
+
+DEPLOYMENT BOUNDARY
+
+No PR was merged. No production image was deployed. No Portainer stack or Env
+was changed. No production SQLite database, WAL, or collector was mutated. No
+new collector was enabled. No Cloudflare rule was changed or purged. No secret
+value was printed or stored. Production remains on its prior lineage.
+
+The separate file 2026-08-20--ercot-observatory-deployment-guide.txt contains the
+future authorized cutover, staged activation, validation, and rollback procedure.

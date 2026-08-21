@@ -26,7 +26,7 @@ routes do not accept that key.
 | Unified grid events       | none added                                                                     | `/api/grid-events/ingest`, also derived from accepted NWS alerts       | `/api/v1/grid-events`                                                               | existing operations/EEA/NWS source configuration         |
 | Historical demand context | none added                                                                     | derived from existing demand observations                              | `/api/v1/historical-context` and selected `/api/v2/historical-context/...` resource | no new credential                                        |
 | Texas Grid                | `ERCOT_LONG_HORIZON_INGEST_ENABLED`, `ERCOT_LONG_HORIZON_ENDPOINT`             | `/api/texas-grid/ingest`, `/api/texas-grid/source-attempt`             | `/api/v1/texas-grid` and selected `/api/v2/texas-grid/...` resource                 | credential-free official workbooks                       |
-| External context          | `EXTERNAL_CONTEXT_INGEST_ENABLED`, `EXTERNAL_CONTEXT_ENDPOINT`                 | `/api/external-context/ingest`, `/api/external-context/source-attempt` | `/api/v1/external-context` and selected `/api/v2/external-context/...` resource     | current runnable slice is credential-free EPA eGRID only |
+| External context          | `EXTERNAL_CONTEXT_INGEST_ENABLED`, `EXTERNAL_CONTEXT_ENDPOINT`                 | `/api/external-context/ingest`, `/api/external-context/source-attempt` | `/api/v1/external-context` and selected `/api/v2/external-context/...` resource     | eGRID credential-free; EIA-930/Henry Hub require EIA key |
 
 The environment-name inventory that must survive a Portainer update is:
 
@@ -63,10 +63,11 @@ contract is now `startExternalContext(): Promise<never>` with a regression that
 proves another runner wins the race and the disabled runner performs zero
 fetches. That regression is a promotion gate.
 
-The receiver has a Docker health check on `/api/status`; the collector has no
-Docker health check. A running collector container therefore proves process
-liveness only, not successful collection. Container restart count, collector
-logs, source timestamps, section state, and source-health rows are all required.
+The receiver has a Docker health check on `/api/status`. The collector Docker
+health check uses its loopback-only `/healthz`, which proves the process,
+supervisor, and cadence-aware runner scheduler. Per-runner local delivery state,
+restart count, logs, source timestamps, section state, and receiver source-health
+rows are all still required.
 
 ## Error and operator-truth matrix
 
@@ -106,9 +107,11 @@ be reported as failed merely because no collection was attempted.
 5. After the receiver is stable, request historical context once to exercise its
    bounded lazy materialization. Observe latency, CPU, database growth, response
    state, selected resource URL, and subsequent ETag/304 behavior.
-6. Enable one reviewed source per complete Env-preserving stack update. A safe
-   order is market geography, NWS, Texas Grid, then EPA eGRID. Validate each
-   source before proceeding; do not enable EIA-930, Henry Hub, or EPA CAMD.
+6. Enable one reviewed source per complete Env-preserving stack update: forecast
+   vintages, renewable forecasts, regional renewables, market mechanics, market
+   geography, NWS, Texas Grid, EPA eGRID, then EIA-930/Henry Hub after non-DEMO
+   credential validation. Validate each before proceeding. Run historical ESR
+   only as a separate controlled import; do not enable EPA CAMD.
 7. Through the real public origin, verify response bodies, strong ETag/304,
    canonical selected immutable URLs, source timestamps, failure/recovery
    counters, collector logs, image digests/revisions, and zero unexpected
