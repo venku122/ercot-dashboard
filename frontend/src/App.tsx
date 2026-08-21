@@ -99,6 +99,11 @@ const MarketGeographyPanel = lazy(() =>
     default: module.MarketGeographyPanel,
   })),
 );
+const GridEventTimeline = lazy(() =>
+  import("./dashboard/GridEventTimeline").then((module) => ({
+    default: module.GridEventTimeline,
+  })),
+);
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -1380,27 +1385,20 @@ export function App() {
         ) : null}
 
         {selectedView === "reliability" ? (
-          <section aria-label="ERCOT operations messages" className="events-panel">
-            <div>
-              <p className="eyebrow">History</p>
-              <h2>Operations timeline</h2>
-              <p>ERCOT notices in the selected time window, classified for faster review.</p>
-            </div>
-            {state.events ? (
-              <OperationsTimeline
-                events={events}
-                loading={eventsLoading}
-                unavailable={eventsUnavailable}
-              />
-            ) : (
+          state.events ? (
+            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+              <GridEventTimeline enabled time={state.time} />
+            </Suspense>
+          ) : (
+            <section aria-label="Unified grid event timeline" className="events-panel">
               <div className="view-empty-note">
-                <p>Operations annotations are off for the shared dashboard window.</p>
+                <p>Grid-event annotations are off for the shared dashboard window.</p>
                 <Button aria-haspopup="dialog" onClick={() => setMobileDialog("controls")}>
                   Review controls
                 </Button>
               </div>
-            )}
-          </section>
+            </section>
+          )
         ) : null}
 
         {selectedView === "market" ? (

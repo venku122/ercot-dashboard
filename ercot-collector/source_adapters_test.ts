@@ -99,7 +99,14 @@ Deno.test("METAR current schema preserves observations and optional wind fields"
     Math.abs((gust[0]?.points[0]?.value ?? 0) - 29.92028) < 0.001,
     "gust converts knots to mph",
   );
-  const variable = parseMetar([{ icaoId: "KVRB", obsTime: 1_786_690_000, wdir: "VRB", wspd: 7 }]);
+  const variable = parseMetar([
+    {
+      icaoId: "KVRB",
+      obsTime: 1_786_690_000,
+      wdir: "VRB",
+      wspd: 7,
+    },
+  ]);
   assert(
     !variable.some((entry) => entry.metric_name === "metar.winds.direction_degrees"),
     "variable direction is not fabricated",
@@ -226,11 +233,15 @@ Deno.test("operations message HTML becomes stable structured events", async () =
   const first = await parseOperationsMessages(html);
   const second = await parseOperationsMessages(html);
   assert(first.events.length === 2, "two events");
+  assert(first.gridEvents?.length === 2, "two strict grid events");
   assert(first.events[0].dedupe_key === second.events[0].dedupe_key, "stable dedupe key");
   assert(first.events[1].status === "Cancelled", "status");
   const dstHtml = await Deno.readTextFile(fixture("operations_messages.dst.html"));
   const dst = await parseOperationsMessages(dstHtml);
-  assert(dst.events[1]!.starts_at - dst.events[0]!.starts_at === 7200, "fall transition offsets");
+  assert(dst.events.length === 1, "ambiguous fall row excluded from legacy exact-time events");
+  assert(dst.gridEvents?.length === 2, "ambiguous fall row retained in strict grid events");
+  assert(dst.gridEvents[0]?.starts_at === null, "fall transition stays ambiguous");
+  assert(dst.gridEvents[0]?.starts_at_candidates.length === 2, "both fall candidates retained");
   assert(
     parseOperationsTimestamp("Mar 8, 2026 1:30:00 AM") ===
       Date.parse("Mar 8, 2026 1:30:00 AM GMT-0600") / 1000,
@@ -313,7 +324,11 @@ Deno.test("rolling ingestion resumes from a persisted checkpoint and submits onl
 
   const restartedCheckpoint = JSON.parse(JSON.stringify(first.checkpoint));
   const revised = structuredClone(initial);
-  revised[0]!.points.push({ timestamp: 300, value: 25, dedupe_key: "actual:300" });
+  revised[0]!.points.push({
+    timestamp: 300,
+    value: 25,
+    dedupe_key: "actual:300",
+  });
   revised[1]!.points[0]!.value = 31;
   const second = incrementalMetrics(revised, restartedCheckpoint, ["ercot.forecast"], 120);
   const submitted = second.metrics.flatMap((entry) => entry.points);
@@ -350,7 +365,13 @@ Deno.test("legacy global checkpoint replays suppressed actuals during v2 migrati
       },
       {
         metric_name: "ercot.forecast",
-        points: [{ timestamp: 20_000, value: 40, dedupe_key: "forecast:20000" }],
+        points: [
+          {
+            timestamp: 20_000,
+            value: 40,
+            dedupe_key: "forecast:20000",
+          },
+        ],
       },
     ],
     legacy,
