@@ -54,17 +54,15 @@ describe("derived grid metrics", () => {
     ]);
   });
 
-  it("builds all nine metrics from fresh source observations", () => {
+  it("builds the seven unconfounded metrics from fresh source observations", () => {
     const metrics = buildDerivedMetrics(normalInputs());
-    expect(metrics).toHaveLength(9);
+    expect(metrics).toHaveLength(7);
     expect(metrics.every((metric) => metric.available)).toBe(true);
     expect(Object.fromEntries(metrics.map((metric) => [metric.id, metric.valueLabel]))).toEqual({
       "capacity-utilization": "80.0%",
       "demand-growth": "+2.9%",
       "forecast-peak": "78.5 GW",
-      "historical-comparison": "+4.3%",
       "hours-until-peak": "5 hours",
-      "price-percentile": "67th percentile",
       "renewable-share": "41.7%",
       "reserve-margin": "25.0%",
       "storage-state": "Charging",
@@ -97,8 +95,6 @@ describe("derived grid metrics", () => {
       "demand-growth",
       "forecast-peak",
       "hours-until-peak",
-      "price-percentile",
-      "historical-comparison",
     ]) {
       expect(metrics.find((metric) => metric.id === id)).toMatchObject({
         available: false,

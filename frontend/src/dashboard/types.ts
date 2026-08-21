@@ -18,6 +18,7 @@ export type DashboardState = {
   compare: CompareMode;
   customCompareSeconds: number;
   events: boolean;
+  history: boolean;
   expandedChart: string | null;
   hiddenSeries: Set<string>;
   legendMode: LegendMode;

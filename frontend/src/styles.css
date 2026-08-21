@@ -4359,3 +4359,132 @@ main[data-dashboard-view="overview"] {
     transition: none !important;
   }
 }
+.historical-context-panel {
+  min-width: 0;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.historical-context-panel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.historical-context-panel > header > div {
+  min-width: 0;
+  max-width: 70ch;
+}
+
+.historical-context-panel > header h2,
+.historical-context-panel > header p {
+  margin-block: 0 0.45rem;
+}
+
+.historical-context-panel > header button {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+.historical-context-content {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding-top: 1rem;
+}
+
+.historical-context-status {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 0.6rem;
+  background: var(--surface-muted);
+}
+
+.historical-context-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.historical-context-highlights article {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+}
+
+.historical-context-highlights span,
+.historical-context-highlights small {
+  color: var(--text-muted);
+}
+
+.historical-context-exact {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.historical-context-exact table {
+  min-width: 56rem;
+}
+
+.historical-context-exact th,
+.historical-context-exact td {
+  min-width: 10rem;
+  padding: 0.65rem 0.75rem;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: top;
+}
+
+.historical-context-exact th:first-child,
+.historical-context-exact td:first-child {
+  min-width: 13rem;
+}
+
+.historical-context-method > summary {
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.historical-context-method dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.historical-context-method dl > div {
+  min-width: 0;
+}
+
+.historical-context-method dt {
+  color: var(--text-muted);
+}
+
+.historical-context-method dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .historical-context-panel > header {
+    display: grid;
+  }
+
+  .historical-context-panel > header button {
+    width: 100%;
+  }
+
+  .historical-context-highlights,
+  .historical-context-method dl {
+    grid-template-columns: 1fr;
+  }
+}

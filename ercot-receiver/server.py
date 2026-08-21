@@ -92,6 +92,16 @@ from grid_events import (
     ingest_nws_alert_events,
     init_grid_events_schema,
 )
+from historical_context import (
+    METHODOLOGY as HISTORICAL_CONTEXT_METHODOLOGY,
+    POLICY as HISTORICAL_CONTEXT_POLICY,
+    SERIES_KEY as HISTORICAL_CONTEXT_SERIES_KEY,
+    historical_context_resource,
+    historical_context_as_of_bounds,
+    init_historical_context_schema,
+    mark_demand_history_changes,
+    resolve_historical_context,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -1147,6 +1157,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_market_geography_schema(conn)
     init_predictive_weather_schema(conn)
     init_grid_events_schema(conn)
+    init_historical_context_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -1468,6 +1479,7 @@ def ingest_metrics(conn, payload, current_ts=None):
     dependencies = set()
     changes = defaultdict(list)
     correction_age_buckets = {bucket: 0 for bucket in CORRECTION_AGE_BUCKETS}
+    historical_demand_timestamps = []
     ts_now = current_ts if current_ts is not None else now_ts()
     conn.execute("BEGIN")
     try:
@@ -1538,6 +1550,7 @@ def ingest_metrics(conn, payload, current_ts=None):
                     metric_type,
                     tags_json,
                 )
+                old_tags = []
                 if existing is not None:
                     metric_id = existing[0]
                     if tuple(existing[1:7]) == values and existing[7] == series_id:
@@ -1600,6 +1613,17 @@ def ingest_metrics(conn, payload, current_ts=None):
                     )
                     metric_id = cur.lastrowid
                     inserted += 1
+                if (
+                    metric_name == "ercot.supply_demand.demand_mw"
+                    and tags == ["source:supply_demand"]
+                ):
+                    historical_demand_timestamps.append(int(ts))
+                if (
+                    existing is not None
+                    and existing[1] == "ercot.supply_demand.demand_mw"
+                    and old_tags == ["source:supply_demand"]
+                ):
+                    historical_demand_timestamps.append(int(existing[2]))
                 if tags:
                     conn.executemany(
                         "INSERT INTO metric_tags (metric_id, tag) VALUES (?, ?)",
@@ -1614,6 +1638,7 @@ def ingest_metrics(conn, payload, current_ts=None):
                 for dependency in new_internal_dependencies:
                     changes[dependency].append((int(ts), int(ts)))
                 changes[f"series:{series_id}"].append((int(ts), int(ts)))
+        mark_demand_history_changes(conn, historical_demand_timestamps)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -3251,6 +3276,8 @@ class Handler(BaseHTTPRequestHandler):
             changes = result.pop("changes")
             app = self._app_server()
             invalidated = app.cache.invalidate_changes(changes)
+            if "ercot.supply_demand.demand_mw" in dependencies:
+                app.cache.invalidate({"historical-context"})
             record_tile_metric(app, "tile_invalidation_calls_total")
             record_tile_metric(
                 app,
@@ -3606,6 +3633,117 @@ class Handler(BaseHTTPRequestHandler):
                 cache_control="public, max-age=31536000, s-maxage=31536000, immutable",
                 etag=True,
                 extra_headers={"X-ERCOT-Content-Version": content_version},
+            )
+            return
+        if parsed.path == "/api/v1/historical-context":
+            if not self._rate_limit("historical_context", RATE_LIMIT_STATUS_RPM):
+                return
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            if (
+                set(params) != {"series_key", "as_of"}
+                or any(len(values) != 1 for values in params.values())
+                or params["series_key"][0] != HISTORICAL_CONTEXT_SERIES_KEY
+                or not canonical_unsigned_decimal(params["as_of"][0])
+            ):
+                self._send_json(
+                    400, {"error": "invalid_historical_context_query"},
+                    cache_control="no-store",
+                )
+                return
+            as_of = int(params["as_of"][0])
+            canonical_query = (
+                f"series_key={HISTORICAL_CONTEXT_SERIES_KEY}&as_of={as_of}"
+            )
+            lower_as_of, upper_as_of = historical_context_as_of_bounds(
+                get_db(), now_ts()
+            )
+            if (
+                parsed.query != canonical_query
+                or as_of % 3600
+                or not lower_as_of <= as_of <= upper_as_of
+            ):
+                self._send_json(
+                    400, {"error": "invalid_historical_context_as_of"},
+                    cache_control="no-store",
+                )
+                return
+            app = self._app_server()
+            key = f"historical-context:v1:{as_of}"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                state = "MISS"
+                generation = app.cache.snapshot_generation()
+
+                def generate_historical_context():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = resolve_historical_context(get_db(), as_of)
+                    app.cache.set_if_generation(
+                        key, value, generation,
+                        {"historical-context"}, ttl_seconds=15,
+                        category="historical-context:resolver",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_historical_context
+                    )
+                except Exception:
+                    self._send_json(
+                        500, {"error": "historical_context_generation_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=0, s-maxage=15, must-revalidate",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        historical_match = re.fullmatch(
+            r"/api/v2/historical-context/supply-demand\.demand/v1/(hc1-[0-9a-f]{64})/([0-9]+)",
+            parsed.path,
+        )
+        if historical_match:
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_historical_context_resource"},
+                    cache_control="no-store",
+                )
+                return
+            content_version, as_of_raw = historical_match.groups()
+            if (
+                not canonical_unsigned_decimal(as_of_raw)
+                or int(as_of_raw) % 3600
+            ):
+                self._send_json(
+                    400, {"error": "invalid_historical_context_resource"},
+                    cache_control="no-store",
+                )
+                return
+            payload = historical_context_resource(
+                get_db(), content_version, int(as_of_raw)
+            )
+            if payload is None:
+                self._send_json(
+                    404, {"error": "unknown_historical_context_resource"},
+                    cache_control="no-store",
+                )
+                return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=3600, s-maxage=31536000, immutable",
+                etag=True,
+            )
+            return
+        if parsed.path.startswith("/api/v2/historical-context/"):
+            self._send_json(
+                400, {"error": "invalid_historical_context_resource"},
+                cache_control="no-store",
             )
             return
         if parsed.path == "/api/v1/grid-events":

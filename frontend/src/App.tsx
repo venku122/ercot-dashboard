@@ -46,6 +46,7 @@ import {
 } from "./dashboard/information-architecture";
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
+import { historicalContextAsOf } from "./dashboard/historical-context";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
 import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import {
@@ -80,6 +81,11 @@ const ChartCard = lazy(() =>
 );
 const OutlookView = lazy(() =>
   import("./dashboard/OutlookView").then((module) => ({ default: module.OutlookView })),
+);
+const HistoricalContextPanel = lazy(() =>
+  import("./dashboard/HistoricalContextPanel").then((module) => ({
+    default: module.HistoricalContextPanel,
+  })),
 );
 const NetLoadPanel = lazy(() =>
   import("./dashboard/NetLoadPanel").then((module) => ({ default: module.NetLoadPanel })),
@@ -1344,6 +1350,17 @@ export function App() {
               </div>
             </details>
           </>
+        ) : null}
+
+        {selectedView === "overview" ? (
+          <Suspense fallback={state.history ? <DataLifecycleMessage state="loading" /> : null}>
+            <HistoricalContextPanel
+              asOf={historicalContextAsOf(state.time.end)}
+              enabled={selectedView === "overview"}
+              expanded={state.history}
+              onExpandedChange={(history) => setState((current) => ({ ...current, history }))}
+            />
+          </Suspense>
         ) : null}
 
         {selectedView === "overview" ? (
