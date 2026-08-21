@@ -45,9 +45,9 @@ The environment-name inventory that must survive a Portainer update is:
 
 Preserve unknown live variables too. Fetching only the Portainer stack file is
 insufficient: the authorized deployer must also fetch stack metadata and retain
-the complete `Env` array. `EIA_API_KEY` must remain empty in this bounded slice;
-`DEMO_KEY` is never a production credential. Supplying a real EIA key does not
-enable EIA-930 or Henry Hub in the current implementation.
+the complete `Env` array. `EIA_API_KEY` remains optional; `DEMO_KEY` is never a
+production credential. A reviewed non-DEMO key enables only the bounded EIA-930
+and Henry Hub products after explicit operator validation.
 
 ## Disabled-state and process-liveness contract
 
@@ -153,17 +153,26 @@ the initial deployment succeeded.
   new digests, database backup identity, `Prune=false`, post-change restarts, and
   a tested rollback payload. Values of secret entries remain redacted.
 
+## Collector-local liveness and delivery evidence
+
+- The collector binds `GET /healthz` to container loopback port 9091 only. Its
+  fixed registry reports enabled/disabled state, cadence, cycle, upstream,
+  receiver-delivery, counters, process/supervisor liveness, start time, and
+  optional build revision without payloads, URLs, error bodies, or secrets.
+- Compose uses this endpoint for collector Docker health without publishing a
+  host port. Cadence-aware checks do not require a weekly runner to succeed
+  hourly.
+- Structured failures distinguish `phase:"upstream"` from `phase:"delivery"`.
+  A wrong receiver key or broken route therefore remains locally visible even
+  when receiver source-health cannot be updated.
+
 ## Known gaps requiring an operator decision
 
-- There is no collector health check or independent delivery telemetry. A shared
-  key/network failure can prevent both ingest and failure reporting, so source
-  health alone cannot prove the collector is working.
 - Production Compose binds receiver port 8080 on all host interfaces. Preserve
   the live architecture during this campaign, but verify the existing firewall,
   reverse-proxy, and public exposure boundary before approval.
-- EIA credential wording in the receiver README can imply that a non-DEMO key
-  enables EIA. The current implementation does not; the external-context method
-  document is the authoritative bounded behavior.
+- EIA-930 and Henry Hub transport is implemented, but this campaign environment
+  has no non-DEMO credential. Its live smoke remains `DEFERRED_CREDENTIAL`.
 - This audit used repository and local deterministic evidence only. Current
   Portainer stack identity, Env values, image digests, database size, source
   freshness, Cloudflare behavior, and rollback viability remain unverified until
