@@ -1,4 +1,9 @@
-import { ErcotApiClient, ErcotApiError, publicReportArtifactLinks } from "./ercot_api.ts";
+import {
+  ErcotApiClient,
+  ErcotApiError,
+  ESR_FIELD_NAMES,
+  publicReportArtifactLinks,
+} from "./ercot_api.ts";
 
 const REQUIRED_PUBLIC_PRODUCTS = [
   "NP3-565-CD",
@@ -6,14 +11,6 @@ const REQUIRED_PUBLIC_PRODUCTS = [
   "NP3-763-CD",
   "NP6-345-CD",
   "NP6-346-CD",
-] as const;
-
-const EXPECTED_ESR_FIELDS = [
-  "AGCExecTime",
-  "DSTFlag",
-  "AGCExecTimeUTC",
-  "systemDemand",
-  "ESRChargingMW",
 ] as const;
 
 type ProcessLike = {
@@ -102,8 +99,8 @@ if (isMain) {
     });
     const esrFieldNames = new Set(esr.fields.map((field) => field.name));
     if (
-      esrFieldNames.size !== EXPECTED_ESR_FIELDS.length ||
-      EXPECTED_ESR_FIELDS.some((name) => !esrFieldNames.has(name))
+      esrFieldNames.size !== ESR_FIELD_NAMES.length ||
+      ESR_FIELD_NAMES.some((name) => !esrFieldNames.has(name))
     ) {
       throw new ErcotApiError("ercot_esr_live_schema_unexpected");
     }

@@ -5,19 +5,19 @@
       "dataType": "datetime"
     },
     {
-      "name": "ResourceName",
-      "dataType": "string"
+      "name": "DSTFlag",
+      "dataType": "boolean"
     },
     {
-      "name": "ResourceStatus",
-      "dataType": "string"
+      "name": "AGCExecTimeUTC",
+      "dataType": "datetime"
     },
     {
-      "name": "MaxPowerConsumption",
+      "name": "systemDemand",
       "dataType": "number"
     },
     {
-      "name": "BasePoint",
+      "name": "ESRChargingMW",
       "dataType": "number"
     }
   ],
