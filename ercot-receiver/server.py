@@ -46,6 +46,18 @@ from forecast_quality import (
     recompute_forecast_quality,
     renewable_series_for_vintage,
 )
+from net_load import (
+    ACTUAL_SERIES_KEY as NET_LOAD_ACTUAL_SERIES_KEY,
+    FORECAST_SEMANTIC_KEYS as NET_LOAD_FORECAST_KEYS,
+    REALTIME_METRICS as NET_LOAD_REALTIME_METRICS,
+    init_net_load_schema,
+    net_load_daily_resource,
+    net_load_manifest,
+    net_load_resource,
+    record_net_load_materialization_health,
+    recompute_net_load,
+)
+REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
 WEB_DIR = os.path.join(BASE_DIR, "web")
@@ -532,6 +544,32 @@ def tile_catalog_payload():
             "rule": "clients use native boundary tiles and coarse LOD only for aligned interiors",
         },
         "series": [dict(TILE_CATALOG_BY_KEY[key]) for key in sorted(TILE_CATALOG_BY_KEY)],
+        "derived_resources": [
+            {
+                "series_key": "net-load.actual",
+                "route_template": "/api/v2/net-load/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                "alignment": "utc_day",
+                "native_interval_seconds": 300,
+                "supported_lods": ["native"],
+                "formula": "demand_mw - wind_mw - solar_mw",
+                "storage_policy": "context_only_not_in_formula",
+                "official_ercot_net_load": False,
+            },
+            *[
+                {
+                    "series_key": key,
+                    "route_template": "/api/v2/net-load/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                    "alignment": "utc_day",
+                    "native_interval_seconds": 3600,
+                    "supported_lods": ["native"],
+                    "selection_policy": "coherent_whole_curve_latest_capped_before_utc_day",
+                    "snapshot_lead_seconds": {"1h": 3600, "6h": 21600, "24h": 86400}[horizon],
+                    "formula": "demand_mw - wind_mw - solar_mw",
+                    "official_ercot_net_load": False,
+                }
+                for horizon, key in NET_LOAD_FORECAST_KEYS.items()
+            ],
+        ],
     }
 
 
@@ -1031,6 +1069,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
     init_forecast_schema(conn)
     init_forecast_quality_schema(conn)
+    init_net_load_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -1046,6 +1085,54 @@ def get_db() -> sqlite3.Connection:
 
 def now_ts() -> int:
     return int(time.time())
+
+
+def recompute_bounded_forecast_net_load(conn, day_starts, current):
+    lower = (current // 86_400) * 86_400 - 90 * 86_400
+    upper = (current // 86_400) * 86_400 + 9 * 86_400
+    bounded = sorted(
+        {day for day in day_starts if isinstance(day, int) and lower <= day < upper}
+    )[:32]
+    results = []
+    for day_start in bounded:
+        results.extend(
+            recompute_net_load(
+                conn, "net-load.forecast", day_start,
+                current_ts=current, dataset_cutoff=current,
+                horizons=["1h", "6h", "24h"],
+            )
+        )
+    return results
+
+
+def recompute_bounded_actual_net_load(conn, changes, current):
+    completed = (current // 86_400) * 86_400
+    previous = completed - 86_400
+    prior_pointer = conn.execute(
+        """SELECT 1 FROM net_load_current
+           WHERE series_key=? AND methodology_version='v1'
+             AND horizon='actual' AND day_start=?""",
+        (NET_LOAD_ACTUAL_SERIES_KEY,previous),
+    ).fetchone()
+    affected = set() if prior_pointer else {previous}
+    for metric_name, intervals in changes.items():
+        if metric_name not in REALTIME_NET_LOAD_METRICS and metric_name != "ercot.storage.net_output_mw":
+            continue
+        offsets = (0,) if metric_name == "ercot.storage.net_output_mw" else (0, 3_600, 10_800)
+        for start, end in intervals:
+            for timestamp in (start, end):
+                for offset in offsets:
+                    affected.add(((int(timestamp) + offset) // 86_400) * 86_400)
+    lower = completed - 90 * 86_400
+    results = []
+    for day_start in sorted(day for day in affected if lower <= day < completed)[:16]:
+        results.extend(
+            recompute_net_load(
+                conn, NET_LOAD_ACTUAL_SERIES_KEY, day_start,
+                current_ts=current, dataset_cutoff=current, horizons=["actual"],
+            )
+        )
+    return results
 
 
 def parse_timestamp(value):
@@ -2643,6 +2730,65 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/net-load/recompute":
+            if not self._rate_limit("net_load_recompute", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error()
+            if payload is None:
+                return
+            try:
+                if not isinstance(payload, dict) or set(payload) - {
+                    "series_key", "day_start", "dataset_cutoff"
+                }:
+                    raise ValueError("invalid_net_load_recompute")
+                public_key = payload.get("series_key")
+                if public_key == NET_LOAD_ACTUAL_SERIES_KEY:
+                    internal_key, horizons = NET_LOAD_ACTUAL_SERIES_KEY, ["actual"]
+                    pipeline = "actual"
+                else:
+                    matches = [
+                        (horizon, key)
+                        for horizon, key in NET_LOAD_FORECAST_KEYS.items()
+                        if key == public_key
+                    ]
+                    if len(matches) != 1:
+                        raise ValueError("invalid_net_load_series")
+                    internal_key, horizons = "net-load.forecast", [matches[0][0]]
+                    pipeline = "forecast"
+                current = now_ts()
+                results = recompute_net_load(
+                    get_db(), internal_key, payload.get("day_start"),
+                    current_ts=current,
+                    dataset_cutoff=payload.get("dataset_cutoff", current),
+                    horizons=horizons,
+                )
+                record_net_load_materialization_health(
+                    get_db(),
+                    pipeline,
+                    True,
+                    current,
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                try:
+                    record_net_load_materialization_health(
+                        get_db(), locals().get("pipeline", "actual"), False, now_ts(),
+                        "admin_recompute_failed"
+                    )
+                except Exception:
+                    pass
+                self._send_json(
+                    500, {"error": "net_load_recompute_failed"}, cache_control="no-store"
+                )
+                return
+            self._app_server().cache.invalidate({"net-load-manifest"})
+            self._send_json(200, {"resources": results}, cache_control="no-store")
+            return
+
         if self.path == "/api/renewable-publications/ingest":
             if not self._rate_limit("renewable_vintages_ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -2669,6 +2815,19 @@ class Handler(BaseHTTPRequestHandler):
                         current_ts=current,
                         dataset_cutoff=current,
                     )
+                if result["status"] == "inserted":
+                    try:
+                        recompute_bounded_forecast_net_load(conn, days, current)
+                        record_net_load_materialization_health(
+                            conn, "forecast", True, current
+                        )
+                        result["net_load_materialization"] = "updated"
+                    except Exception:
+                        record_net_load_materialization_health(
+                            conn, "forecast", False, current,
+                            "renewable_materialization_failed",
+                        )
+                        result["net_load_materialization"] = "failed"
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)}, cache_control="no-store")
                 return
@@ -2686,7 +2845,9 @@ class Handler(BaseHTTPRequestHandler):
                     cache_control="no-store",
                 )
                 return
-            self._app_server().cache.invalidate({"forecast-quality-manifest"})
+            self._app_server().cache.invalidate(
+                {"forecast-quality-manifest", "net-load-manifest"}
+            )
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -2732,7 +2893,9 @@ class Handler(BaseHTTPRequestHandler):
                     cache_control="no-store",
                 )
                 return
-            self._app_server().cache.invalidate({"forecast-quality-manifest"})
+            self._app_server().cache.invalidate(
+                {"forecast-quality-manifest", "net-load-manifest"}
+            )
             self._send_json(200, {"resources": results}, cache_control="no-store")
             return
 
@@ -2758,6 +2921,25 @@ class Handler(BaseHTTPRequestHandler):
                         current_ts=current,
                         dataset_cutoff=current,
                     )
+                if result["status"] == "inserted":
+                    try:
+                        recompute_bounded_forecast_net_load(
+                            conn,
+                            affected_utc_days_for_forecast_vintage(
+                                conn, result["vintage_key"]
+                            ),
+                            current,
+                        )
+                        record_net_load_materialization_health(
+                            conn, "forecast", True, current
+                        )
+                        result["net_load_materialization"] = "updated"
+                    except Exception:
+                        record_net_load_materialization_health(
+                            conn, "forecast", False, current,
+                            "load_materialization_failed",
+                        )
+                        result["net_load_materialization"] = "failed"
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)}, cache_control="no-store")
                 return
@@ -2770,7 +2952,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if result["status"] == "inserted":
                 self._app_server().cache.invalidate({"forecast-outlook"})
-            self._app_server().cache.invalidate({"forecast-quality-manifest"})
+            self._app_server().cache.invalidate(
+                {"forecast-quality-manifest", "net-load-manifest"}
+            )
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -2807,6 +2991,22 @@ class Handler(BaseHTTPRequestHandler):
             )
             if result["updated"]:
                 app.cache.invalidate({"correction-age"})
+            if dependencies.intersection(
+                {*REALTIME_NET_LOAD_METRICS, "ercot.storage.net_output_mw"}
+            ):
+                try:
+                    recompute_bounded_actual_net_load(conn, changes, now_ts())
+                    result["net_load_materialization"] = "updated"
+                    record_net_load_materialization_health(
+                        conn, "actual", True, now_ts()
+                    )
+                except Exception:
+                    result["net_load_materialization"] = "failed"
+                    record_net_load_materialization_health(
+                        conn, "actual", False, now_ts(),
+                        "actual_materialization_failed",
+                    )
+                app.cache.invalidate({"net-load-manifest"})
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -3120,6 +3320,143 @@ class Handler(BaseHTTPRequestHandler):
                 cache_control="public, max-age=31536000, s-maxage=31536000, immutable",
                 etag=True,
                 extra_headers={"X-ERCOT-Content-Version": content_version},
+            )
+            return
+        if parsed.path == "/api/v1/net-load":
+            if not self._rate_limit("net_load_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_net_load_query"}, cache_control="no-store"
+                )
+                return
+            app = self._app_server()
+            cache_key = "net-load-manifest:v1"
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                request_generation = app.cache.snapshot_generation()
+
+                def generate_net_load_manifest():
+                    cached_after_election = app.cache.get(cache_key)
+                    if cached_after_election is not None:
+                        return cached_after_election
+                    generated = net_load_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(
+                        cache_key, generated, request_generation,
+                        {"net-load-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="net-load:manifest",
+                    )
+                    return generated
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, request_generation), generate_net_load_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500, {"error": "net_load_manifest_failed"}, cache_control="no-store"
+                    )
+                    return
+                cache_state = "MISS"
+            self._send_json(
+                200, payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        net_load_match = re.fullmatch(
+            r"/api/v2/net-load/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        daily_net_load_match = re.fullmatch(
+            r"/api/v2/net-load-daily/([^/]+)/([^/]+)/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        if net_load_match or daily_net_load_match:
+            if not self._rate_limit("net_load_resource", RATE_LIMIT_SERIES_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_net_load_resource"}, cache_control="no-store"
+                )
+                return
+            try:
+                app = self._app_server()
+                if net_load_match:
+                    series_key, methodology, content_version, day_raw, lod = net_load_match.groups()
+                    day_start = int(day_raw)
+                    if str(day_start) != day_raw:
+                        raise ValueError("invalid_net_load_day_start")
+                    identity = {
+                        "kind": "tile", "series_key": series_key,
+                        "methodology": methodology, "content_version": content_version,
+                        "day_start": day_start, "lod": lod,
+                    }
+                    loader = lambda: net_load_resource(
+                        get_db(), series_key, methodology, content_version, day_start, lod
+                    )
+                else:
+                    series_key, methodology, content_version, delivery_date = daily_net_load_match.groups()
+                    identity = {
+                        "kind": "daily", "series_key": series_key,
+                        "methodology": methodology, "content_version": content_version,
+                        "delivery_date": delivery_date,
+                    }
+                    loader = lambda: net_load_daily_resource(
+                        get_db(), series_key, methodology, content_version, delivery_date
+                    )
+                cache_key = self._cache_key("net-load:v2", identity)
+                payload = app.cache.get(cache_key)
+                cache_state = "HIT"
+                if payload is None:
+                    request_generation = app.cache.snapshot_generation()
+
+                    def load_net_load_resource():
+                        cached_after_election = app.cache.get(cache_key)
+                        if cached_after_election is not None:
+                            return cached_after_election
+                        loaded = loader()
+                        if loaded is not None:
+                            app.cache.set_if_generation(
+                                cache_key, loaded, request_generation,
+                                ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                                category="net-load:immutable",
+                            )
+                        return loaded
+
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, request_generation), load_net_load_resource
+                    )
+                    cache_state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(
+                    400, {"error": "invalid_net_load_resource"}, cache_control="no-store"
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500, {"error": "net_load_resource_failed"}, cache_control="no-store"
+                )
+                return
+            if payload is None:
+                self._send_json(
+                    404, {"error": "net_load_resource_not_found"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=31536000, immutable",
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        if parsed.path.startswith("/api/v2/net-load"):
+            self._send_json(
+                400, {"error": "invalid_net_load_resource"}, cache_control="no-store"
             )
             return
         if parsed.path == "/api/v1/forecast-quality":

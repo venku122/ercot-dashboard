@@ -10,6 +10,7 @@
 stack.env
 !*.env.example
 node_modules/
+*.tsbuildinfo
 frontend/node_modules/
 ercot-receiver/web/assets/
 ercot-receiver/__pycache__/

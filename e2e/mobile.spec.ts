@@ -415,6 +415,24 @@ test("P0 Grid Outlook remains exact, accessible, and contained on mobile @mobile
   }
 });
 
+test("P0 net-load disclosure is lazy, accessible, and contained on mobile @mobile-core", async ({
+  page,
+}) => {
+  const netLoadRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.includes("net-load")) netLoadRequests.push(request.url());
+  });
+  await openPopulated(page, "normal", "/?view=generation");
+  await expect(page.getByRole("heading", { name: "Net load and ramp" })).toBeVisible();
+  const disclosure = page.getByRole("button", { name: "Load net-load details" });
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  const bounds = await disclosure.boundingBox();
+  expect(bounds?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect(bounds?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(netLoadRequests).toEqual([]);
+  await expectNoHorizontalOverflow(page);
+});
+
 test("mobile interaction evidence flow @mobile-core @interaction-evidence", async ({ page }) => {
   await openPopulated(page, "active-event");
   const card = page.locator('[data-chart-id="supply-demand"]');
