@@ -3,11 +3,13 @@ import type { Page } from "@playwright/test";
 const POLICY = "official_planning_snapshots_not_committed_capacity_or_realization_forecast";
 const GIS_VERSION = `tg1-${"a".repeat(64)}`;
 const TREND_VERSION = `tg1-${"b".repeat(64)}`;
+const LTLF_VERSION = `tg1-${"d".repeat(64)}`;
 const HASH = `sha256:${"c".repeat(64)}`;
 const PUBLISHED = 1_785_528_000;
 const RETRIEVED = PUBLISHED + 600;
 const GIS_PAGE = "https://www.ercot.com/mp/data-products/data-product-details?id=pg7-200-er";
 const TREND_PAGE = "https://www.ercot.com/gridinfo/resource";
+const LTLF_PAGE = "https://www.ercot.com/gridinfo/load/forecast/index.html";
 
 const phases = [
   ["ss_started_fis_not_started_no_ia", "SS Started, FIS Not Started, No IA"],
@@ -39,7 +41,7 @@ const fuels = [
 ].map(([code, label]) => ({ code, label }));
 
 function health(
-  source_id: "ercot_gis_report" | "ercot_resource_capacity_trend",
+  source_id: "ercot_gis_report" | "ercot_resource_capacity_trend" | "ercot_long_term_load_forecast",
   content_version: string,
 ) {
   return {
@@ -92,17 +94,26 @@ export function texasGridManifestFixture() {
       },
     },
     long_term_load_forecast: {
-      state: "unavailable",
-      reason: "units_not_authoritatively_frozen",
+      state: "available",
+      selected: {
+        source_period: "2025-04",
+        published_at: PUBLISHED,
+        retrieved_at: RETRIEVED,
+        content_version: LTLF_VERSION,
+        url: `/api/v2/texas-grid/long_term_load_forecast/v1/${LTLF_VERSION}`,
+        source_page_url: LTLF_PAGE,
+      },
     },
     large_load: {
-      state: "unavailable",
-      reason: "no_stable_public_machine_readable_status_source",
+      state: "available_context",
+      scope: "forecast_methodology_not_project_status",
+      reason: null,
     },
     retirements: { state: "unavailable", reason: "no_verified_gross_retirement_source" },
     source_health: [
       health("ercot_gis_report", GIS_VERSION),
       health("ercot_resource_capacity_trend", TREND_VERSION),
+      health("ercot_long_term_load_forecast", LTLF_VERSION),
     ],
   };
 }
@@ -190,6 +201,46 @@ export function texasGridTrendFixture() {
   };
 }
 
+export function texasGridLtlfFixture() {
+  const rows = Array.from({ length: 240 }, (_, index) => ({
+    month: `${2025 + Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`,
+    monthly_peak_mw: 90_000 + index,
+    monthly_energy_mwh: 50_000_000 + index * 1_000,
+  }));
+  return {
+    schema: 1,
+    kind: "texas_grid_long_horizon",
+    policy: POLICY,
+    stream: "long_term_load_forecast",
+    publication: {
+      source_period: "2025-04",
+      published_at: PUBLISHED,
+      retrieved_at: RETRIEVED,
+      source_page_url: LTLF_PAGE,
+      monthly_forecast_url:
+        "https://www.ercot.com/files/docs/2025/04/08/2025-ERCOT-Monthly-Peak-Demand-and-Energy-Forecast.xlsx",
+      monthly_forecast_sha256: HASH,
+      methodology_report_url: "https://www.ercot.com/files/docs/2025/04/08/2025_LTLF_Report.docx",
+      methodology_report_sha256: HASH,
+    },
+    publication_status: "official_published",
+    time_basis: "calendar_month",
+    units: { monthly_peak: "MW", monthly_energy: "MWh" },
+    unit_binding: "official_report_appendix_a_mw_twh_monthly_sum_v1",
+    scenarios: [
+      { scenario_id: "ercot_adjusted", label: "ERCOT Adjusted Forecast", rows },
+      { scenario_id: "tsp_provided", label: "TSP Provided Forecast", rows },
+    ],
+    large_load_methodology: {
+      scope: "forecast_assumptions_not_project_status",
+      tsp_provided: "contracts_and_officer_letter_tsp_ramp_schedules",
+      ercot_adjusted: "tsp_forecast_with_documented_timing_and_realization_adjustments",
+      current_process: "batch_zero_documents_published_no_public_project_status_dataset",
+    },
+    limits: { max_rows_per_scenario: 240 },
+  };
+}
+
 export async function installTexasGridApi(page: Page, requests: string[]) {
   await page.route("**/api/v1/texas-grid", async (route) => {
     requests.push(new URL(route.request().url()).pathname);
@@ -204,7 +255,11 @@ export async function installTexasGridApi(page: Page, requests: string[]) {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify(
-        path.includes("/gis/") ? texasGridGisFixture() : texasGridTrendFixture(),
+        path.includes("/gis/")
+          ? texasGridGisFixture()
+          : path.includes("/long_term_load_forecast/")
+            ? texasGridLtlfFixture()
+            : texasGridTrendFixture(),
       ),
     });
   });

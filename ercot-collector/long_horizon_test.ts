@@ -1,6 +1,7 @@
 import {
   aggregateCapacityTrendWorkbooks,
   aggregateGisWorkbook,
+  aggregateLongTermLoadForecastWorkbook,
   GIS_FUEL_REGISTRY,
   GIS_PHASE_REGISTRY,
   LONG_HORIZON_POLICY,
@@ -146,6 +147,58 @@ Deno.test("capacity trend preserves official total and absent-vs-zero columns", 
   assert(result[0]!.planned_monthly[0]!.month === "2026-07");
 });
 
+Deno.test("LTLF keeps adjusted and TSP monthly forecasts separate with reviewed units", () => {
+  const rows = new Map<number, Map<string, string | number>>();
+  rows.set(1, row({ A: "ERCOT Adjusted Forecast", G: "TSP Provided Forecast" }));
+  rows.set(
+    2,
+    row({
+      A: "year",
+      B: "month",
+      C: "Monthly Peaks",
+      D: "Annual Energy",
+      H: "Monthly Peaks",
+      I: "Annual Energy",
+    }),
+  );
+  rows.set(3, row({ F: "year", G: "month" }));
+  const appendix = new Map([
+    [2025, 486],
+    [2026, 558],
+    [2027, 648],
+    [2028, 795],
+    [2029, 889],
+    [2030, 984],
+    [2031, 1038],
+  ]);
+  for (let index = 0; index < 240; index++) {
+    const year = 2025 + Math.floor(index / 12),
+      month = (index % 12) + 1,
+      current = new Map(rows.get(index + 3) ?? []),
+      next = new Map(rows.get(index + 4) ?? []),
+      energy = ((appendix.get(year) ?? 1200) * 1_000_000) / 12;
+    Object.entries({
+      A: year,
+      B: month,
+      C: 80_000 + index,
+      D: energy,
+      H: 90_000 + index,
+      I: energy,
+    }).forEach(([key, value]) => current.set(key, value));
+    next.set("F", year);
+    next.set("G", month);
+    rows.set(index + 3, current);
+    rows.set(index + 4, next);
+  }
+  const result = aggregateLongTermLoadForecastWorkbook(new Map([["Sheet1", rows]]));
+  assert(result.length === 2);
+  assert(result[0]!.scenario_id === "ercot_adjusted");
+  assert(result[1]!.scenario_id === "tsp_provided");
+  assert(result[0]!.rows[0]!.month === "2025-01");
+  assert(result[0]!.rows.at(-1)!.month === "2044-12");
+  assert(result[1]!.rows[0]!.monthly_peak_mw === 90_000);
+});
+
 Deno.test("one source failure is reported while the other still ingests", async () => {
   const ingested: string[] = [];
   const failed: string[] = [];
@@ -154,6 +207,7 @@ Deno.test("one source failure is reported while the other still ingests", async 
     await runLongHorizonProducts({
       collectGis: () => Promise.reject(new Error("fetch_failed")),
       collectTrend: () => Promise.resolve({ stream: "resource_capacity_trend" }),
+      collectLtlf: () => Promise.resolve({ stream: "long_term_load_forecast" }),
       ingest: (payload) => {
         ingested.push(String(payload.stream));
         return Promise.resolve();
@@ -167,7 +221,10 @@ Deno.test("one source failure is reported while the other still ingests", async 
     thrown = true;
   }
   assert(thrown);
-  assert(JSON.stringify(ingested) === JSON.stringify(["resource_capacity_trend"]));
+  assert(
+    JSON.stringify(ingested) ===
+      JSON.stringify(["resource_capacity_trend", "long_term_load_forecast"]),
+  );
   assert(JSON.stringify(failed) === JSON.stringify(["gis"]));
 });
 
@@ -178,6 +235,7 @@ Deno.test("one receiver ingest failure does not suppress peer ingest", async () 
     await runLongHorizonProducts({
       collectGis: () => Promise.resolve({ stream: "gis" }),
       collectTrend: () => Promise.resolve({ stream: "resource_capacity_trend" }),
+      collectLtlf: () => Promise.resolve({ stream: "long_term_load_forecast" }),
       ingest: (payload) => {
         attempts.push(String(payload.stream));
         return payload.stream === "gis"
@@ -192,7 +250,10 @@ Deno.test("one receiver ingest failure does not suppress peer ingest", async () 
   } catch {
     // The cycle still reports failure after attempting every stream.
   }
-  assert(JSON.stringify(attempts) === JSON.stringify(["gis", "resource_capacity_trend"]));
+  assert(
+    JSON.stringify(attempts) ===
+      JSON.stringify(["gis", "resource_capacity_trend", "long_term_load_forecast"]),
+  );
   assert(JSON.stringify(failures) === JSON.stringify(["gis"]));
 });
 

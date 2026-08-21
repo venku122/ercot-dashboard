@@ -2,6 +2,7 @@ import { fixedInterval } from "./deps.ts";
 import {
   aggregateCapacityTrendWorkbooks,
   aggregateGisWorkbook,
+  aggregateLongTermLoadForecastWorkbook,
   CAPACITY_SERIES_LABELS,
   GIS_FUEL_REGISTRY,
   GIS_PHASE_REGISTRY,
@@ -12,6 +13,10 @@ import {
 const GIS_LIST = "https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId=15933";
 const GIS_PAGE = "https://www.ercot.com/mp/data-products/data-product-details?id=pg7-200-er";
 const TREND_PAGE = "https://www.ercot.com/gridinfo/resource";
+const LTLF_PAGE = "https://www.ercot.com/gridinfo/load/forecast/index.html";
+const LTLF_WORKBOOK =
+  "https://www.ercot.com/files/docs/2025/04/08/2025-ERCOT-Monthly-Peak-Demand-and-Energy-Forecast.xlsx";
+const LTLF_REPORT = "https://www.ercot.com/files/docs/2025/04/08/2025_LTLF_Report.docx";
 const MONTHS = Object.freeze([
   "January",
   "February",
@@ -183,6 +188,59 @@ async function trendPayload(retrievedAt: number): Promise<Json> {
     },
   };
 }
+async function ltlfPayload(retrievedAt: number): Promise<Json> {
+  const publishedAt = Math.floor(Date.parse("2025-04-08T00:00:00Z") / 1000);
+  if (publishedAt > retrievedAt) throw new Error("long_horizon_ltlf_clock");
+  const [workbook, report] = await Promise.all([
+    get(
+      LTLF_WORKBOOK,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      2 * 1024 * 1024,
+    ),
+    get(
+      LTLF_REPORT,
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      4 * 1024 * 1024,
+    ),
+  ]);
+  return {
+    schema: 1,
+    kind: "texas_grid_long_horizon",
+    stream: "long_term_load_forecast",
+    publication: {
+      source_period: "2025-04",
+      published_at: publishedAt,
+      retrieved_at: retrievedAt,
+      source_page_url: LTLF_PAGE,
+      workbooks: [
+        {
+          kind: "monthly_forecast",
+          source_url: LTLF_WORKBOOK,
+          sha256: `sha256:${await sha256Hex(workbook)}`,
+        },
+        {
+          kind: "methodology_report",
+          source_url: LTLF_REPORT,
+          sha256: `sha256:${await sha256Hex(report)}`,
+        },
+      ],
+    },
+    resource: {
+      publication_status: "official_published",
+      time_basis: "calendar_month",
+      units: { monthly_peak: "MW", monthly_energy: "MWh" },
+      unit_binding: "official_report_appendix_a_mw_twh_monthly_sum_v1",
+      scenarios: aggregateLongTermLoadForecastWorkbook(await parseXlsx(workbook)),
+      large_load_methodology: {
+        scope: "forecast_assumptions_not_project_status",
+        tsp_provided: "contracts_and_officer_letter_tsp_ramp_schedules",
+        ercot_adjusted: "tsp_forecast_with_documented_timing_and_realization_adjustments",
+        current_process: "batch_zero_documents_published_no_public_project_status_dataset",
+      },
+      limits: { max_rows_per_scenario: 240 },
+    },
+  };
+}
 async function ingest(endpoint: string, apiKey: string, payload: Json): Promise<void> {
   const response = await fetch(endpoint, {
     method: "POST",
@@ -202,7 +260,7 @@ async function ingest(endpoint: string, apiKey: string, payload: Json): Promise<
 async function reportFailure(
   endpoint: string,
   apiKey: string,
-  stream: "gis" | "resource_capacity_trend",
+  stream: "gis" | "resource_capacity_trend" | "long_term_load_forecast",
   attemptedAt: number,
 ): Promise<void> {
   const url = new URL(endpoint);
@@ -231,8 +289,11 @@ async function reportFailure(
 export type LongHorizonCycleDependencies = Readonly<{
   collectGis: () => Promise<Json>;
   collectTrend: () => Promise<Json>;
+  collectLtlf: () => Promise<Json>;
   ingest: (payload: Json) => Promise<void>;
-  reportFailure: (stream: "gis" | "resource_capacity_trend") => Promise<void>;
+  reportFailure: (
+    stream: "gis" | "resource_capacity_trend" | "long_term_load_forecast",
+  ) => Promise<void>;
 }>;
 export async function runLongHorizonProducts(
   dependencies: LongHorizonCycleDependencies,
@@ -240,6 +301,7 @@ export async function runLongHorizonProducts(
   const results = await Promise.allSettled([
     dependencies.collectGis(),
     dependencies.collectTrend(),
+    dependencies.collectLtlf(),
   ]);
   const failures: unknown[] = [];
   for (let index = 0; index < results.length; index++) {
@@ -248,7 +310,8 @@ export async function runLongHorizonProducts(
       try {
         await dependencies.ingest(result.value);
       } catch (error) {
-        const stream = index === 0 ? "gis" : "resource_capacity_trend";
+        const stream =
+          index === 0 ? "gis" : index === 1 ? "resource_capacity_trend" : "long_term_load_forecast";
         try {
           await dependencies.reportFailure(stream);
         } catch (reportError) {
@@ -257,7 +320,8 @@ export async function runLongHorizonProducts(
         failures.push(error);
       }
     } else {
-      const stream = index === 0 ? "gis" : "resource_capacity_trend";
+      const stream =
+        index === 0 ? "gis" : index === 1 ? "resource_capacity_trend" : "long_term_load_forecast";
       try {
         await dependencies.reportFailure(stream);
       } catch (error) {
@@ -289,6 +353,7 @@ export async function runLongHorizonCycle(
   await runLongHorizonProducts({
     collectGis: () => gisPayload(now),
     collectTrend: () => trendPayload(now),
+    collectLtlf: () => ltlfPayload(now),
     ingest: (payload) => ingest(endpoint, apiKey, payload),
     reportFailure: (stream) => reportFailure(endpoint, apiKey, stream, now),
   });

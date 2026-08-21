@@ -2769,7 +2769,8 @@ class Handler(BaseHTTPRequestHandler):
                 or set(payload)
                 != {"schema", "stream", "status", "attempted_at", "error"}
                 or payload.get("schema") != 1
-                or payload.get("stream") not in ("gis", "resource_capacity_trend")
+                or payload.get("stream")
+                not in ("gis", "resource_capacity_trend", "long_term_load_forecast")
                 or payload.get("status") != "failed"
                 or isinstance(payload.get("attempted_at"), bool)
                 or not isinstance(payload.get("attempted_at"), int)
@@ -3584,7 +3585,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         texas_grid_match = re.fullmatch(
-            r"/api/v2/texas-grid/(gis|resource_capacity_trend)/v1/(tg1-[0-9a-f]{64})",
+            r"/api/v2/texas-grid/(gis|resource_capacity_trend|long_term_load_forecast)/v1/(tg1-[0-9a-f]{64})",
             parsed.path,
         )
         if texas_grid_match:

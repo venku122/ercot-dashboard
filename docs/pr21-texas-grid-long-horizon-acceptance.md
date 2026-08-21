@@ -195,22 +195,22 @@ absent from four sheets and present on `Gas-Other Chart`. Annual periods become
 integer years. Planned periods become canonical `YYYY-MM`; their source cell's
 day has no meaning. Neither dataset has a DST or civil-time transformation.
 
-## Deferred sources
+## Long-term load forecast and deferred sources
 
 ### Long-term load forecast
 
-The official forecast page describes a ten-year hourly forecast and links the
-2025 monthly peak-demand and energy workbook. That workbook has a single table
-with exact labels `year`, `month`, `Annual Energy`, `Monthly Peaks`,
-`TSP Provided Forecast`, and `ERCOT Adjusted Forecast`, but it does not label
-units in the machine-readable table. The accompanying official planning report
-uses peak-demand MW and annual-energy GWh in narrative/figures, but does not
-bind those unit labels directly to the small workbook's exact columns.
+The official page links the 2025 monthly peak-demand and energy workbook and
+methodology report. The workbook contains exactly 240 monthly rows for each of
+`ERCOT Adjusted Forecast` and `TSP Provided Forecast`. Appendix A of the report
+defines peak demand in MW and annual energy in TWh. The reviewed contract binds
+workbook monthly peaks as MW and monthly energy as MWh only after annual sums of
+the adjusted monthly values reproduce the report's rounded 2025--2031 TWh
+figures. This cross-document check is frozen as
+`official_report_appendix_a_mw_twh_monthly_sum_v1`; no unit is guessed.
 
-Therefore this strict slice does not infer units and returns
-`{state:"unavailable",reason:"units_not_authoritatively_frozen"}`. A later
-contract may add it after ERCOT publishes an explicit data dictionary or a
-reviewed contract deliberately binds the report's units to the workbook.
+The selected content-versioned resource preserves both scenarios, the exact
+workbook/report hashes and URLs, calendar-month time basis, and the methodology
+statements used for large-load forecast assumptions.
 
 ### Large load and retirements
 
@@ -223,7 +223,8 @@ GIS inactive/cancellation rows are not generator retirements. Commissioning
 approvals are milestones. Net operational-capacity changes cannot establish
 gross additions and retirements. These sections remain:
 
-- `large_load`: `no_stable_public_machine_readable_status_source`
+- `large_load`: forecast methodology context may be available, but individual
+  project status remains `no_stable_public_machine_readable_status_source`
 - `retirements`: `no_verified_gross_retirement_source`
 
 ## Publication and correction identity
@@ -264,7 +265,8 @@ publication body and uses `POST /api/texas-grid/source-attempt` with exactly:
 }
 ```
 
-`stream` is `gis` or `resource_capacity_trend`; `attempted_at` is an integer no
+`stream` is `gis`, `resource_capacity_trend`, or `long_term_load_forecast`;
+`attempted_at` is an integer no
 more than 300 seconds in the future. The response is exactly
 `{schema:1,stream,status}` where status is `recorded`, `unchanged`, or
 `ignored_older`. An attempt newer than the last attempt/success is recorded; an
@@ -286,12 +288,10 @@ successful ingest for that stream resets its failure counter and error.
   "generated_at": 0,
   "generator_interconnection": { "state": "unavailable", "selected": null },
   "resource_capacity_trend": { "state": "unavailable", "selected": null },
-  "long_term_load_forecast": {
-    "state": "unavailable",
-    "reason": "units_not_authoritatively_frozen"
-  },
+  "long_term_load_forecast": { "state": "unavailable", "selected": null },
   "large_load": {
     "state": "unavailable",
+    "scope": "forecast_methodology_not_project_status",
     "reason": "no_stable_public_machine_readable_status_source"
   },
   "retirements": {
@@ -308,7 +308,7 @@ Source-backed section states are `available`, `stale`, `unavailable`, or
 `source_period`, `published_at`, `retrieved_at`, `content_version`, `url`, and
 `source_page_url`. URLs are queryless, same-origin immutable resource paths:
 
-`/api/v2/texas-grid/{gis|resource_capacity_trend}/v1/{tg1-64hex}`.
+`/api/v2/texas-grid/{gis|resource_capacity_trend|long_term_load_forecast}/v1/{tg1-64hex}`.
 
 ### GIS immutable resource
 
