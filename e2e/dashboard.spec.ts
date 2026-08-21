@@ -1096,7 +1096,9 @@ test("direct Outlook loads once without Overview requests and exposes exact valu
   await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
   await expect(page.getByText("Dashboard outlook — not an ERCOT declaration")).toBeVisible();
   await expect(
-    page.getByText("Forecast weather driver unavailable. No weather cause is inferred."),
+    page.getByText(
+      "Current METAR observations are displayed independently from forecast and load evidence.",
+    ),
   ).toBeVisible();
   await page.getByText("Hourly forecast values", { exact: true }).click();
   await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeVisible();

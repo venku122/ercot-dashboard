@@ -4,6 +4,7 @@ import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { Button } from "../components/ui/button";
 import { useOutlookData } from "./data-hooks";
 import { ForecastQualityPanel } from "./ForecastQualityPanel";
+import { PredictiveWeatherPanel } from "./PredictiveWeatherPanel";
 import { buildGridOutlook, type GridOutlook, type OutlookDayCard } from "./outlook";
 import { formatAge, formatValue } from "./units";
 
@@ -288,7 +289,7 @@ export function OutlookContent({ outlook }: { outlook: GridOutlook }) {
           </p>
           <h3 id="outlook-weather-title">Weather context</h3>
           <p>
-            Forecast weather driver unavailable. No weather cause is inferred.
+            Current METAR observations are displayed independently from forecast and load evidence.
             {!weatherIsCurrent ? " Observations may be stale or unavailable." : ""}
           </p>
         </div>
@@ -305,6 +306,8 @@ export function OutlookContent({ outlook }: { outlook: GridOutlook }) {
           <p className="outlook-empty">METAR observations unavailable.</p>
         ) : null}
       </section>
+
+      <PredictiveWeatherPanel enabled peakTargetTs={outlook.projectedPeakTargetTs} />
 
       <ForecastQualityPanel enabled />
 

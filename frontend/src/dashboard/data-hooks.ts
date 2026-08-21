@@ -11,6 +11,7 @@ import {
   loadNetLoadManifest,
   loadNetLoadResource,
   loadOutlook,
+  loadPredictiveWeather,
   loadSourceHealth,
   loadTrendBaselines,
   type LatestQuery,
@@ -61,6 +62,11 @@ export function useOutlookData(enabled: boolean) {
     ...swrPolicy,
     refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
   });
+}
+
+export function usePredictiveWeather(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadPredictiveWeather(signal), []);
+  return useAbortableResource(enabled, ["predictive-weather", "current"], loader);
 }
 
 export function useForecastQuality(enabled: boolean) {
