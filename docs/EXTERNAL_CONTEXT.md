@@ -13,10 +13,13 @@ all other table rows after parsing. eGRID factors are retrospective annual
 averages, not current or marginal emissions, and are never converted into live
 mass emissions.
 
-EIA-930 and Henry Hub require an individual EIA key. The current bounded slice
-does not implement their upstream transport, makes zero EIA requests, and
-publishes `disabled / eia_api_key_not_configured`. `DEMO_KEY` is not an accepted
-production credential. EPA CAMD remains `unavailable /
+EIA-930 and Henry Hub require an individual EIA key. When a non-DEMO key is
+configured, the collector independently fetches a rolling 72-hour ERCO hourly
+demand/total-interchange window and at most 25 Henry Hub daily spot-price
+observations. The key is present only in the required outbound EIA query and is
+never stored, logged, hashed, ingested, or served. Without that credential the
+collector makes zero EIA requests and publishes `disabled /
+eia_api_key_not_configured`. EPA CAMD remains `unavailable /
 ercot_footprint_and_coverage_methodology_not_frozen`, regardless of whether a
 CAM API credential exists.
 
@@ -35,3 +38,9 @@ content-versioned resources at
 15-second shared-cache revalidation and strong ETag. Immutable resources have a
 one-year public cache lifetime; retired eGRID publications remain addressable
 for ten years, with at least the latest five retained.
+
+EIA-930 values are hourly energy in MWh, not instantaneous MW. Positive total
+interchange is EIA-defined net export/outflow and negative is import/inflow.
+Henry Hub values are source market-date prices in USD/MMBtu; weekends and
+holidays remain gaps and are never forward-filled. Neither source replaces an
+ERCOT operational series or establishes price/load causality.

@@ -14,6 +14,9 @@ export const EGRID_METRICS = Object.freeze([
   { metric_id: "ozone_season_nox", source_header: "Ozone Season NOₓ", column: "I" },
   { metric_id: "so2", source_header: "SO₂", column: "J" },
 ]);
+export const EIA930_SOURCE_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/";
+export const HENRY_HUB_SOURCE_URL = "https://api.eia.gov/v2/seriesid/NG.RNGWHHD.D";
+export const HENRY_HUB_PAGE_URL = "https://www.eia.gov/dnav/ng/hist/rngwhhdd.htm";
 
 export type EgridDiscovery = Readonly<{
   artifact_url: string;
@@ -30,7 +33,133 @@ function text(value: unknown, error: string): string {
 /** Classifies a future optional EIA credential; this slice never starts EIA transport. */
 export function configuredEiaKey(value: string | undefined): string | null {
   const key = value?.trim() ?? "";
-  return !key || key === "DEMO_KEY" ? null : key;
+  return !key || key.toUpperCase() === "DEMO_KEY" ? null : key;
+}
+
+type Json = Record<string, unknown>;
+function object(value: unknown, code: string): Json {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(code);
+  return value as Json;
+}
+function exact(value: Json, keys: readonly string[], code: string): void {
+  if (Object.keys(value).sort().join(",") !== [...keys].sort().join(",")) throw new Error(code);
+}
+function decimal(value: unknown, code: string): { source: string; number: number } {
+  if (typeof value !== "string" || !/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value))
+    throw new Error(code);
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new Error(code);
+  return { source: value, number: Object.is(number, -0) ? 0 : number };
+}
+function responseData(value: unknown, code: string): { response: Json; data: unknown[] } {
+  const root = object(value, code);
+  if ("error" in root || "warning" in root || "warnings" in root) throw new Error(code);
+  const response = object(root.response, code);
+  if ("error" in response || "warning" in response || "warnings" in response) throw new Error(code);
+  if (!Array.isArray(response.data)) throw new Error(code);
+  const total = response.total;
+  if (
+    !(
+      (typeof total === "string" && /^\d+$/.test(total)) ||
+      (typeof total === "number" && Number.isSafeInteger(total) && total >= 0)
+    ) ||
+    Number(total) !== response.data.length
+  )
+    throw new Error(code);
+  return { response, data: response.data };
+}
+
+export function parseEia930Response(value: unknown, retrievedAt: number) {
+  const code = "external_context_eia930_schema";
+  const { response, data } = responseData(value, code);
+  if (
+    response.frequency !== "hourly" ||
+    response.dateFormat !== 'YYYY-MM-DD"T"HH24' ||
+    data.length > 146
+  )
+    throw new Error(code);
+  const seen = new Set<string>();
+  const rows = data.map((entry) => {
+    const row = object(entry, code);
+    exact(
+      row,
+      ["period", "respondent", "respondent-name", "type", "type-name", "value", "value-units"],
+      code,
+    );
+    if (
+      row.respondent !== "ERCO" ||
+      !["D", "TI"].includes(String(row.type)) ||
+      row["value-units"] !== "megawatthours" ||
+      typeof row.period !== "string" ||
+      (row.type === "D" && row["type-name"] !== "Demand") ||
+      (row.type === "TI" && row["type-name"] !== "Total Interchange")
+    )
+      throw new Error(code);
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})$/.exec(row.period);
+    if (!match) throw new Error(code);
+    const end = Date.UTC(+match[1]!, +match[2]! - 1, +match[3]!, +match[4]!) / 1_000;
+    if (new Date(end * 1_000).toISOString().slice(0, 13) !== row.period) throw new Error(code);
+    const parsed = decimal(row.value, code);
+    if (row.type === "D" && parsed.number < 0) throw new Error(code);
+    const identity = `${row.period}:${row.type}`;
+    if (seen.has(identity)) throw new Error(code);
+    seen.add(identity);
+    return {
+      period: row.period,
+      interval_start: end - 3_600,
+      interval_end: end,
+      type: row.type as "D" | "TI",
+      type_name: row["type-name"],
+      value_decimal: parsed.source,
+      value_mwh: parsed.number,
+    };
+  });
+  rows.sort((a, b) => a.interval_end - b.interval_end || a.type.localeCompare(b.type));
+  return {
+    schema: 1,
+    kind: EXTERNAL_CONTEXT_KIND,
+    stream: "eia930_demand",
+    publication: { retrieved_at: retrievedAt, source_url: EIA930_SOURCE_URL },
+    resource: { interval_basis: "hour_ending_utc_half_open", rows },
+  };
+}
+
+export function parseHenryHubResponse(value: unknown, retrievedAt: number) {
+  const code = "external_context_henry_hub_schema";
+  const { data } = responseData(value, code);
+  if (data.length > 25) throw new Error(code);
+  const seen = new Set<string>();
+  const rows = data.map((entry) => {
+    const row = object(entry, code);
+    exact(row, ["period", "series", "series-description", "value", "units"], code);
+    if (
+      row.series !== "NG.RNGWHHD.D" ||
+      row["series-description"] !== "Henry Hub Natural Gas Spot Price (Dollars per Million Btu)" ||
+      row.units !== "dollars per million Btu" ||
+      typeof row.period !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(row.period) ||
+      Number.isNaN(Date.parse(`${row.period}T00:00:00Z`)) ||
+      seen.has(row.period)
+    )
+      throw new Error(code);
+    seen.add(row.period);
+    const parsed = decimal(row.value, code);
+    return { market_date: row.period, value_decimal: parsed.source, price: parsed.number };
+  });
+  rows.sort((a, b) => a.market_date.localeCompare(b.market_date));
+  return {
+    schema: 1,
+    kind: EXTERNAL_CONTEXT_KIND,
+    stream: "henry_hub_daily",
+    publication: {
+      retrieved_at: retrievedAt,
+      series_id: "NG.RNGWHHD.D",
+      source_url: HENRY_HUB_SOURCE_URL,
+      source_page_url: HENRY_HUB_PAGE_URL,
+      source_unit: "dollars per million Btu",
+    },
+    resource: { unit: "usd_per_mmbtu", date_basis: "source_market_date_no_timezone", rows },
+  };
 }
 
 export function parseEgridDiscovery(html: string): EgridDiscovery {

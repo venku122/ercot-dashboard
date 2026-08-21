@@ -10,10 +10,12 @@ bytes and unfiltered tables are discarded. These retrospective annual rates
 are methodology context, not live ERCOT emissions, and are never multiplied by
 current generation.
 
-Without a non-DEMO individual `EIA_API_KEY`, EIA-930 and Henry Hub remain
-explicitly disabled. This bounded slice performs no EIA request. EPA CAMD
-remains unavailable because ERCOT-footprint and reporting-coverage methodology
-is not frozen.
+With a non-DEMO individual `EIA_API_KEY`, the collector also polls bounded
+EIA-930 ERCO hourly demand/total interchange and Henry Hub daily spot prices.
+The secret stays only in the required outbound EIA query. Without it both
+sections remain explicitly disabled and no EIA request is made. EPA CAMD remains
+unavailable because ERCOT-footprint and reporting-coverage methodology is not
+frozen.
 
 Authenticated writes use `POST /api/external-context/ingest` and
 `POST /api/external-context/source-attempt`. Public reads use queryless

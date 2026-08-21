@@ -2776,7 +2776,7 @@ class Handler(BaseHTTPRequestHandler):
                 or set(payload) != {"schema", "kind", "stream", "attempted_at", "status", "reason"}
                 or payload.get("schema") != 1
                 or payload.get("kind") != "external_context"
-                or payload.get("stream") != "epa_egrid"
+                or payload.get("stream") not in ("eia930_demand", "henry_hub_daily", "epa_egrid")
                 or payload.get("status") != "failed"
                 or isinstance(payload.get("attempted_at"), bool)
                 or not isinstance(payload.get("attempted_at"), int)

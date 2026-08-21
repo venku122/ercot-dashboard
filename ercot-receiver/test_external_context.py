@@ -38,6 +38,29 @@ def payload(revision=2, released="2025-06-12", retrieved=NOW - 10, co2=733.862):
     }
 
 
+def eia_payload(retrieved=NOW - 10, demand=81_500.25, interchange=-321.5):
+    rows = []
+    for kind, name, value in (("D", "Demand", demand), ("TI", "Total Interchange", interchange)):
+        rows.append({
+            "period": "2026-08-20T20", "interval_start": 1_777_000_400,
+            "interval_end": 1_777_004_000, "type": kind, "type_name": name,
+            "value_decimal": str(value), "value_mwh": value,
+        })
+    return {"schema": 1, "kind": KIND, "stream": "eia930_demand",
+            "publication": {"retrieved_at": retrieved, "source_url": "https://api.eia.gov/v2/electricity/rto/region-data/data/"},
+            "resource": {"interval_basis": "hour_ending_utc_half_open", "rows": rows}}
+
+
+def gas_payload(retrieved=NOW - 10, price=2.91):
+    return {"schema": 1, "kind": KIND, "stream": "henry_hub_daily",
+            "publication": {"retrieved_at": retrieved, "series_id": "NG.RNGWHHD.D",
+                "source_url": "https://api.eia.gov/v2/seriesid/NG.RNGWHHD.D",
+                "source_page_url": "https://www.eia.gov/dnav/ng/hist/rngwhhdd.htm",
+                "source_unit": "dollars per million Btu"},
+            "resource": {"unit": "usd_per_mmbtu", "date_basis": "source_market_date_no_timezone",
+                "rows": [{"market_date": "2026-08-20", "value_decimal": str(price), "price": price}]}}
+
+
 class ExternalContextTest(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(":memory:")
@@ -80,6 +103,21 @@ class ExternalContextTest(unittest.TestCase):
         self.assertEqual(manifest["eia_930"]["state"], "disabled")
         self.assertEqual(manifest["source_health"][0]["state"], "disabled")
         self.assertEqual(manifest["source_health"][2]["state"], "failed")
+
+    def test_eia_and_gas_corrections_are_independent_and_credential_free_on_wire(self):
+        eia = ingest_external_context(self.conn, eia_payload(), NOW)
+        gas = ingest_external_context(self.conn, gas_payload(), NOW)
+        manifest = external_context_manifest(self.conn, NOW)
+        self.assertEqual(manifest["eia_930"]["state"], "available")
+        self.assertEqual(manifest["natural_gas"]["state"], "available")
+        self.assertEqual(manifest["eia_930"]["selected"]["latest_demand_interval_end"], 1_777_004_000)
+        self.assertNotIn("api_key", json.dumps(manifest))
+        correction = ingest_external_context(self.conn, eia_payload(NOW, demand=82_000), NOW)
+        self.assertNotEqual(correction["content_version"], eia["content_version"])
+        self.assertIsNotNone(external_context_resource(self.conn, "eia930_demand", eia["content_version"]))
+        self.assertEqual(external_context_resource(self.conn, "henry_hub_daily", gas["content_version"])["rows"][0]["price"], 2.91)
+        with self.assertRaisesRegex(ValueError, "same_clock_collision"):
+            ingest_external_context(self.conn, eia_payload(NOW, demand=83_000), NOW)
 
 
 class ExternalContextHttpTest(unittest.TestCase):
@@ -136,6 +174,22 @@ class ExternalContextHttpTest(unittest.TestCase):
         conditional = self.request("GET", f"/api/v2/external-context/epa_egrid/v1/{version}", headers={"If-None-Match": f'"{version}"'})
         self.assertEqual(conditional[0], 304)
         self.assertEqual(conditional[2], b"")
+
+    def test_http_accepts_eia_resources_and_failure_attempts_without_cross_source_regression(self):
+        for body in (eia_payload(), gas_payload()):
+            response = self.request("POST", "/api/external-context/ingest", body, {"X-API-Key": "fixture-key"})
+            self.assertEqual(response[0], 200)
+            version = json.loads(response[2])["content_version"]
+            stream = body["stream"]
+            resource = self.request("GET", f"/api/v2/external-context/{stream}/v1/{version}")
+            self.assertEqual(resource[0], 200)
+        failed = {"schema": 1, "kind": KIND, "stream": "eia930_demand", "attempted_at": NOW + 1,
+                  "status": "failed", "reason": "upstream_auth_rejected"}
+        self.assertEqual(self.request("POST", "/api/external-context/source-attempt", failed, {"X-API-Key": "fixture-key"})[0], 200)
+        manifest = json.loads(self.request("GET", "/api/v1/external-context")[2])
+        self.assertEqual(manifest["eia_930"]["state"], "available")
+        self.assertEqual(manifest["source_health"][0]["state"], "failed")
+        self.assertEqual(manifest["natural_gas"]["state"], "available")
 
 
 if __name__ == "__main__":
