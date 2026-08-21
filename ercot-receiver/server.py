@@ -102,6 +102,13 @@ from historical_context import (
     mark_demand_history_changes,
     resolve_historical_context,
 )
+from texas_grid import (
+    ingest_texas_grid,
+    init_texas_grid_schema,
+    record_texas_grid_failure,
+    texas_grid_manifest,
+    texas_grid_resource,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -122,6 +129,7 @@ MAX_FORECAST_BODY_BYTES = 1024 * 1024
 MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
 MAX_PREDICTIVE_WEATHER_BODY_BYTES = 8 * 1024 * 1024
 MAX_GRID_EVENTS_BODY_BYTES = 2 * 1024 * 1024
+MAX_TEXAS_GRID_BODY_BYTES = 2 * 1024 * 1024
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
@@ -1158,6 +1166,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_predictive_weather_schema(conn)
     init_grid_events_schema(conn)
     init_historical_context_schema(conn)
+    init_texas_grid_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -2841,6 +2850,69 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/texas-grid/source-attempt":
+            if not self._rate_limit("texas_grid_attempt", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(16 * 1024)
+            if payload is None:
+                return
+            if (
+                not isinstance(payload, dict)
+                or set(payload)
+                != {"schema", "stream", "status", "attempted_at", "error"}
+                or payload.get("schema") != 1
+                or payload.get("stream")
+                not in ("gis", "resource_capacity_trend", "long_term_load_forecast")
+                or payload.get("status") != "failed"
+                or isinstance(payload.get("attempted_at"), bool)
+                or not isinstance(payload.get("attempted_at"), int)
+                or not 1 <= payload["attempted_at"] <= now_ts() + 300
+                or payload.get("error") != "official_source_fetch_or_parse_failed"
+            ):
+                self._send_json(
+                    400,
+                    {"error": "invalid_texas_grid_source_attempt"},
+                    cache_control="no-store",
+                )
+                return
+            attempt_status = record_texas_grid_failure(
+                get_db(), payload["stream"], payload["error"], payload["attempted_at"]
+            )
+            self._app_server().cache.invalidate({"texas-grid"})
+            self._send_json(
+                200,
+                {"schema": 1, "stream": payload["stream"], "status": attempt_status},
+                cache_control="no-store",
+            )
+            return
+
+        if self.path == "/api/texas-grid/ingest":
+            if not self._rate_limit("texas_grid_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_TEXAS_GRID_BODY_BYTES)
+            if payload is None:
+                return
+            stream = payload.get("stream") if isinstance(payload, dict) else None
+            try:
+                result = ingest_texas_grid(get_db(), payload, current_ts=now_ts())
+            except ValueError as exc:
+                get_db().rollback()
+                record_texas_grid_failure(get_db(), stream, exc, now_ts())
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception as exc:
+                get_db().rollback()
+                record_texas_grid_failure(get_db(), stream, exc, now_ts(), materialization=True)
+                self._send_json(500, {"error": "texas_grid_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"texas-grid"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/grid-events/ingest":
             if not self._rate_limit("grid_events_ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -3570,6 +3642,59 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/texas-grid":
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_texas_grid_request"}, cache_control="no-store")
+                return
+            if not self._rate_limit("texas_grid", RATE_LIMIT_STATUS_RPM):
+                return
+            app = self._app_server()
+            key = "texas-grid:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                state = "MISS"
+                generation = app.cache.snapshot_generation()
+
+                def generate_texas_grid():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = texas_grid_manifest(get_db(), now_ts())
+                    app.cache.set_if_generation(
+                        key, value, generation, {"texas-grid"}, ttl_seconds=15,
+                        category="texas-grid:resolver",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do((key, generation), generate_texas_grid)
+                except Exception:
+                    self._send_json(500, {"error": "texas_grid_generation_failed"}, cache_control="no-store")
+                    return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=0, s-maxage=15, must-revalidate",
+                etag=True, extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        texas_grid_match = re.fullmatch(
+            r"/api/v2/texas-grid/(gis|resource_capacity_trend|long_term_load_forecast)/v1/(tg1-[0-9a-f]{64})",
+            parsed.path,
+        )
+        if texas_grid_match:
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_texas_grid_resource"}, cache_control="no-store")
+                return
+            payload = texas_grid_resource(get_db(), *texas_grid_match.groups())
+            if payload is None:
+                self._send_json(404, {"error": "unknown_texas_grid_resource"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="public, max-age=31536000, immutable", etag=True)
+            return
+        if parsed.path.startswith("/api/v2/texas-grid/"):
+            self._send_json(400, {"error": "invalid_texas_grid_resource"}, cache_control="no-store")
+            return
         if parsed.path.startswith("/api/v2/tiles/"):
             record_tile_metric(self._app_server(), "tile_origin_requests_total")
         if parsed.path == "/api/v2/tile-catalog":

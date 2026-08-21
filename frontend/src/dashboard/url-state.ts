@@ -20,6 +20,7 @@ export function dashboardViewFromUrl(url: URL): DashboardViewId {
 export function dashboardViewToUrl(view: DashboardViewId, base: URL): URL {
   const url = new URL(base);
   url.searchParams.set("view", view);
+  if (view !== "texas-grid") url.searchParams.delete("grid_resource");
   return url;
 }
 

@@ -8,6 +8,7 @@ export type DashboardViewId =
   | "overview"
   | "outlook"
   | "reliability"
+  | "texas-grid"
   | "weather";
 
 export type CriticalMetricId =
@@ -146,6 +147,13 @@ export const dashboardViewDefinitions = [
     groups: ["Market"],
   },
   {
+    id: "texas-grid",
+    label: "Texas Grid",
+    description:
+      "Official long-horizon planning snapshots with operational, planned, and studied capacity kept distinct.",
+    groups: [],
+  },
+  {
     id: "weather",
     label: "Weather",
     description: "Temperature and wind observations near major grid centers.",
@@ -179,6 +187,7 @@ export const primaryDashboardViewIds: ReadonlyArray<DashboardViewId> = [
 ];
 
 export const moreDashboardViewIds: ReadonlyArray<DashboardViewId> = [
+  "texas-grid",
   "weather",
   "advanced",
   "diagnostics",

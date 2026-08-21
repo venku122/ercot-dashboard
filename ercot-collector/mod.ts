@@ -10,6 +10,7 @@ import { start as startGenerationOutages } from "./generation_outages.ts";
 import { start as startGrid } from "./grid.ts";
 import { start as startMetar } from "./metar.ts";
 import { startNwsWeather } from "./nws_weather_runner.ts";
+import { startLongHorizon } from "./long_horizon_runner.ts";
 import { start as startOperationsMessages } from "./operations_messages.ts";
 import { start as startPrices } from "./prices.ts";
 import { start as startStorage } from "./storage.ts";
@@ -45,5 +46,6 @@ if (import.meta.main) {
     startMisMarketMechanics(),
     startPublicMarketGeography(),
     startNwsWeather(),
+    startLongHorizon(),
   ]);
 }

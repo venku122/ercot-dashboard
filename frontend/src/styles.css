@@ -4488,3 +4488,138 @@ main[data-dashboard-view="overview"] {
     grid-template-columns: 1fr;
   }
 }
+
+.texas-grid-view {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.texas-grid-policy,
+.texas-grid-family-grid article,
+.texas-grid-unavailable-grid article,
+.texas-grid-resource {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+
+.texas-grid-policy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.texas-grid-policy span,
+.texas-grid-family-grid article > span,
+.texas-grid-unavailable-grid span {
+  color: var(--text-muted);
+}
+
+.texas-grid-family-grid,
+.texas-grid-unavailable-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.texas-grid-family-grid article,
+.texas-grid-unavailable-grid article {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+}
+
+.texas-grid-family-grid h3,
+.texas-grid-family-grid p {
+  margin: 0;
+}
+
+.texas-grid-family-grid button,
+.texas-grid-series-picker button {
+  min-height: 44px;
+}
+
+.texas-grid-resource {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.texas-grid-resource > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.texas-grid-resource > header > div {
+  min-width: 0;
+  max-width: 75ch;
+}
+
+.texas-grid-resource > header h3,
+.texas-grid-resource > header p {
+  margin-block: 0 0.45rem;
+}
+
+.texas-grid-series-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.texas-grid-series-picker button {
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--surface-muted);
+  color: inherit;
+}
+
+.texas-grid-series-picker button[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.texas-grid-table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.texas-grid-table table {
+  min-width: 64rem;
+}
+
+.texas-grid-table th,
+.texas-grid-table td {
+  min-width: 10rem;
+  padding: 0.65rem 0.75rem;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: top;
+}
+
+@media (max-width: 720px) {
+  .texas-grid-family-grid,
+  .texas-grid-unavailable-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .texas-grid-resource > header {
+    display: grid;
+  }
+
+  .texas-grid-resource > header a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .texas-grid-series-picker {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

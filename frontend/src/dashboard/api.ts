@@ -41,6 +41,13 @@ import {
   type TileRequest,
 } from "./tile-planner";
 import { composeTileWindow, parseAggregateStateV2, type AggregateBucket } from "./tile-state";
+import {
+  parseTexasGridManifest,
+  parseTexasGridResource,
+  type TexasGridManifest,
+  type TexasGridResource,
+  type TexasGridSelectedResource,
+} from "./texas-grid-long-horizon";
 import type {
   ChartDefinition,
   CompareMode,
@@ -949,6 +956,22 @@ export async function loadHistoricalContext(
 ): Promise<HistoricalContextResolver> {
   return parseHistoricalContextResolver(
     await fetchJson<unknown>(historicalContextResolverUrl(asOf), { method: "GET" }, signal),
+  );
+}
+
+export async function loadTexasGridManifest(signal?: AbortSignal): Promise<TexasGridManifest> {
+  return parseTexasGridManifest(
+    await fetchJson<unknown>("/api/v1/texas-grid", { method: "GET" }, signal),
+  );
+}
+
+export async function loadTexasGridResource(
+  resource: TexasGridSelectedResource,
+  signal?: AbortSignal,
+): Promise<TexasGridResource> {
+  return parseTexasGridResource(
+    await fetchJson<unknown>(resource.url, { method: "GET" }, signal),
+    resource,
   );
 }
 

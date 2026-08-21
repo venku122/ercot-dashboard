@@ -1,5 +1,25 @@
 # ERCOT Receiver
 
+## Texas Grid long-horizon snapshots
+
+The long-horizon collector is disabled by default. Set
+`ERCOT_LONG_HORIZON_INGEST_ENABLED=true` to poll the credential-free official
+ERCOT GIS monthly XLSX listing, Resource Capacity Trend page, and reviewed
+Long-Term Load Forecast workbook/report every six hours. It publishes only
+phase/fuel and capacity-category aggregates plus the two official monthly LTLF
+scenarios; project rows and live GIS document identifiers are discarded and
+never stored or served. LTLF peak/energy units are bound to the official report
+Appendix A. Large-load project status and gross retirements remain explicitly
+unavailable.
+
+The authenticated collector routes are `POST /api/texas-grid/ingest` and
+`POST /api/texas-grid/source-attempt`. Public reads use the queryless resolver
+`GET /api/v1/texas-grid` and content-versioned immutable resources under
+`GET /api/v2/texas-grid/{gis|resource_capacity_trend|long_term_load_forecast}/v1/{content_version}`.
+Resolver responses revalidate after 15 seconds. Retired immutable bytes remain
+available for at least their advertised one-year cache lifetime; after that
+grace, storage is bounded to 120 source months and four corrections per month.
+
 Local metrics receiver + SQLite store + dashboard UI.
 
 ## Run
