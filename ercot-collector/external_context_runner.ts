@@ -1,9 +1,14 @@
 import { fixedInterval } from "./deps.ts";
 import {
+  configuredEiaKey,
+  EIA930_SOURCE_URL,
   EGRID_DISCOVERY_URL,
   EXTERNAL_CONTEXT_KIND,
+  HENRY_HUB_SOURCE_URL,
+  parseEia930Response,
   parseEgridDiscovery,
   parseEgridWorkbook,
+  parseHenryHubResponse,
 } from "./external_context.ts";
 
 type Environment = { get(name: string): string | undefined };
@@ -63,6 +68,37 @@ async function upstream(
   );
 }
 
+async function eiaJson(
+  dependencies: RunnerDependencies,
+  base: string,
+  apiKey: string,
+  parameters: URLSearchParams,
+): Promise<unknown> {
+  const url = new URL(base);
+  if (url.protocol !== "https:" || url.hostname !== "api.eia.gov")
+    throw new Error("external_context_eia_url");
+  parameters.set("api_key", apiKey);
+  url.search = parameters.toString();
+  let response: Response;
+  try {
+    response = await dependencies.fetcher(url, {
+      headers: { Accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    throw new Error("external_context_eia_fetch_failed");
+  }
+  if (response.status === 401 || response.status === 403)
+    throw new Error("external_context_eia_auth_rejected");
+  const bytes = await bounded(response, 2 * 1024 * 1024, "external_context_eia_fetch_failed");
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw new Error("external_context_eia_schema");
+  }
+}
+
 async function receiverPost(
   dependencies: RunnerDependencies,
   endpoint: URL,
@@ -88,17 +124,90 @@ async function reportFailure(
   apiKey: string,
   attemptedAt: number,
   reason: string,
+  stream = "epa_egrid",
 ): Promise<void> {
   const target = new URL(endpoint);
   target.pathname = "/api/external-context/source-attempt";
   await receiverPost(dependencies, target, apiKey, {
     schema: 1,
     kind: EXTERNAL_CONTEXT_KIND,
-    stream: "epa_egrid",
+    stream,
     attempted_at: attemptedAt,
     status: "failed",
     reason: reason.slice(0, 200),
   });
+}
+
+function eia930Parameters(retrievedAt: number): URLSearchParams {
+  const start = new Date((retrievedAt - 72 * 3_600) * 1_000).toISOString().slice(0, 13);
+  const end = new Date(retrievedAt * 1_000).toISOString().slice(0, 13);
+  return new URLSearchParams([
+    ["frequency", "hourly"],
+    ["data[]", "value"],
+    ["facets[respondent][]", "ERCO"],
+    ["facets[type][]", "D"],
+    ["facets[type][]", "TI"],
+    ["start", start],
+    ["end", end],
+    ["sort[0][column]", "period"],
+    ["sort[0][direction]", "asc"],
+    ["offset", "0"],
+    ["length", "200"],
+  ]);
+}
+
+function henryHubParameters(retrievedAt: number): URLSearchParams {
+  const end = new Date(retrievedAt * 1_000).toISOString().slice(0, 10);
+  const start = new Date((retrievedAt - 35 * 86_400) * 1_000).toISOString().slice(0, 10);
+  return new URLSearchParams([
+    ["start", start],
+    ["end", end],
+    ["sort[0][column]", "period"],
+    ["sort[0][direction]", "asc"],
+    ["offset", "0"],
+    ["length", "25"],
+  ]);
+}
+
+export async function runEiaExternalContextCycle(
+  endpoint: string,
+  apiKey: string,
+  eiaApiKey: string,
+  retrievedAt: number,
+  dependencies: RunnerDependencies = DEFAULT_DEPENDENCIES,
+): Promise<void> {
+  const target = endpointUrl(endpoint);
+  const key = configuredEiaKey(eiaApiKey);
+  if (!key) return;
+  const products = [
+    {
+      stream: "eia930_demand",
+      collect: async () =>
+        parseEia930Response(
+          await eiaJson(dependencies, EIA930_SOURCE_URL, key, eia930Parameters(retrievedAt)),
+          retrievedAt,
+        ),
+    },
+    {
+      stream: "henry_hub_daily",
+      collect: async () =>
+        parseHenryHubResponse(
+          await eiaJson(dependencies, HENRY_HUB_SOURCE_URL, key, henryHubParameters(retrievedAt)),
+          retrievedAt,
+        ),
+    },
+  ] as const;
+  const failures: Error[] = [];
+  for (const product of products) {
+    try {
+      await receiverPost(dependencies, target, apiKey, await product.collect());
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "external_context_unknown_failure";
+      await reportFailure(dependencies, target, apiKey, retrievedAt, reason, product.stream);
+      failures.push(error instanceof Error ? error : new Error(reason));
+    }
+  }
+  if (failures.length) throw failures[0];
 }
 
 export async function runExternalContextCycle(
@@ -136,16 +245,45 @@ export async function runExternalContextCycle(
 export async function startExternalContext(
   dependencies: RunnerDependencies = DEFAULT_DEPENDENCIES,
 ) {
-  if (dependencies.environment.get("EXTERNAL_CONTEXT_INGEST_ENABLED") !== "true") return;
+  if (dependencies.environment.get("EXTERNAL_CONTEXT_INGEST_ENABLED") !== "true")
+    return await new Promise<never>(() => {});
   const endpoint =
     dependencies.environment.get("EXTERNAL_CONTEXT_ENDPOINT") ??
     "http://receiver:8080/api/external-context/ingest";
   const apiKey = dependencies.environment.get("METRICS_API_KEY") ?? "";
-  for await (const _cycle of fixedInterval(7 * 86_400_000)) {
-    try {
-      await runExternalContextCycle(endpoint, apiKey, Math.floor(Date.now() / 1000), dependencies);
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : "external_context_cycle_failed");
-    }
-  }
+  const eiaApiKey = dependencies.environment.get("EIA_API_KEY") ?? "";
+  await Promise.all([
+    (async () => {
+      for await (const _cycle of fixedInterval(7 * 86_400_000)) {
+        try {
+          await runExternalContextCycle(
+            endpoint,
+            apiKey,
+            Math.floor(Date.now() / 1000),
+            dependencies,
+          );
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : "external_context_cycle_failed");
+        }
+      }
+    })(),
+    (async () => {
+      if (!configuredEiaKey(eiaApiKey)) return await new Promise<never>(() => {});
+      for await (const _cycle of fixedInterval(3_600_000)) {
+        try {
+          await runEiaExternalContextCycle(
+            endpoint,
+            apiKey,
+            eiaApiKey,
+            Math.floor(Date.now() / 1000),
+            dependencies,
+          );
+        } catch (error) {
+          console.error(
+            error instanceof Error ? error.message : "external_context_eia_cycle_failed",
+          );
+        }
+      }
+    })(),
+  ]);
 }

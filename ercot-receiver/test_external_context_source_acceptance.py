@@ -331,26 +331,28 @@ class ExternalContextSourceAcceptanceTests(unittest.TestCase):
         }
         self.assertEqual(set(versions[-5:]), remaining)
 
-    def test_disabled_eia_stream_cannot_report_attempt_or_mutate_health(self):
+    def test_enabled_eia_attempt_failure_is_honest_and_does_not_mutate_peer_health(self):
         attempt = {
             "schema": 1,
             "kind": "external_context",
             "stream": "eia930_demand",
             "attempted_at": 2_000_000_001,
             "status": "failed",
-            "reason": "must_not_run_without_real_key",
+            "reason": "upstream_auth_rejected",
         }
         self.invoke(
             "POST",
             "/api/external-context/source-attempt",
             attempt,
             headers={"X-API-Key": "external-context-receiver-key"},
-            status=400,
+            status=200,
         )
         manifest, _headers, _raw = self.invoke("GET", "/api/v1/external-context")
-        self.assertEqual("disabled", manifest["eia_930"]["state"])
-        self.assertEqual("disabled", manifest["source_health"][0]["state"])
-        self.assertEqual(0, manifest["source_health"][0]["consecutive_failures"])
+        self.assertEqual("failed", manifest["eia_930"]["state"])
+        self.assertEqual("failed", manifest["source_health"][0]["state"])
+        self.assertEqual(1, manifest["source_health"][0]["consecutive_failures"])
+        self.assertEqual("disabled", manifest["natural_gas"]["state"])
+        self.assertEqual("disabled", manifest["source_health"][1]["state"])
 
 
 if __name__ == "__main__":

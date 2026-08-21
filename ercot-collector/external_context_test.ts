@@ -2,10 +2,16 @@ import {
   deriveEgridResource,
   EGRID_SHEETS,
   EXTERNAL_CONTEXT_POLICY,
+  parseEia930Response,
   parseEgridDiscovery,
+  parseHenryHubResponse,
   type EgridDiscovery,
 } from "./external_context.ts";
-import { runExternalContextCycle, startExternalContext } from "./external_context_runner.ts";
+import {
+  runEiaExternalContextCycle,
+  runExternalContextCycle,
+  startExternalContext,
+} from "./external_context_runner.ts";
 import type { Sheet, Workbook } from "./long_horizon.ts";
 
 function assert(value: unknown, message = "assertion_failed"): asserts value {
@@ -93,14 +99,137 @@ Deno.test("eGRID fails closed on workbook and value drift", () => {
 
 Deno.test("external context runner is disabled by default with zero requests", async () => {
   let calls = 0;
-  await startExternalContext({
-    environment: { get: () => undefined },
-    fetcher: (() => {
-      calls++;
-      throw new Error("unexpected_fetch");
-    }) as typeof fetch,
-  });
+  const winner = await Promise.race([
+    startExternalContext({
+      environment: { get: () => undefined },
+      fetcher: (() => {
+        calls++;
+        throw new Error("unexpected_fetch");
+      }) as typeof fetch,
+    }),
+    Promise.resolve("peer_loop"),
+  ]);
+  assert(winner === "peer_loop");
   assert(calls === 0);
+});
+
+Deno.test("EIA parsers preserve hourly energy, interchange sign, and market-date gaps", () => {
+  const eia = parseEia930Response(
+    {
+      response: {
+        total: "2",
+        frequency: "hourly",
+        dateFormat: 'YYYY-MM-DD"T"HH24',
+        data: [
+          {
+            period: "2026-08-20T20",
+            respondent: "ERCO",
+            "respondent-name": "Electric Reliability Council of Texas, Inc.",
+            type: "D",
+            "type-name": "Demand",
+            value: "81500.25",
+            "value-units": "megawatthours",
+          },
+          {
+            period: "2026-08-20T20",
+            respondent: "ERCO",
+            "respondent-name": "Electric Reliability Council of Texas, Inc.",
+            type: "TI",
+            "type-name": "Total Interchange",
+            value: "-321.5",
+            "value-units": "megawatthours",
+          },
+        ],
+      },
+    },
+    1_777_000_000,
+  );
+  assert(eia.resource.rows[0]!.interval_end - eia.resource.rows[0]!.interval_start === 3_600);
+  assert(eia.resource.rows[1]!.value_mwh === -321.5);
+  const gas = parseHenryHubResponse(
+    {
+      response: {
+        total: "2",
+        data: [
+          {
+            period: "2026-08-18",
+            series: "NG.RNGWHHD.D",
+            "series-description": "Henry Hub Natural Gas Spot Price (Dollars per Million Btu)",
+            value: "2.91",
+            units: "dollars per million Btu",
+          },
+          {
+            period: "2026-08-20",
+            series: "NG.RNGWHHD.D",
+            "series-description": "Henry Hub Natural Gas Spot Price (Dollars per Million Btu)",
+            value: "-0.25",
+            units: "dollars per million Btu",
+          },
+        ],
+      },
+    },
+    1_777_000_000,
+  );
+  assert(gas.resource.rows.length === 2 && gas.resource.rows[1]!.price === -0.25);
+});
+
+Deno.test("real EIA credential is outbound-only and sources ingest independently", async () => {
+  const secret = "individual-production-key";
+  const posts: unknown[] = [];
+  const upstreamUrls: string[] = [];
+  await runEiaExternalContextCycle(
+    "http://receiver:8080/api/external-context/ingest",
+    "receiver-secret",
+    secret,
+    1_777_000_000,
+    {
+      environment: { get: () => undefined },
+      fetcher: (async (input, init) => {
+        const url = String(input);
+        if (url.startsWith("https://api.eia.gov")) {
+          upstreamUrls.push(url);
+          const isGas = url.includes("seriesid");
+          return new Response(
+            JSON.stringify({
+              response: {
+                total: "1",
+                ...(isGas ? {} : { frequency: "hourly", dateFormat: 'YYYY-MM-DD"T"HH24' }),
+                data: isGas
+                  ? [
+                      {
+                        period: "2026-08-20",
+                        series: "NG.RNGWHHD.D",
+                        "series-description":
+                          "Henry Hub Natural Gas Spot Price (Dollars per Million Btu)",
+                        value: "2.91",
+                        units: "dollars per million Btu",
+                      },
+                    ]
+                  : [
+                      {
+                        period: "2026-08-20T20",
+                        respondent: "ERCO",
+                        "respondent-name": "Electric Reliability Council of Texas, Inc.",
+                        type: "D",
+                        "type-name": "Demand",
+                        value: "81500",
+                        "value-units": "megawatthours",
+                      },
+                    ],
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        posts.push(JSON.parse(String((init as globalThis.RequestInit | undefined)?.body)));
+        return new Response(JSON.stringify({ status: "inserted" }), { status: 200 });
+      }) as typeof fetch,
+    },
+  );
+  assert(
+    upstreamUrls.length === 2 && upstreamUrls.every((url) => url.includes(`api_key=${secret}`)),
+  );
+  assert(posts.length === 2 && !JSON.stringify(posts).includes(secret));
 });
 
 Deno.test("receiver credentials cannot be sent in URL userinfo or arbitrary plaintext", async () => {
