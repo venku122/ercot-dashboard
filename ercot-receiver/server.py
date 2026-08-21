@@ -33,6 +33,10 @@ CACHE_CONTROL_MAX_AGE = int(os.environ.get("CACHE_CONTROL_MAX_AGE", "30"))
 SEALED_HISTORY_AGE_SECONDS = int(os.environ.get("SEALED_HISTORY_AGE_SECONDS", "86400"))
 SEALED_CACHE_TTL_SECONDS = int(os.environ.get("SEALED_CACHE_TTL_SECONDS", "86400"))
 RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300"))
+TILE_RESOURCE_RETENTION_SECONDS = max(
+    365 * 86400,
+    int(os.environ.get("TILE_RESOURCE_RETENTION_SECONDS", str(366 * 86400))),
+)
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
@@ -70,6 +74,7 @@ if CORS_ORIGINS_EXTRA:
 DB_LOCAL = threading.local()
 
 TILE_SCHEMA_VERSION = 2
+TILE_CONTENT_VERSION_RE = re.compile(r"^t2-[0-9a-f]{64}$")
 TILE_SPANS = {"1h": 3600, "1d": 86400}
 TILE_LOD_SECONDS = {"native": None, "5m": 300, "15m": 900, "1h": 3600}
 TILE_SERIES_CATALOG = (
@@ -415,8 +420,8 @@ def historical_cache_policy(end):
     if end <= current - SEALED_HISTORY_AGE_SECONDS:
         return (
             "sealed",
-            SEALED_CACHE_TTL_SECONDS,
-            "public, max-age=3600, s-maxage=86400, immutable",
+            min(SEALED_CACHE_TTL_SECONDS, 300),
+            "public, max-age=60, s-maxage=300, must-revalidate",
         )
     if end <= current - 300:
         return (
@@ -428,6 +433,76 @@ def historical_cache_policy(end):
         "live",
         CACHE_TTL_SECONDS,
         "public, max-age=5, s-maxage=15, stale-while-revalidate=30",
+    )
+
+
+def canonical_json_bytes(value) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def tile_resource_identity(identity) -> str:
+    return canonical_json_bytes(identity).decode("utf-8")
+
+
+def tile_content_version(payload) -> str:
+    return f"t2-{hashlib.sha256(canonical_json_bytes(payload)).hexdigest()}"
+
+
+def persist_tile_resource(conn, identity, payload, accessed_at=None) -> str:
+    current = now_ts() if accessed_at is None else int(accessed_at)
+    content_version = tile_content_version(payload)
+    identity_json = tile_resource_identity(identity)
+    payload_json = canonical_json_bytes(payload).decode("utf-8")
+    existing = conn.execute(
+        "SELECT identity_json, payload_json FROM tile_resources WHERE content_version = ?",
+        (content_version,),
+    ).fetchone()
+    if existing is not None and existing != (identity_json, payload_json):
+        raise RuntimeError("tile_content_version_collision")
+    conn.execute(
+        """
+        INSERT INTO tile_resources (
+            content_version, identity_json, payload_json, created_at, last_accessed_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(content_version) DO UPDATE SET
+            last_accessed_at = MAX(tile_resources.last_accessed_at, excluded.last_accessed_at)
+        """,
+        (content_version, identity_json, payload_json, current, current),
+    )
+    conn.execute(
+        "DELETE FROM tile_resources WHERE last_accessed_at < ?",
+        (current - TILE_RESOURCE_RETENTION_SECONDS,),
+    )
+    conn.commit()
+    return content_version
+
+
+def load_tile_resource(conn, identity, content_version, accessed_at=None):
+    if not TILE_CONTENT_VERSION_RE.fullmatch(content_version):
+        return None
+    identity_json = tile_resource_identity(identity)
+    row = conn.execute(
+        """
+        SELECT payload_json FROM tile_resources
+        WHERE content_version = ? AND identity_json = ?
+        """,
+        (content_version, identity_json),
+    ).fetchone()
+    if row is None:
+        return None
+    current = now_ts() if accessed_at is None else int(accessed_at)
+    conn.execute(
+        "UPDATE tile_resources SET last_accessed_at = MAX(last_accessed_at, ?) WHERE content_version = ?",
+        (current, content_version),
+    )
+    conn.commit()
+    return json.loads(row[0])
+
+
+def tile_resource_url(identity, content_version) -> str:
+    return (
+        f"/api/v2/tiles/{identity['series_key']}/{identity['tile_span']}/"
+        f"{identity['tile_start']}/{identity['lod']}/v1/{content_version}"
     )
 
 
@@ -693,6 +768,29 @@ def init_db(conn: sqlite3.Connection) -> None:
             PRIMARY KEY (series_id, tag),
             FOREIGN KEY(series_id) REFERENCES series(id)
         )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tile_resources (
+            content_version TEXT PRIMARY KEY,
+            identity_json TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            last_accessed_at INTEGER NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_tile_resources_identity_created
+        ON tile_resources(identity_json, created_at)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_tile_resources_last_accessed
+        ON tile_resources(last_accessed_at)
         """
     )
     conn.execute(
@@ -2609,8 +2707,58 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(
                 200,
                 tile_catalog_payload(),
-                cache_control="public, max-age=3600, s-maxage=86400, immutable",
+                cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
+            )
+            return
+        immutable_tile_match = re.fullmatch(
+            r"/api/v2/tiles/([^/]+)/([^/]+)/([^/]+)/([^/]+)/v1/(t2-[0-9a-f]{64})",
+            parsed.path,
+        )
+        if immutable_tile_match:
+            if not self._rate_limit("series_tile_v2", RATE_LIMIT_SERIES_RPM):
+                return
+            series_key, tile_span, tile_start_raw, lod, content_version = (
+                immutable_tile_match.groups()
+            )
+            definition = TILE_CATALOG_BY_KEY.get(series_key)
+            tile_seconds = TILE_SPANS.get(tile_span)
+            try:
+                tile_start = int(tile_start_raw)
+            except ValueError:
+                tile_start = -1
+            if (
+                parsed.query
+                or definition is None
+                or tile_seconds is None
+                or tile_start < 0
+                or str(tile_start) != tile_start_raw
+                or tile_start % tile_seconds != 0
+                or lod not in definition["supported_lods"]
+            ):
+                self._send_json(
+                    400, {"error": "invalid_immutable_tile"}, cache_control="no-store"
+                )
+                return
+            identity = {
+                "schema": TILE_SCHEMA_VERSION,
+                "series_key": series_key,
+                "tile_span": tile_span,
+                "tile_start": tile_start,
+                "lod": lod,
+            }
+            payload_out = load_tile_resource(get_db(), identity, content_version)
+            if payload_out is None:
+                self._send_json(
+                    404, {"error": "tile_resource_not_found"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200,
+                payload_out,
+                cache_control="public, max-age=31536000, s-maxage=31536000, immutable",
+                etag=True,
+                extra_headers={"X-ERCOT-Content-Version": content_version},
             )
             return
         tile_match = re.fullmatch(
@@ -2659,15 +2807,24 @@ class Handler(BaseHTTPRequestHandler):
                 metrics = getattr(app, "cache_metrics", None)
                 if metrics is not None:
                     metrics["tile_lru_hits"] += 1
+                extra_headers = {
+                    "X-ERCOT-Cache": "HIT",
+                    "X-ERCOT-Cache-Class": category,
+                }
+                if category == "sealed":
+                    content_version = persist_tile_resource(get_db(), identity, cached)
+                    extra_headers.update(
+                        {
+                            "Content-Location": tile_resource_url(identity, content_version),
+                            "X-ERCOT-Content-Version": content_version,
+                        }
+                    )
                 self._send_json(
                     200,
                     cached,
                     cache_control=cache_control,
                     etag=True,
-                    extra_headers={
-                        "X-ERCOT-Cache": "HIT",
-                        "X-ERCOT-Cache-Class": category,
-                    },
+                    extra_headers=extra_headers,
                 )
                 return
 
@@ -2681,6 +2838,8 @@ class Handler(BaseHTTPRequestHandler):
                 payload_out, dependencies, ranges = self._generate_tile(
                     definition, tile_span, tile_start, lod
                 )
+                if category == "sealed":
+                    persist_tile_resource(get_db(), identity, payload_out)
                 stored = app.cache.set_if_generation(
                     cache_key,
                     payload_out,
@@ -2721,17 +2880,26 @@ class Handler(BaseHTTPRequestHandler):
                     metrics["tile_singleflight_waits"] += 1
                 if not generated:
                     metrics["tile_lru_race_hits"] += 1
+            extra_headers = {
+                "X-ERCOT-Cache": "MISS" if generated else "HIT",
+                "X-ERCOT-Cache-Class": category,
+                "X-ERCOT-Singleflight": "SHARED" if shared else "LEADER",
+                "X-ERCOT-Cache-Store": "STORED" if stored else "SKIPPED_RACE",
+            }
+            if category == "sealed":
+                content_version = persist_tile_resource(get_db(), identity, payload_out)
+                extra_headers.update(
+                    {
+                        "Content-Location": tile_resource_url(identity, content_version),
+                        "X-ERCOT-Content-Version": content_version,
+                    }
+                )
             self._send_json(
                 200,
                 payload_out,
                 cache_control=cache_control,
                 etag=True,
-                extra_headers={
-                    "X-ERCOT-Cache": "MISS" if generated else "HIT",
-                    "X-ERCOT-Cache-Class": category,
-                    "X-ERCOT-Singleflight": "SHARED" if shared else "LEADER",
-                    "X-ERCOT-Cache-Store": "STORED" if stored else "SKIPPED_RACE",
-                },
+                extra_headers=extra_headers,
             )
             return
         if parsed.path.startswith("/api/v2/tiles/"):
@@ -2797,8 +2965,8 @@ class Handler(BaseHTTPRequestHandler):
             current = now_ts()
             if end <= current - SEALED_HISTORY_AGE_SECONDS:
                 category = "sealed"
-                ttl_seconds = SEALED_CACHE_TTL_SECONDS
-                cache_control = "public, max-age=3600, s-maxage=86400, immutable"
+                ttl_seconds = min(SEALED_CACHE_TTL_SECONDS, 300)
+                cache_control = "public, max-age=60, s-maxage=300, must-revalidate"
             elif end <= current - 300:
                 category = "recent"
                 ttl_seconds = RECENT_CACHE_TTL_SECONDS

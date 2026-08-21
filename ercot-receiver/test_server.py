@@ -1564,7 +1564,8 @@ class HttpQueryBoundsTests(unittest.TestCase):
             }.issubset(keys)
         )
         self.assertNotIn("series_id", json.dumps(payload))
-        self.assertIn("immutable", headers["Cache-Control"])
+        self.assertNotIn("immutable", headers["Cache-Control"])
+        self.assertIn("must-revalidate", headers["Cache-Control"])
         self.assertTrue(headers["ETag"].startswith('"'))
 
         not_modified, repeat_headers = self.invoke(
@@ -1748,6 +1749,61 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(regenerated_raw, first_raw)
         self.assertEqual(regenerated_headers["ETag"], first_headers["ETag"])
         self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+
+    def test_v2_sealed_correction_mints_new_version_and_preserves_old_bytes(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        points = [{"timestamp": 90_000, "value": 42, "dedupe_key": "version:90000"}]
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+
+        initial, initial_headers, initial_raw = self.invoke("GET", path, return_raw=True)
+        initial_resource = initial_headers["Content-Location"]
+        initial_version = initial_headers["X-ERCOT-Content-Version"]
+        old_payload, old_headers, old_raw = self.invoke(
+            "GET", initial_resource, return_raw=True
+        )
+
+        self.assertEqual(old_payload, initial)
+        self.assertEqual(old_raw, initial_raw)
+        self.assertEqual(old_headers["X-ERCOT-Content-Version"], initial_version)
+        self.assertIn("immutable", old_headers["Cache-Control"])
+        self.assertNotIn("immutable", initial_headers["Cache-Control"])
+
+        points[0]["value"] = 43
+        correction = self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.app.cache.invalidate_changes(correction["changes"])
+        corrected, corrected_headers, corrected_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+
+        self.assertNotEqual(corrected_raw, initial_raw)
+        self.assertNotEqual(
+            corrected_headers["X-ERCOT-Content-Version"], initial_version
+        )
+        self.assertNotEqual(corrected_headers["Content-Location"], initial_resource)
+        replay_old, replay_old_headers, replay_old_raw = self.invoke(
+            "GET", initial_resource, return_raw=True
+        )
+        self.assertEqual(replay_old, initial)
+        self.assertEqual(replay_old_raw, initial_raw)
+        self.assertEqual(replay_old_headers["ETag"], old_headers["ETag"])
+
+        unchanged = self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.assertEqual(unchanged["unchanged"], 1)
+        repeated, repeated_headers, repeated_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+        self.assertEqual(repeated, corrected)
+        self.assertEqual(repeated_raw, corrected_raw)
+        self.assertEqual(
+            repeated_headers["X-ERCOT-Content-Version"],
+            corrected_headers["X-ERCOT-Content-Version"],
+        )
 
     def test_v2_incomplete_backfill_is_503_and_not_cached(self):
         conn = sqlite3.connect(server.DB_PATH)
@@ -2190,7 +2246,8 @@ class HttpQueryBoundsTests(unittest.TestCase):
         payload, headers = self.invoke("GET", path)
         self.assertEqual(payload["points"], [[90000, 42.0]])
         self.assertTrue(headers["ETag"].startswith('"'))
-        self.assertIn("immutable", headers["Cache-Control"])
+        self.assertNotIn("immutable", headers["Cache-Control"])
+        self.assertIn("must-revalidate", headers["Cache-Control"])
         self.assertEqual(headers["X-ERCOT-Cache"], "MISS")
 
         payload_304, repeat_headers = self.invoke(
