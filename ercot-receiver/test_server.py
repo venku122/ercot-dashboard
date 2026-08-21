@@ -97,6 +97,28 @@ class QueryTests(unittest.TestCase):
         self.assertIn(("idx_metrics_name_ts_value_id",), rows)
         self.assertIn(("idx_metrics_series_ts_id_value",), rows)
         self.assertIn(("idx_metrics_unbackfilled_name",), rows)
+
+    def test_normalized_series_readiness_is_explicit_and_public_safe(self):
+        self.insert_metric("ercot.readiness", 100, 1.0, ["source:fixture"])
+        pending = server.normalized_series_readiness(self.conn)
+        self.assertEqual(
+            {
+                "ready": False,
+                "unassigned_rows": 1,
+                "blocked_tile_series": [],
+            },
+            pending,
+        )
+        self.assertNotIn("series_id", json.dumps(pending))
+        self.assertEqual(1, server.backfill_metric_series(self.conn))
+        self.assertEqual(
+            {
+                "ready": True,
+                "unassigned_rows": 0,
+                "blocked_tile_series": [],
+            },
+            server.normalized_series_readiness(self.conn),
+        )
         hot_index_sql = self.conn.execute(
             """
             SELECT sql FROM sqlite_master

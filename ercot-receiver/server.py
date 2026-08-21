@@ -217,6 +217,42 @@ def audit_metric_tag_drift(conn: sqlite3.Connection, *, limit: int = 100):
     return drift
 
 
+def normalized_series_readiness(conn: sqlite3.Connection):
+    """Return bounded public-safe readiness without exposing internal IDs."""
+    unassigned = int(
+        conn.execute(
+            "SELECT COUNT(*) FROM metrics WHERE series_id IS NULL"
+        ).fetchone()[0]
+    )
+    blocked = []
+    payload_builder = globals().get("tile_catalog_payload")
+    if callable(payload_builder):
+        required_metrics = sorted(
+            {
+                selector["metric"]
+                for entry in payload_builder().get("series", [])
+                if isinstance(entry, dict)
+                and isinstance((selector := entry.get("selector")), dict)
+                and isinstance(selector.get("metric"), str)
+            }
+        )
+        for metric in required_metrics:
+            count = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM metrics "
+                    "WHERE metric_name=? AND series_id IS NULL",
+                    (metric,),
+                ).fetchone()[0]
+            )
+            if count:
+                blocked.append({"metric": metric, "unassigned_rows": count})
+    return {
+        "ready": unassigned == 0 and not blocked,
+        "unassigned_rows": unassigned,
+        "blocked_tile_series": blocked,
+    }
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
@@ -2285,6 +2321,7 @@ class Handler(BaseHTTPRequestHandler):
                 200,
                 {
                     "rows": total,
+                    "normalized_series": normalized_series_readiness(conn),
                     "cache": self._app_server().cache.stats(),
                     "cache_metrics": dict(
                         getattr(self._app_server(), "cache_metrics", {})

@@ -33,6 +33,11 @@ The receiver retains `metrics.metric_name`, `metrics.tags`, and `metric_tags` wh
 
 Large databases may require multiple restarts or an operator-controlled call to `backfill_metric_series` before normalized reads become authoritative. Keep the old compatibility columns and indexes until the parity report in `docs/ercot-series-identity.md` has been reviewed. The internal integer ID is not part of any public API or cache identity.
 
+Production migration is instead performed on a coherent offline working copy with
+`scripts/series_migration.py`; see `docs/OFFLINE_SERIES_MIGRATION.md`. `/api/status` exposes
+`normalized_series.ready`, the unassigned-row count, and blocked tile metrics so bounded startup
+compatibility work cannot be mistaken for completed v2 readiness.
+
 ## Ingest
 
 POST metrics to `http://localhost:8080/api/ingest` with a JSON array of:
