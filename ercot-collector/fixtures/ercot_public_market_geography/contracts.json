@@ -1,0 +1,69 @@
+{
+  "limits": {
+    "list_bytes": 4194304,
+    "list_candidates": 5000,
+    "zip_bytes": 2097152,
+    "csv_bytes": 8388608,
+    "publications_per_product_run": 48
+  },
+  "products": {
+    "NP6-788-CD": {
+      "report_type_id": "12300",
+      "source_id": "ercot_mis_np6_788",
+      "header": ["SCEDTimestamp", "RepeatedHourFlag", "SettlementPoint", "LMP"],
+      "header_sha256": "2ab04e739fba30bc2ee527b4927af212669c8932056745ddfe3bdad29e80ce9c",
+      "maximum_rows": 5000,
+      "unit": "$/MWh"
+    },
+    "NP6-905-CD": {
+      "report_type_id": "12301",
+      "source_id": "ercot_mis_np6_905",
+      "header": [
+        "DeliveryDate",
+        "DeliveryHour",
+        "DeliveryInterval",
+        "SettlementPointName",
+        "SettlementPointType",
+        "SettlementPointPrice",
+        "DSTFlag"
+      ],
+      "header_sha256": "4e6f1ec046967794271f9fd4c2f880b0382f561502c24e0f883aa0be0cc21974",
+      "maximum_rows": 5000,
+      "unit": "$/MWh"
+    },
+    "NP6-86-CD": {
+      "report_type_id": "12302",
+      "source_id": "ercot_mis_np6_86",
+      "header": [
+        "SCEDTimeStamp",
+        "RepeatedHourFlag",
+        "ConstraintID",
+        "ConstraintName",
+        "ContingencyName",
+        "ShadowPrice",
+        "MaxShadowPrice",
+        "Limit",
+        "Value",
+        "ViolatedMW",
+        "FromStation",
+        "ToStation",
+        "FromStationkV",
+        "ToStationkV",
+        "CCTStatus"
+      ],
+      "header_sha256": "732f368c6be8e87cb0806a57c5ac510b4944011ea22c72bf354de0c48bd89ee7",
+      "maximum_rows": 10000,
+      "units": {
+        "ShadowPrice": "$/MWh",
+        "MaxShadowPrice": "$/MWh",
+        "Limit": "MW",
+        "Value": "MW",
+        "ViolatedMW": "MW",
+        "FromStationkV": "kV",
+        "ToStationkV": "kV"
+      }
+    }
+  },
+  "attribution_policy": "coincident_constraint_not_point_price_attribution",
+  "attribution_status": "unavailable_without_shift_factors"
+}

@@ -137,6 +137,118 @@
   white-space: nowrap;
 }
 
+.market-geography-panel {
+  display: grid;
+  gap: 1rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.market-geography-panel > *,
+.market-geography-panel section {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.market-geography-panel button {
+  min-height: 44px;
+}
+
+.market-geography-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.market-geography-tabs button,
+.market-price-matrix button,
+.market-constraint-list button {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.72);
+  color: inherit;
+}
+
+.market-geography-tabs button[aria-pressed="true"],
+.market-price-matrix button[aria-pressed="true"],
+.market-constraint-list button[aria-pressed="true"] {
+  border-color: #7dd3fc;
+  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.2);
+}
+
+.market-price-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.6rem;
+}
+
+.market-price-matrix button,
+.market-constraint-list button {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.market-price-matrix button.is-lower {
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.38), rgba(15, 23, 42, 0.82));
+}
+
+.market-price-matrix button.is-higher {
+  background: linear-gradient(135deg, rgba(194, 65, 12, 0.38), rgba(15, 23, 42, 0.82));
+}
+
+.market-price-matrix button.is-neutral {
+  background: rgba(51, 65, 85, 0.55);
+}
+
+.market-price-matrix small,
+.market-constraint-list small,
+.market-heat-legend {
+  color: var(--muted);
+}
+
+.market-constraint-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0.65rem;
+}
+
+.market-geography-profile {
+  display: block;
+  width: 100%;
+  height: clamp(8rem, 24vw, 15rem);
+}
+
+.market-geography-panel .table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.market-geography-panel .table-scroll table {
+  min-width: 48rem;
+}
+
+.market-geography-panel .table-scroll th,
+.market-geography-panel .table-scroll td {
+  padding: 0.55rem 0.75rem;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .market-price-matrix {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .market-constraint-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 .regional-current-table {
   min-width: 48rem;
 }
