@@ -250,7 +250,7 @@ function parseSheet(xml: string, strings: readonly string[]): Sheet {
       if (!column || cells.has(column)) throw new Error("long_horizon_xlsx_cell");
       const body = cellMatch[2] ?? "";
       const type = /(?:^|\s)t="([^"]+)"/.exec(cellMatch[1]!)?.[1];
-      if (/<f(?:\s|>)/.test(body) && type && type !== "n")
+      if (/<f(?:\s|>)/.test(body) && type && !["n", "str"].includes(type))
         throw new Error("long_horizon_xlsx_cell");
       let value: Cell;
       if (type === "inlineStr")
@@ -265,6 +265,9 @@ function parseSheet(xml: string, strings: readonly string[]): Sheet {
           if (!Number.isInteger(i) || strings[i] === undefined)
             throw new Error("long_horizon_xlsx_string");
           value = strings[i]!;
+        } else if (type === "str") {
+          value = xmlText(raw);
+          if (value.length > 10_000) throw new Error("long_horizon_xlsx_string");
         } else {
           const n = Number(raw);
           if (!Number.isFinite(n)) throw new Error("long_horizon_xlsx_number");

@@ -113,6 +113,11 @@ const GridEventTimeline = lazy(() =>
 const TexasGridView = lazy(() =>
   import("./dashboard/TexasGridView").then((module) => ({ default: module.TexasGridView })),
 );
+const ExternalContextView = lazy(() =>
+  import("./dashboard/ExternalContextView").then((module) => ({
+    default: module.ExternalContextView,
+  })),
+);
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -678,7 +683,7 @@ export function App() {
     statusEvents,
     trendBaselines,
   } = useOverviewData({
-    enabled: selectedView !== "outlook",
+    enabled: !["outlook", "texas-grid", "external-context"].includes(selectedView),
     eventsEnabled: state.events,
     overviewQueries,
     time: state.time,
@@ -1138,12 +1143,15 @@ export function App() {
         </div>
         {state.time.mode === "fixed" ||
         selectedView === "outlook" ||
-        selectedView === "texas-grid" ? null : (
+        selectedView === "texas-grid" ||
+        selectedView === "external-context" ? null : (
           <p className="freshness-state" data-mode={state.time.mode}>
             {freshnessLabel}
           </p>
         )}
-        {selectedView === "outlook" || selectedView === "texas-grid" ? null : (
+        {selectedView === "outlook" ||
+        selectedView === "texas-grid" ||
+        selectedView === "external-context" ? null : (
           <section
             aria-label="Global dashboard controls"
             className="control-bar compact-control-bar"
@@ -1409,6 +1417,12 @@ export function App() {
         {selectedView === "texas-grid" ? (
           <Suspense fallback={<DataLifecycleMessage state="loading" />}>
             <TexasGridView enabled={selectedView === "texas-grid"} />
+          </Suspense>
+        ) : null}
+
+        {selectedView === "external-context" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <ExternalContextView enabled={selectedView === "external-context"} />
           </Suspense>
         ) : null}
 
