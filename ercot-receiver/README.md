@@ -24,6 +24,19 @@ Environment variables:
 - `RATE_LIMIT_LATEST_RPM` (default `300`)
 - `RATE_LIMIT_STATUS_RPM` (default `120`)
 - `RATE_LIMIT_METRICS_RPM` (default `120`)
+- `SERIES_BACKFILL_BATCH_SIZE` (default `1000`, rows committed per normalized-series migration batch)
+- `SERIES_BACKFILL_MAX_BATCHES` (default `10`, bounded batches per startup; `0` disables automatic backfill)
+
+## Normalized series migration
+
+The receiver retains `metrics.metric_name`, `metrics.tags`, and `metric_tags` while it incrementally assigns the internal `metrics.series_id`. Each startup processes at most `SERIES_BACKFILL_BATCH_SIZE * SERIES_BACKFILL_MAX_BATCHES` legacy rows and commits every batch. If any row for a requested metric remains unassigned, reads for that metric use the legacy selector so partial migration cannot hide samples.
+
+Large databases may require multiple restarts or an operator-controlled call to `backfill_metric_series` before normalized reads become authoritative. Keep the old compatibility columns and indexes until the parity report in `docs/ercot-series-identity.md` has been reviewed. The internal integer ID is not part of any public API or cache identity.
+
+Production migration is instead performed on a coherent offline working copy with
+`scripts/series_migration.py`; see `docs/OFFLINE_SERIES_MIGRATION.md`. `/api/status` exposes
+`normalized_series.ready`, the unassigned-row count, and blocked tile metrics so bounded startup
+compatibility work cannot be mistaken for completed v2 readiness.
 
 ## Ingest
 
