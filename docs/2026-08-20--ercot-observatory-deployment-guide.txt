@@ -1,0 +1,150 @@
+ERCOT OBSERVATORY FUTURE DEPLOYMENT GUIDE
+Date: 2026-08-20
+Scope: PRs #33 through #55
+Status: operator runbook only; this campaign did not deploy or mutate production
+
+SAFETY BOUNDARY
+
+Do not use the repository docker-compose.yml as a Portainer payload. It names
+local build images. Start from the live Portainer stack definition and its
+complete Env array. Preserve unknown variables, volumes, networks, ports,
+restart policy, proxy integration, and remote-management paths. Use pinned
+receiver and collector image digests from the same reviewed revision,
+PullImage=true, and Prune=false.
+
+Never print or store secret values in logs, PR text, screenshots, source health,
+or this guide. EIA_API_KEY must be a real individual key; blank, whitespace, and
+DEMO_KEY intentionally make zero EIA requests.
+
+PHASE 0 - HUMAN AUTHORIZATION AND CAPTURE
+
+1. Approve the exact PR #55 SHA and CI run. Merge PRs #33 through #55 only in
+   stack order, resolving/restacking later PRs as required. Rerun the complete
+   final suite on the resulting main revision.
+2. Build receiver and collector images from that same revision. Record tag,
+   digest, and OCI revision for both. Retain the current production digests.
+3. Export from Portainer:
+   - stack ID/name and endpoint ID;
+   - current Compose/stack file;
+   - complete Env array from stack metadata, not only the file endpoint;
+   - image IDs/digests and restart counts;
+   - volume/network/port configuration.
+4. Capture read-only baseline evidence:
+   - production /api/status and representative v1 response bodies;
+   - source-health and newest data timestamps;
+   - database, WAL, and SHM sizes;
+   - free filesystem space;
+   - container health/restarts and reverse-proxy path;
+   - existing Cloudflare rule IDs/order without changing them.
+
+PHASE 1 - OFFLINE NORMALIZED-SERIES MIGRATION
+
+Do this in an approved maintenance window. Stop or disable every writer first.
+Never copy only the main file of an active WAL database.
+
+1. Obtain a coherent backup with SQLite's backup API or while the receiver is
+   stopped. Checksum it and preserve it as rollback input.
+2. Make a distinct migration working copy and a distinct migrated candidate.
+   Budget disk for all copies plus WAL growth.
+3. Read-only readiness:
+
+   PYTHONDONTWRITEBYTECODE=1 python3 scripts/series_migration.py status \
+     --database ./ercot-working-copy.db --batch-size 50000
+
+4. Resumable complete migration and verification:
+
+   PYTHONDONTWRITEBYTECODE=1 python3 scripts/series_migration.py migrate \
+     --database ./ercot-working-copy.db --batch-size 50000 --complete --verify
+
+5. Require integrity_check=ok, empty foreign_key_check, zero NULL series IDs,
+   unchanged legacy row/value digest, valid identity mappings, retained legacy
+   schema, covering normalized index, and reviewed runtime/space.
+6. With receiver stopped and collectors disabled, stage and atomically replace
+   the database. Start receiver only. Verify v1 parity, /api/status normalized
+   readiness, v2 catalog, canonical tile bytes/ETags, database health, and logs.
+7. On failure, stop receiver and atomically restore the coherent rollback copy
+   plus prior matching images. Do not delete additive tables as cleanup.
+
+PHASE 2 - RECEIVER AND COLLECTOR, ALL NEW FLAGS FALSE
+
+1. Update receiver first with the pinned image, complete Env, PullImage=true,
+   Prune=false. Keep all new opt-ins false.
+2. Verify receiver Docker health, schema startup, legacy v1 APIs, queryless new
+   manifests, v2 logical and content-version routes, 401 behavior, ETag/304, and
+   real-origin UI response bodies.
+3. Update collector with its matching pinned image and all opt-ins false.
+4. From inside the collector container verify:
+
+   GET http://127.0.0.1:9091/healthz
+
+   Require process_alive, supervisor_alive, healthy, fixed 19-runner registry,
+   expected disabled flags, no secrets/payloads, and no restart loop. No host port
+   should expose 9091.
+
+PHASE 3 - ENABLE ONE SOURCE FAMILY AT A TIME
+
+For every step, make one complete Env-preserving Portainer update. After each
+enablement require: collector local cycle start; upstream success/failure;
+receiver delivery success/failure; receiver source-health; publication/rows;
+source timestamp; public API; UI; DB growth; request volume; zero unexpected
+restart; and a tested disable/rollback path. Do not batch steps.
+
+1. ERCOT_FORECAST_INGEST_ENABLED
+2. ERCOT_RENEWABLE_INGEST_ENABLED
+3. ERCOT_REGIONAL_RENEWABLE_INGEST_ENABLED
+4. ERCOT_MARKET_MECHANICS_INGEST_ENABLED
+5. ERCOT_MARKET_GEOGRAPHY_INGEST_ENABLED
+6. NWS_WEATHER_INGEST_ENABLED with stable identifying User-Agent
+7. ERCOT_LONG_HORIZON_INGEST_ENABLED
+8. EXTERNAL_CONTEXT_INGEST_ENABLED for credential-free EPA eGRID
+9. With a reviewed non-DEMO EIA_API_KEY, validate then enable EIA-930 and Henry
+   Hub through the same external-context runner. Confirm the key appears only in
+   the outbound EIA query and nowhere in logs, errors, ingest, DB, or public API.
+
+EPA CAMD remains unavailable. Do not enable it.
+
+PHASE 4 - CONTROLLED HISTORICAL ESR IMPORT
+
+This is not a forever-live runner. Do not proceed until the separate ESR key and
+OAuth credentials can return a nonempty bounded pre-2025-12-05 sample, beginning
+with 2025-05-29 through 2025-05-30. Freeze the exact nonempty schema, ordering,
+DST identity, pagination, cadence/gaps, duplicates/corrections, units/sign, size,
+retention, LOD, and benchmark before importing. Current four-second ESR remains
+historical_only_discontinued. If the source gate still fails, leave it
+BLOCKED_EXTERNAL.
+
+PHASE 5 - CLOUDFLARE V2 CACHE PROMOTION
+
+Only after origin validation and separate authorization:
+
+1. Save current Cloudflare rule IDs/order and rollback payload.
+2. Add only the reviewed narrow v2 rule. Do not cache noncanonical paths.
+3. At the same PoP prove first request MISS, second HIT, expected Age, strong
+   ETag/304, corrected logical pointer behavior, and stable content-version URL.
+4. Prove invalid/queryful/alias paths are not accidentally cached.
+5. Roll back by saved rule ID/order if any invariant fails.
+
+PHASE 6 - FINAL PRODUCTION SMOKE
+
+Verify actual public response bodies, not only HTML or /api/status. Run desktop
+Chromium and iPhone/WebKit smoke checks; keyboard/focus, 44 px targets, no body
+overflow, internal scrolling for exact tables, URL reload/back-forward, and
+source-state copy. Record image digests/revisions, restart counts, timestamps,
+DB growth, collector health, and Cloudflare evidence.
+
+ROLLBACK
+
+1. Disable the affected new source first. If cross-cutting, stop collector.
+2. Restore both prior matching pinned image references and the saved complete Env
+   array with PullImage=true and Prune=false.
+3. Leave additive tables in place if ignored by the prior build.
+4. Restore the database only with receiver stopped and only from the coherent
+   checksum-verified backup; restore main/WAL state coherently.
+5. Reverify old-route freshness, public bodies, source health, image revisions,
+   restart counts, and desktop/mobile access through the real origin.
+
+CAMPAIGN BOUNDARY
+
+No command in this guide was executed against production by the remediation
+campaign. No PR was merged, no image deployed, no Portainer or production DB
+mutated, no collector enabled, and no Cloudflare rule changed.
