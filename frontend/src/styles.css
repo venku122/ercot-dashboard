@@ -2020,6 +2020,83 @@ main {
   white-space: nowrap;
 }
 
+.storage-context-replay-shell,
+.storage-context-replay,
+.storage-context-lane,
+.storage-context-lanes {
+  min-width: 0;
+}
+
+.storage-context-replay-shell,
+.storage-context-replay {
+  display: grid;
+  gap: 10px;
+}
+
+.storage-context-replay-toggle {
+  min-height: 44px;
+  justify-self: start;
+}
+
+.storage-context-replay {
+  max-width: 100%;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.storage-context-replay > header,
+.storage-context-replay > p,
+.storage-context-lane > h4,
+.storage-context-lane > p {
+  margin: 0;
+}
+
+.storage-context-replay > p,
+.storage-context-lane > p {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.storage-context-replay code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.storage-context-lanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 8px;
+}
+
+.storage-context-lane {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px;
+}
+
+.storage-context-lane svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  fill: #38bdf8;
+}
+
+.storage-context-table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.storage-context-table table {
+  min-width: 980px;
+}
+
 .chart-interpretation {
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: 10px;
