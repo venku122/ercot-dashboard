@@ -30,6 +30,12 @@ FUEL_CODES = ("BIO", "COA", "GAS", "GEO", "HYD", "NUC", "OIL", "OTH", "PET", "SO
 FUEL_LABELS = ("Biomass", "Coal", "Gas", "Geothermal", "Hydrogen", "Nuclear", "Fuel Oil", "Other", "Petcoke", "Solar", "Water", "Wind")
 SERIES = ("wind", "solar", "battery", "gas_combined_cycle", "gas_other")
 SERIES_LABELS = ("Wind", "Solar", "Battery", "Gas - Combined Cycle", "Gas - Other")
+STREAMS = ("gis", "resource_capacity_trend", "long_term_load_forecast")
+SOURCE_IDS = {
+    "gis": "ercot_gis_report",
+    "resource_capacity_trend": "ercot_resource_capacity_trend",
+    "long_term_load_forecast": "ercot_long_term_load_forecast",
+}
 
 
 def _canonical(value):
@@ -47,12 +53,12 @@ def _integer(value, minimum, maximum, error):
     return value
 
 
-def _number(value, nullable=False, signed=False):
+def _number(value, nullable=False, signed=False, maximum=10_000_000):
     if value is None and nullable:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError("invalid_texas_grid_number")
-    if abs(value) > 10_000_000 or (not signed and value < 0):
+    if abs(value) > maximum or (not signed and value < 0):
         raise ValueError("invalid_texas_grid_number")
     return 0.0 if value == 0 else float(value)
 
@@ -71,14 +77,18 @@ def _publication(value, stream, now):
     published = _integer(value["published_at"], 1, 4_102_444_800, "invalid_texas_grid_published_at")
     retrieved = _integer(value["retrieved_at"], published, now + 300, "invalid_texas_grid_retrieved_at")
     page = _source_url(value["source_page_url"])
-    expected_page = (
-        "https://www.ercot.com/mp/data-products/data-product-details?id=pg7-200-er"
-        if stream == "gis"
-        else "https://www.ercot.com/gridinfo/resource"
-    )
+    expected_page = {
+        "gis": "https://www.ercot.com/mp/data-products/data-product-details?id=pg7-200-er",
+        "resource_capacity_trend": "https://www.ercot.com/gridinfo/resource",
+        "long_term_load_forecast": "https://www.ercot.com/gridinfo/load/forecast/index.html",
+    }[stream]
     if page != expected_page:
         raise ValueError("invalid_texas_grid_source_url")
-    expected_kinds = ("gis",) if stream == "gis" else ("annual", "planned_monthly")
+    expected_kinds = {
+        "gis": ("gis",),
+        "resource_capacity_trend": ("annual", "planned_monthly"),
+        "long_term_load_forecast": ("monthly_forecast", "methodology_report"),
+    }[stream]
     workbooks = value["workbooks"]
     if not isinstance(workbooks, list) or len(workbooks) != len(expected_kinds):
         raise ValueError("invalid_texas_grid_workbooks")
@@ -109,6 +119,13 @@ def _publication(value, stream, now):
             if workbook_period != period:
                 raise ValueError("invalid_texas_grid_workbook")
             trend_url_parts.append(match[1])
+        if stream == "long_term_load_forecast":
+            expected_url = {
+                "monthly_forecast": "https://www.ercot.com/files/docs/2025/04/08/2025-ERCOT-Monthly-Peak-Demand-and-Energy-Forecast.xlsx",
+                "methodology_report": "https://www.ercot.com/files/docs/2025/04/08/2025_LTLF_Report.docx",
+            }[expected]
+            if source != expected_url or period != "2025-04":
+                raise ValueError("invalid_texas_grid_workbook")
         normalized.append({"kind": expected, "source_url": source, "sha256": workbook["sha256"]})
     if stream == "resource_capacity_trend" and len(set(trend_url_parts)) != 1:
         raise ValueError("invalid_texas_grid_workbook")
@@ -175,6 +192,74 @@ def _trend_resource(value):
     return {"unit": "MW", "series": normalized, "limits": limits}
 
 
+def _ltlf_resource(value):
+    _exact(
+        value,
+        (
+            "publication_status", "time_basis", "units", "unit_binding", "scenarios",
+            "large_load_methodology", "limits",
+        ),
+        "invalid_texas_grid_ltlf",
+    )
+    if (
+        value["publication_status"] != "official_published"
+        or value["time_basis"] != "calendar_month"
+        or value["units"] != {"monthly_peak": "MW", "monthly_energy": "MWh"}
+        or value["unit_binding"] != "official_report_appendix_a_mw_twh_monthly_sum_v1"
+        or value["limits"] != {"max_rows_per_scenario": 240}
+    ):
+        raise ValueError("invalid_texas_grid_ltlf")
+    methodology = value["large_load_methodology"]
+    _exact(
+        methodology,
+        ("scope", "tsp_provided", "ercot_adjusted", "current_process"),
+        "invalid_texas_grid_ltlf_methodology",
+    )
+    expected_methodology = {
+        "scope": "forecast_assumptions_not_project_status",
+        "tsp_provided": "contracts_and_officer_letter_tsp_ramp_schedules",
+        "ercot_adjusted": "tsp_forecast_with_documented_timing_and_realization_adjustments",
+        "current_process": "batch_zero_documents_published_no_public_project_status_dataset",
+    }
+    if methodology != expected_methodology:
+        raise ValueError("invalid_texas_grid_ltlf_methodology")
+    scenarios = value["scenarios"]
+    expected = (
+        ("ercot_adjusted", "ERCOT Adjusted Forecast"),
+        ("tsp_provided", "TSP Provided Forecast"),
+    )
+    if not isinstance(scenarios, list) or len(scenarios) != 2:
+        raise ValueError("invalid_texas_grid_ltlf")
+    normalized = []
+    for scenario, (scenario_id, label) in zip(scenarios, expected):
+        _exact(scenario, ("scenario_id", "label", "rows"), "invalid_texas_grid_ltlf_scenario")
+        rows = scenario["rows"]
+        if scenario["scenario_id"] != scenario_id or scenario["label"] != label or not isinstance(rows, list) or len(rows) != 240:
+            raise ValueError("invalid_texas_grid_ltlf_scenario")
+        parsed, previous = [], ""
+        for row in rows:
+            _exact(row, ("month", "monthly_peak_mw", "monthly_energy_mwh"), "invalid_texas_grid_ltlf_row")
+            month = row["month"]
+            if not isinstance(month, str) or not MONTH_RE.fullmatch(month) or month <= previous:
+                raise ValueError("invalid_texas_grid_ltlf_row")
+            previous = month
+            parsed.append({
+                "month": month,
+                "monthly_peak_mw": _number(row["monthly_peak_mw"]),
+                "monthly_energy_mwh": _number(row["monthly_energy_mwh"], maximum=1_000_000_000),
+            })
+        normalized.append({"scenario_id": scenario_id, "label": label, "rows": parsed})
+    return {
+        "publication_status": "official_published",
+        "time_basis": "calendar_month",
+        "units": {"monthly_peak": "MW", "monthly_energy": "MWh"},
+        "unit_binding": value["unit_binding"],
+        "scenarios": normalized,
+        "large_load_methodology": expected_methodology,
+        "limits": {"max_rows_per_scenario": 240},
+    }
+
+
 def init_texas_grid_schema(conn):
     conn.executescript("""
       CREATE TABLE IF NOT EXISTS texas_grid_resources(
@@ -204,21 +289,35 @@ def init_texas_grid_schema(conn):
 
 def ingest_texas_grid(conn, payload, current_ts):
     _exact(payload, ("schema", "kind", "stream", "publication", "resource"), "invalid_texas_grid_payload")
-    if payload["schema"] != 1 or payload["kind"] != KIND or payload["stream"] not in ("gis", "resource_capacity_trend"):
+    if payload["schema"] != 1 or payload["kind"] != KIND or payload["stream"] not in STREAMS:
         raise ValueError("invalid_texas_grid_payload")
     stream = payload["stream"]
     publication = _publication(payload["publication"], stream, current_ts)
-    body = _gis_resource(payload["resource"]) if stream == "gis" else _trend_resource(payload["resource"])
+    body = (
+        _gis_resource(payload["resource"])
+        if stream == "gis"
+        else _trend_resource(payload["resource"])
+        if stream == "resource_capacity_trend"
+        else _ltlf_resource(payload["resource"])
+    )
     workbooks = publication.pop("workbooks")
     if stream == "gis":
         immutable_publication = {**publication, "workbook_sha256": workbooks[0]["sha256"]}
-    else:
+    elif stream == "resource_capacity_trend":
         immutable_publication = {
             **publication,
             "annual_workbook_url": workbooks[0]["source_url"],
             "annual_workbook_sha256": workbooks[0]["sha256"],
             "planned_monthly_workbook_url": workbooks[1]["source_url"],
             "planned_monthly_workbook_sha256": workbooks[1]["sha256"],
+        }
+    else:
+        immutable_publication = {
+            **publication,
+            "monthly_forecast_url": workbooks[0]["source_url"],
+            "monthly_forecast_sha256": workbooks[0]["sha256"],
+            "methodology_report_url": workbooks[1]["source_url"],
+            "methodology_report_sha256": workbooks[1]["sha256"],
         }
     resource = {"schema": 1, "kind": KIND, "policy": POLICY, "stream": stream, "publication": immutable_publication, **body}
     encoded = _canonical(resource)
@@ -267,7 +366,7 @@ def _record_success(conn, stream, publication, version, now):
 
 
 def record_texas_grid_failure(conn, stream, error, now, materialization=False):
-    if stream not in ("gis", "resource_capacity_trend"):
+    if stream not in STREAMS:
         return "ignored_older"
     message = str(error)[:500]
     conn.execute("INSERT OR IGNORE INTO texas_grid_health(stream) VALUES(?)", (stream,))
@@ -289,7 +388,7 @@ def record_texas_grid_failure(conn, stream, error, now, materialization=False):
 
 def prune_texas_grid(conn, now):
     cutoff = now - 365 * 86_400
-    for stream in ("gis", "resource_capacity_trend"):
+    for stream in STREAMS:
         periods = [row[0] for row in conn.execute("SELECT DISTINCT source_period FROM texas_grid_resources WHERE stream=? ORDER BY source_period DESC", (stream,))]
         keep_periods = set(periods[:120])
         rows = conn.execute("SELECT content_version,source_period,published_at,retrieved_at,retired_at FROM texas_grid_resources WHERE stream=? ORDER BY source_period DESC,published_at DESC,retrieved_at DESC", (stream,)).fetchall()
@@ -301,7 +400,7 @@ def prune_texas_grid(conn, now):
 
 
 def texas_grid_resource(conn, stream, content_version):
-    if stream not in ("gis", "resource_capacity_trend") or not isinstance(content_version, str) or not CONTENT_RE.fullmatch(content_version):
+    if stream not in STREAMS or not isinstance(content_version, str) or not CONTENT_RE.fullmatch(content_version):
         raise ValueError("invalid_texas_grid_resource_key")
     row = conn.execute("SELECT payload_json FROM texas_grid_resources WHERE stream=? AND content_version=?", (stream, content_version)).fetchone()
     return None if row is None else json.loads(row[0])
@@ -310,14 +409,14 @@ def texas_grid_resource(conn, stream, content_version):
 def texas_grid_manifest(conn, now):
     selected = {}
     health = []
-    for stream in ("gis", "resource_capacity_trend"):
+    for stream in STREAMS:
         row = conn.execute("SELECT c.source_period,c.published_at,c.content_version,r.retrieved_at,r.payload_json FROM texas_grid_current c JOIN texas_grid_resources r ON r.content_version=c.content_version WHERE c.stream=?", (stream,)).fetchone()
         health_row = conn.execute("SELECT last_attempt_ts,last_success_ts,source_updated_at,retrieved_at,content_version,consecutive_failures,last_error,materialization_state,materialization_last_success_ts,materialization_consecutive_failures,materialization_last_error FROM texas_grid_health WHERE stream=?", (stream,)).fetchone()
         if row is None:
             failed = health_row is not None and health_row[5] > 0
             selected[stream] = {"state": "failed" if failed else "unavailable", "selected": None}
             values = health_row or (None, None, None, None, None, 0, None, "unavailable", None, 0, None)
-            health.append({"source_id": "ercot_gis_report" if stream == "gis" else "ercot_resource_capacity_trend", "state": "failed" if failed else "unavailable", "availability_status": "unavailable", "content_version": values[4], "last_attempt_ts": values[0], "last_success_ts": values[1], "source_updated_at": values[2], "retrieved_at": values[3], "cache_fresh_until": None if values[3] is None else values[3] + 45 * 86_400, "consecutive_failures": values[5], "last_error": values[6], "materialization": {"state": values[7], "last_success_ts": values[8], "consecutive_failures": values[9], "last_error": values[10]}})
+            health.append({"source_id": SOURCE_IDS[stream], "state": "failed" if failed else "unavailable", "availability_status": "unavailable", "content_version": values[4], "last_attempt_ts": values[0], "last_success_ts": values[1], "source_updated_at": values[2], "retrieved_at": values[3], "cache_fresh_until": None if values[3] is None else values[3] + 45 * 86_400, "consecutive_failures": values[5], "last_error": values[6], "materialization": {"state": values[7], "last_success_ts": values[8], "consecutive_failures": values[9], "last_error": values[10]}})
             continue
         resource = json.loads(row[4])
         item = {"source_period": row[0], "published_at": row[1], "retrieved_at": row[3], "content_version": row[2], "url": f"/api/v2/texas-grid/{stream}/v1/{row[2]}", "source_page_url": resource["publication"]["source_page_url"]}
@@ -326,5 +425,5 @@ def texas_grid_manifest(conn, now):
         selected[stream] = {"state": state, "selected": item}
         values = health_row or (row[3], row[3], row[1], row[3], row[2], 0, None, "healthy", row[3], 0, None)
         health_state = "failed" if values[5] else ("healthy" if state == "available" else "stale")
-        health.append({"source_id": "ercot_gis_report" if stream == "gis" else "ercot_resource_capacity_trend", "state": health_state, "availability_status": "available", "content_version": row[2], "last_attempt_ts": values[0], "last_success_ts": values[1], "source_updated_at": values[2], "retrieved_at": values[3], "cache_fresh_until": fresh_until, "consecutive_failures": values[5], "last_error": values[6], "materialization": {"state": values[7], "last_success_ts": values[8], "consecutive_failures": values[9], "last_error": values[10]}})
-    return {"schema": 1, "kind": KIND, "policy": POLICY, "generated_at": now, "generator_interconnection": selected["gis"], "resource_capacity_trend": selected["resource_capacity_trend"], "long_term_load_forecast": {"state": "unavailable", "reason": "units_not_authoritatively_frozen"}, "large_load": {"state": "unavailable", "reason": "no_stable_public_machine_readable_status_source"}, "retirements": {"state": "unavailable", "reason": "no_verified_gross_retirement_source"}, "source_health": health}
+        health.append({"source_id": SOURCE_IDS[stream], "state": health_state, "availability_status": "available", "content_version": row[2], "last_attempt_ts": values[0], "last_success_ts": values[1], "source_updated_at": values[2], "retrieved_at": values[3], "cache_fresh_until": fresh_until, "consecutive_failures": values[5], "last_error": values[6], "materialization": {"state": values[7], "last_success_ts": values[8], "consecutive_failures": values[9], "last_error": values[10]}})
+    return {"schema": 1, "kind": KIND, "policy": POLICY, "generated_at": now, "generator_interconnection": selected["gis"], "resource_capacity_trend": selected["resource_capacity_trend"], "long_term_load_forecast": selected["long_term_load_forecast"], "large_load": {"state": "available_context" if selected["long_term_load_forecast"]["selected"] else "unavailable", "scope": "forecast_methodology_not_project_status", "reason": None if selected["long_term_load_forecast"]["selected"] else "no_stable_public_machine_readable_status_source"}, "retirements": {"state": "unavailable", "reason": "no_verified_gross_retirement_source"}, "source_health": health}

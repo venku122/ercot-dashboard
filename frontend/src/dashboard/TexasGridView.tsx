@@ -5,13 +5,18 @@ import { Button } from "../components/ui/button";
 import { useTexasGridManifest, useTexasGridResource } from "./data-hooks";
 import type {
   TexasGridGisResource,
+  TexasGridLtlfResource,
   TexasGridResource,
   TexasGridStream,
   TexasGridTrendResource,
 } from "./texas-grid-long-horizon";
 
 const STREAM_PARAM = "grid_resource";
-const STREAMS = new Set<TexasGridStream>(["gis", "resource_capacity_trend"]);
+const STREAMS = new Set<TexasGridStream>([
+  "gis",
+  "resource_capacity_trend",
+  "long_term_load_forecast",
+]);
 
 function streamFromUrl(): TexasGridStream | null {
   const value = new URL(window.location.href).searchParams.get(STREAM_PARAM) as TexasGridStream;
@@ -203,12 +208,76 @@ function TrendEvidence({ resource }: { resource: TexasGridTrendResource }) {
   );
 }
 
-function ResourceEvidence({ resource }: { resource: TexasGridResource }) {
-  return resource.stream === "gis" ? (
-    <GisEvidence resource={resource} />
-  ) : (
-    <TrendEvidence resource={resource} />
+function LtlfEvidence({ resource }: { resource: TexasGridLtlfResource }) {
+  const [scenarioId, setScenarioId] =
+    useState<TexasGridLtlfResource["scenarios"][number]["scenario_id"]>("ercot_adjusted");
+  const scenario = resource.scenarios.find((item) => item.scenario_id === scenarioId)!;
+  return (
+    <section aria-labelledby="texas-grid-ltlf-title" className="texas-grid-resource">
+      <header>
+        <div>
+          <p className="eyebrow">Official ERCOT long-term forecast</p>
+          <h3 id="texas-grid-ltlf-title">Monthly peak demand and energy forecast</h3>
+          <p>
+            Calendar-month peak values are MW and energy values are MWh. The units are bound to
+            Appendix A of the official methodology report. These scenarios include documented
+            large-load assumptions; they are forecasts, not public project status records or
+            realization guarantees.
+          </p>
+        </div>
+        <a href={resource.publication.source_page_url} rel="noreferrer" target="_blank">
+          Open official forecast source
+        </a>
+      </header>
+      <p>
+        Source period {resource.publication.source_period} · published{" "}
+        {timestamp(resource.publication.published_at)}
+      </p>
+      <div aria-label="Long-term load forecast scenario" className="texas-grid-series-picker">
+        {resource.scenarios.map((item) => (
+          <button
+            aria-pressed={scenarioId === item.scenario_id}
+            key={item.scenario_id}
+            onClick={() => setScenarioId(item.scenario_id)}
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div
+        aria-label={`${scenario.label} exact long-term load forecast evidence`}
+        className="table-scroll texas-grid-table"
+        role="region"
+        tabIndex={0}
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Monthly peak</th>
+              <th>Monthly energy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenario.rows.map((row) => (
+              <tr key={row.month}>
+                <td>{row.month}</td>
+                <td>{mw(row.monthly_peak_mw)}</td>
+                <td>{row.monthly_energy_mwh.toLocaleString("en-US")} MWh</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
+}
+
+function ResourceEvidence({ resource }: { resource: TexasGridResource }) {
+  if (resource.stream === "gis") return <GisEvidence resource={resource} />;
+  if (resource.stream === "long_term_load_forecast") return <LtlfEvidence resource={resource} />;
+  return <TrendEvidence resource={resource} />;
 }
 
 export function TexasGridView({ enabled }: { enabled: boolean }) {
@@ -219,7 +288,9 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
       ? (manifest.data?.generator_interconnection.selected ?? null)
       : selectedStream === "resource_capacity_trend"
         ? (manifest.data?.resource_capacity_trend.selected ?? null)
-        : null;
+        : selectedStream === "long_term_load_forecast"
+          ? (manifest.data?.long_term_load_forecast.selected ?? null)
+          : null;
   const resource = useTexasGridResource(enabled && selectedStream !== null, selectedResource);
 
   useEffect(() => {
@@ -292,21 +363,35 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
                   : "Open capacity history"}
               </Button>
             </article>
+            <article>
+              <span>{manifest.data.long_term_load_forecast.state}</span>
+              <h3>Long-term load forecast</h3>
+              <p>Official monthly peak MW and energy MWh for two documented forecast scenarios.</p>
+              <Button
+                aria-pressed={selectedStream === "long_term_load_forecast"}
+                disabled={!manifest.data.long_term_load_forecast.selected}
+                onClick={() =>
+                  choose(
+                    selectedStream === "long_term_load_forecast" ? null : "long_term_load_forecast",
+                  )
+                }
+              >
+                {selectedStream === "long_term_load_forecast"
+                  ? "Close load forecast"
+                  : "Open load forecast"}
+              </Button>
+            </article>
           </div>
 
           <section aria-labelledby="texas-grid-unavailable-title">
             <h3 id="texas-grid-unavailable-title">Evidence not yet supported</h3>
             <div className="texas-grid-unavailable-grid">
               <article>
-                <strong>Long-term load forecast</strong>
+                <strong>Large-load project status</strong>
                 <span>
-                  Unavailable: units are not authoritatively frozen in the machine-readable source.
-                </span>
-              </article>
-              <article>
-                <strong>Large-load categories and status</strong>
-                <span>
-                  Unavailable: no stable public machine-readable status source is verified.
+                  Forecast methodology context is available in the LTLF evidence. Individual project
+                  categories and status remain unavailable because no stable public machine-readable
+                  status dataset is verified.
                 </span>
               </article>
               <article>

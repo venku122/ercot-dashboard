@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TexasGridView } from "./TexasGridView";
 import {
   texasGridGisFixture,
+  texasGridLtlfFixture,
   texasGridManifestFixture,
   texasGridTrendFixture,
 } from "./texas-grid-long-horizon-acceptance.test";
@@ -39,7 +40,11 @@ vi.mock("./api", async (importOriginal) => ({
 
 function resourceFor(selected: TexasGridSelectedResource): TexasGridResource {
   return parseTexasGridResource(
-    selected.url.includes("/gis/") ? texasGridGisFixture() : texasGridTrendFixture(),
+    selected.url.includes("/gis/")
+      ? texasGridGisFixture()
+      : selected.url.includes("/long_term_load_forecast/")
+        ? texasGridLtlfFixture()
+        : texasGridTrendFixture(),
     selected,
   );
 }
@@ -105,7 +110,8 @@ describe("PR21 Texas Grid browser lifecycle acceptance", () => {
     expect(mocks.loadTexasGridManifest.mock.calls[0]![0]).toBeInstanceOf(AbortSignal);
     expect(mocks.loadTexasGridResource).not.toHaveBeenCalled();
     expect(container.textContent).toContain("Long-term load forecast");
-    expect(container.textContent).toContain("Unavailable: units are not authoritatively frozen");
+    expect(container.textContent).toContain("Long-term load forecast");
+    expect(container.textContent).toContain("Forecast methodology context is available");
 
     click(container, "Open interconnection history");
     await flush();

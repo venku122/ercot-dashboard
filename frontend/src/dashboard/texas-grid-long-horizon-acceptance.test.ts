@@ -15,6 +15,7 @@ const RETRIEVED = PUBLISHED + 600;
 const GENERATED = RETRIEVED + 60;
 const GIS_PAGE = "https://www.ercot.com/mp/data-products/data-product-details?id=pg7-200-er";
 const TREND_PAGE = "https://www.ercot.com/gridinfo/resource";
+const LTLF_PAGE = "https://www.ercot.com/gridinfo/load/forecast/index.html";
 
 const PHASES = [
   ["ss_started_fis_not_started_no_ia", "SS Started, FIS Not Started, No IA"],
@@ -45,18 +46,23 @@ const FUELS = [
   ["WIN", "Wind"],
 ].map(([code, label]) => ({ code, label }));
 
-function selected(stream: "gis" | "resource_capacity_trend"): TexasGridSelectedResource {
+function selected(
+  stream: "gis" | "resource_capacity_trend" | "long_term_load_forecast",
+): TexasGridSelectedResource {
   return {
-    source_period: "2026-07",
+    source_period: stream === "long_term_load_forecast" ? "2025-04" : "2026-07",
     published_at: PUBLISHED,
     retrieved_at: RETRIEVED,
     content_version: VERSION,
     url: `/api/v2/texas-grid/${stream}/v1/${VERSION}`,
-    source_page_url: stream === "gis" ? GIS_PAGE : TREND_PAGE,
+    source_page_url:
+      stream === "gis" ? GIS_PAGE : stream === "long_term_load_forecast" ? LTLF_PAGE : TREND_PAGE,
   };
 }
 
-function health(source_id: "ercot_gis_report" | "ercot_resource_capacity_trend") {
+function health(
+  source_id: "ercot_gis_report" | "ercot_resource_capacity_trend" | "ercot_long_term_load_forecast",
+) {
   return {
     source_id,
     state: "healthy" as const,
@@ -90,15 +96,20 @@ export function texasGridManifestFixture(): TexasGridManifest {
       selected: selected("resource_capacity_trend"),
     },
     long_term_load_forecast: {
-      state: "unavailable",
-      reason: "units_not_authoritatively_frozen",
+      state: "available",
+      selected: selected("long_term_load_forecast"),
     },
     large_load: {
-      state: "unavailable",
-      reason: "no_stable_public_machine_readable_status_source",
+      state: "available_context",
+      scope: "forecast_methodology_not_project_status",
+      reason: null,
     },
     retirements: { state: "unavailable", reason: "no_verified_gross_retirement_source" },
-    source_health: [health("ercot_gis_report"), health("ercot_resource_capacity_trend")],
+    source_health: [
+      health("ercot_gis_report"),
+      health("ercot_resource_capacity_trend"),
+      health("ercot_long_term_load_forecast"),
+    ],
   };
 }
 
@@ -179,12 +190,56 @@ export function texasGridTrendFixture() {
   };
 }
 
+export function texasGridLtlfFixture() {
+  const rows = Array.from({ length: 240 }, (_, index) => {
+    const year = 2025 + Math.floor(index / 12);
+    const month = String((index % 12) + 1).padStart(2, "0");
+    return {
+      month: `${year}-${month}`,
+      monthly_peak_mw: 90_000 + index,
+      monthly_energy_mwh: 50_000_000 + index * 1_000,
+    };
+  });
+  return {
+    schema: 1,
+    kind: "texas_grid_long_horizon",
+    policy: TEXAS_GRID_POLICY,
+    stream: "long_term_load_forecast",
+    publication: {
+      source_period: "2025-04",
+      published_at: PUBLISHED,
+      retrieved_at: RETRIEVED,
+      source_page_url: LTLF_PAGE,
+      monthly_forecast_url:
+        "https://www.ercot.com/files/docs/2025/04/08/2025-ERCOT-Monthly-Peak-Demand-and-Energy-Forecast.xlsx",
+      monthly_forecast_sha256: HASH,
+      methodology_report_url: "https://www.ercot.com/files/docs/2025/04/08/2025_LTLF_Report.docx",
+      methodology_report_sha256: HASH,
+    },
+    publication_status: "official_published",
+    time_basis: "calendar_month",
+    units: { monthly_peak: "MW", monthly_energy: "MWh" },
+    unit_binding: "official_report_appendix_a_mw_twh_monthly_sum_v1",
+    scenarios: [
+      { scenario_id: "ercot_adjusted", label: "ERCOT Adjusted Forecast", rows },
+      { scenario_id: "tsp_provided", label: "TSP Provided Forecast", rows },
+    ],
+    large_load_methodology: {
+      scope: "forecast_assumptions_not_project_status",
+      tsp_provided: "contracts_and_officer_letter_tsp_ramp_schedules",
+      ercot_adjusted: "tsp_forecast_with_documented_timing_and_realization_adjustments",
+      current_process: "batch_zero_documents_published_no_public_project_status_dataset",
+    },
+    limits: { max_rows_per_scenario: 240 },
+  };
+}
+
 describe("PR21 Texas Grid strict frontend contract", () => {
-  it("accepts the exact manifest and preserves unavailable evidence as unavailable", () => {
+  it("accepts the exact manifest and preserves independent evidence states", () => {
     const result = parseTexasGridManifest(texasGridManifestFixture());
     expect(result.generator_interconnection.selected?.url).toContain("/gis/");
-    expect(result.long_term_load_forecast.reason).toBe("units_not_authoritatively_frozen");
-    expect(result.large_load.state).toBe("unavailable");
+    expect(result.long_term_load_forecast.selected?.url).toContain("/long_term_load_forecast/");
+    expect(result.large_load.state).toBe("available_context");
     expect(result.retirements.state).toBe("unavailable");
   });
 
@@ -243,6 +298,23 @@ describe("PR21 Texas Grid strict frontend contract", () => {
     mismatch.series[0]!.annual[0]!.official_total_mw += 1;
     expect(() => parseTexasGridResource(mismatch, selected("resource_capacity_trend"))).toThrow(
       "invalid_texas_grid_trend_annual",
+    );
+  });
+
+  it("binds long-term forecast units to the official methodology and preserves scenarios", () => {
+    const resource = parseTexasGridResource(
+      texasGridLtlfFixture(),
+      selected("long_term_load_forecast"),
+    );
+    expect(resource.stream).toBe("long_term_load_forecast");
+    if (resource.stream === "long_term_load_forecast") {
+      expect(resource.scenarios[0]?.rows).toHaveLength(240);
+      expect(resource.units).toEqual({ monthly_peak: "MW", monthly_energy: "MWh" });
+    }
+    const poisoned = structuredClone(texasGridLtlfFixture());
+    poisoned.units.monthly_energy = "TWh";
+    expect(() => parseTexasGridResource(poisoned, selected("long_term_load_forecast"))).toThrow(
+      "invalid_texas_grid_ltlf",
     );
   });
 });

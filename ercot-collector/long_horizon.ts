@@ -2,7 +2,10 @@ export const LONG_HORIZON_POLICY =
   "official_planning_snapshots_not_committed_capacity_or_realization_forecast";
 export const LONG_HORIZON_PARSER_VERSION = "ercot-long-horizon-v1";
 
-export type LongHorizonStream = "resource_capacity_trend" | "gis_aggregates";
+export type LongHorizonStream =
+  | "resource_capacity_trend"
+  | "gis_aggregates"
+  | "long_term_load_forecast";
 export type GisAggregate = Readonly<{
   phase: string;
   fuel: string;
@@ -21,6 +24,16 @@ export type CapacitySeries = Readonly<{
   series_id: string;
   annual: readonly (CapacityRow & { year: number })[];
   planned_monthly: readonly (CapacityRow & { month: string })[];
+}>;
+export type LongTermLoadForecastRow = Readonly<{
+  month: string;
+  monthly_peak_mw: number;
+  monthly_energy_mwh: number;
+}>;
+export type LongTermLoadForecastScenario = Readonly<{
+  scenario_id: "ercot_adjusted" | "tsp_provided";
+  label: "ERCOT Adjusted Forecast" | "TSP Provided Forecast";
+  rows: readonly LongTermLoadForecastRow[];
 }>;
 
 export type Cell = string | number;
@@ -486,6 +499,100 @@ export function aggregateCapacityTrendWorkbooks(
       .get(series_id)!
       .map((row) => ({ month: row.period as string, ...row.values })),
   }));
+}
+
+function forecastMonth(year: Cell | undefined, month: Cell | undefined): string {
+  if (
+    typeof year !== "number" ||
+    !Number.isInteger(year) ||
+    year < 2020 ||
+    year > 2100 ||
+    typeof month !== "number" ||
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12
+  )
+    throw new Error("long_horizon_ltlf_month");
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function forecastValue(value: Cell | undefined, maximum: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > maximum)
+    throw new Error("long_horizon_ltlf_value");
+  return Object.is(value, -0) ? 0 : value;
+}
+
+export function aggregateLongTermLoadForecastWorkbook(
+  workbook: Workbook,
+): LongTermLoadForecastScenario[] {
+  exactSheets(workbook, ["Sheet1"]);
+  const sheet = workbook.get("Sheet1")!;
+  if (sheet.size !== 243) throw new Error("long_horizon_ltlf_rows");
+  const title = sheet.get(1),
+    header = sheet.get(2),
+    tspHeader = sheet.get(3);
+  if (
+    title?.get("A") !== "ERCOT Adjusted Forecast" ||
+    title.get("G") !== "TSP Provided Forecast" ||
+    header?.get("A") !== "year" ||
+    header.get("B") !== "month" ||
+    header.get("C") !== "Monthly Peaks" ||
+    header.get("D") !== "Annual Energy" ||
+    header.get("H") !== "Monthly Peaks" ||
+    header.get("I") !== "Annual Energy" ||
+    tspHeader?.get("F") !== "year" ||
+    tspHeader.get("G") !== "month"
+  )
+    throw new Error("long_horizon_ltlf_header");
+
+  const adjusted: LongTermLoadForecastRow[] = [];
+  const tsp: LongTermLoadForecastRow[] = [];
+  for (let rowNumber = 3; rowNumber <= 242; rowNumber++) {
+    const row = sheet.get(rowNumber)!;
+    adjusted.push({
+      month: forecastMonth(row.get("A"), row.get("B")),
+      monthly_peak_mw: forecastValue(row.get("C"), 1_000_000),
+      monthly_energy_mwh: forecastValue(row.get("D"), 1_000_000_000),
+    });
+    const periodRow = sheet.get(rowNumber + 1)!;
+    tsp.push({
+      month: forecastMonth(periodRow.get("F"), periodRow.get("G")),
+      monthly_peak_mw: forecastValue(row.get("H"), 1_000_000),
+      monthly_energy_mwh: forecastValue(row.get("I"), 1_000_000_000),
+    });
+  }
+  for (const rows of [adjusted, tsp]) {
+    if (
+      rows.length !== 240 ||
+      rows.some((row, index) => index > 0 && row.month <= rows[index - 1]!.month)
+    )
+      throw new Error("long_horizon_ltlf_order");
+  }
+
+  // Appendix A of the paired official report publishes the adjusted 2025-2031
+  // annual energy in TWh. The workbook's monthly raw values sum to those
+  // figures after the exact MWh -> TWh conversion, which freezes the otherwise
+  // unlabeled workbook energy unit without guessing.
+  const appendixEnergyTwh = new Map([
+    [2025, 486],
+    [2026, 558],
+    [2027, 648],
+    [2028, 795],
+    [2029, 889],
+    [2030, 984],
+    [2031, 1038],
+  ]);
+  for (const [year, expected] of appendixEnergyTwh) {
+    const total = adjusted
+      .filter((row) => row.month.startsWith(`${year}-`))
+      .reduce((sum, row) => sum + row.monthly_energy_mwh, 0);
+    if (Math.round(total / 1_000_000) !== expected)
+      throw new Error("long_horizon_ltlf_unit_binding");
+  }
+  return [
+    { scenario_id: "ercot_adjusted", label: "ERCOT Adjusted Forecast", rows: adjusted },
+    { scenario_id: "tsp_provided", label: "TSP Provided Forecast", rows: tsp },
+  ];
 }
 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {

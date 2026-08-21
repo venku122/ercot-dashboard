@@ -12,6 +12,7 @@ Deno.test("source collection failure reports only that stream and peer still ing
     await runLongHorizonProducts({
       collectGis: () => Promise.reject(new Error("bounded_source_failure")),
       collectTrend: () => Promise.resolve({ stream: "resource_capacity_trend" }),
+      collectLtlf: () => Promise.resolve({ stream: "long_term_load_forecast" }),
       ingest: (payload) => {
         ingested.push(String(payload.stream));
         return Promise.resolve();
@@ -26,7 +27,10 @@ Deno.test("source collection failure reports only that stream and peer still ing
   }
 
   assert(thrown instanceof Error && thrown.message === "bounded_source_failure");
-  assert(JSON.stringify(ingested) === JSON.stringify(["resource_capacity_trend"]));
+  assert(
+    JSON.stringify(ingested) ===
+      JSON.stringify(["resource_capacity_trend", "long_term_load_forecast"]),
+  );
   assert(JSON.stringify(failures) === JSON.stringify(["gis"]));
 });
 
@@ -36,6 +40,7 @@ Deno.test("next successful collection ingests recovery without a failure report"
   await runLongHorizonProducts({
     collectGis: () => Promise.resolve({ stream: "gis" }),
     collectTrend: () => Promise.resolve({ stream: "resource_capacity_trend" }),
+    collectLtlf: () => Promise.resolve({ stream: "long_term_load_forecast" }),
     ingest: (payload) => {
       ingested.push(String(payload.stream));
       return Promise.resolve();
@@ -46,6 +51,9 @@ Deno.test("next successful collection ingests recovery without a failure report"
     },
   });
 
-  assert(JSON.stringify(ingested) === JSON.stringify(["gis", "resource_capacity_trend"]));
+  assert(
+    JSON.stringify(ingested) ===
+      JSON.stringify(["gis", "resource_capacity_trend", "long_term_load_forecast"]),
+  );
   assert(failures.length === 0);
 });

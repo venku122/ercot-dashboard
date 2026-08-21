@@ -24,13 +24,19 @@ def publication(stream, published=NOW - 100, retrieved=NOW - 50):
     if stream == "gis":
         workbooks = [{"kind": "gis", "source_url": None, "sha256": "sha256:" + "1" * 64}]
         page = "https://www.ercot.com/mp/data-products/data-product-details?id=pg7-200-er"
-    else:
+    elif stream == "resource_capacity_trend":
         workbooks = [
             {"kind": "annual", "source_url": "https://www.ercot.com/files/docs/2026/08/07/Capacity-Changes-by-Fuel-Type-Charts_July_2026.xlsx", "sha256": "sha256:" + "2" * 64},
             {"kind": "planned_monthly", "source_url": "https://www.ercot.com/files/docs/2026/08/07/Capacity-Changes-by-Fuel-Type-Charts_July_2026_PlannedMonthly.xlsx", "sha256": "sha256:" + "3" * 64},
         ]
         page = "https://www.ercot.com/gridinfo/resource"
-    return {"source_period": "2026-07", "published_at": published, "retrieved_at": retrieved, "source_page_url": page, "workbooks": workbooks}
+    else:
+        workbooks = [
+            {"kind": "monthly_forecast", "source_url": "https://www.ercot.com/files/docs/2025/04/08/2025-ERCOT-Monthly-Peak-Demand-and-Energy-Forecast.xlsx", "sha256": "sha256:" + "4" * 64},
+            {"kind": "methodology_report", "source_url": "https://www.ercot.com/files/docs/2025/04/08/2025_LTLF_Report.docx", "sha256": "sha256:" + "5" * 64},
+        ]
+        page = "https://www.ercot.com/gridinfo/load/forecast/index.html"
+    return {"source_period": "2025-04" if stream == "long_term_load_forecast" else "2026-07", "published_at": published, "retrieved_at": retrieved, "source_page_url": page, "workbooks": workbooks}
 
 
 def gis_payload(published=NOW - 100, retrieved=NOW - 50, capacity=-7.2):
@@ -43,6 +49,33 @@ def gis_payload(published=NOW - 100, retrieved=NOW - 50, capacity=-7.2):
             "fuels": [{"code": code, "label": label} for code, label in zip(FUEL_CODES, FUEL_LABELS)],
             "aggregates": [{"phase": PHASES[0], "fuel": FUELS[0], "count": 1, "capacity_mw": capacity}],
             "limits": {"max_aggregates": 132},
+        },
+    }
+
+
+def ltlf_payload():
+    rows = [
+        {"month": f"{2025 + index // 12}-{index % 12 + 1:02d}", "monthly_peak_mw": 80_000 + index, "monthly_energy_mwh": 40_000_000 + index}
+        for index in range(240)
+    ]
+    return {
+        "schema": 1, "kind": KIND, "stream": "long_term_load_forecast",
+        "publication": publication("long_term_load_forecast"),
+        "resource": {
+            "publication_status": "official_published", "time_basis": "calendar_month",
+            "units": {"monthly_peak": "MW", "monthly_energy": "MWh"},
+            "unit_binding": "official_report_appendix_a_mw_twh_monthly_sum_v1",
+            "scenarios": [
+                {"scenario_id": "ercot_adjusted", "label": "ERCOT Adjusted Forecast", "rows": rows},
+                {"scenario_id": "tsp_provided", "label": "TSP Provided Forecast", "rows": rows},
+            ],
+            "large_load_methodology": {
+                "scope": "forecast_assumptions_not_project_status",
+                "tsp_provided": "contracts_and_officer_letter_tsp_ramp_schedules",
+                "ercot_adjusted": "tsp_forecast_with_documented_timing_and_realization_adjustments",
+                "current_process": "batch_zero_documents_published_no_public_project_status_dataset",
+            },
+            "limits": {"max_rows_per_scenario": 240},
         },
     }
 
@@ -86,8 +119,21 @@ class TexasGridTest(unittest.TestCase):
     def test_queryless_public_shape_and_deferred_truth(self):
         manifest = texas_grid_manifest(self.conn, NOW)
         self.assertEqual(set(manifest), {"schema", "kind", "policy", "generated_at", "generator_interconnection", "resource_capacity_trend", "long_term_load_forecast", "large_load", "retirements", "source_health"})
-        self.assertEqual(manifest["long_term_load_forecast"]["reason"], "units_not_authoritatively_frozen")
-        self.assertEqual([row["source_id"] for row in manifest["source_health"]], ["ercot_gis_report", "ercot_resource_capacity_trend"])
+        self.assertIsNone(manifest["long_term_load_forecast"]["selected"])
+        self.assertEqual([row["source_id"] for row in manifest["source_health"]], ["ercot_gis_report", "ercot_resource_capacity_trend", "ercot_long_term_load_forecast"])
+
+    def test_ltlf_vintage_preserves_scenarios_units_and_large_load_methodology(self):
+        result = ingest_texas_grid(self.conn, ltlf_payload(), NOW)
+        resource = texas_grid_resource(
+            self.conn, "long_term_load_forecast", result["content_version"]
+        )
+        self.assertEqual(resource["units"], {"monthly_peak": "MW", "monthly_energy": "MWh"})
+        self.assertEqual([row["scenario_id"] for row in resource["scenarios"]], ["ercot_adjusted", "tsp_provided"])
+        self.assertEqual(resource["scenarios"][0]["rows"][0]["month"], "2025-01")
+        manifest = texas_grid_manifest(self.conn, NOW)
+        self.assertEqual(manifest["long_term_load_forecast"]["state"], "available")
+        self.assertEqual(manifest["large_load"]["state"], "available_context")
+        self.assertEqual(manifest["large_load"]["scope"], "forecast_methodology_not_project_status")
 
     def test_delayed_or_duplicate_failure_cannot_regress_newer_success(self):
         ingest_texas_grid(self.conn, gis_payload(), NOW)

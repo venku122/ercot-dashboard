@@ -198,7 +198,10 @@ class TexasGridSourceAcceptanceTests(unittest.TestCase):
         )
         self.assertEqual("MISS", headers["X-ERCOT-Cache"])
         self.assertEqual({"state": "unavailable", "selected": None}, manifest["generator_interconnection"])
-        self.assertEqual(2, len(manifest["source_health"]))
+        self.assertEqual(3, len(manifest["source_health"]))
+        self.assertEqual(
+            "ercot_long_term_load_forecast", manifest["source_health"][2]["source_id"]
+        )
 
     def test_signed_gis_registry_order_immutable_etag_and_collision(self):
         payload = self.payload("gis", self.gis_resource())
@@ -279,12 +282,13 @@ class TexasGridSourceAcceptanceTests(unittest.TestCase):
         self.assertEqual("available", failed["generator_interconnection"]["state"])
         self.assertIsNotNone(failed["generator_interconnection"]["selected"])
         self.assertEqual("available", failed["resource_capacity_trend"]["state"])
-        gis_health, trend_health = failed["source_health"]
+        gis_health, trend_health, ltlf_health = failed["source_health"]
         self.assertEqual("failed", gis_health["state"])
         self.assertEqual(1, gis_health["consecutive_failures"])
         self.assertEqual("healthy", gis_health["materialization"]["state"])
         self.assertEqual("healthy", trend_health["state"])
         self.assertEqual(0, trend_health["consecutive_failures"])
+        self.assertEqual("unavailable", ltlf_health["state"])
 
         trend["publication"]["retrieved_at"] += 1
         self.assertEqual("inserted", self.ingest(trend)["status"])
