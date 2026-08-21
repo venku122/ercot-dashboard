@@ -1,0 +1,23 @@
+{
+  "fields": [
+    { "name": "operatingDay", "dataType": "DATE" },
+    { "name": "hourEnding", "dataType": "VARCHAR" },
+    { "name": "coast", "dataType": "DOUBLE" },
+    { "name": "east", "dataType": "DOUBLE" },
+    { "name": "farWest", "dataType": "DOUBLE" },
+    { "name": "north", "dataType": "DOUBLE" },
+    { "name": "northC", "dataType": "DOUBLE" },
+    { "name": "southern", "dataType": "DOUBLE" },
+    { "name": "southC", "dataType": "DOUBLE" },
+    { "name": "west", "dataType": "DOUBLE" },
+    { "name": "total", "dataType": "DOUBLE" },
+    { "name": "DSTFlag", "dataType": "BOOLEAN" }
+  ],
+  "data": [["2026-08-17", "01:00", 101, 102, 103, 104, 105, 106, 107, 108, 936, false]],
+  "_meta": {
+    "currentPage": 1,
+    "totalPages": 24,
+    "pageSize": 1,
+    "totalRecords": 24
+  }
+}

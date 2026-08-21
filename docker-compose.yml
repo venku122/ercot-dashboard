@@ -46,6 +46,12 @@ services:
     environment:
       METRICS_ENDPOINT: http://receiver:8080/api/ingest
       METRICS_API_KEY: "${METRICS_API_KEY:?METRICS_API_KEY must be set for production}"
+      ERCOT_FORECAST_INGEST_ENABLED: "${ERCOT_FORECAST_INGEST_ENABLED:-false}"
+      ERCOT_FORECAST_ENDPOINT: "${ERCOT_FORECAST_ENDPOINT:-http://receiver:8080/api/forecast-publications/ingest}"
+      ERCOT_API_USERNAME: "${ERCOT_API_USERNAME:-}"
+      ERCOT_API_PASSWORD: "${ERCOT_API_PASSWORD:-}"
+      ERCOT_PUBLIC_API_SUBSCRIPTION_KEY: "${ERCOT_PUBLIC_API_SUBSCRIPTION_KEY:-}"
+      ERCOT_ESR_API_SUBSCRIPTION_KEY: "${ERCOT_ESR_API_SUBSCRIPTION_KEY:-}"
       # POWEROUTAGE_US_KEY: "your_poweroutage_key"
       # DATADOG_API_KEY: "optional-datadog-key"
       # DATADOG_APP_KEY: "optional-datadog-app-key"

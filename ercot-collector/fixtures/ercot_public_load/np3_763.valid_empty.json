@@ -1,0 +1,52 @@
+{
+  "fields": [
+    { "name": "postedDatetime", "dataType": "DATETIME" },
+    { "name": "deliveryDate", "dataType": "DATE" },
+    { "name": "hourEnding", "dataType": "DOUBLE" },
+    { "name": "capGenResSouth", "dataType": "DOUBLE" },
+    { "name": "capGenResNorth", "dataType": "DOUBLE" },
+    { "name": "capGenResWest", "dataType": "DOUBLE" },
+    { "name": "capGenResHouston", "dataType": "DOUBLE" },
+    { "name": "capLoadResSouth", "dataType": "DOUBLE" },
+    { "name": "capLoadResNorth", "dataType": "DOUBLE" },
+    { "name": "capLoadResWest", "dataType": "DOUBLE" },
+    { "name": "capLoadResHouston", "dataType": "DOUBLE" },
+    { "name": "offAvailMWSouth", "dataType": "DOUBLE" },
+    { "name": "offAvailMWNorth", "dataType": "DOUBLE" },
+    { "name": "offAvailMWWest", "dataType": "DOUBLE" },
+    { "name": "offAvailMWHouston", "dataType": "DOUBLE" },
+    { "name": "availCapGen", "dataType": "DOUBLE" },
+    { "name": "availCapRes", "dataType": "DOUBLE" },
+    { "name": "capGenRes", "dataType": "DOUBLE" },
+    { "name": "capLoadRes", "dataType": "DOUBLE" },
+    { "name": "offAvailMW", "dataType": "DOUBLE" },
+    { "name": "capREGUP", "dataType": "DOUBLE" },
+    { "name": "capREGDN", "dataType": "DOUBLE" },
+    { "name": "capRRS", "dataType": "DOUBLE" },
+    { "name": "capECRS", "dataType": "DOUBLE" },
+    { "name": "capNSPIN", "dataType": "DOUBLE" },
+    { "name": "capREGUPRRS", "dataType": "DOUBLE" },
+    { "name": "capREGUPRRSECRS", "dataType": "DOUBLE" },
+    { "name": "capREGUPRRSECRSNSPIN", "dataType": "DOUBLE" },
+    { "name": "repeatHourFlag", "dataType": "BOOLEAN" }
+  ],
+  "data": [],
+  "_meta": {
+    "currentPage": 0,
+    "totalPages": 0,
+    "pageSize": 1,
+    "totalRecords": 0,
+    "query": {
+      "parameterCount": 6,
+      "parameters": {
+        "postedDatetimeFrom": "2024-01-01T00:00:00",
+        "postedDatetimeTo": "2024-01-01T00:05:00",
+        "deliveryDateFrom": "2024-01-01",
+        "deliveryDateTo": "2024-01-01",
+        "hourEndingFrom": "01:00",
+        "hourEndingTo": "01:00"
+      },
+      "sortedBy": []
+    }
+  }
+}
