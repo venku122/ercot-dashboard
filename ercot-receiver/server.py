@@ -415,8 +415,8 @@ def historical_cache_policy(end):
     if end <= current - SEALED_HISTORY_AGE_SECONDS:
         return (
             "sealed",
-            SEALED_CACHE_TTL_SECONDS,
-            "public, max-age=3600, s-maxage=86400, immutable",
+            min(SEALED_CACHE_TTL_SECONDS, 300),
+            "public, max-age=60, s-maxage=300, must-revalidate",
         )
     if end <= current - 300:
         return (
@@ -429,6 +429,10 @@ def historical_cache_policy(end):
         CACHE_TTL_SECONDS,
         "public, max-age=5, s-maxage=15, stale-while-revalidate=30",
     )
+
+
+def canonical_json_bytes(value) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def canonical_series_tags(tags) -> str:
@@ -2609,7 +2613,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(
                 200,
                 tile_catalog_payload(),
-                cache_control="public, max-age=3600, s-maxage=86400, immutable",
+                cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
             )
             return
@@ -2659,15 +2663,16 @@ class Handler(BaseHTTPRequestHandler):
                 metrics = getattr(app, "cache_metrics", None)
                 if metrics is not None:
                     metrics["tile_lru_hits"] += 1
+                extra_headers = {
+                    "X-ERCOT-Cache": "HIT",
+                    "X-ERCOT-Cache-Class": category,
+                }
                 self._send_json(
                     200,
                     cached,
                     cache_control=cache_control,
                     etag=True,
-                    extra_headers={
-                        "X-ERCOT-Cache": "HIT",
-                        "X-ERCOT-Cache-Class": category,
-                    },
+                    extra_headers=extra_headers,
                 )
                 return
 
@@ -2721,17 +2726,18 @@ class Handler(BaseHTTPRequestHandler):
                     metrics["tile_singleflight_waits"] += 1
                 if not generated:
                     metrics["tile_lru_race_hits"] += 1
+            extra_headers = {
+                "X-ERCOT-Cache": "MISS" if generated else "HIT",
+                "X-ERCOT-Cache-Class": category,
+                "X-ERCOT-Singleflight": "SHARED" if shared else "LEADER",
+                "X-ERCOT-Cache-Store": "STORED" if stored else "SKIPPED_RACE",
+            }
             self._send_json(
                 200,
                 payload_out,
                 cache_control=cache_control,
                 etag=True,
-                extra_headers={
-                    "X-ERCOT-Cache": "MISS" if generated else "HIT",
-                    "X-ERCOT-Cache-Class": category,
-                    "X-ERCOT-Singleflight": "SHARED" if shared else "LEADER",
-                    "X-ERCOT-Cache-Store": "STORED" if stored else "SKIPPED_RACE",
-                },
+                extra_headers=extra_headers,
             )
             return
         if parsed.path.startswith("/api/v2/tiles/"):
@@ -2797,8 +2803,8 @@ class Handler(BaseHTTPRequestHandler):
             current = now_ts()
             if end <= current - SEALED_HISTORY_AGE_SECONDS:
                 category = "sealed"
-                ttl_seconds = SEALED_CACHE_TTL_SECONDS
-                cache_control = "public, max-age=3600, s-maxage=86400, immutable"
+                ttl_seconds = min(SEALED_CACHE_TTL_SECONDS, 300)
+                cache_control = "public, max-age=60, s-maxage=300, must-revalidate"
             elif end <= current - 300:
                 category = "recent"
                 ttl_seconds = RECENT_CACHE_TTL_SECONDS

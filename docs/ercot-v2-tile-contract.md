@@ -19,9 +19,10 @@ query parameters fail closed with a non-cacheable response.
 
 The public catalog and tile payloads never expose SQLite `series_id` values.
 Those IDs are internal dependencies used for precise invalidation. Catalog
-entries are immutable within schema 2: changing a key's metric, tags, rollup,
-cadence, unit, or statistic policy requires a new tile schema/API version so an
-existing URL cannot silently change meaning.
+entries are stable within schema 2: changing a key's metric, tags, rollup,
+cadence, unit, or statistic policy requires a new tile schema/API version. The
+catalog itself is revalidated because new keys may be added without changing
+existing identities.
 
 The catalog is the receiver's authoritative shared definition. PR06 consumes
 the served catalog instead of adding a separate frontend series map.
@@ -69,6 +70,19 @@ LOD. Deterministic JSON bytes produce a strong ETag. A cold request is generated
 once, a repeated request is served from the bounded receiver LRU without a
 second SQLite generation, and a matching `If-None-Match` receives `304`.
 
+Canonical tiles are not persisted. SQLite persists authoritative
+source/application data. A canonical tile is generated on an origin cache miss
+by querying SQLite, then retained only in bounded receiver/application memory
+and the external CDN according to cache policy. A strong ETag is calculated
+from deterministic response bytes; it is validation metadata, not a persistent
+tile identity or permission to store the response in SQLite.
+
+After a receiver restart the LRU is empty. The first request therefore scans
+the authoritative SQLite range and regenerates the same deterministic bytes and
+ETag when source rows are unchanged. There is no exact-content tile child route,
+SQLite generated-tile table, filesystem tile cache, or background tile
+pre-generation.
+
 Concurrent requests for the same identity share one keyed generation; requests
 for different identities remain concurrent. The leader rechecks the LRU after
 election. Exceptions are propagated to waiters, are never cached, and always
@@ -98,17 +112,18 @@ correct and a later request regenerates it.
 
 Receiver and response policy remains conservative:
 
-| Class  |      Receiver TTL |    Browser | Shared edge |
-| ------ | ----------------: | ---------: | ----------: |
-| live   | current short TTL |  5 seconds |  15 seconds |
-| recent |         5 minutes | 60 seconds |   5 minutes |
-| sealed |          24 hours |     1 hour |    24 hours |
+| Class                     |      Receiver TTL |    Browser | Shared edge |
+| ------------------------- | ----------------: | ---------: | ----------: |
+| live logical              | current short TTL |  5 seconds |  15 seconds |
+| recent logical            |         5 minutes | 60 seconds |   5 minutes |
+| completed-history logical |         5 minutes | 60 seconds |   5 minutes |
 
-`sealed` means old enough for the current historical policy; it does not mean
-corrections are impossible. Receiver invalidation is not a Cloudflare purge.
-Until purge or URL versioning exists, a corrected sealed tile already held at
-the edge may remain stale for at most the documented 24-hour edge TTL. This PR
-does not create or modify a Cloudflare rule and does not extend that TTL.
+Completed-history logical tiles remain correction-aware and are never called
+immutable. Receiver range invalidation makes the next logical request resolve
+the correction from SQLite and emit a changed ETag when bytes change. The
+canonical URL remains stable. Shared-cache staleness is bounded by the finite
+revalidation policy until a separate purge or version design is approved. This
+PR does not create or modify a Cloudflare rule.
 
 Errors, invalid requests, incomplete normalized-series backfills, and writes
 are `no-store`. A database with unresolved `series_id` rows receives a 503 for
@@ -117,7 +132,7 @@ the affected v2 metric instead of silently dropping legacy rows.
 ## Current limitations
 
 - The LRU and singleflight registry are process-local and are empty after a
-  receiver restart.
+  receiver restart; canonical tiles regenerate from authoritative SQLite rows.
 - The frontend still uses v1 until PR06 implements the catalog-driven planner.
 - No production or edge-cache mutation is part of this draft.
 - Direct-origin and local concurrency evidence is in the deterministic receiver

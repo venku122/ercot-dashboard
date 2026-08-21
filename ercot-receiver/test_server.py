@@ -100,6 +100,17 @@ class QueryTests(unittest.TestCase):
         self.assertIn(("idx_metrics_series_ts_id_value",), rows)
         self.assertIn(("idx_metrics_unbackfilled_name",), rows)
 
+    def test_init_db_has_no_generated_tile_body_table(self):
+        tables = {
+            row[0]
+            for row in self.conn.execute(
+                "SELECT name FROM sqlite_schema WHERE type = 'table'"
+            ).fetchall()
+        }
+
+        self.assertNotIn("tile_resources", tables)
+        self.assertFalse(any("tile" in name and "resource" in name for name in tables))
+
     def test_normalized_series_readiness_is_explicit_and_public_safe(self):
         self.insert_metric("ercot.readiness", 100, 1.0, ["source:fixture"])
         pending = server.normalized_series_readiness(self.conn)
@@ -1564,7 +1575,8 @@ class HttpQueryBoundsTests(unittest.TestCase):
             }.issubset(keys)
         )
         self.assertNotIn("series_id", json.dumps(payload))
-        self.assertIn("immutable", headers["Cache-Control"])
+        self.assertNotIn("immutable", headers["Cache-Control"])
+        self.assertIn("must-revalidate", headers["Cache-Control"])
         self.assertTrue(headers["ETag"].startswith('"'))
 
         not_modified, repeat_headers = self.invoke(
@@ -1748,6 +1760,128 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(regenerated_raw, first_raw)
         self.assertEqual(regenerated_headers["ETag"], first_headers["ETag"])
         self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+
+    def test_v2_correction_regenerates_affected_tile_and_keeps_unrelated_warm(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        unrelated_path = "/api/v2/tiles/supply-demand.demand/1d/172800/native"
+        points = [{"timestamp": 90_000, "value": 42, "dedupe_key": "version:90000"}]
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 180_000, "value": 50, "dedupe_key": "version:180000"}],
+        )
+
+        initial, initial_headers, initial_raw = self.invoke("GET", path, return_raw=True)
+        unrelated, unrelated_headers = self.invoke("GET", unrelated_path)
+        self.assertNotIn("Content-Location", initial_headers)
+        self.assertNotIn("X-ERCOT-Content-Version", initial_headers)
+        self.assertNotIn("immutable", initial_headers["Cache-Control"])
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+
+        points[0]["value"] = 43
+        correction = self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.app.cache.invalidate_changes(correction["changes"])
+        corrected, corrected_headers, corrected_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+        unrelated_after, unrelated_after_headers = self.invoke("GET", unrelated_path)
+
+        self.assertNotEqual(corrected_raw, initial_raw)
+        self.assertNotEqual(corrected_headers["ETag"], initial_headers["ETag"])
+        self.assertEqual(corrected_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(unrelated_after, unrelated)
+        self.assertEqual(unrelated_after_headers["X-ERCOT-Cache"], "HIT")
+        self.assertEqual(unrelated_headers["ETag"], unrelated_after_headers["ETag"])
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 3)
+
+        unchanged = self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.assertEqual(unchanged["unchanged"], 1)
+        repeated, repeated_headers, repeated_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+        self.assertEqual(repeated, corrected)
+        self.assertEqual(repeated_raw, corrected_raw)
+        self.assertEqual(repeated_headers["ETag"], corrected_headers["ETag"])
+
+    def test_v2_fresh_receiver_regenerates_from_sqlite_without_disk_tile_cache(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 42, "dedupe_key": "restart:90000"}],
+        )
+
+        first, first_headers, first_raw = self.invoke("GET", path, return_raw=True)
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 1)
+        first_app = self.app
+
+        self.app = type(
+            "RestartedTestServer",
+            (),
+            {
+                "cache": server.Cache(60),
+                "cache_metrics": server.defaultdict(float),
+                "limiter": server.RateLimiter(),
+                "singleflight": server.SingleFlight(),
+            },
+        )()
+        restarted, restarted_headers, restarted_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+
+        self.assertEqual(first_app.cache_metrics["tile_generations"], 1)
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 1)
+        self.assertEqual(restarted_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(restarted, first)
+        self.assertEqual(restarted_raw, first_raw)
+        self.assertEqual(restarted_headers["ETag"], first_headers["ETag"])
+        with sqlite3.connect(server.DB_PATH) as conn:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_schema WHERE type = 'table'"
+                ).fetchall()
+            }
+        self.assertNotIn("tile_resources", tables)
+
+    def test_v2_queries_create_no_tile_filesystem_artifacts(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 42, "dedupe_key": "files:90000"}],
+        )
+        root = Path(self.tmp.name)
+        before = {item.relative_to(root) for item in root.rglob("*") if item.is_file()}
+
+        self.invoke("GET", path)
+        self.invoke("GET", path)
+
+        after = {item.relative_to(root) for item in root.rglob("*") if item.is_file()}
+        created = after - before
+        self.assertTrue(
+            all(str(item).startswith("metrics.db-") for item in created), created
+        )
+        self.assertFalse(any(item.suffix in {".json", ".tile"} for item in after))
+
+    def test_v2_rejects_persistent_content_version_aliases(self):
+        payload, headers = self.invoke(
+            "GET",
+            "/api/v2/tiles/supply-demand.demand/1d/86400/native/v1/"
+            + "t2-"
+            + "0" * 64,
+            expected_status=400,
+        )
+
+        self.assertEqual(payload, {"error": "invalid_canonical_tile"})
+        self.assertEqual(headers["Cache-Control"], "no-store")
 
     def test_v2_incomplete_backfill_is_503_and_not_cached(self):
         conn = sqlite3.connect(server.DB_PATH)
@@ -2190,7 +2324,8 @@ class HttpQueryBoundsTests(unittest.TestCase):
         payload, headers = self.invoke("GET", path)
         self.assertEqual(payload["points"], [[90000, 42.0]])
         self.assertTrue(headers["ETag"].startswith('"'))
-        self.assertIn("immutable", headers["Cache-Control"])
+        self.assertNotIn("immutable", headers["Cache-Control"])
+        self.assertIn("must-revalidate", headers["Cache-Control"])
         self.assertEqual(headers["X-ERCOT-Cache"], "MISS")
 
         payload_304, repeat_headers = self.invoke(
