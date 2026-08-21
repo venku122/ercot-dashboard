@@ -1335,6 +1335,7 @@ class HttpQueryBoundsTests(unittest.TestCase):
             {
                 "cache": server.Cache(60),
                 "cache_metrics": server.defaultdict(float),
+                "cache_metrics_lock": threading.Lock(),
                 "limiter": server.RateLimiter(),
                 "singleflight": server.SingleFlight(),
             },
@@ -1749,6 +1750,21 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(regenerated_raw, first_raw)
         self.assertEqual(regenerated_headers["ETag"], first_headers["ETag"])
         self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(observed["tile_origin_requests_total"], 4)
+        self.assertEqual(observed["tile_receiver_lru_hits_total"], 2)
+        self.assertEqual(observed["tile_receiver_lru_misses_total"], 2)
+        self.assertEqual(observed["tile_sqlite_generation_attempts_total"], 2)
+        self.assertEqual(observed["tile_sqlite_generations_total"], 2)
+        self.assertEqual(observed["tile_singleflight_leaders_total"], 2)
+        self.assertEqual(observed["tile_singleflight_waits_total"], 0)
+        self.assertEqual(observed["tile_singleflight_results_success_total"], 2)
+        self.assertEqual(observed["tile_responses_200_total"], 3)
+        self.assertEqual(observed["tile_responses_304_total"], 1)
+        self.assertEqual(observed["tile_cache_store_stored_total"], 2)
+        self.assertEqual(observed["tile_generation_latency_seconds_count"], 2)
+        self.assertGreaterEqual(observed["tile_generation_latency_seconds_sum"], 0)
+        self.assertGreaterEqual(observed["tile_generation_latency_seconds_max"], 0)
 
     def test_v2_sealed_correction_mints_new_version_and_preserves_old_bytes(self):
         path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
@@ -1825,6 +1841,160 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(payload, {"error": "tile_series_backfill_incomplete"})
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertEqual(self.app.cache.stats()["entries"], 0)
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(observed["tile_errors_backfill_total"], 1)
+        self.assertEqual(observed["tile_singleflight_results_error_total"], 1)
+        self.assertEqual(observed["tile_responses_503_total"], 1)
+
+    def test_v2_generation_errors_are_observed_and_never_cached(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        original = server.Handler._generate_tile
+        calls = 0
+
+        def fail_generation(_handler, *_args):
+            nonlocal calls
+            calls += 1
+            raise RuntimeError("fixture generation failure")
+
+        server.Handler._generate_tile = fail_generation
+        try:
+            for _attempt in range(2):
+                payload, headers = self.invoke("GET", path, expected_status=500)
+                self.assertEqual(payload, {"error": "tile_generation_failed"})
+                self.assertEqual(headers["Cache-Control"], "no-store")
+        finally:
+            server.Handler._generate_tile = original
+
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(calls, 2)
+        self.assertEqual(self.app.cache.stats()["entries"], 0)
+        self.assertEqual(observed["tile_origin_requests_total"], 2)
+        self.assertEqual(observed["tile_receiver_lru_misses_total"], 2)
+        self.assertEqual(observed["tile_singleflight_leaders_total"], 2)
+        self.assertEqual(observed["tile_singleflight_results_error_total"], 2)
+        self.assertEqual(observed["tile_errors_generation_total"], 2)
+        self.assertEqual(observed["tile_sqlite_generation_attempts_total"], 2)
+        self.assertEqual(observed["tile_sqlite_generations_total"], 0)
+        self.assertEqual(observed["tile_cache_store_stored_total"], 0)
+        self.assertEqual(observed["tile_generation_latency_seconds_count"], 2)
+
+    def test_v2_ten_concurrent_generation_failures_count_one_root_cause(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        original = server.Handler._generate_tile
+        calls = 0
+        calls_lock = threading.Lock()
+        start = threading.Barrier(10)
+
+        def fail_generation(_handler, *_args):
+            nonlocal calls
+            with calls_lock:
+                calls += 1
+            deadline = time.monotonic() + 2
+            while (
+                server.tile_metrics_snapshot(self.app)[
+                    "tile_singleflight_waits_total"
+                ]
+                < 9
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.001)
+            raise RuntimeError("shared fixture generation failure")
+
+        def request():
+            start.wait(timeout=2)
+            return self.invoke("GET", path, expected_status=500)
+
+        server.Handler._generate_tile = fail_generation
+        try:
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                results = list(executor.map(lambda _index: request(), range(10)))
+        finally:
+            server.Handler._generate_tile = original
+
+        self.assertEqual(calls, 1)
+        self.assertTrue(
+            all(result[0] == {"error": "tile_generation_failed"} for result in results)
+        )
+        self.assertTrue(all(result[1]["Cache-Control"] == "no-store" for result in results))
+        self.assertEqual(self.app.cache.stats()["entries"], 0)
+        self.assertEqual(self.app.singleflight.pending(), 0)
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(observed["tile_sqlite_generation_attempts_total"], 1)
+        self.assertEqual(observed["tile_sqlite_generations_total"], 0)
+        self.assertEqual(observed["tile_errors_generation_total"], 1)
+        self.assertEqual(observed["tile_singleflight_results_error_total"], 10)
+        self.assertEqual(observed["tile_responses_500_total"], 10)
+        self.assertEqual(observed["tile_singleflight_leaders_total"], 1)
+        self.assertEqual(observed["tile_singleflight_waits_total"], 9)
+
+        recovered, recovered_headers = self.invoke("GET", path)
+        self.assertEqual(recovered["buckets"], [])
+        self.assertEqual(recovered_headers["X-ERCOT-Cache"], "MISS")
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(observed["tile_sqlite_generation_attempts_total"], 2)
+        self.assertEqual(observed["tile_sqlite_generations_total"], 1)
+        self.assertEqual(observed["tile_errors_generation_total"], 1)
+        self.assertEqual(self.app.cache.stats()["entries"], 1)
+
+    def test_v2_origin_requests_reconcile_to_bounded_response_outcomes(self):
+        self.invoke("GET", "/api/v2/tiles/not-canonical", expected_status=400)
+        self.invoke(
+            "GET",
+            "/api/v2/tiles/unknown.series/1d/86400/native",
+            expected_status=404,
+        )
+
+        original_limiter = self.app.limiter
+
+        class DenyLimiter:
+            def allow(self, _key, _rpm):
+                return False
+
+        self.app.limiter = DenyLimiter()
+        try:
+            self.invoke(
+                "GET",
+                "/api/v2/tiles/supply-demand.demand/1d/86400/native",
+                expected_status=429,
+            )
+        finally:
+            self.app.limiter = original_limiter
+
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(observed["tile_origin_requests_total"], 3)
+        self.assertEqual(observed["tile_responses_400_total"], 1)
+        self.assertEqual(observed["tile_responses_404_total"], 1)
+        self.assertEqual(observed["tile_responses_429_total"], 1)
+        outcome_total = sum(
+            observed[key]
+            for key in (
+                "tile_responses_200_total",
+                "tile_responses_304_total",
+                "tile_responses_400_total",
+                "tile_responses_404_total",
+                "tile_responses_429_total",
+                "tile_responses_500_total",
+                "tile_responses_503_total",
+            )
+        )
+        self.assertEqual(outcome_total, observed["tile_origin_requests_total"])
+
+    def test_cache_metric_helper_synchronizes_legacy_writes_and_bounds_keys(self):
+        def write_metrics():
+            for _index in range(200):
+                server.record_cache_metric(self.app, "tile_lru_hits")
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(write_metrics) for _index in range(10)]
+            while any(not future.done() for future in futures):
+                snapshot = server.tile_metrics_snapshot(self.app)
+                self.assertGreaterEqual(snapshot.get("tile_lru_hits", 0), 0)
+            for future in futures:
+                future.result()
+
+        self.assertEqual(self.app.cache_metrics["tile_lru_hits"], 2_000)
+        with self.assertRaisesRegex(ValueError, "unbounded_cache_metric_key"):
+            server.record_cache_metric(self.app, "tile_for_one_dynamic_url")
 
     def test_v2_ten_concurrent_cold_requests_share_one_generation(self):
         self.ingest_metric(
@@ -1866,6 +2036,14 @@ class HttpQueryBoundsTests(unittest.TestCase):
             sum(result[1]["X-ERCOT-Singleflight"] == "LEADER" for result in results),
             1,
         )
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(observed["tile_origin_requests_total"], 10)
+        self.assertEqual(observed["tile_receiver_lru_misses_total"], 10)
+        self.assertEqual(observed["tile_singleflight_leaders_total"], 1)
+        self.assertEqual(observed["tile_singleflight_waits_total"], 9)
+        self.assertEqual(observed["tile_singleflight_results_success_total"], 10)
+        self.assertEqual(observed["tile_sqlite_generation_attempts_total"], 1)
+        self.assertEqual(observed["tile_sqlite_generations_total"], 1)
 
     def test_v2_rollup_bytes_and_etag_match_cold_warm_and_regeneration(self):
         for fuel, value in (("wind", 10), ("solar", 5)):
@@ -1942,6 +2120,10 @@ class HttpQueryBoundsTests(unittest.TestCase):
 
         self.assertTrue(all(result[1]["X-ERCOT-Cache"] == "MISS" for result in results))
         self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+        observed = server.tile_metrics_snapshot(self.app)
+        self.assertEqual(observed["tile_singleflight_leaders_total"], 2)
+        self.assertEqual(observed["tile_singleflight_waits_total"], 0)
+        self.assertEqual(observed["tile_sqlite_generations_total"], 2)
 
     def test_v2_leader_rechecks_cache_after_election(self):
         self.ingest_metric(
@@ -2074,6 +2256,62 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(wind_after, wind)
         self.assertEqual(total_headers["X-ERCOT-Cache"], "MISS")
         self.assertEqual(total_after["buckets"][0]["state"]["value_sum"], 17.0)
+
+    def test_v2_invalidation_outcomes_and_status_use_bounded_metric_keys(self):
+        metric = "ercot.supply_demand.demand_mw"
+        tags = ["source:supply_demand"]
+        points = [
+            {
+                "timestamp": 90_000,
+                "value": 1,
+                "dedupe_key": "observability:90000",
+            }
+        ]
+        self.ingest_metric(metric, tags, points)
+        self.invoke(
+            "GET", "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        )
+        original_api_key = server.API_KEY
+        server.API_KEY = "fixture-api-key"
+        try:
+            points[0]["value"] = 2
+            self.invoke(
+                "POST",
+                "/api/ingest",
+                [{"metric_name": metric, "tags": tags, "points": points}],
+                request_headers={"X-API-Key": "fixture-api-key"},
+            )
+            self.invoke(
+                "POST",
+                "/api/ingest",
+                [
+                    {
+                        "metric_name": "fixture.unrelated",
+                        "tags": ["source:fixture"],
+                        "points": [
+                            {
+                                "timestamp": 90_000,
+                                "value": 3,
+                                "dedupe_key": "observability:unrelated",
+                            }
+                        ],
+                    }
+                ],
+                request_headers={"X-API-Key": "fixture-api-key"},
+            )
+        finally:
+            server.API_KEY = original_api_key
+
+        status, _headers = self.invoke("GET", "/api/status")
+        observed = status["cache_metrics"]
+        self.assertEqual(observed["tile_invalidation_calls_total"], 2)
+        self.assertEqual(observed["tile_invalidated_entries_total"], 1)
+        self.assertEqual(observed["tile_invalidation_nonempty_total"], 1)
+        self.assertEqual(observed["tile_invalidation_empty_total"], 1)
+        self.assertTrue(server.TILE_OBSERVABILITY_KEYS.issubset(observed))
+        bounded_keys = [key for key in observed if key.startswith("tile_")]
+        self.assertTrue(all("supply-demand" not in key for key in bounded_keys))
+        self.assertTrue(all("86400" not in key and "/" not in key for key in bounded_keys))
 
     def test_v2_empty_exact_invalidation_ignores_unrelated_new_identity(self):
         path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
