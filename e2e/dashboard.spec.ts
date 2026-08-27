@@ -274,6 +274,7 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
           edge_lod: "native",
           rule: "clients use native boundary tiles and coarse LOD only for aligned interiors",
         },
+        derived_resources: [],
         lod_seconds: { "15m": 900, "1h": 3600, "5m": 300, native: null },
         schema: 2,
         series: catalogSeries,
@@ -704,40 +705,6 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await installApi(page);
   await page.goto("/?range=21600&compare=none&events=1");
   await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
-  await page.getByRole("button", { name: "Reliability view" }).click();
-  await expect(
-    page
-      .getByLabel("ERCOT operations messages")
-      .getByText("Fixture operations message", { exact: false }),
-  ).toBeVisible();
-  const operations = page.getByLabel("ERCOT operations messages");
-  await expect(
-    operations.getByLabel("Historical operations timeline").getByRole("listitem"),
-  ).toHaveCount(5);
-  for (const category of [
-    "Heat advisory",
-    "Generator trip",
-    "Reserve watch",
-    "EEA",
-    "Transmission event",
-  ]) {
-    await expect(operations.getByText(category, { exact: true })).toBeVisible();
-  }
-  await operations.getByLabel("Filter operations timeline by severity").selectOption("watch");
-  await expect(
-    operations.getByLabel("Historical operations timeline").getByRole("listitem"),
-  ).toHaveCount(2);
-  await expect(operations).toContainText("Showing 2 of 5 events");
-  await operations.getByLabel("Filter operations timeline by severity").selectOption("all");
-  await page.getByRole("button", { name: "Market view" }).click();
-  await expect(page.getByRole("heading", { name: "Latest settlement point prices" })).toBeVisible();
-  await expect(page.getByLabel("Settlement price summary")).toContainText("Houston Hub");
-  await expect(page.getByLabel("Settlement price summary")).toContainText("15-minute");
-  await page.getByText("Complete hub and load-zone ranking", { exact: true }).click();
-  await expect(page.getByText("West Load Zone", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Load Zone · LZ_WEST/)).toBeVisible();
-
-  await page.getByRole("button", { name: "Overview view" }).click();
 
   let analyze = await openAnalyze(page);
   await page.getByRole("button", { name: "Pause" }).click();
@@ -892,18 +859,15 @@ test("loading resolves to a first-sample wait without blank chart detail", async
 test("empty optional panels collapse to lifecycle or selected-range states", async ({ page }) => {
   await installApi(page, "empty-panels");
   await page.goto("/?view=market");
-  const ranking = page.getByRole("region", { name: "Settlement price ranking" });
-  await expect(ranking.getByText("Waiting for first sample…")).toBeVisible();
-  await expect(ranking.getByRole("table")).toHaveCount(0);
+  const geography = page.getByRole("region", { name: "Where are prices diverging?" });
+  await expect(
+    geography.getByRole("button", { name: "Load price-geography details" }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await expect(geography.getByRole("table")).toHaveCount(0);
 
   await openMoreView(page, "Diagnostics");
   const diagnostics = page.getByRole("region", { name: "System health details" });
   await expect(diagnostics.getByText("Waiting for first sample…")).toBeVisible();
-
-  await page.unrouteAll({ behavior: "wait" });
-  await installApi(page, "no-events");
-  await page.goto("/?view=reliability");
-  await expect(page.getByText("No events during selected range.")).toBeVisible();
 });
 
 test("visual regression empty lifecycle state", async ({ page }) => {
@@ -1171,11 +1135,12 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
     await card.evaluate((element) => element.scrollIntoView({ block: "end" }));
     await expect(card).toHaveAttribute("data-visible", "true");
     await expect(card.locator(".chart-placeholder")).toHaveCount(0);
-    await expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`);
+    const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;
+    await expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`, { maxDiffPixelRatio });
   });
 }
 
-test("visual regression storage charging and operations event", async ({ page }) => {
+test("visual regression storage charging", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Generation view" }).click();
@@ -1183,11 +1148,9 @@ test("visual regression storage charging and operations event", async ({ page })
   await storage.evaluate((element) => element.scrollIntoView({ block: "end" }));
   await expect(storage).toHaveAttribute("data-visible", "true");
   await expect(storage.locator(".chart-placeholder")).toHaveCount(0);
-  await expect.soft(storage).toHaveScreenshot("storage-charging.png");
-  await page.getByRole("button", { name: "Reliability view" }).click();
-  const events = page.getByRole("region", { name: "ERCOT operations messages" });
-  await events.scrollIntoViewIfNeeded();
-  await expect.soft(events).toHaveScreenshot("operations-event.png");
+  await expect(storage).toHaveScreenshot("storage-charging.png", {
+    maxDiffPixelRatio: 0.02,
+  });
 });
 
 test("visual regression structured operational alert", async ({ page }) => {

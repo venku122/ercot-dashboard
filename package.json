@@ -16,11 +16,12 @@
     "test:e2e": "playwright test",
     "test:collector": "docker build --target collector-test -f ercot-collector/Dockerfile ercot-collector",
     "test:collector:live": "docker run --rm --entrypoint deno ercot-collector:local run --allow-net --allow-env --cached-only live_verify.ts",
+    "test:contracts": "python3 -m unittest discover -s scripts -p 'test*.py'",
     "test:ercot-api:live": "node --experimental-strip-types ercot-collector/ercot_api_live.ts",
     "test:performance": "python3 scripts/benchmark_receiver.py",
     "test:receiver": "python3 -m unittest discover -s ercot-receiver -p 'test*.py'",
-    "test": "pnpm run test:frontend && pnpm run test:receiver",
-    "validate:commit": "pnpm run check && pnpm run test:frontend && pnpm run test:receiver"
+    "test": "pnpm run test:frontend && pnpm run test:receiver && pnpm run test:contracts",
+    "validate:commit": "pnpm run check && pnpm run test:frontend && pnpm run test:receiver && pnpm run test:contracts"
   },
   "dependencies": {
     "@radix-ui/react-separator": "^1.1.7",
