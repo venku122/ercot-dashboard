@@ -4,6 +4,8 @@ import useSWR, { type SWRConfiguration } from "swr";
 import {
   loadDerivedContext,
   loadEvents,
+  loadExternalContextManifest,
+  loadExternalContextResource,
   loadForecastQualityManifest,
   loadForecastQualityResource,
   loadGridEventTimeline,
@@ -21,6 +23,7 @@ import {
   type LatestQuery,
 } from "./api";
 import type { ForecastQualityManifest } from "./forecast-quality";
+import type { ExternalContextSelected, ExternalContextStream } from "./external-context";
 import type { NetLoadDailyLink, NetLoadResourceLink } from "./net-load";
 import type { TexasGridSelectedResource } from "./texas-grid-long-horizon";
 import { derivedLatestQueries } from "./derived-metrics";
@@ -103,6 +106,31 @@ export function useTexasGridResource(enabled: boolean, resource: TexasGridSelect
   return useAbortableResource(
     enabled && resource !== null,
     ["texas-grid", "resource", resource?.url],
+    loader,
+  );
+}
+
+export function useExternalContextManifest(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadExternalContextManifest(signal), []);
+  return useAbortableResource(enabled, ["external-context", "manifest"], loader);
+}
+
+export function useExternalContextResource(
+  enabled: boolean,
+  stream: ExternalContextStream | null,
+  selected: ExternalContextSelected | null,
+) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!stream || !selected)
+        return Promise.reject(new Error("missing_external_context_resource"));
+      return loadExternalContextResource(stream, selected, signal);
+    },
+    [selected, stream],
+  );
+  return useAbortableResource(
+    enabled && stream !== null && selected !== null,
+    ["external-context", "resource", stream, selected?.url],
     loader,
   );
 }

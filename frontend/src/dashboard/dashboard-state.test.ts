@@ -55,10 +55,20 @@ describe("shareable URL state", () => {
   it("normalizes and serializes the active progressive-disclosure view", () => {
     expect(dashboardViewFromUrl(new URL("https://example.test/?view=weather"))).toBe("weather");
     expect(dashboardViewFromUrl(new URL("https://example.test/?view=outlook"))).toBe("outlook");
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=external-context"))).toBe(
+      "external-context",
+    );
     expect(dashboardViewFromUrl(new URL("https://example.test/?view=unknown"))).toBe("overview");
     const output = dashboardViewToUrl("diagnostics", new URL("https://example.test/?range=3600"));
     expect(output.searchParams.get("view")).toBe("diagnostics");
     expect(output.searchParams.get("range")).toBe("3600");
+    const external = dashboardViewToUrl(
+      "external-context",
+      new URL("https://example.test/?grid_resource=gis&context_source=epa_egrid"),
+    );
+    expect(external.searchParams.get("grid_resource")).toBeNull();
+    expect(external.searchParams.get("context_source")).toBe("epa_egrid");
+    expect(dashboardViewToUrl("overview", external).searchParams.get("context_source")).toBeNull();
   });
 
   it("round trips fixed time, comparison, events, inspect, legend and hidden series", () => {

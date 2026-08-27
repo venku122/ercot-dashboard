@@ -3,6 +3,7 @@ export type InformationLevel = "advanced" | "critical" | "operational";
 export type DashboardViewId =
   | "advanced"
   | "diagnostics"
+  | "external-context"
   | "generation"
   | "market"
   | "overview"
@@ -154,6 +155,13 @@ export const dashboardViewDefinitions = [
     groups: [],
   },
   {
+    id: "external-context",
+    label: "External Context",
+    description:
+      "Delayed EIA context and retrospective EPA methodology, kept separate from ERCOT operational authority.",
+    groups: [],
+  },
+  {
     id: "weather",
     label: "Weather",
     description: "Temperature and wind observations near major grid centers.",
@@ -188,6 +196,7 @@ export const primaryDashboardViewIds: ReadonlyArray<DashboardViewId> = [
 
 export const moreDashboardViewIds: ReadonlyArray<DashboardViewId> = [
   "texas-grid",
+  "external-context",
   "weather",
   "advanced",
   "diagnostics",

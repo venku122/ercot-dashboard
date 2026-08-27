@@ -109,6 +109,13 @@ from texas_grid import (
     texas_grid_manifest,
     texas_grid_resource,
 )
+from external_context import (
+    external_context_manifest,
+    external_context_resource,
+    ingest_external_context,
+    init_external_context_schema,
+    record_external_context_failure,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -126,6 +133,7 @@ MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
 MAX_PREDICTIVE_WEATHER_BODY_BYTES = 8 * 1024 * 1024
 MAX_GRID_EVENTS_BODY_BYTES = 2 * 1024 * 1024
 MAX_TEXAS_GRID_BODY_BYTES = 2 * 1024 * 1024
+MAX_EXTERNAL_CONTEXT_BODY_BYTES = 2 * 1024 * 1024
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
@@ -1073,6 +1081,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_grid_events_schema(conn)
     init_historical_context_schema(conn)
     init_texas_grid_schema(conn)
+    init_external_context_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -2296,9 +2305,9 @@ class Handler(BaseHTTPRequestHandler):
     def _app_server(self) -> "Server":
         return cast("Server", self.server)
 
-    def _send_json(self, status, payload, cache_control=None, etag=False, extra_headers=None):
+    def _send_json(self, status, payload, cache_control=None, etag=False, extra_headers=None, etag_value=None):
         body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        resolved_etag = f'"{hashlib.sha256(body).hexdigest()}"' if etag else None
+        resolved_etag = f'"{etag_value}"' if etag_value else (f'"{hashlib.sha256(body).hexdigest()}"' if etag else None)
         not_modified = bool(
             resolved_etag and self.headers.get("If-None-Match") == resolved_etag
         )
@@ -2756,6 +2765,59 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/external-context/source-attempt":
+            if not self._rate_limit("external_context_attempt", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(16 * 1024)
+            if (
+                not isinstance(payload, dict)
+                or set(payload) != {"schema", "kind", "stream", "attempted_at", "status", "reason"}
+                or payload.get("schema") != 1
+                or payload.get("kind") != "external_context"
+                or payload.get("stream") not in ("eia930_demand", "henry_hub_daily", "epa_egrid")
+                or payload.get("status") != "failed"
+                or isinstance(payload.get("attempted_at"), bool)
+                or not isinstance(payload.get("attempted_at"), int)
+                or not 1 <= payload["attempted_at"] <= now_ts() + 300
+                or not isinstance(payload.get("reason"), str)
+                or not 1 <= len(payload["reason"]) <= 200
+            ):
+                self._send_json(400, {"error": "invalid_external_context_source_attempt"}, cache_control="no-store")
+                return
+            status = record_external_context_failure(get_db(), payload["stream"], payload["reason"], payload["attempted_at"])
+            self._app_server().cache.invalidate({"external-context"})
+            self._send_json(200, {"schema": 1, "stream": payload["stream"], "status": status}, cache_control="no-store")
+            return
+
+        if self.path == "/api/external-context/ingest":
+            if not self._rate_limit("external_context_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_EXTERNAL_CONTEXT_BODY_BYTES)
+            if payload is None:
+                return
+            stream = payload.get("stream") if isinstance(payload, dict) else None
+            try:
+                result = ingest_external_context(get_db(), payload, now_ts())
+            except ValueError as exc:
+                get_db().rollback()
+                if stream in ("eia930_demand", "henry_hub_daily", "epa_egrid"):
+                    record_external_context_failure(get_db(), stream, exc, now_ts())
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                get_db().rollback()
+                if stream in ("eia930_demand", "henry_hub_daily", "epa_egrid"):
+                    record_external_context_failure(get_db(), stream, "external_context_ingest_failed", now_ts())
+                self._send_json(500, {"error": "external_context_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"external-context"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/texas-grid/source-attempt":
             if not self._rate_limit("texas_grid_attempt", RATE_LIMIT_INGEST_RPM):
                 return
@@ -3548,6 +3610,46 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/external-context":
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_external_context_request"}, cache_control="no-store")
+                return
+            if not self._rate_limit("external_context", RATE_LIMIT_STATUS_RPM):
+                return
+            app = self._app_server()
+            key = "external-context:v1"
+            payload = app.cache.get(key)
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+                def generate_external_context():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = external_context_manifest(get_db(), now_ts())
+                    app.cache.set_if_generation(key, value, generation, {"external-context"}, ttl_seconds=15, category="external-context:resolver")
+                    return value
+                try:
+                    payload, _shared = app.singleflight.do((key, generation), generate_external_context)
+                except Exception:
+                    self._send_json(500, {"error": "external_context_generation_failed"}, cache_control="no-store")
+                    return
+            self._send_json(200, payload, cache_control="public, max-age=0, s-maxage=15, must-revalidate", etag=True)
+            return
+        external_context_match = re.fullmatch(r"/api/v2/external-context/(eia930_demand|henry_hub_daily|epa_egrid)/v1/(xc1-[0-9a-f]{64})", parsed.path)
+        if external_context_match:
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_external_context_resource"}, cache_control="no-store")
+                return
+            stream, version = external_context_match.groups()
+            payload = external_context_resource(get_db(), stream, version)
+            if payload is None:
+                self._send_json(404, {"error": "unknown_external_context_resource"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="public, max-age=31536000, immutable", etag_value=version)
+            return
+        if parsed.path.startswith("/api/v2/external-context/"):
+            self._send_json(400, {"error": "invalid_external_context_resource"}, cache_control="no-store")
+            return
         if parsed.path == "/api/v1/texas-grid":
             if parsed.query:
                 self._send_json(400, {"error": "invalid_texas_grid_request"}, cache_control="no-store")

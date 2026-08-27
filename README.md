@@ -40,6 +40,8 @@ See [architecture](docs/architecture.md), [legacy parity matrix](docs/parity-mat
 and [verification evidence](docs/verification.md).
 The opt-in NWS collector and its representative-point limitations are documented in
 [Predictive weather](docs/PREDICTIVE_WEATHER.md).
+The opt-in credential-free eGRID collector and its non-operational limitations are documented in
+[External context](docs/EXTERNAL_CONTEXT.md).
 
 ## Frontend development
 
