@@ -691,6 +691,20 @@ async function installApi(
   );
 }
 
+test("net-load details remain lazy and accessible in Chromium", async ({ page }) => {
+  const netLoadRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.includes("net-load")) netLoadRequests.push(request.url());
+  });
+  await installApi(page);
+  await page.goto("/?view=generation");
+  await expect(page.getByRole("heading", { name: "Net load and ramp" })).toBeVisible();
+  const disclosure = page.getByRole("button", { name: "Load net-load details" });
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("table", { name: /exact net-load values/ })).toHaveCount(0);
+  expect(netLoadRequests).toEqual([]);
+});
+
 test("time, inspect, cursor, legend, compare, events, CSV and URL state", async ({ page }) => {
   await installApi(page);
   await page.goto("/?range=21600&compare=none&events=1");

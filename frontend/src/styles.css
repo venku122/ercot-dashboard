@@ -477,6 +477,29 @@ main {
   stroke-width: 2;
 }
 
+.net-load-profile .profile-net {
+  stroke: var(--color-accent, #2563eb);
+  stroke-width: 1.8;
+}
+
+.net-load-profile .profile-ramp-one {
+  stroke: var(--color-warning, #b45309);
+  stroke-dasharray: 4 2;
+  stroke-width: 1.4;
+}
+
+.net-load-profile .profile-ramp-three {
+  stroke: currentColor;
+  stroke-dasharray: 1 2;
+  stroke-width: 1.2;
+}
+
+@media (max-width: 640px) {
+  .net-load-panel button {
+    min-height: 44px;
+  }
+}
+
 .outlook-profile figcaption {
   display: flex;
   justify-content: space-between;

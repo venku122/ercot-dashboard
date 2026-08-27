@@ -10,6 +10,16 @@ import {
   type ForecastQualityResource,
 } from "./forecast-quality";
 import {
+  parseNetLoadDailyResource,
+  parseNetLoadManifest,
+  parseNetLoadResource,
+  type NetLoadDailyLink,
+  type NetLoadDailyResource,
+  type NetLoadManifest,
+  type NetLoadResource,
+  type NetLoadResourceLink,
+} from "./net-load";
+import {
   parseTileCatalog,
   planTileRequests,
   resolveTileSeries,
@@ -931,6 +941,32 @@ export async function loadForecastQualityResource(
 ): Promise<ForecastQualityResource> {
   const response = await fetchJson<unknown>(resource.url, { method: "GET" }, signal);
   return parseForecastQualityResource(response, resource);
+}
+
+export async function loadNetLoadManifest(signal?: AbortSignal): Promise<NetLoadManifest> {
+  return parseNetLoadManifest(
+    await fetchJson<unknown>("/api/v1/net-load", { method: "GET" }, signal),
+  );
+}
+
+export async function loadNetLoadResource(
+  resource: NetLoadResourceLink,
+  signal?: AbortSignal,
+): Promise<NetLoadResource> {
+  return parseNetLoadResource(
+    await fetchJson<unknown>(resource.url, { method: "GET" }, signal),
+    resource,
+  );
+}
+
+export async function loadNetLoadDailyResource(
+  resource: NetLoadDailyLink,
+  signal?: AbortSignal,
+): Promise<NetLoadDailyResource> {
+  return parseNetLoadDailyResource(
+    await fetchJson<unknown>(resource.url, { method: "GET" }, signal),
+    resource,
+  );
 }
 
 export async function loadEvents(time: TimeState, signal?: AbortSignal): Promise<EventRecord[]> {
