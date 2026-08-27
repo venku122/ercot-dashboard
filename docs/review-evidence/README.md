@@ -12,6 +12,12 @@ Fixture policy: deterministic synthetic evidence only
 - `2026-08-27--performance-matrix.md` - human-readable 300-window benchmark
 - `2026-08-27--tile-reuse-benchmark.json` - machine-readable benchmark
 - `2026-08-27--tile-reuse-benchmark.csv` - flat range metrics
+- `2026-08-27--stack-range-diff.txt` - old persisted-tile stack versus remediated stack
+- `2026-08-27--pr-topology.json` and `.txt` - live GitHub base/head snapshot for PR #33-#55
+
+The topology snapshot was captured before the evidence commits were pushed, so the PR #55 row is the
+remote pre-packet head. Embedding the commit that contains its own SHA is self-referential; reviewers
+must compare the live PR #55 `headRefOid` with the exact head reported in the final handoff/CI run.
 
 ## Architecture diagrams
 
