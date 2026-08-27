@@ -7,6 +7,7 @@ import {
   loadForecastQualityManifest,
   loadForecastQualityResource,
   loadGridEventTimeline,
+  loadHistoricalContext,
   loadLatest,
   loadNetLoadDailyResource,
   loadNetLoadManifest,
@@ -76,6 +77,11 @@ export function useGridEventTimeline(enabled: boolean, from: number, to: number)
     [from, to],
   );
   return useAbortableResource(enabled, ["grid-events", from, to], loader);
+}
+
+export function useHistoricalContext(enabled: boolean, asOf: number) {
+  const loader = useCallback((signal: AbortSignal) => loadHistoricalContext(asOf, signal), [asOf]);
+  return useAbortableResource(enabled, ["historical-context", asOf], loader);
 }
 
 export function useForecastQuality(enabled: boolean) {
