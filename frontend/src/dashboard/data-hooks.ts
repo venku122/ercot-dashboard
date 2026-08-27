@@ -15,11 +15,14 @@ import {
   loadOutlook,
   loadPredictiveWeather,
   loadSourceHealth,
+  loadTexasGridManifest,
+  loadTexasGridResource,
   loadTrendBaselines,
   type LatestQuery,
 } from "./api";
 import type { ForecastQualityManifest } from "./forecast-quality";
 import type { NetLoadDailyLink, NetLoadResourceLink } from "./net-load";
+import type { TexasGridSelectedResource } from "./texas-grid-long-horizon";
 import { derivedLatestQueries } from "./derived-metrics";
 import { healthLatestQueries } from "./grid-health-score";
 import type { EventRecord, TimeState } from "./types";
@@ -82,6 +85,26 @@ export function useGridEventTimeline(enabled: boolean, from: number, to: number)
 export function useHistoricalContext(enabled: boolean, asOf: number) {
   const loader = useCallback((signal: AbortSignal) => loadHistoricalContext(asOf, signal), [asOf]);
   return useAbortableResource(enabled, ["historical-context", asOf], loader);
+}
+
+export function useTexasGridManifest(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadTexasGridManifest(signal), []);
+  return useAbortableResource(enabled, ["texas-grid", "manifest"], loader);
+}
+
+export function useTexasGridResource(enabled: boolean, resource: TexasGridSelectedResource | null) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!resource) return Promise.reject(new Error("missing_texas_grid_resource"));
+      return loadTexasGridResource(resource, signal);
+    },
+    [resource],
+  );
+  return useAbortableResource(
+    enabled && resource !== null,
+    ["texas-grid", "resource", resource?.url],
+    loader,
+  );
 }
 
 export function useForecastQuality(enabled: boolean) {
