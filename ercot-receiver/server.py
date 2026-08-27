@@ -73,6 +73,12 @@ from market_mechanics import (
     market_mechanics_resource,
     prune_market_mechanics,
 )
+from market_geography import (
+    ingest_market_geography_publication,
+    init_market_geography_schema,
+    market_geography_manifest,
+    market_geography_resource,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -86,6 +92,7 @@ SEALED_CACHE_TTL_SECONDS = int(os.environ.get("SEALED_CACHE_TTL_SECONDS", "86400
 RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300"))
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
 MAX_FORECAST_BODY_BYTES = 1024 * 1024
+MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
@@ -1028,6 +1035,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_net_load_schema(conn)
     init_regional_geography_schema(conn)
     init_market_mechanics_schema(conn)
+    init_market_geography_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -2688,6 +2696,39 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/market-geography-publications/ingest":
+            if not self._rate_limit("market_geography_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_MARKET_GEOGRAPHY_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_market_geography_publication(
+                    get_db(), payload, current_ts=now_ts()
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400,
+                    {"error": "market_geography_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "market_geography_ingest_failed"},
+                    cache_control="no-store",
+                )
+                return
+            self._app_server().cache.invalidate({"market-geography-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/market-mechanics-publications/ingest":
             if not self._rate_limit("market_mechanics_ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -3301,6 +3342,153 @@ class Handler(BaseHTTPRequestHandler):
                 tile_catalog_payload(),
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
+            )
+            return
+        if parsed.path == "/api/v1/market-geography":
+            if not self._rate_limit("market_geography_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_market_geography_query"},
+                    cache_control="no-store",
+                )
+                return
+            app = self._app_server()
+            key = "market-geography-manifest:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_market_geography_manifest():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = market_geography_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(
+                        key,
+                        value,
+                        generation,
+                        {"market-geography-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="market-geography:manifest",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_market_geography_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "market_geography_manifest_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        geography_match = re.fullmatch(
+            r"/api/v2/market-geography/([^/]+)/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        if geography_match:
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_market_geography_resource"},
+                    cache_control="no-store",
+                )
+                return
+            try:
+                kind, identity, methodology, version, day_raw, lod = (
+                    geography_match.groups()
+                )
+                day = int(day_raw)
+                if str(day) != day_raw:
+                    raise ValueError("invalid_market_geography_day")
+                app = self._app_server()
+                key = self._cache_key(
+                    "market-geography:v2",
+                    {
+                        "kind": kind,
+                        "identity": identity,
+                        "methodology": methodology,
+                        "content_version": version,
+                        "day_start": day,
+                        "lod": lod,
+                    },
+                )
+                payload = app.cache.get(key)
+                state = "HIT"
+                if payload is None:
+                    generation = app.cache.snapshot_generation()
+
+                    def load_market_geography_resource():
+                        cached = app.cache.get(key)
+                        if cached is not None:
+                            return cached
+                        value = market_geography_resource(
+                            get_db(),
+                            kind,
+                            identity,
+                            methodology,
+                            version,
+                            day,
+                            lod,
+                        )
+                        if value is not None:
+                            app.cache.set_if_generation(
+                                key,
+                                value,
+                                generation,
+                                ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                                category="market-geography:immutable",
+                            )
+                        return value
+
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), load_market_geography_resource
+                    )
+                    state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(
+                    400,
+                    {"error": "invalid_market_geography_resource"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "market_geography_resource_failed"},
+                    cache_control="no-store",
+                )
+                return
+            if payload is None:
+                self._send_json(
+                    404,
+                    {"error": "market_geography_resource_not_found"},
+                    cache_control="no-store",
+                )
+                return
+            self._send_json(
+                200,
+                payload,
+                cache_control="public, max-age=3024000, immutable",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
             )
             return
         if parsed.path == "/api/v1/market-mechanics":
