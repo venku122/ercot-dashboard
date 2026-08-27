@@ -57,6 +57,15 @@ from net_load import (
     record_net_load_materialization_health,
     recompute_net_load,
 )
+from regional_geography import (
+    ingest_regional_renewable_publication,
+    init_regional_geography_schema,
+    materialize_load_day,
+    record_regional_materialization_health,
+    regional_geography_manifest,
+    regional_geography_resource,
+    prune_regional_publications,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -564,6 +573,40 @@ def tile_catalog_payload():
                 }
                 for horizon, key in NET_LOAD_FORECAST_KEYS.items()
             ],
+            *[
+                {
+                    "series_key": f"regional.load.weather-zone.{region}.{kind}",
+                    "route_template": "/api/v2/regional/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                    "alignment": "utc_day", "native_interval_seconds": 3600,
+                    "supported_lods": ["native"], "taxonomy": "load_weather_zone",
+                    "selection_policy": (
+                        "latest_actual_per_target" if kind == "actual"
+                        else "latest-capped-1h-before-utc-day"
+                    ),
+                    "diagnostic_error_formula": "actual_minus_forecast" if kind == "forecast" else None,
+                }
+                for region in (
+                    "coast", "east", "far-west", "north", "north-central",
+                    "south-central", "southern", "west",
+                )
+                for kind in ("actual", "forecast")
+            ],
+            *[
+                {
+                    "series_key": f"regional.{resource}.{region}.hourly",
+                    "route_template": "/api/v2/regional/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                    "alignment": "utc_day", "native_interval_seconds": 3600,
+                    "supported_lods": ["native"], "taxonomy": f"{resource}_region",
+                    "current_measure": "GEN", "forecast_measure": forecast,
+                    "forecast_basis": "HSL_potential",
+                    "forecast_error_available": False,
+                }
+                for resource, forecast, regions in (
+                    ("wind", "STWPF", ("panhandle", "coastal", "south", "west", "north")),
+                    ("solar", "STPPF", ("center-west", "north-west", "far-west", "far-east", "south-east", "center-east")),
+                )
+                for region in regions
+            ],
         ],
     }
 
@@ -976,6 +1019,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_forecast_schema(conn)
     init_forecast_quality_schema(conn)
     init_net_load_schema(conn)
+    init_regional_geography_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -2636,6 +2680,38 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/regional-renewable-publications/ingest":
+            if not self._rate_limit("regional_renewable_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_regional_renewable_publication(
+                    get_db(), payload, current_ts=now_ts()
+                )
+                result["pruned"] = prune_regional_publications(
+                    get_db(), now=now_ts(), batch_size=100
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400, {"error": "regional_constraint_conflict"}, cache_control="no-store"
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500, {"error": "regional_ingest_failed"}, cache_control="no-store"
+                )
+                return
+            self._app_server().cache.invalidate({"regional-geography-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/net-load/recompute":
             if not self._rate_limit("net_load_recompute", RATE_LIMIT_INGEST_RPM):
                 return
@@ -2752,7 +2828,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             self._app_server().cache.invalidate(
-                {"forecast-quality-manifest", "net-load-manifest"}
+                {"forecast-quality-manifest", "net-load-manifest", "regional-geography-manifest"}
             )
             self._send_json(200, result, cache_control="no-store")
             return
@@ -2817,9 +2893,10 @@ class Handler(BaseHTTPRequestHandler):
                 conn = get_db()
                 result = ingest_forecast_publication(conn, payload)
                 current = now_ts()
-                for day_start in affected_utc_days_for_forecast_vintage(
+                regional_days = affected_utc_days_for_forecast_vintage(
                     conn, result["vintage_key"]
-                ):
+                )
+                for day_start in regional_days:
                     recompute_forecast_quality(
                         conn,
                         "load.system",
@@ -2830,11 +2907,7 @@ class Handler(BaseHTTPRequestHandler):
                 if result["status"] == "inserted":
                     try:
                         recompute_bounded_forecast_net_load(
-                            conn,
-                            affected_utc_days_for_forecast_vintage(
-                                conn, result["vintage_key"]
-                            ),
-                            current,
+                            conn, regional_days, current,
                         )
                         record_net_load_materialization_health(
                             conn, "forecast", True, current
@@ -2846,6 +2919,22 @@ class Handler(BaseHTTPRequestHandler):
                             "load_materialization_failed",
                         )
                         result["net_load_materialization"] = "failed"
+                try:
+                    result["regional_load_resources"] = sum(
+                        (materialize_load_day(conn, day, current) for day in regional_days),
+                        [],
+                    )
+                    result["regional_pruned"] = prune_regional_publications(
+                        conn, now=current, batch_size=100
+                    )
+                    record_regional_materialization_health(conn, True, current)
+                    result["regional_load_materialization"] = "updated"
+                except Exception:
+                    conn.rollback()
+                    record_regional_materialization_health(
+                        conn, False, current, "load_materialization_failed"
+                    )
+                    result["regional_load_materialization"] = "failed"
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)}, cache_control="no-store")
                 return
@@ -2859,7 +2948,7 @@ class Handler(BaseHTTPRequestHandler):
             if result["status"] == "inserted":
                 self._app_server().cache.invalidate({"forecast-outlook"})
             self._app_server().cache.invalidate(
-                {"forecast-quality-manifest", "net-load-manifest"}
+                {"forecast-quality-manifest", "net-load-manifest", "regional-geography-manifest"}
             )
             self._send_json(200, result, cache_control="no-store")
             return
@@ -3176,6 +3265,98 @@ class Handler(BaseHTTPRequestHandler):
                 tile_catalog_payload(),
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
+            )
+            return
+        if parsed.path == "/api/v1/regional-geography":
+            if not self._rate_limit("regional_geography_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_regional_geography_query"}, cache_control="no-store")
+                return
+            app = self._app_server()
+            cache_key = "regional-geography-manifest:v1"
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_regional_manifest():
+                    cached = app.cache.get(cache_key)
+                    if cached is not None:
+                        return cached
+                    generated = regional_geography_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(
+                        cache_key, generated, generation,
+                        {"regional-geography-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="regional:manifest",
+                    )
+                    return generated
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, generation), generate_regional_manifest
+                    )
+                except Exception:
+                    self._send_json(500, {"error": "regional_manifest_failed"}, cache_control="no-store")
+                    return
+                cache_state = "MISS"
+            self._send_json(
+                200, payload,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}, s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate",
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        regional_match = re.fullmatch(
+            r"/api/v2/regional/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        if regional_match:
+            if not self._rate_limit("regional_geography_resource", RATE_LIMIT_SERIES_RPM):
+                return
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_regional_resource"}, cache_control="no-store")
+                return
+            try:
+                series_key, methodology, version, day_raw, lod = regional_match.groups()
+                day_start = int(day_raw)
+                if str(day_start) != day_raw:
+                    raise ValueError("invalid_regional_day_start")
+                app = self._app_server()
+                identity = {"series_key": series_key, "methodology": methodology, "content_version": version, "day_start": day_start, "lod": lod}
+                cache_key = self._cache_key("regional:v2", identity)
+                payload = app.cache.get(cache_key)
+                cache_state = "HIT"
+                if payload is None:
+                    generation = app.cache.snapshot_generation()
+
+                    def load_regional_resource():
+                        cached = app.cache.get(cache_key)
+                        if cached is not None:
+                            return cached
+                        loaded = regional_geography_resource(get_db(), series_key, methodology, version, day_start, lod)
+                        if loaded is not None:
+                            app.cache.set_if_generation(
+                                cache_key, loaded, generation,
+                                ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                                category="regional:immutable",
+                            )
+                        return loaded
+
+                    payload, _shared = app.singleflight.do((cache_key, generation), load_regional_resource)
+                    cache_state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": "invalid_regional_resource"}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "regional_resource_failed"}, cache_control="no-store")
+                return
+            if payload is None:
+                self._send_json(404, {"error": "regional_resource_not_found"}, cache_control="no-store")
+                return
+            self._send_json(
+                200, payload, cache_control="public, max-age=3024000, immutable",
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
             )
             return
         if parsed.path == "/api/v1/net-load":

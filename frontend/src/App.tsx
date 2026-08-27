@@ -85,6 +85,11 @@ const OutlookView = lazy(() =>
 const NetLoadPanel = lazy(() =>
   import("./dashboard/NetLoadPanel").then((module) => ({ default: module.NetLoadPanel })),
 );
+const RegionalGeographyPanel = lazy(() =>
+  import("./dashboard/RegionalGeographyPanel").then((module) => ({
+    default: module.RegionalGeographyPanel,
+  })),
+);
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -1475,6 +1480,7 @@ export function App() {
         {selectedView === "generation" ? (
           <Suspense fallback={<DataLifecycleMessage state="loading" />}>
             <NetLoadPanel enabled={selectedView === "generation"} />
+            <RegionalGeographyPanel enabled={selectedView === "generation"} />
           </Suspense>
         ) : null}
 
