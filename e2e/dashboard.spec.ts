@@ -224,20 +224,188 @@ test("production regression fixture keeps actual demand and available capacity v
   await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
 });
 
-test("fixed seven-day windows use canonical cacheable history chunks", async ({ page }) => {
+test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }) => {
   const chunkRequests: string[] = [];
+  const tileRequests: string[] = [];
   await installApi(page, "normal", [], chunkRequests);
   const to = FIXED_NOW_SECONDS - 2 * 86_400;
   const from = to - 7 * 86_400;
+  const catalogSeries = [
+    {
+      key: "supply-demand.available-capacity",
+      match: "exact",
+      metric: "ercot.supply_demand.available_capacity_mw",
+      native_interval_seconds: 300,
+      rollup: null,
+      source: "supply_demand",
+      statistic_policy: "power",
+      supported_lods: ["native", "5m", "15m", "1h"],
+      tags: ["source:supply_demand"],
+      unit: "MW",
+    },
+    {
+      key: "supply-demand.demand",
+      match: "exact",
+      metric: "ercot.supply_demand.demand_mw",
+      native_interval_seconds: 300,
+      rollup: null,
+      source: "supply_demand",
+      statistic_policy: "power",
+      supported_lods: ["native", "5m", "15m", "1h"],
+      tags: ["source:supply_demand"],
+      unit: "MW",
+    },
+    {
+      key: "supply-demand.forecast-demand",
+      match: "exact",
+      metric: "ercot.supply_demand.forecast_demand_mw",
+      native_interval_seconds: 3600,
+      rollup: null,
+      source: "supply_demand",
+      statistic_policy: "power",
+      supported_lods: ["native", "1h"],
+      tags: ["source:supply_demand"],
+      unit: "MW",
+    },
+  ] as const;
+  await page.route("**/api/v2/tile-catalog", async (route) => {
+    await route.fulfill({
+      json: {
+        boundary_policy: {
+          coarse_partial_clipping: false,
+          edge_lod: "native",
+          rule: "clients use native boundary tiles and coarse LOD only for aligned interiors",
+        },
+        lod_seconds: { "15m": 900, "1h": 3600, "5m": 300, native: null },
+        schema: 2,
+        series: catalogSeries,
+        tile_spans: { "1d": 86_400, "1h": 3600 },
+      },
+    });
+  });
+  await page.route("**/api/v2/tiles/**", async (route) => {
+    const url = new URL(route.request().url());
+    tileRequests.push(url.toString());
+    const match = url.pathname.match(
+      /^\/api\/v2\/tiles\/([^/]+)\/(1h|1d)\/(\d+)\/(native|5m|15m|1h)$/,
+    );
+    expect(match).not.toBeNull();
+    const [, seriesKey, tileSpan, tileStartRaw, lod] = match!;
+    const definition = catalogSeries.find((entry) => entry.key === seriesKey)!;
+    const tileStart = Number(tileStartRaw);
+    const tileEnd = tileStart + (tileSpan === "1d" ? 86_400 : 3600);
+    const overlapStart = Math.max(tileStart, from);
+    const overlapEnd = Math.min(tileEnd, to + 1);
+    const nativeInterval = definition.native_interval_seconds;
+    const lodSeconds =
+      lod === "native" ? nativeInterval : lod === "5m" ? 300 : lod === "15m" ? 900 : 3600;
+    const value = definition.key.includes("available-capacity")
+      ? 93_000
+      : definition.key.includes("forecast")
+        ? 70_000
+        : 68_000;
+    const buckets = [];
+    if (lod === "native") {
+      const timestamp = overlapStart;
+      if (timestamp < overlapEnd) {
+        buckets.push({
+          end: timestamp,
+          start: timestamp,
+          state: {
+            count: 1,
+            first_ordinal: 0,
+            first_ts: timestamp,
+            first_value: value,
+            integral_value_seconds: 0,
+            last_ordinal: 0,
+            last_ts: timestamp,
+            last_value: value,
+            maximum: value,
+            maximum_ts: timestamp,
+            minimum: value,
+            minimum_ts: timestamp,
+            value_sum: value,
+            version: 2,
+          },
+        });
+      }
+    } else {
+      const bucketStart = Math.ceil(overlapStart / lodSeconds) * lodSeconds;
+      if (bucketStart + lodSeconds <= overlapEnd) {
+        const lastTimestamp = bucketStart + Math.floor(lodSeconds / 2);
+        buckets.push({
+          end: bucketStart + lodSeconds,
+          start: bucketStart,
+          state: {
+            count: 2,
+            first_ordinal: 0,
+            first_ts: bucketStart,
+            first_value: value,
+            integral_value_seconds: value * (lastTimestamp - bucketStart),
+            last_ordinal: 0,
+            last_ts: lastTimestamp,
+            last_value: value,
+            maximum: value,
+            maximum_ts: bucketStart,
+            minimum: value,
+            minimum_ts: bucketStart,
+            value_sum: value * 2,
+            version: 2,
+          },
+        });
+      }
+    }
+    await route.fulfill({
+      json: {
+        boundary_policy: "native_edges_coarse_aligned_interiors",
+        buckets,
+        lod,
+        native_interval_seconds: nativeInterval,
+        rollup: null,
+        schema: 2,
+        series_key: seriesKey,
+        statistic_policy: "power",
+        tile_end: tileEnd,
+        tile_span: tileSpan,
+        tile_start: tileStart,
+        unit: "MW",
+      },
+    });
+  });
   await page.goto(
     `/?range=604800&live=0&from=${String(from)}&to=${String(to)}&compare=none&events=1`,
   );
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(page.getByText("Viewing a fixed analysis window", { exact: true })).toHaveCount(0);
-  await expect.poll(() => chunkRequests.length).toBeGreaterThan(0);
-  expect(chunkRequests.every((url) => url.includes("chunk_seconds=86400"))).toBe(true);
+  await expect.poll(() => tileRequests.length).toBeGreaterThan(0);
+  const tileUrls = tileRequests.map((request) => new URL(request));
+  expect(tileUrls.every((url) => url.search === "")).toBe(true);
+  expect(
+    tileUrls.every((url) =>
+      /^\/api\/v2\/tiles\/[^/]+\/(?:1h|1d)\/\d+\/(?:native|5m|15m|1h)$/.test(url.pathname),
+    ),
+  ).toBe(true);
+  expect(
+    tileUrls.some((url) =>
+      /^\/api\/v2\/tiles\/supply-demand\.demand\/1d\/\d+\/15m$/.test(url.pathname),
+    ),
+  ).toBe(true);
+  expect(
+    tileUrls.some((url) =>
+      /^\/api\/v2\/tiles\/supply-demand\.forecast-demand\/1d\/\d+\/native$/.test(url.pathname),
+    ),
+  ).toBe(true);
+  const mappedMetrics = new Set(catalogSeries.map((entry) => entry.metric));
+  expect(
+    chunkRequests.filter((request) =>
+      mappedMetrics.has(
+        new URL(request).searchParams.get("metric") as (typeof catalogSeries)[number]["metric"],
+      ),
+    ),
+  ).toEqual([]);
 });
 
 test("live background refresh keeps populated KPI text and dimensions stable", async ({ page }) => {

@@ -69,7 +69,9 @@ describe("v1 historical request and cache-key contract", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (input: string | URL | Request) => {
-          requested.push(String(input));
+          const url = String(input);
+          requested.push(url);
+          if (url === "/api/v2/tile-catalog") return jsonResponse({ schema: 1 });
           return jsonResponse({
             aggregation: "average",
             end: 0,
@@ -99,8 +101,10 @@ describe("v1 historical request and cache-key contract", () => {
         new AbortController().signal,
       );
 
-      expect(requested).toHaveLength(expectedRequests);
-      expect(requested[0]).toBe(
+      const chunkRequests = requested.filter((url) => url.startsWith("/api/v1/series/chunk?"));
+      expect(requested[0]).toBe("/api/v2/tile-catalog");
+      expect(chunkRequests).toHaveLength(expectedRequests);
+      expect(chunkRequests[0]).toBe(
         canonicalChunkUrl({
           chunkSeconds: DAY,
           end: start < end - DAY ? start + DAY : end,
@@ -109,7 +113,7 @@ describe("v1 historical request and cache-key contract", () => {
           start: Math.floor(start / DAY) * DAY,
         }),
       );
-      expect(requested.at(-1)).toBe(
+      expect(chunkRequests.at(-1)).toBe(
         canonicalChunkUrl({
           chunkSeconds: DAY,
           end,
@@ -118,7 +122,7 @@ describe("v1 historical request and cache-key contract", () => {
           start: end - DAY,
         }),
       );
-      for (const url of requested) {
+      for (const url of chunkRequests) {
         const params = new URL(url, "https://example.test").searchParams;
         expect(params.get("chunk_seconds")).toBe(String(DAY));
         expect(params.get("resolution")).toBe(String(expectedResolution));
@@ -134,7 +138,9 @@ describe("v1 historical request and cache-key contract", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
-        requested.push(String(input));
+        const url = String(input);
+        requested.push(url);
+        if (url === "/api/v2/tile-catalog") return jsonResponse({ schema: 1 });
         return jsonResponse({
           aggregation: "average",
           end: 0,
@@ -155,8 +161,10 @@ describe("v1 historical request and cache-key contract", () => {
       new AbortController().signal,
     );
 
-    expect(requested).toHaveLength(6);
-    expect(requested[0]).toBe(
+    const chunkRequests = requested.filter((url) => url.startsWith("/api/v1/series/chunk?"));
+    expect(requested[0]).toBe("/api/v2/tile-catalog");
+    expect(chunkRequests).toHaveLength(6);
+    expect(chunkRequests[0]).toBe(
       canonicalChunkUrl({
         chunkSeconds: 3600,
         end: start + 3600,
@@ -165,7 +173,7 @@ describe("v1 historical request and cache-key contract", () => {
         start,
       }),
     );
-    expect(requested.at(-1)).toBe(
+    expect(chunkRequests.at(-1)).toBe(
       canonicalChunkUrl({
         chunkSeconds: 3600,
         end,
