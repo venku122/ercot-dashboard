@@ -54,6 +54,7 @@ describe("global time state", () => {
 describe("shareable URL state", () => {
   it("normalizes and serializes the active progressive-disclosure view", () => {
     expect(dashboardViewFromUrl(new URL("https://example.test/?view=weather"))).toBe("weather");
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=outlook"))).toBe("outlook");
     expect(dashboardViewFromUrl(new URL("https://example.test/?view=unknown"))).toBe("overview");
     const output = dashboardViewToUrl("diagnostics", new URL("https://example.test/?range=3600"));
     expect(output.searchParams.get("view")).toBe("diagnostics");

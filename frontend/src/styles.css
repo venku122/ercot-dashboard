@@ -307,6 +307,242 @@ main {
   line-height: 1.5;
 }
 
+.outlook-promo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 14px;
+  background: linear-gradient(120deg, rgba(14, 116, 144, 0.2), rgba(15, 23, 42, 0.72));
+  padding: 15px 18px;
+}
+
+.outlook-promo h2,
+.outlook-promo p {
+  margin: 0;
+}
+
+.outlook-promo h2 {
+  margin-top: 2px;
+  font-size: 1rem;
+}
+
+.outlook-promo > div > p:last-child {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.outlook-promo button {
+  min-width: 152px;
+  min-height: 44px;
+}
+
+.outlook-view-content {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+}
+
+.outlook-source-warning {
+  border: 1px solid rgba(251, 191, 36, 0.38);
+  border-radius: 12px;
+  background: rgba(120, 53, 15, 0.2);
+  padding: 14px 16px;
+}
+
+.outlook-source-warning ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: #fde68a;
+  font-size: 0.76rem;
+}
+
+.outlook-summary-grid,
+.outlook-weather-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.outlook-summary-grid > article,
+.outlook-profile-panel,
+.outlook-days-panel,
+.outlook-weather-panel,
+.outlook-day-card,
+.outlook-weather-grid > article {
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.outlook-summary-grid > article,
+.outlook-weather-grid > article {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border-radius: 12px;
+  padding: 15px;
+}
+
+.outlook-summary-grid span,
+.outlook-weather-grid span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.outlook-summary-grid strong,
+.outlook-weather-grid strong,
+.outlook-day-card dd {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.outlook-day-card button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+}
+
+.outlook-hourly-detail {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.outlook-hourly-detail h4 {
+  margin: 0;
+}
+
+.outlook-profile details > summary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  cursor: pointer;
+  color: #bae6fd;
+}
+
+.outlook-summary-grid small,
+.outlook-weather-grid small,
+.outlook-day-card small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.outlook-profile-panel,
+.outlook-days-panel,
+.outlook-weather-panel {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.outlook-profile-panel h3,
+.outlook-days-panel h3,
+.outlook-weather-panel h3,
+.outlook-days-panel p,
+.outlook-weather-panel p {
+  margin: 0;
+}
+
+.outlook-days-panel > div:first-child > p:last-child,
+.outlook-weather-panel > div:first-child > p:last-child {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.outlook-profile {
+  min-width: 0;
+  margin: 0;
+}
+
+.outlook-profile svg {
+  display: block;
+  width: 100%;
+  height: 180px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.14), rgba(15, 23, 42, 0.12));
+}
+
+.outlook-profile polyline {
+  stroke: #22d3ee;
+  stroke-width: 2;
+}
+
+.outlook-profile figcaption {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.outlook-day-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.outlook-day-card {
+  min-width: 0;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.outlook-day-card header,
+.outlook-day-card dl,
+.outlook-day-card dl > div {
+  display: grid;
+  gap: 5px;
+}
+
+.outlook-day-card header {
+  padding-bottom: 8px;
+}
+
+.outlook-day-card dl {
+  margin: 0;
+  gap: 12px;
+}
+
+.outlook-day-card dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.outlook-day-card dd {
+  margin: 0;
+  font-weight: 750;
+}
+
+.outlook-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.outlook-provenance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.outlook-provenance strong {
+  color: #e2e8f0;
+}
+
 .information-section {
   display: grid;
   gap: 14px;
@@ -3178,7 +3414,56 @@ main[data-dashboard-view="overview"] {
   }
   .mobile-section-nav button {
     min-width: 0;
-    flex: 1 1 20%;
+    flex: 1 1 0;
+  }
+
+  .outlook-promo {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .outlook-promo button {
+    width: 100%;
+  }
+
+  .outlook-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .outlook-weather-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .outlook-profile-panel,
+  .outlook-days-panel,
+  .outlook-weather-panel {
+    padding: 14px;
+  }
+
+  .outlook-profile svg {
+    height: 150px;
+  }
+
+  .outlook-day-strip {
+    display: flex;
+    margin-right: -14px;
+    margin-left: -14px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 0 14px 6px;
+    scroll-snap-type: x proximity;
+  }
+
+  .outlook-day-card {
+    min-width: min(78vw, 280px);
+    scroll-snap-align: start;
+  }
+
+  .outlook-provenance {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

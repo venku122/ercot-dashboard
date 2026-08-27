@@ -2,6 +2,7 @@ import { seriesKey } from "./chart-config";
 import { CanonicalUrlCache } from "./canonical-url-cache";
 import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
+import { parseOutlookResponse, type OutlookResponse } from "./outlook";
 import {
   parseTileCatalog,
   planTileRequests,
@@ -904,6 +905,11 @@ export async function loadSourceHealth(signal?: AbortSignal): Promise<SourceHeal
     signal,
   );
   return response.sources;
+}
+
+export async function loadOutlook(signal?: AbortSignal): Promise<OutlookResponse> {
+  const response = await fetchJson<unknown>("/api/v1/outlook", { method: "GET" }, signal);
+  return parseOutlookResponse(response);
 }
 
 export async function loadEvents(time: TimeState, signal?: AbortSignal): Promise<EventRecord[]> {

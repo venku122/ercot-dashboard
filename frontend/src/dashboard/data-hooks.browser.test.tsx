@@ -76,7 +76,7 @@ describe("overview background refresh", () => {
 
     let snapshot = {} as Snapshot;
     function Probe() {
-      snapshot = useOverviewData({ eventsEnabled: false, overviewQueries, time });
+      snapshot = useOverviewData({ enabled: true, eventsEnabled: false, overviewQueries, time });
       return null;
     }
     const host = document.createElement("div");
@@ -111,6 +111,36 @@ describe("overview background refresh", () => {
     });
     await vi.waitFor(() => expect(snapshot.latest.get("demand")?.value).toBe(71_000));
     expect(snapshot.isValidating).toBe(false);
+
+    await act(async () => root.unmount());
+  });
+
+  it("does not request overview resources while disabled", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+
+    let snapshot = {} as Snapshot;
+    function Probe() {
+      snapshot = useOverviewData({ enabled: false, eventsEnabled: true, overviewQueries, time });
+      return null;
+    }
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <SWRConfig value={{ provider: () => new Map() }}>
+          <Probe />
+        </SWRConfig>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(snapshot.isLoading).toBe(false);
+    expect(snapshot.isValidating).toBe(false);
+    expect(snapshot.latest.size).toBe(0);
+    expect(snapshot.statusEvents).toEqual([]);
 
     await act(async () => root.unmount());
   });
