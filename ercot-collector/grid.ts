@@ -1,6 +1,6 @@
 // deno run --allow-net --allow-env examples/emit-metrics.ts
 
-import { runMetricsLoop, MetricSubmission, headers, fetch } from "./_lib.ts";
+import { fetch, headers, runMetricsLoop, type NormalizedMetric } from "./_lib.ts";
 export async function start() {
   await runMetricsLoop(grabUserMetrics, 1, "ercot_realtime");
 }
@@ -29,7 +29,7 @@ function metricKey(value: string): string {
     .replace(/[ -]+/g, "_");
 }
 
-function parseGridMetrics(body: string): MetricSubmission[] {
+function parseGridMetrics(body: string): NormalizedMetric[] {
   const rowPattern = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   const headerPattern =
     /<td\b[^>]*class=["'][^"']*\bheaderValueClass\b[^"']*["'][^>]*>([\s\S]*?)<\/td>/i;
@@ -37,7 +37,7 @@ function parseGridMetrics(body: string): MetricSubmission[] {
     /<td\b[^>]*class=["'][^"']*\btdLeft\b[^"']*["'][^>]*>([\s\S]*?)<\/td>\s*<td\b[^>]*class=["'][^"']*\blabelClassCenter\b[^"']*["'][^>]*>([\s\S]*?)<\/td>/i;
 
   let section = "";
-  const metrics = new Array<MetricSubmission>();
+  const metrics = new Array<NormalizedMetric>();
   for (const [, row] of body.matchAll(rowPattern)) {
     const header = row.match(headerPattern);
     if (header) {
@@ -73,7 +73,7 @@ function parseGridMetrics(body: string): MetricSubmission[] {
   return metrics;
 }
 
-async function grabUserMetrics(): Promise<MetricSubmission[]> {
+async function grabUserMetrics(): Promise<NormalizedMetric[]> {
   const body = await fetch(
     "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html",
     headers("text/html"),

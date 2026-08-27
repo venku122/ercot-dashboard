@@ -35,6 +35,17 @@ from forecast_vintages import (
     publication_rows,
     resolve_publication,
 )
+from forecast_quality import (
+    METHODOLOGY_VERSION as FORECAST_QUALITY_METHODOLOGY_VERSION,
+    affected_utc_days_for_forecast_vintage,
+    affected_utc_days_for_renewable_vintage,
+    forecast_quality_manifest,
+    forecast_quality_resource,
+    ingest_renewable_publication,
+    init_forecast_quality_schema,
+    recompute_forecast_quality,
+    renewable_series_for_vintage,
+)
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
 WEB_DIR = os.path.join(BASE_DIR, "web")
@@ -925,6 +936,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     )
     conn.commit()
     init_forecast_schema(conn)
+    init_forecast_quality_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -1429,7 +1441,7 @@ def ingest_events(conn, payload, current_ts=None):
     return {"inserted": inserted, "updated": updated, "invalid": invalid}
 
 
-def update_source_health(conn, attempt, current_ts=None):
+def update_source_health(conn, attempt, current_ts=None, commit=True):
     source_id = attempt.get("source_id") if isinstance(attempt, dict) else None
     display_name = attempt.get("display_name") if isinstance(attempt, dict) else None
     interval = parse_positive_int(
@@ -1553,7 +1565,8 @@ def update_source_health(conn, attempt, current_ts=None):
             availability_status,
         ),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def source_state(row, current_ts=None):
@@ -2536,6 +2549,99 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/renewable-publications/ingest":
+            if not self._rate_limit("renewable_vintages_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            current = now_ts()
+            try:
+                conn = get_db()
+                result = ingest_renewable_publication(conn, payload, current_ts=current)
+                series_key = renewable_series_for_vintage(conn, result["vintage_key"])
+                days = affected_utc_days_for_renewable_vintage(
+                    conn, result["vintage_key"]
+                )
+                if series_key is None:
+                    raise ValueError("renewable_publication_identity_unavailable")
+                for day_start in days:
+                    recompute_forecast_quality(
+                        conn,
+                        series_key,
+                        day_start,
+                        current_ts=current,
+                        dataset_cutoff=current,
+                    )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400,
+                    {"error": "renewable_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "renewable_quality_materialization_failed"},
+                    cache_control="no-store",
+                )
+                return
+            self._app_server().cache.invalidate({"forecast-quality-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/forecast-quality/recompute":
+            if not self._rate_limit("forecast_quality_recompute", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error()
+            if payload is None:
+                return
+            try:
+                if not isinstance(payload, dict) or not set(payload).issubset(
+                    {"series_key", "day_start", "horizons", "dataset_cutoff"}
+                ):
+                    raise ValueError("invalid_forecast_quality_recompute")
+                if "series_key" not in payload or "day_start" not in payload:
+                    raise ValueError("invalid_forecast_quality_recompute")
+                horizons = payload.get("horizons")
+                if horizons is not None and (
+                    not isinstance(horizons, list)
+                    or not 1 <= len(horizons) <= 3
+                    or any(not isinstance(item, str) for item in horizons)
+                    or len(set(horizons)) != len(horizons)
+                ):
+                    raise ValueError("invalid_forecast_quality_horizons")
+                cutoff = payload.get("dataset_cutoff", now_ts())
+                results = recompute_forecast_quality(
+                    get_db(),
+                    payload["series_key"],
+                    payload["day_start"],
+                    current_ts=now_ts(),
+                    dataset_cutoff=cutoff,
+                    horizons=horizons,
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "forecast_quality_recompute_failed"},
+                    cache_control="no-store",
+                )
+                return
+            self._app_server().cache.invalidate({"forecast-quality-manifest"})
+            self._send_json(200, {"resources": results}, cache_control="no-store")
+            return
+
         if self.path == "/api/forecast-publications/ingest":
             if not self._rate_limit("forecast_vintages_ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -2545,7 +2651,19 @@ class Handler(BaseHTTPRequestHandler):
             if payload is None:
                 return
             try:
-                result = ingest_forecast_publication(get_db(), payload)
+                conn = get_db()
+                result = ingest_forecast_publication(conn, payload)
+                current = now_ts()
+                for day_start in affected_utc_days_for_forecast_vintage(
+                    conn, result["vintage_key"]
+                ):
+                    recompute_forecast_quality(
+                        conn,
+                        "load.system",
+                        day_start,
+                        current_ts=current,
+                        dataset_cutoff=current,
+                    )
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)}, cache_control="no-store")
                 return
@@ -2558,6 +2676,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if result["status"] == "inserted":
                 self._app_server().cache.invalidate({"forecast-outlook"})
+            self._app_server().cache.invalidate({"forecast-quality-manifest"})
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -2626,10 +2745,22 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "too_many_attempts"}, cache_control="no-store")
                 return
             try:
+                conn = get_db()
+                conn.execute("BEGIN IMMEDIATE")
                 for attempt in attempts:
-                    update_source_health(get_db(), attempt)
+                    update_source_health(conn, attempt, commit=False)
+                conn.commit()
             except ValueError as exc:
+                if "conn" in locals():
+                    conn.rollback()
                 self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                if "conn" in locals():
+                    conn.rollback()
+                self._send_json(
+                    500, {"error": "source_health_update_failed"}, cache_control="no-store"
+                )
                 return
             self._app_server().cache.invalidate({"source-health", "overview"})
             self._send_json(200, {"updated": len(attempts)}, cache_control="no-store")
@@ -2845,6 +2976,161 @@ class Handler(BaseHTTPRequestHandler):
                 tile_catalog_payload(),
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
+            )
+            return
+        if parsed.path == "/api/v1/forecast-quality":
+            if not self._rate_limit("forecast_quality", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_forecast_quality_query"},
+                    cache_control="no-store",
+                )
+                return
+            cache_key = "forecast-quality-manifest:v1"
+            app = self._app_server()
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                request_generation = app.cache.snapshot_generation()
+
+                def generate_manifest():
+                    cached_after_election = app.cache.get(cache_key)
+                    if cached_after_election is not None:
+                        return cached_after_election, True
+                    generated = forecast_quality_manifest(get_db(), now=now_ts())
+                    stored = app.cache.set_if_generation(
+                        cache_key,
+                        generated,
+                        request_generation,
+                        {"forecast-quality-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="forecast-quality:manifest",
+                    )
+                    return generated, stored
+
+                try:
+                    (payload, _stored), _shared = app.singleflight.do(
+                        (cache_key, request_generation), generate_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "forecast_quality_manifest_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                cache_state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        quality_match = re.fullmatch(
+            r"/api/v2/forecast-quality/([^/]+)/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)",
+            parsed.path,
+        )
+        if quality_match:
+            if not self._rate_limit("forecast_quality_resource", RATE_LIMIT_SERIES_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_forecast_quality_resource"},
+                    cache_control="no-store",
+                )
+                return
+            series_key, methodology, content_version, horizon, day_raw = (
+                quality_match.groups()
+            )
+            try:
+                day_start = int(day_raw)
+                if str(day_start) != day_raw:
+                    raise ValueError("invalid_forecast_quality_day")
+                cache_key = self._cache_key(
+                    "forecast-quality:v2",
+                    {
+                        "series_key": series_key,
+                        "methodology": methodology,
+                        "content_version": content_version,
+                        "horizon": horizon,
+                        "day_start": day_start,
+                    },
+                )
+                app = self._app_server()
+                payload = app.cache.get(cache_key)
+                cache_state = "HIT"
+                if payload is None:
+                    request_generation = app.cache.snapshot_generation()
+
+                    def load_resource():
+                        cached_after_election = app.cache.get(cache_key)
+                        if cached_after_election is not None:
+                            return cached_after_election
+                        loaded = forecast_quality_resource(
+                            get_db(),
+                            series_key,
+                            methodology,
+                            content_version,
+                            horizon,
+                            day_start,
+                        )
+                        if loaded is None:
+                            return None
+                        app.cache.set_if_generation(
+                            cache_key,
+                            loaded,
+                            request_generation,
+                            ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                            category="forecast-quality:immutable",
+                        )
+                        return loaded
+
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, request_generation), load_resource
+                    )
+                    cache_state = "MISS"
+            except ValueError:
+                self._send_json(
+                    400,
+                    {"error": "invalid_forecast_quality_resource"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "forecast_quality_resource_failed"},
+                    cache_control="no-store",
+                )
+                return
+            if payload is None:
+                self._send_json(
+                    404,
+                    {"error": "forecast_quality_resource_not_found"},
+                    cache_control="no-store",
+                )
+                return
+            self._send_json(
+                200,
+                payload,
+                cache_control="public, max-age=31536000, immutable",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        if parsed.path.startswith("/api/v2/forecast-quality/"):
+            self._send_json(
+                400,
+                {"error": "invalid_forecast_quality_resource"},
+                cache_control="no-store",
             )
             return
         if parsed.path == "/api/v1/forecast-publications":
