@@ -71,6 +71,14 @@ export type ErcotFieldDefinition = JsonObject & {
   dataType: string;
 };
 
+export const ESR_FIELD_NAMES = [
+  "AGCExecTime",
+  "DSTFlag",
+  "AGCExecTimeUTC",
+  "systemDemand",
+  "ESRChargingMW",
+] as const;
+
 export type ErcotToken = {
   accessToken: string;
   expiresAt: number;
@@ -220,7 +228,10 @@ export function validateEsrResponse(value: unknown): ErcotEsrResponse {
     throw new ErcotApiError("ercot_esr_schema_invalid");
   }
   const fieldNames = fields.map((field) => field.name);
-  if (new Set(fieldNames).size !== fieldNames.length) {
+  if (
+    new Set(fieldNames).size !== fieldNames.length ||
+    JSON.stringify(fieldNames) !== JSON.stringify(ESR_FIELD_NAMES)
+  ) {
     throw new ErcotApiError("ercot_esr_schema_invalid");
   }
   const expectedNames = new Set(fieldNames);
