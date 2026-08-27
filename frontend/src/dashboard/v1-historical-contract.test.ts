@@ -245,43 +245,34 @@ describe("v1 historical numeric semantics", () => {
     });
   });
 
-  it("freezes the exact legacy comparison query and aligned derived-series values", async () => {
-    const bodies: unknown[] = [];
+  it("preserves fixed comparison alignment and derivation through v1 chunk GET fallback", async () => {
+    const requested: string[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
-        bodies.push(JSON.parse(String(init?.body)));
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        requested.push(url);
+        if (url === "/api/v2/tile-catalog") return jsonResponse({ schema: 1 });
+        const metric = new URL(url, "https://example.test").searchParams.get("metric");
         return jsonResponse({
-          series: [
-            {
-              id: "contract:a:current",
-              points: [
-                [1000, 10],
-                [1600, 20],
-              ],
-            },
-            {
-              id: "contract:a:compare",
-              points: [
-                [400, 7],
-                [1000, 15],
-              ],
-            },
-            {
-              id: "contract:b:current",
-              points: [
-                [1000, 3],
-                [1600, 5],
-              ],
-            },
-            {
-              id: "contract:b:compare",
-              points: [
-                [400, 2],
-                [1000, 4],
-              ],
-            },
-          ],
+          aggregation: "average",
+          end: DAY,
+          metric,
+          points:
+            metric === "ercot.a"
+              ? [
+                  [1400, 7],
+                  [2000, 10],
+                  [2600, 20],
+                ]
+              : [
+                  [1400, 2],
+                  [2000, 3],
+                  [2600, 5],
+                ],
+          resolution: 1,
+          start: 0,
+          tags: [],
         });
       }),
     );
@@ -298,68 +289,29 @@ describe("v1 historical numeric semantics", () => {
 
     const result = await loadSeries(
       [definition],
-      fixedTime(1000, 1600),
+      fixedTime(2000, 2600),
       "previous_period",
       DAY,
       new AbortController().signal,
     );
 
-    expect(bodies).toEqual([
-      {
-        queries: [
-          {
-            id: "contract:a:current",
-            max_points: 1200,
-            metric: "ercot.a",
-            since: 1000,
-            stats_since: 1000,
-            tags: ["zone:a"],
-            until: 1600,
-          },
-          {
-            id: "contract:a:compare",
-            max_points: 1200,
-            metric: "ercot.a",
-            since: 400,
-            stats_since: 400,
-            tags: ["zone:a"],
-            until: 1000,
-          },
-          {
-            id: "contract:b:current",
-            max_points: 1200,
-            metric: "ercot.b",
-            since: 1000,
-            stats_since: 1000,
-            tags: [],
-            until: 1600,
-          },
-          {
-            id: "contract:b:compare",
-            max_points: 1200,
-            metric: "ercot.b",
-            since: 400,
-            stats_since: 400,
-            tags: [],
-            until: 1000,
-          },
-        ],
-      },
-    ]);
+    expect(requested[0]).toBe("/api/v2/tile-catalog");
+    expect(requested.filter((url) => url.startsWith("/api/v1/series/chunk?"))).toHaveLength(2);
+    expect(requested.some((url) => url === "/api/series/batch")).toBe(false);
     expect(result.get("contract:a")?.compare).toEqual([
-      [1000, 7],
-      [1600, 15],
+      [2000, 7],
+      [2600, 10],
     ]);
     expect(result.get("contract:net")).toEqual({
       compare: [
-        [1000, 5],
-        [1600, 11],
+        [2000, 5],
+        [2600, 7],
       ],
       error: null,
       meta: {},
       points: [
-        [1000, 7],
-        [1600, 15],
+        [2000, 7],
+        [2600, 15],
       ],
     });
   });

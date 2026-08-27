@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { loadSeries } from "./api";
+import { loadSeries, resetCanonicalApiCachesForTests } from "./api";
+import { compareWindow } from "./compare";
 import type { ChartDefinition, TimeState } from "./types";
 
 const HOUR = 3_600;
@@ -122,11 +123,121 @@ function tileResult(
 }
 
 afterEach(() => {
+  resetCanonicalApiCachesForTests();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("fixed-history semantic tile client", () => {
+  it("deduplicates overlapping previous/custom comparison tiles and derives aligned compare", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(10 * DAY * 1000);
+    const tileCalls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/v2/tile-catalog") return response(catalog());
+        tileCalls.push(url);
+        return response(
+          tileResult(url, [
+            { end: 0, start: 0, state: state([[0, 1, 0]]) },
+            { end: HOUR, start: HOUR, state: state([[HOUR, 2, 0]]) },
+            { end: 2 * HOUR, start: 2 * HOUR, state: state([[2 * HOUR, 3, 0]]) },
+          ]),
+        );
+      }),
+    );
+    const definition = chart([
+      { color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" },
+      {
+        color: "#aaa",
+        derive: { from: ["raw"], operation: "sum" },
+        id: "derived",
+        label: "Derived",
+      },
+    ]);
+
+    const previous = await loadSeries(
+      [definition],
+      fixedTime(HOUR, 2 * HOUR),
+      "previous_period",
+      DAY,
+      new AbortController().signal,
+    );
+    const zeroCustom = await loadSeries(
+      [definition],
+      fixedTime(HOUR, 2 * HOUR),
+      "custom",
+      0,
+      new AbortController().signal,
+    );
+
+    expect(tileCalls).toHaveLength(1);
+    expect(previous.get("contract:raw")?.points).toEqual([
+      [HOUR, 2],
+      [2 * HOUR, 3],
+    ]);
+    expect(previous.get("contract:raw")?.compare).toEqual([
+      [HOUR, 1],
+      [2 * HOUR, 2],
+    ]);
+    expect(previous.get("contract:derived")?.compare).toEqual([
+      [HOUR, 1],
+      [2 * HOUR, 2],
+    ]);
+    expect(zeroCustom.get("contract:raw")?.compare).toEqual(zeroCustom.get("contract:raw")?.points);
+  });
+
+  it("aligns day and week comparisons per Chicago calendar across the repeated hour", async () => {
+    const start = Date.parse("2026-11-02T06:30:00Z") / 1_000;
+    const end = Date.parse("2026-11-02T07:30:00Z") / 1_000;
+    const time = fixedTime(start, end);
+    const dayWindow = compareWindow("day", time);
+    const weekWindow = compareWindow("week", time);
+    const values = new Map<number, number>([
+      [start, 100],
+      [end, 101],
+      [dayWindow.start, 10],
+      [dayWindow.end, 11],
+      [weekWindow.start, 20],
+      [weekWindow.end, 21],
+    ]);
+    vi.spyOn(Date, "now").mockReturnValue((end + 10 * DAY) * 1_000);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/v2/tile-catalog") return response(catalog());
+        const match = url.match(/\/(1h|1d)\/(\d+)\/native$/);
+        if (!match) throw new Error(`unexpected URL ${url}`);
+        const tileStart = Number(match[2]);
+        const tileEnd = tileStart + (match[1] === "1d" ? DAY : HOUR);
+        const buckets = [...values.entries()]
+          .filter(([timestamp]) => timestamp >= tileStart && timestamp < tileEnd)
+          .sort((left, right) => left[0] - right[0])
+          .map(([timestamp, value]) => ({
+            end: timestamp,
+            start: timestamp,
+            state: state([[timestamp, value, 0]]),
+          }));
+        return response(tileResult(url, buckets));
+      }),
+    );
+    const definition = chart([{ color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" }]);
+
+    const day = await loadSeries([definition], time, "day", DAY, new AbortController().signal);
+    const week = await loadSeries([definition], time, "week", DAY, new AbortController().signal);
+
+    expect(day.get("contract:raw")?.compare).toEqual([
+      [start, 10],
+      [end, 11],
+    ]);
+    expect(week.get("contract:raw")?.compare).toEqual([
+      [start, 20],
+      [end, 21],
+    ]);
+  });
+
   it("preserves inclusive points and raw-state statistics and energy", async () => {
     vi.spyOn(Date, "now").mockReturnValue(10 * DAY * 1000);
     const requested: string[] = [];
@@ -223,6 +334,87 @@ describe("fixed-history semantic tile client", () => {
     expect(tileCalls).toHaveLength(1);
   });
 
+  it("shares one application fetch while one caller aborts without poisoning survivors", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(10 * DAY * 1000);
+    let tileFetches = 0;
+    let resolveTile!: (value: Response) => void;
+    const pendingTile = new Promise<Response>((resolve) => {
+      resolveTile = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/v2/tile-catalog") return response(catalog());
+        tileFetches += 1;
+        return pendingTile;
+      }),
+    );
+    const definition = chart([{ color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" }]);
+    const firstController = new AbortController();
+    const first = loadSeries([definition], fixedTime(0, HOUR), "none", DAY, firstController.signal);
+    const survivor = loadSeries(
+      [definition],
+      fixedTime(0, HOUR),
+      "none",
+      DAY,
+      new AbortController().signal,
+    );
+    await vi.waitFor(() => expect(tileFetches).toBe(1));
+    firstController.abort();
+    const url = "/api/v2/tiles/fixture.power/1d/0/native";
+    resolveTile(response(tileResult(url, [{ end: 0, start: 0, state: state([[0, 8, 0]]) }])));
+
+    await expect(first).rejects.toMatchObject({ name: "AbortError" });
+    await expect(survivor).resolves.toBeInstanceOf(Map);
+    const warm = await loadSeries(
+      [definition],
+      fixedTime(0, HOUR),
+      "none",
+      DAY,
+      new AbortController().signal,
+    );
+    expect(warm.get("contract:raw")?.points).toEqual([[0, 8]]);
+    expect(tileFetches).toBe(1);
+  });
+
+  it("parses a shared tile once across simultaneous consumers and a warm hit", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(10 * DAY * 1000);
+    const url = "/api/v2/tiles/fixture.power/1d/0/native";
+    const trackedState = state([[0, 8, 0]]);
+    let versionReads = 0;
+    Object.defineProperty(trackedState, "version", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        versionReads += 1;
+        return 2;
+      },
+    });
+    const rawTile = tileResult(url, [{ end: 0, start: 0, state: trackedState }]);
+    let tileFetches = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        if (String(input) === "/api/v2/tile-catalog") return response(catalog());
+        tileFetches += 1;
+        return {
+          json: async () => rawTile,
+          ok: true,
+        } as Response;
+      }),
+    );
+    const definition = chart([{ color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" }]);
+    const load = () =>
+      loadSeries([definition], fixedTime(0, HOUR), "none", DAY, new AbortController().signal);
+
+    await Promise.all([load(), load()]);
+    await load();
+
+    expect(tileFetches).toBe(1);
+    expect(versionReads).toBe(1);
+  });
+
   it("falls back atomically per series while leaving eligible siblings on v2", async () => {
     vi.spyOn(Date, "now").mockReturnValue(10 * DAY * 1000);
     const requested: string[] = [];
@@ -272,12 +464,17 @@ describe("fixed-history semantic tile client", () => {
 
   it("rejects a malformed tile atomically and uses only its v1 fallback", async () => {
     vi.spyOn(Date, "now").mockReturnValue(10 * DAY * 1000);
+    let tileAttempts = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         if (url === "/api/v2/tile-catalog") return response(catalog());
         if (url.includes("/api/v2/tiles/")) {
+          tileAttempts += 1;
+          if (tileAttempts > 1) {
+            return response(tileResult(url, [{ end: 0, start: 0, state: state([[0, 33, 0]]) }]));
+          }
           const malformed = tileResult(url, [
             { end: 0, start: 0, state: state([[0, 1, 0]]) },
             { end: HOUR, start: HOUR, state: state([[HOUR, 2, 0]]) },
@@ -305,6 +502,15 @@ describe("fixed-history semantic tile client", () => {
       new AbortController().signal,
     );
     expect(result.get("contract:raw")?.points).toEqual([[0, 50]]);
+    const retried = await loadSeries(
+      [chart([{ color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" }])],
+      fixedTime(0, HOUR),
+      "none",
+      DAY,
+      new AbortController().signal,
+    );
+    expect(retried.get("contract:raw")?.points).toEqual([[0, 33]]);
+    expect(tileAttempts).toBe(2);
   });
 
   it("falls back atomically when one request in a multi-tile series fails", async () => {
@@ -347,6 +553,55 @@ describe("fixed-history semantic tile client", () => {
 
     expect(result.get("contract:raw")?.points).toEqual([[0, 77]]);
     expect(v1Calls).toBe(7);
+  });
+
+  it("falls back the current and comparison pair atomically through deduplicated GETs", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(10 * DAY * 1000);
+    let v1Calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/v2/tile-catalog") return response(catalog());
+        if (url.startsWith("/api/v2/tiles/")) {
+          const malformed = tileResult(url, [{ end: 0, start: 0, state: state([[0, 100, 0]]) }]);
+          malformed.unit = "wrong";
+          return response(malformed);
+        }
+        v1Calls += 1;
+        return response({
+          aggregation: "average",
+          end: DAY,
+          metric: "fixture.power",
+          points: [
+            [0, 4],
+            [HOUR, 5],
+            [2 * HOUR, 6],
+          ],
+          resolution: 3,
+          start: 0,
+          tags: [],
+        });
+      }),
+    );
+
+    const result = await loadSeries(
+      [chart([{ color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" }])],
+      fixedTime(HOUR, 2 * HOUR),
+      "previous_period",
+      DAY,
+      new AbortController().signal,
+    );
+
+    expect(result.get("contract:raw")?.points).toEqual([
+      [HOUR, 5],
+      [2 * HOUR, 6],
+    ]);
+    expect(result.get("contract:raw")?.compare).toEqual([
+      [HOUR, 4],
+      [2 * HOUR, 5],
+    ]);
+    expect(v1Calls).toBe(1);
   });
 
   it("propagates AbortError without attempting v1 fallback", async () => {
@@ -465,10 +720,45 @@ describe("fixed-history semantic tile client", () => {
     expect(maximumActive).toBeLessThanOrEqual(8);
   });
 
-  it.each([
-    ["live", "none"],
-    ["fixed", "previous_period"],
-  ] as const)("leaves %s/%s loading on the established batch API", async (mode, compare) => {
+  it("expires recent application tiles but retains sealed canonical tiles", async () => {
+    let nowMs = 10 * DAY * 1_000;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+    const tileAttempts = new Map<string, number>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/v2/tile-catalog") return response(catalog());
+        tileAttempts.set(url, (tileAttempts.get(url) ?? 0) + 1);
+        const rawStart = url.split("/").at(-2)!;
+        const tileStart = Number(rawStart);
+        return response(
+          tileResult(url, [
+            { end: tileStart, start: tileStart, state: state([[tileStart, 1, 0]]) },
+          ]),
+        );
+      }),
+    );
+    const definition = chart([{ color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" }]);
+    const recent = fixedTime(10 * DAY - 2 * HOUR, 10 * DAY - HOUR - 1);
+
+    await loadSeries([definition], recent, "none", DAY, new AbortController().signal);
+    await loadSeries([definition], recent, "none", DAY, new AbortController().signal);
+    const recentUrl = [...tileAttempts.keys()][0]!;
+    expect(tileAttempts.get(recentUrl)).toBe(1);
+    nowMs += 31_000;
+    await loadSeries([definition], recent, "none", DAY, new AbortController().signal);
+    expect(tileAttempts.get(recentUrl)).toBe(2);
+
+    const sealed = fixedTime(0, HOUR - 1);
+    await loadSeries([definition], sealed, "none", DAY, new AbortController().signal);
+    const sealedUrl = [...tileAttempts.keys()].find((url) => url.includes("/1d/0/"))!;
+    nowMs += HOUR * 1_000;
+    await loadSeries([definition], sealed, "none", DAY, new AbortController().signal);
+    expect(tileAttempts.get(sealedUrl)).toBe(1);
+  });
+
+  it("leaves live loading on the established batch API", async () => {
     const requested: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -477,12 +767,12 @@ describe("fixed-history semantic tile client", () => {
         return response({ series: [] });
       }),
     );
-    const time = { ...fixedTime(HOUR, 2 * HOUR), mode };
+    const time = { ...fixedTime(HOUR, 2 * HOUR), mode: "live" as const };
 
     await loadSeries(
       [chart([{ color: "#fff", id: "raw", label: "Raw", metric: "fixture.power" }])],
       time,
-      compare,
+      "none",
       DAY,
       new AbortController().signal,
     );
