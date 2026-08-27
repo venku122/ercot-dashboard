@@ -187,8 +187,9 @@ Actions:
   manifests, malformed paths, query aliases, or authentication surfaces.
 - At the same PoP, verify first MISS, second HIT, increasing Age, strong ETag,
   If-None-Match/304, and zero receiver SQLite generation on the edge hit.
-- Verify corrected logical tile points to B while previous exact A remains
-  immutable and byte/ETag stable.
+- Verify a corrected tile revalidates to changed bytes/ETag B while an
+  unrelated canonical tile remains byte/ETag stable. Do not expect a generic
+  persistent exact-version A route; canonical tile bodies are memory-only.
 
 Expected evidence:
 - Saved request/response headers with credentials absent, rule ID/order, PoP,
@@ -301,4 +302,3 @@ FINAL OPERATOR CHECKLIST
 [ ] Four-second ESR remains disabled
 [ ] PullImage=true and Prune=false used for every Portainer update
 [ ] Final observation window accepted
-

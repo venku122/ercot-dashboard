@@ -188,15 +188,17 @@ production migration:       NOT EXECUTED — DEFERRED_PROMOTION
 
 6. CACHE, CORRECTION, AND PERFORMANCE REPORT
 
-Logical resources are finite/revalidated. Completed logical tiles point to
-content-addressed versions. Only exact content-version URLs are immutable.
+Logical canonical tile resources are finite and revalidated. Generated tile
+bodies are memory-only and are never stored in SQLite or on the filesystem.
+SQLite observations remain authoritative; restarts regenerate deterministic
+bytes and ETags.
 
 Correction proof:
-- generated completed version A and retained its exact bytes/ETag;
+- generated affected tile A and retained its exact bytes/ETag for comparison;
 - applied one bounded correction;
-- the logical pointer changed to version B;
-- A remained addressable, byte-identical, and ETag-identical;
-- unchanged replay did not mint a third version;
+- the affected canonical response changed to bytes/ETag B;
+- an unrelated canonical tile remained a byte-identical LRU HIT;
+- unchanged replay did not create any persistent artifact;
 - the 401-day historical-context benchmark rewrote one day with one bounded
   LIMIT 301 raw query and retained old bytes.
 
@@ -367,4 +369,3 @@ Production collector activation            DEFERRED_PROMOTION
 
 Do not perform these approvals from this report. The next action belongs to the
 human reviewer.
-

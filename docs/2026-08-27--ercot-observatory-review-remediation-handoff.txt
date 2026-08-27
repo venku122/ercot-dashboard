@@ -1,0 +1,112 @@
+ERCOT OBSERVATORY REVIEW REMEDIATION AND DEPLOYMENT HANDOFF
+Date: 2026-08-27
+Repository: venku122/ercot-dashboard
+Stack: PR #33 through PR #55
+
+STATUS
+
+READY FOR DETAILED HUMAN REVIEW / CONDITIONAL MERGE CANDIDATE
+
+This status is not deployment approval. Nothing was merged or deployed during
+this remediation. Production, Portainer, production SQLite, collectors,
+Cloudflare, and DNS were not changed.
+
+PRIMARY REMEDIATION
+
+PR #37 no longer persists generated generic canonical tile bodies. SQLite
+observations are authoritative. Generated tiles live only in the receiver's
+bounded in-process LRU and downstream HTTP/browser caches. A restart empties the
+LRU and regenerates deterministic bytes and strong ETags. Corrections invalidate
+only intersecting ranges. There is no generic tile_resources table, tile body
+file, Content-Location pointer, or generic exact-version child route.
+
+REVIEW ORDER
+
+1. Read docs/2026-08-27--ercot-observatory-technical-human-review.md.
+2. Review the six diagrams in docs/review-evidence/diagrams/.
+3. Review the 28 desktop/mobile screenshots in docs/review-evidence/visuals/.
+4. Review docs/review-evidence/2026-08-27--performance-matrix.md and its JSON/CSV.
+5. Inspect the PR #37 diff and restart/correction acceptance tests.
+6. Confirm exact-head CI and the PR #33-#55 base/head topology before any merge.
+
+KNOWN ACCEPTED LIMIT
+
+Current high-resolution four-second ESR remains:
+  BLOCKED_EXTERNAL - ACCEPTED SCOPE LIMIT
+
+ERCOT discontinued the live feed after 2025-12-05. The application therefore
+uses truthful five-minute system-wide storage context and never claims current
+four-second battery response, resource SOC, or causal attribution.
+
+PRE-MERGE GATE
+
+- All PRs remain draft/unmerged until human review accepts the packet.
+- Verify each PR base is the immediately preceding stacked branch.
+- Verify GitHub Actions runs against the exact current PR #55 head.
+- Review range-diff evidence; do not rely on review/comment counts.
+- Confirm secret scan, frontend/receiver/collector suites, VRI, build, Compose
+  expansion, and container-image build evidence are green.
+- Confirm no stale generic persistent-tile or age-based immutable claim remains.
+
+DEPLOYMENT GUIDE (ONLY AFTER SEPARATE HUMAN APPROVAL)
+
+Preparation
+1. Record exact approved PR #55 merge revision and matching receiver/collector
+   image digests. Do not deploy mutable :local or floating tags.
+2. Export the live Portainer stack definition and COMPLETE Env array. Preserve
+   unknown variables, volumes, network, ports, labels, and restart policy.
+3. Record current container image IDs, health, restart counts, source timestamps,
+   route status, and a coherent SQLite backup. Keep rollback images available.
+4. Keep every new source opt-in disabled for the initial image rollout.
+5. Use PullImage=true and Prune=false. Do not delete additive tables or volumes.
+
+Initial rollout
+1. Update matching receiver and collector images in one reviewed stack payload.
+2. Confirm both containers stay running without restart loops.
+3. Verify root, /api/status, existing operational data, 401 ingest protection,
+   new manifest routes, and expected disabled/unavailable states.
+4. Verify canonical tile first request MISS, second request receiver HIT or 304,
+   stable ETag, and zero SQLite generation on the warm path.
+5. Restart only the receiver during an approved window and verify the first tile
+   is a MISS/regeneration with identical bytes and ETag. Confirm no tile body
+   files or tile_resources table appear.
+6. Apply one bounded synthetic/non-production correction rehearsal where
+   permitted; verify affected-range change and unrelated-range stability.
+
+Source enablement
+1. Enable one optional source at a time, starting with credential-free sources.
+2. After each enable, verify collector logs, last source timestamp, receiver
+   source-health state, current pointer, and browser rendering before proceeding.
+3. EIA remains disabled unless a reviewed non-DEMO credential and exact schema
+   gate are separately approved. Never place credentials in browser/runtime JSON,
+   logs, checkpoints, screenshots, or this handoff.
+4. Treat receiver source health as insufficient when the collector cannot reach
+   the receiver; inspect collector logs and restart counts as independent truth.
+
+Cloudflare promotion (separate approval)
+1. Preserve the existing ruleset and save exact rule IDs/order for rollback.
+2. Add only the reviewed /api/v2/tiles/* cache rule ahead of general API bypass.
+3. Respect origin Cache-Control and strong ETags; do not cache errors, ingest,
+   manifests, aliases, malformed paths, or authenticated surfaces.
+4. Prove same-PoP MISS then HIT/Age (or validated 304) and no receiver SQLite
+   generation on the edge hit. Older tiles remain revalidated, not immutable.
+
+Rollback
+1. Disable newly enabled collector sources first.
+2. Roll back the collector image first, then restore both previous pinned images
+   and the COMPLETE previous Env array with PullImage=true and Prune=false.
+3. Verify containers, old route behavior, operational freshness, database
+   integrity, and source timestamps. Additive schema can remain unused.
+4. Restore SQLite only from the coherent backup with the receiver stopped and
+   only if data/schema recovery is actually required.
+5. Revert any Cloudflare rule by exact saved rule ID/order; do not broadly purge
+   or alter DNS as part of application rollback.
+
+STOP CONDITIONS
+
+Stop and roll back on restart loops, auth regression, stale operational feeds,
+schema collision, unexplained cache bytes, missing source timestamps, failed
+integrity checks, secret exposure, or inability to reproduce the approved image
+revision. Do not diagnose around an unhealthy deployment by enabling more
+sources.
+

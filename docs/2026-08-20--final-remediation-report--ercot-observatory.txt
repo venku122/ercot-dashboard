@@ -3,6 +3,15 @@ Date: 2026-08-20
 Repository: venku122/ercot-dashboard
 PR stack: #33 through #55, all draft and unmerged
 
+SUPERSEDED CACHE NOTE (2026-08-27)
+
+The PR #37 tile-persistence description below records the pre-remediation
+design and is no longer current. PR #37 now keeps canonical tile bodies only
+in bounded process memory. SQLite metrics remain authoritative; a process
+restart regenerates deterministic bytes/ETag. No generic tile body files,
+tile_resources table, or generic content-version child route exist. See the
+2026-08-27 technical human-review packet for current evidence.
+
 EXECUTIVE OUTCOME
 
 GO for human go/no-go review after exact-head GitHub Actions completes green.
@@ -38,13 +47,12 @@ FINDING DISPOSITION
    green. Main bytes 56,524,800 before and 107,483,136 after; peak observed WAL
    13,002,752. Production migration was NOT EXECUTED.
 
-2. PR #37 canonical tile correction safety: PASS.
-   Added SQLite content-versioned tile resources (`t2-<sha256>`), finite
-   revalidated logical URLs, immutable exact-version URLs, Content-Location,
-   strong ETag/304, correction-created versions, and >=365-day retired-version
-   retention. A correction changes the logical pointer while old URL bytes/ETag
-   remain stable. Removed unsupported immutable claims from versionless catalog
-   and legacy chunk surfaces. Cloudflare same-PoP proof is DEFERRED_PROMOTION.
+2. PR #37 canonical tile correction safety: PASS after 2026-08-27 remediation.
+   Canonical tiles use deterministic logical URLs, strong ETag/304, bounded
+   receiver memory, range-aware correction invalidation, shared HTTP caching,
+   and browser URL reuse. SQLite stores observations, not generated tile bodies.
+   A restart regenerates the same bytes/ETag; a correction changes only affected
+   ranges. Cloudflare same-PoP proof remains DEFERRED_PROMOTION.
 
 3. PR #48/#49 current four-second ESR: BLOCKED_EXTERNAL.
    ERCOT confirms the current feed ended 2025-12-05. Five-minute fleet storage
