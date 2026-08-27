@@ -81,6 +81,62 @@
   white-space: normal;
 }
 
+.market-mechanics-panel {
+  display: grid;
+  gap: 1rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.market-mechanics-panel > *,
+.market-mechanics-panel section,
+.market-mechanics-grid {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.market-mechanics-panel button {
+  min-height: 44px;
+}
+
+.market-mechanics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.65rem;
+}
+
+.market-mechanics-grid button {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.market-mechanics-profile {
+  display: block;
+  width: 100%;
+  height: clamp(8rem, 24vw, 15rem);
+}
+
+.market-mechanics-panel .table-scroll table {
+  min-width: 42rem;
+}
+
+.market-mechanics-panel .table-scroll {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.market-mechanics-panel .table-scroll th,
+.market-mechanics-panel .table-scroll td {
+  padding: 0.55rem 0.75rem;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
 .regional-current-table {
   min-width: 48rem;
 }

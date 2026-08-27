@@ -90,6 +90,11 @@ const RegionalGeographyPanel = lazy(() =>
     default: module.RegionalGeographyPanel,
   })),
 );
+const MarketMechanicsPanel = lazy(() =>
+  import("./dashboard/MarketMechanicsPanel").then((module) => ({
+    default: module.MarketMechanicsPanel,
+  })),
+);
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -1390,89 +1395,94 @@ export function App() {
         ) : null}
 
         {selectedView === "market" ? (
-          <section aria-label="Settlement price ranking" className="events-panel ranking-panel">
-            <div>
-              <p className="eyebrow">Market ranking</p>
-              <h2>Latest settlement point prices</h2>
-            </div>
-            {priceLifecycleState === "ready" ? (
-              <div className="market-price-context">
-                <div aria-label="Settlement price summary" className="market-summary-grid">
-                  <article>
-                    <span>Houston Hub</span>
-                    <strong>
-                      {houstonSettlement
-                        ? formatValue(houstonSettlement.value, "$/MWh")
-                        : "Not reported"}
-                    </strong>
-                  </article>
-                  <article>
-                    <span>High–low spread</span>
-                    <strong>
-                      {settlementSpread === null
-                        ? "Not reported"
-                        : formatValue(settlementSpread, "$/MWh")}
-                    </strong>
-                  </article>
-                  <article>
-                    <span>Regional context</span>
-                    <strong>
-                      {settlementSpread !== null && settlementSpread >= 100
-                        ? "Material divergence"
-                        : "Broadly aligned"}
-                    </strong>
-                  </article>
-                  <article>
-                    <span>Publication</span>
-                    <strong>
-                      {settlementAge === null ? "Not reported" : formatAge(settlementAge)}
-                    </strong>
-                    {settlementAge === null ? null : (
-                      <small>{settlementFreshness(settlementAge)}</small>
-                    )}
-                  </article>
-                </div>
-                <details className="market-ranking-details">
-                  <summary>Complete hub and load-zone ranking</summary>
-                  <div className="table-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Settlement point</th>
-                          <th>Price</th>
-                          <th>Observed</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {settlementRows.map((row) => (
-                          <tr key={row.tag}>
-                            <td>
-                              <strong>{row.metadata.label}</strong>
-                              <small>
-                                {row.metadata.type} · {row.metadata.code}
-                              </small>
-                            </td>
-                            <td>{formatValue(row.value, "$/MWh")}</td>
-                            <td>{new Date(row.ts * 1000).toLocaleString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
+          <>
+            <section aria-label="Settlement price ranking" className="events-panel ranking-panel">
+              <div>
+                <p className="eyebrow">Market ranking</p>
+                <h2>Latest settlement point prices</h2>
               </div>
-            ) : (
-              <DataLifecycleMessage
-                className="panel-lifecycle-message"
-                detail={
-                  priceLifecycleState === "waiting"
-                    ? "No settlement-price sample has been reported yet."
-                    : undefined
-                }
-                state={priceLifecycleState}
-              />
-            )}
-          </section>
+              {priceLifecycleState === "ready" ? (
+                <div className="market-price-context">
+                  <div aria-label="Settlement price summary" className="market-summary-grid">
+                    <article>
+                      <span>Houston Hub</span>
+                      <strong>
+                        {houstonSettlement
+                          ? formatValue(houstonSettlement.value, "$/MWh")
+                          : "Not reported"}
+                      </strong>
+                    </article>
+                    <article>
+                      <span>High–low spread</span>
+                      <strong>
+                        {settlementSpread === null
+                          ? "Not reported"
+                          : formatValue(settlementSpread, "$/MWh")}
+                      </strong>
+                    </article>
+                    <article>
+                      <span>Regional context</span>
+                      <strong>
+                        {settlementSpread !== null && settlementSpread >= 100
+                          ? "Material divergence"
+                          : "Broadly aligned"}
+                      </strong>
+                    </article>
+                    <article>
+                      <span>Publication</span>
+                      <strong>
+                        {settlementAge === null ? "Not reported" : formatAge(settlementAge)}
+                      </strong>
+                      {settlementAge === null ? null : (
+                        <small>{settlementFreshness(settlementAge)}</small>
+                      )}
+                    </article>
+                  </div>
+                  <details className="market-ranking-details">
+                    <summary>Complete hub and load-zone ranking</summary>
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Settlement point</th>
+                            <th>Price</th>
+                            <th>Observed</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {settlementRows.map((row) => (
+                            <tr key={row.tag}>
+                              <td>
+                                <strong>{row.metadata.label}</strong>
+                                <small>
+                                  {row.metadata.type} · {row.metadata.code}
+                                </small>
+                              </td>
+                              <td>{formatValue(row.value, "$/MWh")}</td>
+                              <td>{new Date(row.ts * 1000).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                </div>
+              ) : (
+                <DataLifecycleMessage
+                  className="panel-lifecycle-message"
+                  detail={
+                    priceLifecycleState === "waiting"
+                      ? "No settlement-price sample has been reported yet."
+                      : undefined
+                  }
+                  state={priceLifecycleState}
+                />
+              )}
+            </section>
+            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+              <MarketMechanicsPanel enabled={selectedView === "market"} />
+            </Suspense>
+          </>
         ) : null}
 
         {selectedView === "weather" ? <WeatherConditions latest={latest} /> : null}

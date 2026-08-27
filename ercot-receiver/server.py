@@ -66,6 +66,13 @@ from regional_geography import (
     regional_geography_resource,
     prune_regional_publications,
 )
+from market_mechanics import (
+    ingest_market_mechanics_publication,
+    init_market_mechanics_schema,
+    market_mechanics_manifest,
+    market_mechanics_resource,
+    prune_market_mechanics,
+)
 REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
 
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
@@ -1020,6 +1027,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     init_forecast_quality_schema(conn)
     init_net_load_schema(conn)
     init_regional_geography_schema(conn)
+    init_market_mechanics_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
@@ -2680,6 +2688,34 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_POST(self):
+        if self.path == "/api/market-mechanics-publications/ingest":
+            if not self._rate_limit("market_mechanics_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_market_mechanics_publication(
+                    get_db(), payload, current_ts=now_ts()
+                )
+                result["pruned"] = prune_market_mechanics(
+                    get_db(), now=now_ts(), batch_size=500
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(400, {"error": "market_mechanics_constraint_conflict"}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "market_mechanics_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"market-mechanics-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/regional-renewable-publications/ingest":
             if not self._rate_limit("regional_renewable_ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -3266,6 +3302,70 @@ class Handler(BaseHTTPRequestHandler):
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
             )
+            return
+        if parsed.path == "/api/v1/market-mechanics":
+            if not self._rate_limit("market_mechanics_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_market_mechanics_query"}, cache_control="no-store")
+                return
+            app = self._app_server()
+            key = "market-mechanics-manifest:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+                def generate_market_manifest():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = market_mechanics_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(key, value, generation, {"market-mechanics-manifest", "source-health"}, ttl_seconds=RECENT_CACHE_TTL_SECONDS, category="market:manifest")
+                    return value
+                try:
+                    payload, _ = app.singleflight.do((key, generation), generate_market_manifest)
+                except Exception:
+                    self._send_json(500, {"error": "market_mechanics_manifest_failed"}, cache_control="no-store")
+                    return
+                state = "MISS"
+            self._send_json(200, payload, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}, s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate", etag=True, extra_headers={"X-ERCOT-Cache": state})
+            return
+        market_match = re.fullmatch(r"/api/v2/market-mechanics/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)", parsed.path)
+        if market_match:
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_market_resource"}, cache_control="no-store")
+                return
+            try:
+                series_key, methodology, version, day_raw, lod = market_match.groups()
+                day = int(day_raw)
+                if str(day) != day_raw:
+                    raise ValueError("invalid_market_day")
+                app = self._app_server()
+                key = self._cache_key("market:v2", {"series_key": series_key, "methodology": methodology, "content_version": version, "day_start": day, "lod": lod})
+                payload = app.cache.get(key)
+                state = "HIT"
+                if payload is None:
+                    generation = app.cache.snapshot_generation()
+                    def load_market_resource():
+                        cached = app.cache.get(key)
+                        if cached is not None:
+                            return cached
+                        value = market_mechanics_resource(get_db(), series_key, methodology, version, day, lod)
+                        if value is not None:
+                            app.cache.set_if_generation(key, value, generation, ttl_seconds=SEALED_CACHE_TTL_SECONDS, category="market:immutable")
+                        return value
+                    payload, _ = app.singleflight.do((key, generation), load_market_resource)
+                    state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": "invalid_market_resource"}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "market_resource_failed"}, cache_control="no-store")
+                return
+            if payload is None:
+                self._send_json(404, {"error": "market_resource_not_found"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="public, max-age=3024000, immutable", etag=True, extra_headers={"X-ERCOT-Cache": state})
             return
         if parsed.path == "/api/v1/regional-geography":
             if not self._rate_limit("regional_geography_manifest", RATE_LIMIT_STATUS_RPM):
