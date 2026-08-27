@@ -20,6 +20,10 @@ import {
   type NetLoadResourceLink,
 } from "./net-load";
 import {
+  parsePredictiveWeatherManifest,
+  type PredictiveWeatherManifest,
+} from "./predictive-weather";
+import {
   parseTileCatalog,
   planTileRequests,
   resolveTileSeries,
@@ -926,6 +930,14 @@ export async function loadSourceHealth(signal?: AbortSignal): Promise<SourceHeal
 export async function loadOutlook(signal?: AbortSignal): Promise<OutlookResponse> {
   const response = await fetchJson<unknown>("/api/v1/outlook", { method: "GET" }, signal);
   return parseOutlookResponse(response);
+}
+
+export async function loadPredictiveWeather(
+  signal?: AbortSignal,
+): Promise<PredictiveWeatherManifest> {
+  return parsePredictiveWeatherManifest(
+    await fetchJson<unknown>("/api/v1/predictive-weather", { method: "GET" }, signal),
+  );
 }
 
 export async function loadForecastQualityManifest(

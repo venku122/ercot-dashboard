@@ -38,6 +38,8 @@ The collector polls ERCOT's public dashboard resources and reports metrics, oper
 See [architecture](docs/architecture.md), [legacy parity matrix](docs/parity-matrix.md),
 [ERCOT sources and schemas](docs/ercot-sources.md), [operations and rollback](docs/operations.md),
 and [verification evidence](docs/verification.md).
+The opt-in NWS collector and its representative-point limitations are documented in
+[Predictive weather](docs/PREDICTIVE_WEATHER.md).
 
 ## Frontend development
 

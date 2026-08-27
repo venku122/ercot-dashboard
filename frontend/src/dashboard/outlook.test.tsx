@@ -196,7 +196,7 @@ describe("Grid Outlook contract", () => {
     expect(html).toContain("View Sat, Jan 16 hourly detail");
     expect(html).toContain("Some Outlook inputs are partial or stale");
     expect(html).toContain("Current observations only");
-    expect(html).toContain("Forecast weather driver unavailable");
+    expect(html).toContain("Current METAR observations are displayed independently");
     expect(html).toContain("not an ERCOT declaration");
   });
 

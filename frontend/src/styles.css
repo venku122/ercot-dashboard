@@ -817,6 +817,138 @@ main {
   color: #e2e8f0;
 }
 
+.predictive-weather-panel {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 18px;
+}
+
+.predictive-weather-panel > header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.predictive-weather-panel h3,
+.predictive-weather-panel h4,
+.predictive-weather-panel p {
+  margin: 0;
+}
+
+.predictive-weather-panel > header p:last-child,
+.predictive-weather-panel section > p,
+.predictive-weather-policy span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.predictive-weather-panel > header button,
+.predictive-weather-points button {
+  min-height: 44px;
+}
+
+.predictive-weather-panel > div,
+.predictive-weather-panel section,
+.predictive-weather-policy {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.predictive-weather-policy {
+  border-left: 3px solid #38bdf8;
+  padding: 10px 12px;
+  background: rgba(14, 116, 144, 0.1);
+}
+
+.predictive-weather-points,
+.predictive-weather-context-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.predictive-weather-points button,
+.predictive-weather-context-grid article,
+.predictive-weather-alert {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.36);
+  padding: 12px;
+  text-align: left;
+}
+
+.predictive-weather-points button[aria-pressed="true"] {
+  border-color: #38bdf8;
+  box-shadow: inset 0 0 0 1px #38bdf8;
+}
+
+.predictive-weather-points span,
+.predictive-weather-points small,
+.predictive-weather-context-grid span,
+.predictive-weather-context-grid small,
+.predictive-weather-alert span,
+.predictive-weather-alert small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.predictive-weather-context-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.predictive-weather-context-grid em {
+  color: #bae6fd;
+  font-size: 0.7rem;
+  font-style: normal;
+}
+
+.predictive-weather-panel details > summary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  cursor: pointer;
+  color: #bae6fd;
+}
+
+.predictive-weather-panel .table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.predictive-weather-panel .table-scroll table {
+  min-width: 42rem;
+}
+
+.predictive-weather-panel .table-scroll th,
+.predictive-weather-panel .table-scroll td {
+  min-width: 8.5rem;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.predictive-weather-panel .table-scroll th:first-child,
+.predictive-weather-panel .table-scroll td:first-child {
+  min-width: 10rem;
+}
+
+.predictive-weather-alert {
+  overflow-wrap: anywhere;
+}
+
 .information-section {
   display: grid;
   gap: 14px;
@@ -3875,8 +4007,23 @@ main[data-dashboard-view="overview"] {
 
   .outlook-profile-panel,
   .outlook-days-panel,
-  .outlook-weather-panel {
+  .outlook-weather-panel,
+  .predictive-weather-panel {
     padding: 14px;
+  }
+
+  .predictive-weather-panel > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .predictive-weather-panel > header button {
+    width: 100%;
+  }
+
+  .predictive-weather-points,
+  .predictive-weather-context-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .outlook-profile svg {
