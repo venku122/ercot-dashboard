@@ -6,6 +6,7 @@ import mimetypes
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 from collections import Counter, OrderedDict, defaultdict
@@ -14,6 +15,15 @@ from urllib.parse import parse_qs, urlparse
 from typing import cast
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+from tile_aggregates import (
+    aggregate_points,
+    deserialize_aggregate,
+    merge_aggregates,
+    serialize_aggregate,
+)
+
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
 WEB_DIR = os.path.join(BASE_DIR, "web")
 API_KEY = os.environ.get("METRICS_API_KEY")
@@ -58,6 +68,371 @@ if CORS_ORIGINS_EXTRA:
         if origin:
             ALLOWED_ORIGINS.add(origin)
 DB_LOCAL = threading.local()
+
+TILE_SCHEMA_VERSION = 2
+TILE_SPANS = {"1h": 3600, "1d": 86400}
+TILE_LOD_SECONDS = {"native": None, "5m": 300, "15m": 900, "1h": 3600}
+TILE_SERIES_CATALOG = (
+    {
+        "key": "supply-demand.demand",
+        "metric": "ercot.supply_demand.demand_mw",
+        "tags": ["source:supply_demand"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "5m", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "supply_demand",
+        "match": "exact",
+    },
+    {
+        "key": "supply-demand.available-capacity",
+        "metric": "ercot.supply_demand.available_capacity_mw",
+        "tags": ["source:supply_demand"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "5m", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "supply_demand",
+        "match": "exact",
+    },
+    {
+        "key": "storage.net-output",
+        "metric": "ercot.storage.net_output_mw",
+        "tags": ["source:energy_storage"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "5m", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "energy_storage",
+        "match": "exact",
+    },
+    {
+        "key": "fuel-mix.wind",
+        "metric": "ercot.fuel_mix.generation_mw",
+        "tags": ["fuel:wind", "source:fuel_mix"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "fuel_mix",
+        "match": "exact",
+    },
+    {
+        "key": "fuel-mix.solar",
+        "metric": "ercot.fuel_mix.generation_mw",
+        "tags": ["fuel:solar", "source:fuel_mix"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "fuel_mix",
+        "match": "exact",
+    },
+    {
+        "key": "fuel-mix.total",
+        "metric": "ercot.fuel_mix.generation_mw",
+        "tags": ["source:fuel_mix"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "15m", "1h"],
+        "rollup": "sum",
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "fuel_mix",
+        "match": "selector",
+    },
+    {
+        "key": "renewables.wind-actual",
+        "metric": "ercot.renewables.actual_mw",
+        "tags": ["resource:wind", "source:wind_solar"],
+        "native_interval_seconds": 3600,
+        "supported_lods": ["native", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "wind_solar",
+        "match": "exact",
+    },
+    {
+        "key": "renewables.solar-actual",
+        "metric": "ercot.renewables.actual_mw",
+        "tags": ["resource:solar", "source:wind_solar"],
+        "native_interval_seconds": 3600,
+        "supported_lods": ["native", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "wind_solar",
+        "match": "exact",
+    },
+)
+
+TILE_SERIES_CATALOG += tuple(
+    {
+        "key": key,
+        "metric": metric,
+        "tags": tags,
+        "native_interval_seconds": native_interval,
+        "supported_lods": lods,
+        "rollup": None,
+        "unit": unit,
+        "statistic_policy": policy,
+        "source": source,
+        "match": "exact",
+    }
+    for key, metric, tags, native_interval, lods, unit, policy, source in (
+        (
+            "supply-demand.forecast-demand",
+            "ercot.supply_demand.forecast_demand_mw",
+            ["source:supply_demand"],
+            3600,
+            ["native", "1h"],
+            "MW",
+            "power",
+            "supply_demand",
+        ),
+        (
+            "frequency.system",
+            "ercot.Frequency.Current_Frequency",
+            [],
+            60,
+            ["native", "5m", "15m", "1h"],
+            "Hz",
+            "gauge",
+            "ercot_realtime",
+        ),
+        *(
+            (
+                f"storage.{name}",
+                f"ercot.storage.{metric_suffix}_mw",
+                ["source:energy_storage"],
+                300,
+                ["native", "5m", "15m", "1h"],
+                "MW",
+                "power",
+                "energy_storage",
+            )
+            for name, metric_suffix in (
+                ("charging", "charging"),
+                ("discharging", "discharging"),
+            )
+        ),
+        *(
+            (
+                f"fuel-mix.{name}",
+                "ercot.fuel_mix.generation_mw",
+                [f"fuel:{tag}", "source:fuel_mix"],
+                300,
+                ["native", "15m", "1h"],
+                "MW",
+                "power",
+                "fuel_mix",
+            )
+            for name, tag in (
+                ("natural-gas", "natural_gas"),
+                ("coal-and-lignite", "coal_and_lignite"),
+                ("nuclear", "nuclear"),
+                ("power-storage", "power_storage"),
+            )
+        ),
+        *(
+            (
+                f"renewables.{resource}-{kind}",
+                f"ercot.renewables.{metric_suffix}_mw",
+                [f"resource:{resource}", "source:wind_solar"],
+                3600,
+                ["native", "1h"],
+                "MW",
+                "power",
+                "wind_solar",
+            )
+            for resource, kind, metric_suffix in (
+                ("wind", "forecast", "forecast"),
+                ("wind", "hsl", "hsl"),
+                ("solar", "forecast", "forecast"),
+            )
+        ),
+        (
+            "generation-outages.total",
+            "ercot.generation_outages.total_mw",
+            ["source:generation_outages"],
+            300,
+            ["native", "5m", "15m", "1h"],
+            "MW",
+            "power",
+            "generation_outages",
+        ),
+        *(
+            (
+                f"generation-outages.{category}-{outage_type}",
+                "ercot.generation_outages.mw",
+                [
+                    f"category:{category}",
+                    f"outage_type:{outage_type}",
+                    "source:generation_outages",
+                ],
+                300,
+                ["native", "5m", "15m", "1h"],
+                "MW",
+                "power",
+                "generation_outages",
+            )
+            for category, outage_type in (
+                ("dispatchable", "unplanned"),
+                ("dispatchable", "planned"),
+                ("renewable", "unplanned"),
+                ("renewable", "planned"),
+            )
+        ),
+        *(
+            (
+                f"pricing.{name}",
+                "ercot.pricing",
+                [f"ercot_region:{tag}"],
+                900,
+                ["native", "15m", "1h"],
+                "$/MWh",
+                "gauge",
+                "ercot_pricing",
+            )
+            for name, tag in (
+                ("houston", "HB_HOUSTON"),
+                ("north", "HB_NORTH"),
+                ("west", "HB_WEST"),
+            )
+        ),
+    )
+)
+
+
+def validate_tile_series_catalog(entries):
+    validated = {}
+    for raw in entries:
+        entry = dict(raw)
+        key = entry.get("key")
+        if not isinstance(key, str) or not re.fullmatch(
+            r"[a-z0-9]+(?:[.-][a-z0-9]+)*", key
+        ):
+            raise ValueError("invalid_tile_series_key")
+        if key in validated:
+            raise ValueError("duplicate_tile_series_key")
+        metric = entry.get("metric")
+        if not isinstance(metric, str) or not metric.strip():
+            raise ValueError("invalid_tile_series_metric")
+        tags = entry.get("tags")
+        normalized_tags = (
+            sorted(set(str(tag)[:200] for tag in tags[:MAX_TAGS]))
+            if isinstance(tags, list)
+            else None
+        )
+        if not isinstance(tags, list) or tags != normalized_tags:
+            raise ValueError("invalid_tile_series_tags")
+        native_interval = entry.get("native_interval_seconds")
+        if not isinstance(native_interval, int) or native_interval <= 0:
+            raise ValueError("invalid_tile_native_interval")
+        lods = entry.get("supported_lods")
+        if (
+            not isinstance(lods, list)
+            or not lods
+            or "native" not in lods
+            or len(lods) != len(set(lods))
+            or any(lod not in TILE_LOD_SECONDS for lod in lods)
+        ):
+            raise ValueError("invalid_tile_supported_lods")
+        for lod in lods:
+            seconds = native_interval if lod == "native" else TILE_LOD_SECONDS[lod]
+            if seconds < native_interval or any(
+                span % seconds != 0 for span in TILE_SPANS.values()
+            ):
+                raise ValueError("invalid_tile_lod_cadence")
+        if entry.get("match") not in ("exact", "selector"):
+            raise ValueError("invalid_tile_match")
+        if entry.get("rollup") not in (None, "sum"):
+            raise ValueError("invalid_tile_rollup")
+        if entry["match"] == "selector" and entry.get("rollup") != "sum":
+            raise ValueError("tile_selector_requires_rollup")
+        if entry["match"] == "exact" and entry.get("rollup") is not None:
+            raise ValueError("tile_exact_disallows_rollup")
+        if entry["match"] == "selector" and not tags:
+            raise ValueError("tile_selector_requires_tags")
+        if entry.get("statistic_policy") not in ("power", "gauge"):
+            raise ValueError("invalid_tile_statistic_policy")
+        for field in ("unit", "statistic_policy", "source"):
+            if not isinstance(entry.get(field), str) or not entry[field]:
+                raise ValueError(f"invalid_tile_{field}")
+        validated[key] = entry
+    return validated
+
+
+TILE_CATALOG_BY_KEY = validate_tile_series_catalog(TILE_SERIES_CATALOG)
+
+
+def series_identity_dependency(metric, tags):
+    _tags_json, identity_hash = canonical_series_identity(metric, tags)
+    return f"series-identity:{identity_hash}"
+
+
+def selector_dependency(metric, tags):
+    identity = json.dumps(
+        ["selector", metric, normalize_tags(tags)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return f"series-selector:{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+
+
+def matching_selector_dependencies(metric, tags):
+    normalized_tags = set(normalize_tags(tags))
+    return {
+        selector_dependency(definition["metric"], definition["tags"])
+        for definition in TILE_CATALOG_BY_KEY.values()
+        if definition["match"] == "selector"
+        and definition["metric"] == metric
+        and set(definition["tags"]).issubset(normalized_tags)
+    }
+
+
+def tile_catalog_payload():
+    return {
+        "schema": TILE_SCHEMA_VERSION,
+        "tile_spans": dict(TILE_SPANS),
+        "lod_seconds": dict(TILE_LOD_SECONDS),
+        "boundary_policy": {
+            "coarse_partial_clipping": False,
+            "edge_lod": "native",
+            "rule": "clients use native boundary tiles and coarse LOD only for aligned interiors",
+        },
+        "series": [dict(TILE_CATALOG_BY_KEY[key]) for key in sorted(TILE_CATALOG_BY_KEY)],
+    }
+
+
+def historical_cache_policy(end):
+    current = now_ts()
+    if end <= current - SEALED_HISTORY_AGE_SECONDS:
+        return (
+            "sealed",
+            min(SEALED_CACHE_TTL_SECONDS, 300),
+            "public, max-age=60, s-maxage=300, must-revalidate",
+        )
+    if end <= current - 300:
+        return (
+            "recent",
+            RECENT_CACHE_TTL_SECONDS,
+            "public, max-age=60, s-maxage=300, stale-while-revalidate=60",
+        )
+    return (
+        "live",
+        CACHE_TTL_SECONDS,
+        "public, max-age=5, s-maxage=15, stale-while-revalidate=30",
+    )
+
+
+def canonical_json_bytes(value) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def canonical_series_tags(tags) -> str:
@@ -254,6 +629,8 @@ def normalized_series_readiness(conn: sqlite3.Connection):
 
 
 def init_db(conn: sqlite3.Connection) -> None:
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS metrics (
@@ -444,9 +821,9 @@ def get_db() -> sqlite3.Connection:
     conn = getattr(DB_LOCAL, "conn", None)
     if conn is None:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA busy_timeout=5000")
         DB_LOCAL.conn = conn
     return conn
 
@@ -806,6 +1183,22 @@ def ingest_metrics(conn, payload, current_ts=None):
                     )
                     dependencies.add(existing[1])
                     changes[existing[1]].append((int(existing[2]), int(existing[2])))
+                    try:
+                        old_tags = json.loads(existing[6] or "[]")
+                    except (json.JSONDecodeError, TypeError):
+                        old_tags = []
+                    old_internal_dependencies = {
+                        series_identity_dependency(existing[1], old_tags),
+                        *matching_selector_dependencies(existing[1], old_tags),
+                    }
+                    for dependency in old_internal_dependencies:
+                        changes[dependency].append(
+                            (int(existing[2]), int(existing[2]))
+                        )
+                    if existing[7] is not None:
+                        changes[f"series:{int(existing[7])}"].append(
+                            (int(existing[2]), int(existing[2]))
+                        )
                 else:
                     cur = conn.execute(
                         """
@@ -825,6 +1218,13 @@ def ingest_metrics(conn, payload, current_ts=None):
                     )
                 dependencies.add(metric_name)
                 changes[metric_name].append((int(ts), int(ts)))
+                new_internal_dependencies = {
+                    series_identity_dependency(metric_name, tags),
+                    *matching_selector_dependencies(metric_name, tags),
+                }
+                for dependency in new_internal_dependencies:
+                    changes[dependency].append((int(ts), int(ts)))
+                changes[f"series:{series_id}"].append((int(ts), int(ts)))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1358,6 +1758,7 @@ class Cache:
         self.lock = threading.Lock()
         self.hits = 0
         self.misses = 0
+        self.generation = 0
 
     def get(self, key):
         now = time.time()
@@ -1397,11 +1798,42 @@ class Cache:
             while len(self.data) > self.max_entries:
                 self.data.popitem(last=False)
 
+    def snapshot_generation(self):
+        with self.lock:
+            return self.generation
+
+    def set_if_generation(
+        self,
+        key,
+        value,
+        expected_generation,
+        dependencies=None,
+        ranges=None,
+        ttl_seconds=None,
+        category="generic",
+    ):
+        expires_at = time.time() + (ttl_seconds if ttl_seconds is not None else self.ttl)
+        with self.lock:
+            if self.generation != expected_generation:
+                return False
+            self.data[key] = (
+                expires_at,
+                value,
+                frozenset(dependencies or []),
+                dict(ranges or {}),
+                category,
+            )
+            self.data.move_to_end(key)
+            while len(self.data) > self.max_entries:
+                self.data.popitem(last=False)
+            return True
+
     def invalidate(self, dependencies):
         targets = set(dependencies)
         if not targets:
             return
         with self.lock:
+            self.generation += 1
             keys = [
                 key
                 for key, (_expires, _value, entry_dependencies, _ranges, _category) in self.data.items()
@@ -1414,6 +1846,7 @@ class Cache:
         if not changes:
             return
         with self.lock:
+            self.generation += 1
             keys = []
             for key, (_expires, _value, dependencies, ranges, _category) in self.data.items():
                 invalidate = False
@@ -1446,7 +1879,51 @@ class Cache:
                 "misses": self.misses,
                 "hit_ratio": self.hits / total if total else 0.0,
                 "categories": dict(Counter(entry[4] for entry in self.data.values())),
+                "generation": self.generation,
             }
+
+
+class SingleFlight:
+    class Flight:
+        def __init__(self):
+            self.event = threading.Event()
+            self.result = None
+            self.error = None
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.flights = {}
+
+    def do(self, key, generate):
+        with self.lock:
+            flight = self.flights.get(key)
+            if flight is None:
+                flight = self.Flight()
+                self.flights[key] = flight
+                leader = True
+            else:
+                leader = False
+        if not leader:
+            flight.event.wait()
+            if flight.error is not None:
+                raise flight.error
+            return flight.result, True
+        try:
+            flight.result = generate()
+        except Exception as error:
+            flight.error = error
+        finally:
+            with self.lock:
+                if self.flights.get(key) is flight:
+                    del self.flights[key]
+            flight.event.set()
+        if flight.error is not None:
+            raise flight.error
+        return flight.result, False
+
+    def pending(self):
+        with self.lock:
+            return len(self.flights)
 
 
 class RateLimiter:
@@ -1470,6 +1947,10 @@ class RateLimiter:
 
 
 class RequestTooLarge(ValueError):
+    pass
+
+
+class TileBackfillIncomplete(RuntimeError):
     pass
 
 
@@ -1758,6 +2239,112 @@ class Handler(BaseHTTPRequestHandler):
     def _cache_key(self, label, payload):
         return label + ":" + json.dumps(payload, sort_keys=True)
 
+    def _tile_storage_points(self, conn, definition, start, end):
+        metric = definition["metric"]
+        if conn.execute(
+            """
+            SELECT 1 FROM metrics
+            WHERE metric_name = ? AND series_id IS NULL
+            LIMIT 1
+            """,
+            (metric,),
+        ).fetchone():
+            raise TileBackfillIncomplete("tile_series_backfill_incomplete")
+        if definition["match"] == "exact":
+            tags_json = canonical_series_tags(definition["tags"])
+            row = conn.execute(
+                "SELECT id FROM series WHERE metric_name = ? AND tags_json = ?",
+                (metric, tags_json),
+            ).fetchone()
+            if row is None:
+                return [], []
+            series_ids = [int(row[0])]
+            rows = conn.execute(
+                """
+                SELECT ts, value FROM metrics
+                WHERE series_id = ? AND ts >= ? AND ts < ?
+                ORDER BY ts, id
+                """,
+                (series_ids[0], start, end),
+            ).fetchall()
+            next_ordinal = defaultdict(int)
+            points = []
+            for timestamp, value in rows:
+                points.append([timestamp, value, next_ordinal[timestamp]])
+                next_ordinal[timestamp] += 1
+            return points, series_ids
+        series_ids = normalized_series_ids(conn, metric, definition["tags"])
+        points = self._series_query(
+            conn,
+            metric,
+            start,
+            end - 1,
+            definition["tags"],
+            rollup=definition["rollup"],
+        )
+        points = [[point[0], point[1], 0] for point in points]
+        return points, series_ids
+
+    def _generate_tile(self, definition, tile_span, tile_start, lod):
+        tile_seconds = TILE_SPANS[tile_span]
+        tile_end = tile_start + tile_seconds
+        points, series_ids = self._tile_storage_points(
+            get_db(), definition, tile_start, tile_end
+        )
+        buckets = []
+        if lod == "native":
+            for point in points:
+                state = aggregate_points([point])
+                buckets.append(
+                    {
+                        "start": point[0],
+                        "end": point[0],
+                        "state": json.loads(serialize_aggregate(state)),
+                    }
+                )
+        else:
+            lod_seconds = TILE_LOD_SECONDS[lod]
+            grouped = defaultdict(list)
+            for point in points:
+                bucket_start = (int(point[0]) // lod_seconds) * lod_seconds
+                grouped[bucket_start].append(point)
+            for bucket_start in sorted(grouped):
+                state = aggregate_points(grouped[bucket_start])
+                buckets.append(
+                    {
+                        "start": bucket_start,
+                        "end": bucket_start + lod_seconds,
+                        "state": json.loads(serialize_aggregate(state)),
+                    }
+                )
+        payload = {
+            "schema": TILE_SCHEMA_VERSION,
+            "series_key": definition["key"],
+            "tile_span": tile_span,
+            "tile_start": tile_start,
+            "tile_end": tile_end,
+            "lod": lod,
+            "native_interval_seconds": definition["native_interval_seconds"],
+            "unit": definition["unit"],
+            "statistic_policy": definition["statistic_policy"],
+            "rollup": definition["rollup"],
+            "boundary_policy": "native_edges_coarse_aligned_interiors",
+            "buckets": buckets,
+        }
+        dependencies = {f"series:{series_id}" for series_id in series_ids}
+        if definition["match"] == "exact":
+            dependencies.add(
+                series_identity_dependency(definition["metric"], definition["tags"])
+            )
+        else:
+            dependencies.add(
+                selector_dependency(definition["metric"], definition["tags"])
+            )
+        ranges = {
+            dependency: (tile_start, tile_end - 1) for dependency in dependencies
+        }
+        return payload, dependencies, ranges
+
     def do_POST(self):
         if self.path == "/api/ingest":
             if not self._rate_limit("ingest", RATE_LIMIT_INGEST_RPM):
@@ -2017,6 +2604,147 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v2/tile-catalog":
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_tile_catalog_request"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200,
+                tile_catalog_payload(),
+                cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
+                etag=True,
+            )
+            return
+        tile_match = re.fullmatch(
+            r"/api/v2/tiles/([^/]+)/([^/]+)/([^/]+)/([^/]+)", parsed.path
+        )
+        if tile_match:
+            if not self._rate_limit("series_tile_v2", RATE_LIMIT_SERIES_RPM):
+                return
+            series_key, tile_span, tile_start_raw, lod = tile_match.groups()
+            definition = TILE_CATALOG_BY_KEY.get(series_key)
+            if definition is None:
+                self._send_json(
+                    404, {"error": "unknown_tile_series"}, cache_control="no-store"
+                )
+                return
+            try:
+                tile_start = int(tile_start_raw)
+            except ValueError:
+                tile_start = -1
+            tile_seconds = TILE_SPANS.get(tile_span)
+            if (
+                parsed.query
+                or tile_seconds is None
+                or tile_start < 0
+                or str(tile_start) != tile_start_raw
+                or tile_start % tile_seconds != 0
+                or lod not in definition["supported_lods"]
+            ):
+                self._send_json(
+                    400, {"error": "invalid_canonical_tile"}, cache_control="no-store"
+                )
+                return
+            identity = {
+                "schema": TILE_SCHEMA_VERSION,
+                "series_key": series_key,
+                "tile_span": tile_span,
+                "tile_start": tile_start,
+                "lod": lod,
+            }
+            cache_key = self._cache_key("tile:v2", identity)
+            tile_end = tile_start + tile_seconds
+            category, ttl_seconds, cache_control = historical_cache_policy(tile_end)
+            app = self._app_server()
+            cached = app.cache.get(cache_key)
+            if cached is not None:
+                metrics = getattr(app, "cache_metrics", None)
+                if metrics is not None:
+                    metrics["tile_lru_hits"] += 1
+                extra_headers = {
+                    "X-ERCOT-Cache": "HIT",
+                    "X-ERCOT-Cache-Class": category,
+                }
+                self._send_json(
+                    200,
+                    cached,
+                    cache_control=cache_control,
+                    etag=True,
+                    extra_headers=extra_headers,
+                )
+                return
+
+            request_generation = app.cache.snapshot_generation()
+
+            def generate():
+                cached_after_election = app.cache.get(cache_key)
+                if cached_after_election is not None:
+                    return cached_after_election, True, False
+                started = time.perf_counter()
+                payload_out, dependencies, ranges = self._generate_tile(
+                    definition, tile_span, tile_start, lod
+                )
+                stored = app.cache.set_if_generation(
+                    cache_key,
+                    payload_out,
+                    request_generation,
+                    dependencies,
+                    ranges=ranges,
+                    ttl_seconds=ttl_seconds,
+                    category=f"tile:{category}",
+                )
+                metrics = getattr(app, "cache_metrics", None)
+                if metrics is not None:
+                    metrics["tile_generations"] += 1
+                    metrics["tile_generation_seconds"] += time.perf_counter() - started
+                    if not stored:
+                        metrics["tile_generation_store_races"] += 1
+                return payload_out, stored, True
+
+            try:
+                (payload_out, stored, generated), shared = app.singleflight.do(
+                    (cache_key, request_generation), generate
+                )
+            except TileBackfillIncomplete:
+                self._send_json(
+                    503,
+                    {"error": "tile_series_backfill_incomplete"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500, {"error": "tile_generation_failed"}, cache_control="no-store"
+                )
+                return
+            metrics = getattr(app, "cache_metrics", None)
+            if metrics is not None:
+                metrics["tile_lru_misses"] += 1
+                if shared:
+                    metrics["tile_singleflight_waits"] += 1
+                if not generated:
+                    metrics["tile_lru_race_hits"] += 1
+            extra_headers = {
+                "X-ERCOT-Cache": "MISS" if generated else "HIT",
+                "X-ERCOT-Cache-Class": category,
+                "X-ERCOT-Singleflight": "SHARED" if shared else "LEADER",
+                "X-ERCOT-Cache-Store": "STORED" if stored else "SKIPPED_RACE",
+            }
+            self._send_json(
+                200,
+                payload_out,
+                cache_control=cache_control,
+                etag=True,
+                extra_headers=extra_headers,
+            )
+            return
+        if parsed.path.startswith("/api/v2/tiles/"):
+            self._send_json(
+                400, {"error": "invalid_canonical_tile"}, cache_control="no-store"
+            )
+            return
         if parsed.path == "/api/v1/correction-age":
             if not self._rate_limit("correction_age", RATE_LIMIT_LATEST_RPM):
                 return
@@ -2075,8 +2803,8 @@ class Handler(BaseHTTPRequestHandler):
             current = now_ts()
             if end <= current - SEALED_HISTORY_AGE_SECONDS:
                 category = "sealed"
-                ttl_seconds = SEALED_CACHE_TTL_SECONDS
-                cache_control = "public, max-age=3600, s-maxage=86400, immutable"
+                ttl_seconds = min(SEALED_CACHE_TTL_SECONDS, 300)
+                cache_control = "public, max-age=60, s-maxage=300, must-revalidate"
             elif end <= current - 300:
                 category = "recent"
                 ttl_seconds = RECENT_CACHE_TTL_SECONDS
@@ -2536,6 +3264,7 @@ class Server(ThreadingHTTPServer):
         self.cache = Cache(CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
         self.cache_metrics = defaultdict(float)
         self.limiter = RateLimiter()
+        self.singleflight = SingleFlight()
 
 
 if __name__ == "__main__":

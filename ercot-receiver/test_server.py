@@ -1,10 +1,12 @@
 import importlib.util
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 from pathlib import Path
 import sqlite3
 import tempfile
 import threading
+import time
 import unittest
 
 SERVER_PATH = Path(__file__).with_name("server.py")
@@ -97,6 +99,17 @@ class QueryTests(unittest.TestCase):
         self.assertIn(("idx_metrics_name_ts_value_id",), rows)
         self.assertIn(("idx_metrics_series_ts_id_value",), rows)
         self.assertIn(("idx_metrics_unbackfilled_name",), rows)
+
+    def test_init_db_has_no_generated_tile_body_table(self):
+        tables = {
+            row[0]
+            for row in self.conn.execute(
+                "SELECT name FROM sqlite_schema WHERE type = 'table'"
+            ).fetchall()
+        }
+
+        self.assertNotIn("tile_resources", tables)
+        self.assertFalse(any("tile" in name and "resource" in name for name in tables))
 
     def test_normalized_series_readiness_is_explicit_and_public_safe(self):
         self.insert_metric("ercot.readiness", 100, 1.0, ["source:fixture"])
@@ -818,6 +831,10 @@ class MigrationAndIngestTests(unittest.TestCase):
         self.assertEqual(
             corrected["changes"]["ercot.corrected.revised"], [(200, 200)]
         )
+        self.assertEqual(
+            corrected["changes"][f"series:{original_series}"], [(100, 100)]
+        )
+        self.assertEqual(corrected["changes"][f"series:{row[0]}"], [(200, 200)])
         self.assertNotEqual(row[0], original_series)
         self.assertEqual(row[1], '["source:fixture","zone:b"]')
         self.assertEqual(row[2], 2)
@@ -1259,6 +1276,51 @@ class SourceHealthAndBoundsTests(unittest.TestCase):
         cache.invalidate_changes({"ercot.demand": [(100_000, 100_000)]})
         self.assertIsNone(cache.get("sealed-demand-day"))
 
+    def test_tile_range_invalidation_is_inclusive_start_exclusive_end(self):
+        start = 86_400
+        end = 172_800
+        for changed_ts, invalidated in (
+            (start - 1, False),
+            (start, True),
+            (start + 1, True),
+            (end - 1, True),
+            (end, False),
+            (end + 1, False),
+        ):
+            cache = server.Cache(60)
+            cache.set(
+                "tile",
+                {"buckets": []},
+                {"series:17"},
+                ranges={"series:17": (start, end - 1)},
+            )
+            cache.invalidate_changes({"series:17": [(changed_ts, changed_ts)]})
+            self.assertEqual(cache.get("tile") is None, invalidated, changed_ts)
+
+    def test_singleflight_propagates_failure_and_removes_key(self):
+        singleflight = server.SingleFlight()
+        started = threading.Barrier(10)
+        calls = 0
+        lock = threading.Lock()
+
+        def generate():
+            nonlocal calls
+            with lock:
+                calls += 1
+            time.sleep(0.05)
+            raise ValueError("fixture_failure")
+
+        def invoke():
+            started.wait()
+            with self.assertRaisesRegex(ValueError, "fixture_failure"):
+                singleflight.do("same-key", generate)
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            list(executor.map(lambda _index: invoke(), range(10)))
+
+        self.assertEqual(calls, 1)
+        self.assertEqual(singleflight.pending(), 0)
+
     def test_cache_identity_normalizes_tag_order(self):
         handler = server.Handler.__new__(server.Handler)
         first = handler._cache_key(
@@ -1281,7 +1343,12 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.app = type(
             "TestServer",
             (),
-            {"cache": server.Cache(60), "limiter": server.RateLimiter()},
+            {
+                "cache": server.Cache(60),
+                "cache_metrics": server.defaultdict(float),
+                "limiter": server.RateLimiter(),
+                "singleflight": server.SingleFlight(),
+            },
         )()
 
     def tearDown(self):
@@ -1290,7 +1357,15 @@ class HttpQueryBoundsTests(unittest.TestCase):
             conn.close()
         self.tmp.cleanup()
 
-    def invoke(self, method, path, payload=None, request_headers=None, expected_status=200):
+    def invoke(
+        self,
+        method,
+        path,
+        payload=None,
+        request_headers=None,
+        expected_status=200,
+        return_raw=False,
+    ):
         body = json.dumps(payload).encode() if payload is not None else b""
         handler = server.Handler.__new__(server.Handler)
         handler.path = path
@@ -1307,16 +1382,36 @@ class HttpQueryBoundsTests(unittest.TestCase):
         handler.response_headers = {}
         handler.send_header = lambda name, value: handler.response_headers.__setitem__(name, value)
         handler.end_headers = lambda: None
-        if method == "GET":
-            handler.do_GET()
-        else:
-            handler.do_POST()
+        try:
+            if method == "GET":
+                handler.do_GET()
+            else:
+                handler.do_POST()
+        finally:
+            thread_connection = getattr(server.DB_LOCAL, "conn", None)
+            if thread_connection is not None:
+                thread_connection.close()
+                del server.DB_LOCAL.conn
         self.assertEqual(handler.response_status, expected_status)
         response_body = handler.wfile.getvalue()
-        return (
+        result = (
             json.loads(response_body) if response_body else None,
             handler.response_headers,
         )
+        return (*result, response_body) if return_raw else result
+
+    def ingest_metric(self, metric, tags, points):
+        conn = sqlite3.connect(server.DB_PATH)
+        try:
+            return server.ingest_metrics(
+                conn,
+                [{"metric_name": metric, "tags": tags, "points": points}],
+                current_ts=max(
+                    [point.get("timestamp", 0) for point in points] or [server.now_ts()]
+                ),
+            )
+        finally:
+            conn.close()
 
     def test_get_without_since_defaults_to_bounded_window(self):
         payload, _headers = self.invoke("GET", "/api/series?metric=fixture.raw")
@@ -1450,6 +1545,763 @@ class HttpQueryBoundsTests(unittest.TestCase):
         self.assertEqual(result["meta"]["stats"]["count"], 3)
         self.assertEqual(result["meta"]["stats"]["latest"], 30)
 
+    def test_v2_catalog_is_deterministic_validated_and_cacheable(self):
+        payload, headers = self.invoke("GET", "/api/v2/tile-catalog")
+
+        self.assertEqual(payload["schema"], 2)
+        self.assertEqual(payload["tile_spans"], {"1d": 86400, "1h": 3600})
+        self.assertFalse(payload["boundary_policy"]["coarse_partial_clipping"])
+        self.assertEqual(payload["boundary_policy"]["edge_lod"], "native")
+        self.assertEqual(
+            [entry["key"] for entry in payload["series"]],
+            sorted(entry["key"] for entry in payload["series"]),
+        )
+        keys = {entry["key"] for entry in payload["series"]}
+        self.assertTrue(
+            {
+                "frequency.system",
+                "generation-outages.total",
+                "pricing.houston",
+                "pricing.north",
+                "pricing.west",
+                "storage.charging",
+                "storage.discharging",
+                "storage.net-output",
+                "supply-demand.forecast-demand",
+                "fuel-mix.natural-gas",
+                "renewables.wind-forecast",
+                "renewables.wind-hsl",
+                "renewables.solar-forecast",
+            }.issubset(keys)
+        )
+        self.assertNotIn("series_id", json.dumps(payload))
+        self.assertNotIn("immutable", headers["Cache-Control"])
+        self.assertIn("must-revalidate", headers["Cache-Control"])
+        self.assertTrue(headers["ETag"].startswith('"'))
+
+        not_modified, repeat_headers = self.invoke(
+            "GET",
+            "/api/v2/tile-catalog",
+            request_headers={"If-None-Match": headers["ETag"]},
+            expected_status=304,
+        )
+        self.assertIsNone(not_modified)
+        self.assertEqual(repeat_headers["ETag"], headers["ETag"])
+
+        duplicate = [dict(server.TILE_SERIES_CATALOG[0])] * 2
+        with self.assertRaisesRegex(ValueError, "duplicate_tile_series_key"):
+            server.validate_tile_series_catalog(duplicate)
+        unsorted = dict(server.TILE_CATALOG_BY_KEY["fuel-mix.wind"])
+        unsorted["tags"] = list(reversed(unsorted["tags"]))
+        with self.assertRaisesRegex(ValueError, "invalid_tile_series_tags"):
+            server.validate_tile_series_catalog([unsorted])
+        unsupported = dict(server.TILE_SERIES_CATALOG[0])
+        unsupported["supported_lods"] = ["native", "7m"]
+        with self.assertRaisesRegex(ValueError, "invalid_tile_supported_lods"):
+            server.validate_tile_series_catalog([unsupported])
+        exact_sum = dict(server.TILE_SERIES_CATALOG[0])
+        exact_sum["rollup"] = "sum"
+        with self.assertRaisesRegex(ValueError, "tile_exact_disallows_rollup"):
+            server.validate_tile_series_catalog([exact_sum])
+        bad_policy = dict(server.TILE_SERIES_CATALOG[0])
+        bad_policy["statistic_policy"] = "money-ish"
+        with self.assertRaisesRegex(ValueError, "invalid_tile_statistic_policy"):
+            server.validate_tile_series_catalog([bad_policy])
+
+    def test_v2_tile_rejects_unknown_lod_span_alignment_and_aliases_without_cache(self):
+        cases = (
+            ("/api/v2/tiles/not-known/1d/86400/native", 404),
+            ("/api/v2/tiles/supply-demand.demand/2d/86400/native", 400),
+            ("/api/v2/tiles/supply-demand.demand/1d/86401/native", 400),
+            ("/api/v2/tiles/supply-demand.demand/1d/086400/native", 400),
+            ("/api/v2/tiles/fuel-mix.wind/1d/86400/5m", 400),
+            ("/api/v2/tiles/supply-demand.demand/1d/86400/native?x=1", 400),
+        )
+        for path, status in cases:
+            payload, headers = self.invoke("GET", path, expected_status=status)
+            self.assertIn("error", payload)
+            self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(self.app.cache.stats()["entries"], 0)
+
+    def test_v2_generation_failure_is_not_cached_or_leaked_by_singleflight(self):
+        original = server.Handler._generate_tile
+
+        def fail(_handler, *_args):
+            raise RuntimeError("fixture_generation_failure")
+
+        server.Handler._generate_tile = fail
+        try:
+            payload, headers = self.invoke(
+                "GET",
+                "/api/v2/tiles/supply-demand.demand/1d/86400/native",
+                expected_status=500,
+            )
+        finally:
+            server.Handler._generate_tile = original
+
+        self.assertEqual(payload, {"error": "tile_generation_failed"})
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(self.app.cache.stats()["entries"], 0)
+        self.assertEqual(self.app.singleflight.pending(), 0)
+
+    def test_v2_exact_series_does_not_widen_to_tag_superset_and_native_is_lossless(self):
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [
+                {"timestamp": 90_000, "value": 30, "dedupe_key": "demand:90000"},
+                {"timestamp": 90_300, "value": 10, "dedupe_key": "demand:90300"},
+            ],
+        )
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand", "variant:shadow"],
+            [{"timestamp": 90_000, "value": 999, "dedupe_key": "shadow:90000"}],
+        )
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+
+        payload, headers = self.invoke("GET", path)
+
+        self.assertEqual(headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(payload["boundary_policy"], "native_edges_coarse_aligned_interiors")
+        self.assertEqual(len(payload["buckets"]), 2)
+        self.assertEqual(
+            [bucket["state"]["value_sum"] for bucket in payload["buckets"]],
+            [30.0, 10.0],
+        )
+        self.assertTrue(all(bucket["state"]["count"] == 1 for bucket in payload["buckets"]))
+        self.assertNotIn("series_id", json.dumps(payload))
+
+    def test_v2_coarse_bucket_uses_left_step_mergeable_aggregate(self):
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [
+                {"timestamp": 90_000, "value": 30, "dedupe_key": "coarse:90000"},
+                {"timestamp": 90_300, "value": 10, "dedupe_key": "coarse:90300"},
+            ],
+        )
+
+        payload, _headers = self.invoke(
+            "GET", "/api/v2/tiles/supply-demand.demand/1d/86400/5m"
+        )
+
+        states = [bucket["state"] for bucket in payload["buckets"]]
+        self.assertEqual([state["count"] for state in states], [1, 1])
+        self.assertTrue(all(state["integral_value_seconds"] == 0 for state in states))
+
+        payload_15m, _headers = self.invoke(
+            "GET", "/api/v2/tiles/supply-demand.demand/1d/86400/15m"
+        )
+        state = payload_15m["buckets"][0]["state"]
+        self.assertEqual(state["count"], 2)
+        self.assertEqual(state["integral_value_seconds"], 9_000.0)
+
+    def test_v2_equal_timestamp_order_uses_tile_ordinals_not_values_or_db_ids(self):
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [
+                {"timestamp": 90_010, "value": 8, "dedupe_key": "tie:first"},
+                {"timestamp": 90_010, "value": 2, "dedupe_key": "tie:second"},
+                {"timestamp": 90_020, "value": 4, "dedupe_key": "tie:last"},
+            ],
+        )
+
+        payload, _headers = self.invoke(
+            "GET", "/api/v2/tiles/supply-demand.demand/1d/86400/15m"
+        )
+        state = payload["buckets"][0]["state"]
+        encoded = json.dumps(payload, sort_keys=True)
+
+        self.assertEqual(state["first_value"], 8.0)
+        self.assertEqual(state["last_value"], 4.0)
+        self.assertEqual(state["integral_value_seconds"], 20.0)
+        self.assertEqual((state["first_ordinal"], state["last_ordinal"]), (0, 0))
+        self.assertNotIn("metric_id", encoded)
+        self.assertNotIn("series_id", encoded)
+
+    def test_v2_miss_hit_and_304_do_not_regenerate_sqlite_tile(self):
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 42, "dedupe_key": "cache:90000"}],
+        )
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+
+        first, first_headers, first_raw = self.invoke("GET", path, return_raw=True)
+        second, second_headers, second_raw = self.invoke("GET", path, return_raw=True)
+        not_modified, third_headers, not_modified_raw = self.invoke(
+            "GET",
+            path,
+            request_headers={"If-None-Match": first_headers["ETag"]},
+            expected_status=304,
+            return_raw=True,
+        )
+
+        self.assertEqual(first, second)
+        self.assertEqual(first_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(second_headers["X-ERCOT-Cache"], "HIT")
+        self.assertIsNone(not_modified)
+        self.assertEqual(not_modified_raw, b"")
+        self.assertEqual(third_headers["X-ERCOT-Cache"], "HIT")
+        self.assertEqual(first_raw, second_raw)
+        self.assertEqual(
+            {first_headers["ETag"], second_headers["ETag"], third_headers["ETag"]},
+            {first_headers["ETag"]},
+        )
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 1)
+
+        self.app.cache = server.Cache(60)
+        regenerated, regenerated_headers, regenerated_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+        self.assertEqual(regenerated, first)
+        self.assertEqual(regenerated_raw, first_raw)
+        self.assertEqual(regenerated_headers["ETag"], first_headers["ETag"])
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+
+    def test_v2_correction_regenerates_affected_tile_and_keeps_unrelated_warm(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        unrelated_path = "/api/v2/tiles/supply-demand.demand/1d/172800/native"
+        points = [{"timestamp": 90_000, "value": 42, "dedupe_key": "version:90000"}]
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 180_000, "value": 50, "dedupe_key": "version:180000"}],
+        )
+
+        initial, initial_headers, initial_raw = self.invoke("GET", path, return_raw=True)
+        unrelated, unrelated_headers = self.invoke("GET", unrelated_path)
+        self.assertNotIn("Content-Location", initial_headers)
+        self.assertNotIn("X-ERCOT-Content-Version", initial_headers)
+        self.assertNotIn("immutable", initial_headers["Cache-Control"])
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+
+        points[0]["value"] = 43
+        correction = self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.app.cache.invalidate_changes(correction["changes"])
+        corrected, corrected_headers, corrected_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+        unrelated_after, unrelated_after_headers = self.invoke("GET", unrelated_path)
+
+        self.assertNotEqual(corrected_raw, initial_raw)
+        self.assertNotEqual(corrected_headers["ETag"], initial_headers["ETag"])
+        self.assertEqual(corrected_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(unrelated_after, unrelated)
+        self.assertEqual(unrelated_after_headers["X-ERCOT-Cache"], "HIT")
+        self.assertEqual(unrelated_headers["ETag"], unrelated_after_headers["ETag"])
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 3)
+
+        unchanged = self.ingest_metric(
+            "ercot.supply_demand.demand_mw", ["source:supply_demand"], points
+        )
+        self.assertEqual(unchanged["unchanged"], 1)
+        repeated, repeated_headers, repeated_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+        self.assertEqual(repeated, corrected)
+        self.assertEqual(repeated_raw, corrected_raw)
+        self.assertEqual(repeated_headers["ETag"], corrected_headers["ETag"])
+
+    def test_v2_fresh_receiver_regenerates_from_sqlite_without_disk_tile_cache(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 42, "dedupe_key": "restart:90000"}],
+        )
+
+        first, first_headers, first_raw = self.invoke("GET", path, return_raw=True)
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 1)
+        first_app = self.app
+
+        self.app = type(
+            "RestartedTestServer",
+            (),
+            {
+                "cache": server.Cache(60),
+                "cache_metrics": server.defaultdict(float),
+                "limiter": server.RateLimiter(),
+                "singleflight": server.SingleFlight(),
+            },
+        )()
+        restarted, restarted_headers, restarted_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+
+        self.assertEqual(first_app.cache_metrics["tile_generations"], 1)
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 1)
+        self.assertEqual(restarted_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(restarted, first)
+        self.assertEqual(restarted_raw, first_raw)
+        self.assertEqual(restarted_headers["ETag"], first_headers["ETag"])
+        with sqlite3.connect(server.DB_PATH) as conn:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_schema WHERE type = 'table'"
+                ).fetchall()
+            }
+        self.assertNotIn("tile_resources", tables)
+
+    def test_v2_queries_create_no_tile_filesystem_artifacts(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 42, "dedupe_key": "files:90000"}],
+        )
+        root = Path(self.tmp.name)
+        before = {item.relative_to(root) for item in root.rglob("*") if item.is_file()}
+
+        self.invoke("GET", path)
+        self.invoke("GET", path)
+
+        after = {item.relative_to(root) for item in root.rglob("*") if item.is_file()}
+        created = after - before
+        self.assertTrue(
+            all(str(item).startswith("metrics.db-") for item in created), created
+        )
+        self.assertFalse(any(item.suffix in {".json", ".tile"} for item in after))
+
+    def test_v2_rejects_persistent_content_version_aliases(self):
+        payload, headers = self.invoke(
+            "GET",
+            "/api/v2/tiles/supply-demand.demand/1d/86400/native/v1/"
+            + "t2-"
+            + "0" * 64,
+            expected_status=400,
+        )
+
+        self.assertEqual(payload, {"error": "invalid_canonical_tile"})
+        self.assertEqual(headers["Cache-Control"], "no-store")
+
+    def test_v2_incomplete_backfill_is_503_and_not_cached(self):
+        conn = sqlite3.connect(server.DB_PATH)
+        conn.execute(
+            """
+            INSERT INTO metrics (metric_name, ts, value, tags)
+            VALUES ('ercot.supply_demand.demand_mw', 90000, 1, '["source:supply_demand"]')
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        payload, headers = self.invoke(
+            "GET",
+            "/api/v2/tiles/supply-demand.demand/1d/86400/native",
+            expected_status=503,
+        )
+
+        self.assertEqual(payload, {"error": "tile_series_backfill_incomplete"})
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(self.app.cache.stats()["entries"], 0)
+
+    def test_v2_ten_concurrent_cold_requests_share_one_generation(self):
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 42, "dedupe_key": "flight:90000"}],
+        )
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        original = server.Handler._generate_tile
+        calls = 0
+        calls_lock = threading.Lock()
+        start = threading.Barrier(10)
+
+        def slow_generate(handler, *args):
+            nonlocal calls
+            with calls_lock:
+                calls += 1
+            time.sleep(0.05)
+            return original(handler, *args)
+
+        def request():
+            start.wait()
+            return self.invoke("GET", path, return_raw=True)
+
+        server.Handler._generate_tile = slow_generate
+        try:
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                results = list(executor.map(lambda _index: request(), range(10)))
+        finally:
+            server.Handler._generate_tile = original
+
+        self.assertEqual(calls, 1)
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 1)
+        self.assertEqual(self.app.singleflight.pending(), 0)
+        self.assertTrue(all(result[0] == results[0][0] for result in results))
+        self.assertTrue(all(result[2] == results[0][2] for result in results))
+        self.assertEqual({result[1]["ETag"] for result in results}, {results[0][1]["ETag"]})
+        self.assertEqual(
+            sum(result[1]["X-ERCOT-Singleflight"] == "LEADER" for result in results),
+            1,
+        )
+
+    def test_v2_rollup_bytes_and_etag_match_cold_warm_and_regeneration(self):
+        for fuel, value in (("wind", 10), ("solar", 5)):
+            self.ingest_metric(
+                "ercot.fuel_mix.generation_mw",
+                [f"fuel:{fuel}", "source:fuel_mix"],
+                [
+                    {
+                        "timestamp": 90_000,
+                        "value": value,
+                        "dedupe_key": f"rollup-bytes:{fuel}",
+                    }
+                ],
+            )
+        path = "/api/v2/tiles/fuel-mix.total/1d/86400/native"
+
+        first, first_headers, first_raw = self.invoke("GET", path, return_raw=True)
+        warm, warm_headers, warm_raw = self.invoke("GET", path, return_raw=True)
+        not_modified, not_modified_headers, not_modified_raw = self.invoke(
+            "GET",
+            path,
+            request_headers={"If-None-Match": first_headers["ETag"]},
+            expected_status=304,
+            return_raw=True,
+        )
+        self.app.cache = server.Cache(60)
+        regenerated, regenerated_headers, regenerated_raw = self.invoke(
+            "GET", path, return_raw=True
+        )
+
+        self.assertEqual(first, warm)
+        self.assertEqual(regenerated, first)
+        self.assertEqual(first_raw, warm_raw)
+        self.assertEqual(regenerated_raw, first_raw)
+        self.assertEqual(not_modified_raw, b"")
+        self.assertIsNone(not_modified)
+        self.assertEqual(
+            {
+                first_headers["ETag"],
+                warm_headers["ETag"],
+                not_modified_headers["ETag"],
+                regenerated_headers["ETag"],
+            },
+            {first_headers["ETag"]},
+        )
+
+    def test_v2_different_tile_keys_generate_concurrently(self):
+        for metric, dedupe in (
+            ("ercot.supply_demand.demand_mw", "overlap:demand"),
+            ("ercot.supply_demand.available_capacity_mw", "overlap:capacity"),
+        ):
+            self.ingest_metric(
+                metric,
+                ["source:supply_demand"],
+                [{"timestamp": 90_000, "value": 1, "dedupe_key": dedupe}],
+            )
+        paths = (
+            "/api/v2/tiles/supply-demand.demand/1d/86400/native",
+            "/api/v2/tiles/supply-demand.available-capacity/1d/86400/native",
+        )
+        original = server.Handler._generate_tile
+        rendezvous = threading.Barrier(2)
+
+        def overlapping_generate(handler, *args):
+            rendezvous.wait(timeout=2)
+            return original(handler, *args)
+
+        server.Handler._generate_tile = overlapping_generate
+        try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                results = list(executor.map(lambda path: self.invoke("GET", path), paths))
+        finally:
+            server.Handler._generate_tile = original
+
+        self.assertTrue(all(result[1]["X-ERCOT-Cache"] == "MISS" for result in results))
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 2)
+
+    def test_v2_leader_rechecks_cache_after_election(self):
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 1, "dedupe_key": "recheck:90000"}],
+        )
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        primed, _headers = self.invoke("GET", path)
+        identity = {
+            "schema": 2,
+            "series_key": "supply-demand.demand",
+            "tile_span": "1d",
+            "tile_start": 86400,
+            "lod": "native",
+        }
+        cache_key = server.Handler.__new__(server.Handler)._cache_key("tile:v2", identity)
+
+        class MissOnceCache(server.Cache):
+            def __init__(self):
+                super().__init__(60)
+                self.force_miss = True
+
+            def get(self, key):
+                if self.force_miss:
+                    self.force_miss = False
+                    return None
+                return super().get(key)
+
+        cache = MissOnceCache()
+        cache.set(cache_key, primed)
+        self.app.cache = cache
+        self.app.cache_metrics = server.defaultdict(float)
+
+        repeated, headers = self.invoke("GET", path)
+
+        self.assertEqual(repeated, primed)
+        self.assertEqual(headers["X-ERCOT-Cache"], "HIT")
+        self.assertEqual(self.app.cache_metrics["tile_generations"], 0)
+        self.assertEqual(self.app.cache_metrics["tile_lru_race_hits"], 1)
+
+    def test_v2_post_invalidation_request_does_not_join_stale_flight(self):
+        points = [{"timestamp": 90_000, "value": 1, "dedupe_key": "race:90000"}]
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            points,
+        )
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        original = server.Handler._generate_tile
+        first_queried = threading.Event()
+        release_first = threading.Event()
+        calls = 0
+        calls_lock = threading.Lock()
+
+        def controlled_generate(handler, *args):
+            nonlocal calls
+            with calls_lock:
+                calls += 1
+                call_number = calls
+            result = original(handler, *args)
+            if call_number == 1:
+                first_queried.set()
+                release_first.wait(timeout=2)
+            return result
+
+        server.Handler._generate_tile = controlled_generate
+        try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                stale_future = executor.submit(self.invoke, "GET", path)
+                self.assertTrue(first_queried.wait(timeout=2))
+                points[0]["value"] = 2
+                correction = self.ingest_metric(
+                    "ercot.supply_demand.demand_mw",
+                    ["source:supply_demand"],
+                    points,
+                )
+                self.app.cache.invalidate_changes(correction["changes"])
+                fresh_future = executor.submit(self.invoke, "GET", path)
+                fresh = fresh_future.result(timeout=2)
+                release_first.set()
+                stale = stale_future.result(timeout=2)
+        finally:
+            release_first.set()
+            server.Handler._generate_tile = original
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(stale[0]["buckets"][0]["state"]["value_sum"], 1.0)
+        self.assertEqual(stale[1]["X-ERCOT-Cache-Store"], "SKIPPED_RACE")
+        self.assertEqual(fresh[0]["buckets"][0]["state"]["value_sum"], 2.0)
+        cached, cached_headers = self.invoke("GET", path)
+        self.assertEqual(cached["buckets"][0]["state"]["value_sum"], 2.0)
+        self.assertEqual(cached_headers["X-ERCOT-Cache"], "HIT")
+
+    def test_v2_exact_and_rollup_invalidation_tracks_internal_series_ranges(self):
+        wind_points = [
+            {"timestamp": 90_000, "value": 10, "dedupe_key": "fuel:wind:90000"}
+        ]
+        solar_points = [
+            {"timestamp": 90_000, "value": 5, "dedupe_key": "fuel:solar:90000"}
+        ]
+        self.ingest_metric(
+            "ercot.fuel_mix.generation_mw",
+            ["fuel:wind", "source:fuel_mix"],
+            wind_points,
+        )
+        self.ingest_metric(
+            "ercot.fuel_mix.generation_mw",
+            ["fuel:solar", "source:fuel_mix"],
+            solar_points,
+        )
+        wind_path = "/api/v2/tiles/fuel-mix.wind/1d/86400/native"
+        total_path = "/api/v2/tiles/fuel-mix.total/1d/86400/native"
+        wind, _wind_headers = self.invoke("GET", wind_path)
+        total, _total_headers = self.invoke("GET", total_path)
+        self.assertEqual(wind["buckets"][0]["state"]["value_sum"], 10.0)
+        self.assertEqual(total["buckets"][0]["state"]["value_sum"], 15.0)
+
+        solar_points[0]["value"] = 7
+        correction = self.ingest_metric(
+            "ercot.fuel_mix.generation_mw",
+            ["fuel:solar", "source:fuel_mix"],
+            solar_points,
+        )
+        self.app.cache.invalidate_changes(correction["changes"])
+        wind_after, wind_headers = self.invoke("GET", wind_path)
+        total_after, total_headers = self.invoke("GET", total_path)
+
+        self.assertEqual(wind_headers["X-ERCOT-Cache"], "HIT")
+        self.assertEqual(wind_after, wind)
+        self.assertEqual(total_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(total_after["buckets"][0]["state"]["value_sum"], 17.0)
+
+    def test_v2_empty_exact_invalidation_ignores_unrelated_new_identity(self):
+        path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+        empty, empty_headers = self.invoke("GET", path)
+        self.assertEqual(empty["buckets"], [])
+        self.assertEqual(empty_headers["X-ERCOT-Cache"], "MISS")
+
+        unrelated = self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand", "zone:other"],
+            [{"timestamp": 90_000, "value": 99, "dedupe_key": "identity:other"}],
+        )
+        self.app.cache.invalidate_changes(unrelated["changes"])
+        still_empty, unrelated_headers = self.invoke("GET", path)
+        self.assertEqual(still_empty, empty)
+        self.assertEqual(unrelated_headers["X-ERCOT-Cache"], "HIT")
+
+        matching = self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            [{"timestamp": 90_000, "value": 42, "dedupe_key": "identity:exact"}],
+        )
+        self.app.cache.invalidate_changes(matching["changes"])
+        populated, matching_headers = self.invoke("GET", path)
+        self.assertEqual(matching_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(populated["buckets"][0]["state"]["value_sum"], 42.0)
+
+    def test_v2_empty_selector_invalidation_is_precise_for_new_series(self):
+        path = "/api/v2/tiles/fuel-mix.total/1d/86400/native"
+        empty, _headers = self.invoke("GET", path)
+        self.assertEqual(empty["buckets"], [])
+
+        unrelated = self.ingest_metric(
+            "ercot.fuel_mix.generation_mw",
+            ["fuel:wind", "source:other"],
+            [{"timestamp": 90_000, "value": 99, "dedupe_key": "selector:other"}],
+        )
+        self.app.cache.invalidate_changes(unrelated["changes"])
+        still_empty, unrelated_headers = self.invoke("GET", path)
+        self.assertEqual(still_empty, empty)
+        self.assertEqual(unrelated_headers["X-ERCOT-Cache"], "HIT")
+
+        matching = self.ingest_metric(
+            "ercot.fuel_mix.generation_mw",
+            ["fuel:wind", "source:fuel_mix"],
+            [{"timestamp": 90_000, "value": 10, "dedupe_key": "selector:match"}],
+        )
+        self.app.cache.invalidate_changes(matching["changes"])
+        populated, matching_headers = self.invoke("GET", path)
+        self.assertEqual(matching_headers["X-ERCOT-Cache"], "MISS")
+        self.assertEqual(populated["buckets"][0]["state"]["value_sum"], 10.0)
+
+    def test_v2_native_edges_and_coarse_interiors_reconstruct_partial_window(self):
+        points = [
+            {"timestamp": 90_010, "value": 1, "dedupe_key": "edge:90010"},
+            {"timestamp": 90_300, "value": 2, "dedupe_key": "edge:90300"},
+            {"timestamp": 90_900, "value": 3, "dedupe_key": "edge:90900"},
+            {"timestamp": 91_200, "value": 4, "dedupe_key": "edge:91200"},
+            {"timestamp": 91_800, "value": 5, "dedupe_key": "edge:91800"},
+            {"timestamp": 92_100, "value": 6, "dedupe_key": "edge:92100"},
+            {"timestamp": 92_700, "value": 7, "dedupe_key": "edge:92700"},
+            {"timestamp": 92_705, "value": 8, "dedupe_key": "edge:92705"},
+        ]
+        self.ingest_metric(
+            "ercot.supply_demand.demand_mw",
+            ["source:supply_demand"],
+            points,
+        )
+        prefix = "/api/v2/tiles/supply-demand.demand/1d/86400"
+        native, _headers = self.invoke("GET", f"{prefix}/native")
+        coarse, _headers = self.invoke("GET", f"{prefix}/15m")
+
+        fragments = [
+            server.deserialize_aggregate(bucket["state"])
+            for bucket in native["buckets"]
+            if bucket["start"] < 90_900 or bucket["start"] >= 92_700
+        ]
+        fragments.extend(
+            server.deserialize_aggregate(bucket["state"])
+            for bucket in coarse["buckets"]
+            if 90_900 <= bucket["start"] < 92_700
+        )
+        reconstructed = server.merge_aggregates(*fragments)
+        direct = server.aggregate_points(
+            [(point["timestamp"], point["value"], 0) for point in points]
+        )
+
+        self.assertEqual(reconstructed.count, direct.count)
+        self.assertEqual(reconstructed.value_sum, direct.value_sum)
+        self.assertEqual(
+            (reconstructed.minimum, reconstructed.minimum_ts),
+            (direct.minimum, direct.minimum_ts),
+        )
+        self.assertEqual(
+            (reconstructed.maximum, reconstructed.maximum_ts),
+            (direct.maximum, direct.maximum_ts),
+        )
+        self.assertEqual(
+            reconstructed.integral_value_seconds,
+            direct.integral_value_seconds,
+        )
+
+    def test_v2_catalog_wide_exact_semantic_mapping(self):
+        exact_entries = [
+            definition
+            for definition in server.TILE_CATALOG_BY_KEY.values()
+            if definition["match"] == "exact"
+        ]
+        expected = {}
+        for index, definition in enumerate(exact_entries, start=1):
+            value = float(1_000 + index)
+            expected[definition["key"]] = value
+            self.ingest_metric(
+                definition["metric"],
+                definition["tags"],
+                [
+                    {
+                        "timestamp": 90_000,
+                        "value": value,
+                        "dedupe_key": f"catalog:{definition['key']}",
+                    }
+                ],
+            )
+
+        for definition in exact_entries:
+            payload, _headers = self.invoke(
+                "GET",
+                f"/api/v2/tiles/{definition['key']}/1d/86400/native",
+            )
+            self.assertEqual(len(payload["buckets"]), 1, definition["key"])
+            self.assertEqual(
+                payload["buckets"][0]["state"]["value_sum"],
+                expected[definition["key"]],
+                definition["key"],
+            )
+            self.assertNotIn("series_id", json.dumps(payload))
+
+        selector, _headers = self.invoke(
+            "GET", "/api/v2/tiles/fuel-mix.total/1d/86400/native"
+        )
+        expected_fuel_total = sum(
+            expected[definition["key"]]
+            for definition in exact_entries
+            if definition["metric"] == "ercot.fuel_mix.generation_mw"
+            and "source:fuel_mix" in definition["tags"]
+        )
+        self.assertEqual(
+            selector["buckets"][0]["state"]["value_sum"], expected_fuel_total
+        )
+
     def test_canonical_chunk_has_strong_etag_and_returns_304(self):
         conn = sqlite3.connect(server.DB_PATH)
         conn.execute(
@@ -1472,7 +2324,8 @@ class HttpQueryBoundsTests(unittest.TestCase):
         payload, headers = self.invoke("GET", path)
         self.assertEqual(payload["points"], [[90000, 42.0]])
         self.assertTrue(headers["ETag"].startswith('"'))
-        self.assertIn("immutable", headers["Cache-Control"])
+        self.assertNotIn("immutable", headers["Cache-Control"])
+        self.assertIn("must-revalidate", headers["Cache-Control"])
         self.assertEqual(headers["X-ERCOT-Cache"], "MISS")
 
         payload_304, repeat_headers = self.invoke(
