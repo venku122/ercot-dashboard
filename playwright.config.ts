@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const snapshotEnvironment = process.env.CI ? "-ubuntu-24.04" : "";
+const testPort = process.env["PLAYWRIGHT_PORT"] ?? "3000";
+const testBaseUrl = `http://127.0.0.1:${testPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -15,7 +17,7 @@ export default defineConfig({
   snapshotPathTemplate: `{testDir}/{testFilePath}-snapshots/{arg}-{projectName}-{platform}${snapshotEnvironment}{ext}`,
   reporter: [["list"], ["html", { open: "never", outputFolder: "artifacts/playwright-report" }]],
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: testBaseUrl,
     colorScheme: "dark",
     locale: "en-US",
     permissions: ["clipboard-read", "clipboard-write"],
@@ -105,8 +107,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm run build && pnpm run preview",
-    url: "http://127.0.0.1:3000",
+    command: `pnpm run build && pnpm exec vite preview --host 0.0.0.0 --port ${testPort}`,
+    url: testBaseUrl,
     reuseExistingServer: false,
     timeout: 120_000,
   },

@@ -232,6 +232,7 @@ export function ChartCard({
   );
 
   const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time });
+  const suppressZoomCommit = useRef(false);
   dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time };
 
   useEffect(() => {
@@ -364,6 +365,7 @@ export function ChartCard({
               mode: "x",
               modifierKey: dynamic.current.interactionPolicy.panModifier,
               onPanComplete({ chart: panned }) {
+                if (suppressZoomCommit.current) return;
                 const minimum = panned.scales["x"].min;
                 const maximum = panned.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
@@ -384,6 +386,7 @@ export function ChartCard({
                 speed: 0.08,
               },
               onZoomComplete({ chart: zoomed }) {
+                if (suppressZoomCommit.current) return;
                 const minimum = zoomed.scales["x"].min;
                 const maximum = zoomed.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
@@ -537,7 +540,9 @@ export function ChartCard({
     (sourceHealth && sourceHealth.state !== "healthy") || (partial && hasData) || pinned,
   );
   const resetChartZoom = () => {
+    suppressZoomCommit.current = true;
     chartRef.current?.resetZoom();
+    suppressZoomCommit.current = false;
     onResetZoom();
   };
   const showDataTable = () => {
@@ -610,13 +615,7 @@ export function ChartCard({
               >
                 {compare === "none" ? "Enable comparison" : "Disable comparison"}
               </button>
-              <button
-                onClick={() => {
-                  chartRef.current?.resetZoom();
-                  onResetZoom();
-                }}
-                role="menuitem"
-              >
+              <button onClick={resetChartZoom} role="menuitem">
                 Reset zoom
               </button>
               <button

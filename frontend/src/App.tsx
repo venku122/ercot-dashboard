@@ -8,7 +8,6 @@ import {
   useState,
   type Dispatch,
   type CSSProperties,
-  type FormEvent,
   type RefObject,
   type SetStateAction,
 } from "react";
@@ -48,23 +47,19 @@ import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboar
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
 import { historicalContextAsOf } from "./dashboard/historical-context";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
-import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import {
-  navigateWindow,
-  resetLive,
-  setCustomRange,
-  setRange,
-  tickLive,
-  togglePause,
-  zoomTo,
-} from "./dashboard/time-state";
+  ERCOT_CALENDAR_PRESETS,
+  ERCOT_DURATION_PRESETS,
+  ERCOT_TIME_RANGE_CONFIG,
+  toErcotTimeState,
+} from "./dashboard/time-range-adapter";
+import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import type {
   CompareMode,
   DashboardState,
   LegendMode,
   LoadedSeries,
   SourceHealth,
-  TimeState,
 } from "./dashboard/types";
 import {
   dashboardStateFromUrl,
@@ -74,7 +69,7 @@ import {
 } from "./dashboard/url-state";
 import { mediaQueryMatches, MOBILE_MEDIA_QUERY, useMediaQuery } from "./dashboard/use-media-query";
 import { formatAge, formatValue } from "./dashboard/units";
-import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./dashboard/zoned-time";
+import { commitFixedTimeRange, resetTimeRange, TimeRangePicker } from "./time-range";
 
 const ChartCard = lazy(() =>
   import("./dashboard/ChartCard").then((module) => ({ default: module.ChartCard })),
@@ -170,154 +165,17 @@ function WeatherConditions({
   );
 }
 
-const rangeOptions = [
-  [3600, "1 hour"],
-  [21600, "6 hours"],
-  [43200, "12 hours"],
-  [86400, "24 hours"],
-  [259200, "3 days"],
-  [604800, "7 days"],
-  [2592000, "30 days"],
-  [31536000, "12 months"],
-] as const;
-
 type MobileDialogName = "controls" | "events" | "more" | "sources" | null;
 
 type ControlProps = {
-  onError: (message: string) => void;
   onExplicitLegend: () => void;
-  onResetOrigin: () => void;
   setState: Dispatch<SetStateAction<DashboardState>>;
   state: DashboardState;
-  surface: "desktop" | "sheet";
 };
 
-function TimeRangeSelect({ state, setState }: Pick<ControlProps, "setState" | "state">) {
-  return (
-    <label>
-      <span>Time range</span>
-      <select
-        aria-label="Time range"
-        onChange={(event) => {
-          const range = Number(event.target.value);
-          setState((current) => ({
-            ...current,
-            time: setRange(current.time, range, nowSeconds()),
-          }));
-        }}
-        value={state.time.rangeSeconds}
-      >
-        {rangeOptions.map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function CustomRangeForm({
-  onError,
-  setState,
-  state,
-}: Pick<ControlProps, "onError" | "setState" | "state">) {
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      const start = parseChicagoDateTime(String(form.get("start")));
-      const end = parseChicagoDateTime(String(form.get("end")));
-      setState((current) => ({ ...current, time: setCustomRange(start, end) }));
-    } catch {
-      onError("invalid_time_range");
-    }
-  };
-  return (
-    <form className="custom-range-form" onSubmit={submit}>
-      <label>
-        <span>From</span>
-        <input
-          defaultValue={formatChicagoDateTimeInput(state.time.start)}
-          name="start"
-          type="datetime-local"
-        />
-      </label>
-      <label>
-        <span>To</span>
-        <input
-          defaultValue={formatChicagoDateTimeInput(state.time.end)}
-          name="end"
-          type="datetime-local"
-        />
-      </label>
-      <Button type="submit">Apply custom range</Button>
-    </form>
-  );
-}
-
-function DashboardControls({
-  onError,
-  onExplicitLegend,
-  onResetOrigin,
-  setState,
-  state,
-  surface,
-}: ControlProps) {
-  const customRange = <CustomRangeForm onError={onError} setState={setState} state={state} />;
+function DashboardControls({ onExplicitLegend, setState, state }: ControlProps) {
   return (
     <>
-      <TimeRangeSelect setState={setState} state={state} />
-      <div className="button-cluster" aria-label="Window navigation">
-        <Button
-          aria-label="Previous time window"
-          onClick={() =>
-            setState((current) => ({ ...current, time: navigateWindow(current.time, -1) }))
-          }
-        >
-          ← Window
-        </Button>
-        <Button
-          aria-label="Next time window"
-          onClick={() =>
-            setState((current) => ({ ...current, time: navigateWindow(current.time, 1) }))
-          }
-        >
-          Window →
-        </Button>
-      </div>
-      <Button
-        onClick={() =>
-          setState((current) => ({
-            ...current,
-            time: togglePause(current.time, nowSeconds()),
-          }))
-        }
-      >
-        {state.time.mode === "fixed" ? "Resume live" : state.time.paused ? "Resume" : "Pause"}
-      </Button>
-      <Button
-        onClick={() => {
-          onResetOrigin();
-          setState((current) => ({
-            ...current,
-            time: resetLive(current.time, nowSeconds()),
-          }));
-        }}
-      >
-        Reset to live
-      </Button>
-      {surface === "desktop" ? (
-        <details className="custom-range">
-          <summary>Custom range</summary>
-          {customRange}
-        </details>
-      ) : (
-        <fieldset className="sheet-fieldset">
-          <legend>Custom range</legend>
-          {customRange}
-        </fieldset>
-      )}
       <label>
         <span>Compare</span>
         <select
@@ -647,7 +505,8 @@ export function App() {
   });
   const [seriesData, setSeriesData] = useState<Map<string, LoadedSeries>>(new Map());
   const seriesDataRef = useRef(seriesData);
-  const zoomOriginRef = useRef<TimeState | null>(null);
+  const requestGenerationRef = useRef(0);
+  const [clockMs, setClockMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestRevision, setRequestRevision] = useState(0);
@@ -670,6 +529,7 @@ export function App() {
   const eventsTriggerRef = useRef<HTMLButtonElement>(null);
   const dashboardTitleRef = useRef<HTMLHeadingElement>(null);
   const viewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const resolvedTime = useMemo(() => toErcotTimeState(state.time, clockMs), [clockMs, state.time]);
   const {
     derivedContext,
     error: overviewError,
@@ -686,7 +546,7 @@ export function App() {
     enabled: !["outlook", "texas-grid", "external-context"].includes(selectedView),
     eventsEnabled: state.events,
     overviewQueries,
-    time: state.time,
+    time: resolvedTime,
   });
   const effectiveRequestError = overviewError ?? requestError;
 
@@ -704,7 +564,7 @@ export function App() {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setState((current) => ({ ...current, time: tickLive(current.time, nowSeconds()) }));
+      setClockMs(Date.now());
     }, 30_000);
     return () => window.clearInterval(interval);
   }, []);
@@ -733,10 +593,11 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const requestGeneration = ++requestGenerationRef.current;
     const loadContext = JSON.stringify([
       selectedView,
-      state.time.start,
-      state.time.end,
+      resolvedTime.start,
+      resolvedTime.end,
       state.compare,
       state.customCompareSeconds,
       requestRevision,
@@ -759,13 +620,14 @@ export function App() {
     setRequestError(null);
     void loadSeries(
       requestedCharts,
-      state.time,
+      resolvedTime,
       state.compare,
       state.customCompareSeconds,
       controller.signal,
       seriesDataRef.current,
     )
       .then((nextSeries) => {
+        if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
         setSeriesData((current) => new Map([...current, ...nextSeries]));
         completed = true;
       })
@@ -789,8 +651,8 @@ export function App() {
     collapsedGroups,
     state.compare,
     state.customCompareSeconds,
-    state.time.end,
-    state.time.start,
+    resolvedTime.end,
+    resolvedTime.start,
     requestRevision,
     selectedView,
   ]);
@@ -836,10 +698,10 @@ export function App() {
   );
 
   const onZoom = useCallback((start: number, end: number) => {
-    setState((current) => {
-      zoomOriginRef.current ??= current.time;
-      return { ...current, time: zoomTo(current.time, start, end) };
-    });
+    setState((current) => ({
+      ...current,
+      time: commitFixedTimeRange(current.time, start * 1000, end * 1000, "zoom"),
+    }));
   }, []);
 
   const setChartVisible = useCallback((chartId: string, visible: boolean) => {
@@ -1021,9 +883,9 @@ export function App() {
     ? formatAge(Math.max(0, nowSeconds() - operatingSummary.coreObservedAt)).replace(" old", " ago")
     : null;
   const freshnessLabel =
-    state.time.mode === "fixed"
+    resolvedTime.mode === "fixed"
       ? "Viewing a fixed analysis window"
-      : state.time.paused
+      : resolvedTime.paused
         ? updatedAge
           ? `Paused · updated ${updatedAge}`
           : "Paused"
@@ -1068,12 +930,8 @@ export function App() {
   const featuredChart = chartDefinitions.find((chart) => chart.id === "supply-demand")!;
 
   const controls = {
-    onError: setRequestError,
     onExplicitLegend: () => {
       explicitLegendRef.current = true;
-    },
-    onResetOrigin: () => {
-      zoomOriginRef.current = null;
     },
     setState,
     state,
@@ -1113,11 +971,13 @@ export function App() {
           }))
         }
         onResetZoom={() =>
-          setState((current) => {
-            const origin = zoomOriginRef.current;
-            zoomOriginRef.current = null;
-            return { ...current, time: origin ?? current.time };
-          })
+          setState((current) => ({
+            ...current,
+            time:
+              current.time.selection.kind === "fixed" && current.time.selection.origin === "zoom"
+                ? resetTimeRange(current.time)
+                : current.time,
+          }))
         }
         onSetCompare={(compare) => setState((current) => ({ ...current, compare }))}
         onSoloSeries={soloSeries}
@@ -1128,7 +988,7 @@ export function App() {
         requestError={effectiveRequestError}
         seriesData={seriesData}
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
-        time={state.time}
+        time={resolvedTime}
       />
     </Suspense>
   );
@@ -1141,11 +1001,11 @@ export function App() {
             ERCOT Grid Status
           </h1>
         </div>
-        {state.time.mode === "fixed" ||
+        {resolvedTime.mode === "fixed" ||
         selectedView === "outlook" ||
         selectedView === "texas-grid" ||
         selectedView === "external-context" ? null : (
-          <p className="freshness-state" data-mode={state.time.mode}>
+          <p className="freshness-state" data-mode={resolvedTime.mode}>
             {freshnessLabel}
           </p>
         )}
@@ -1156,7 +1016,16 @@ export function App() {
             aria-label="Global dashboard controls"
             className="control-bar compact-control-bar"
           >
-            <TimeRangeSelect setState={setState} state={state} />
+            <TimeRangePicker
+              calendarPresets={ERCOT_CALENDAR_PRESETS}
+              config={ERCOT_TIME_RANGE_CONFIG}
+              nowMs={clockMs}
+              onCommit={(time) => setState((current) => ({ ...current, time }))}
+              presentation={isMobile ? "mobile" : "desktop"}
+              presets={ERCOT_DURATION_PRESETS}
+              timezoneOptions={["America/Chicago", "UTC", "America/New_York"]}
+              value={state.time}
+            />
             <Button
               aria-haspopup="dialog"
               onClick={() => setMobileDialog("controls")}
@@ -1368,7 +1237,7 @@ export function App() {
         {selectedView === "overview" ? (
           <Suspense fallback={state.history ? <DataLifecycleMessage state="loading" /> : null}>
             <HistoricalContextPanel
-              asOf={historicalContextAsOf(state.time.end)}
+              asOf={historicalContextAsOf(resolvedTime.end)}
               enabled={selectedView === "overview"}
               expanded={state.history}
               onExpandedChange={(history) => setState((current) => ({ ...current, history }))}
@@ -1429,7 +1298,7 @@ export function App() {
         {selectedView === "reliability" ? (
           state.events ? (
             <Suspense fallback={<DataLifecycleMessage state="loading" />}>
-              <GridEventTimeline enabled time={state.time} />
+              <GridEventTimeline enabled time={resolvedTime} />
             </Suspense>
           ) : (
             <section aria-label="Unified grid event timeline" className="events-panel">
@@ -1556,7 +1425,7 @@ export function App() {
         title="Analyze"
       >
         <div className="sheet-controls">
-          <DashboardControls {...controls} surface="sheet" />
+          <DashboardControls {...controls} />
         </div>
       </MobileDialog>
 
