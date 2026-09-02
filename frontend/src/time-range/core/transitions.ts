@@ -78,6 +78,18 @@ export function selectRelativeRange(
   return createRelativeRange(durationMs, presetId, value.timezone);
 }
 
+export function commitFixedTimeRange(
+  value: TimeRangeValue,
+  fromMs: number,
+  toMs: number,
+  origin: FixedRangeOrigin,
+  timezone = value.timezone,
+): FixedTimeRangeValue {
+  const remembered = lastLive(value);
+  const fixed = createFixedRange(fromMs, toMs, origin, undefined, timezone);
+  return remembered ? { ...fixed, lastLiveSelection: remembered } : fixed;
+}
+
 export function pauseTimeRange(
   value: TimeRangeValue,
   nowMs: number,

@@ -8,6 +8,7 @@ export const DEFAULT_TIME_RANGE_CONFIG: TimeRangeConfig = {
 };
 
 export * from "./codec";
+export * from "./format";
 export * from "./resolve";
 export * from "./timezone";
 export * from "./transitions";
