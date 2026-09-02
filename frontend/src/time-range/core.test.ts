@@ -255,7 +255,10 @@ describe("IANA timezone and calendar semantics", () => {
     expect(after).toBe(Date.parse("2026-03-08T12:00:00-05:00"));
     expect(after - before).toBe(23 * HOUR);
     const gap = shiftInstantByCalendarDays(Date.parse("2026-03-09T02:30:00-05:00"), -1, CHICAGO);
-    expect(gap).toBe(Date.parse("2026-03-08T03:00:00-05:00"));
+    expect(gap).toBe(Date.parse("2026-03-08T03:30:00-05:00"));
+    const early = shiftInstantByCalendarDays(Date.parse("2026-03-09T02:01:00-05:00"), -1, CHICAGO);
+    const late = shiftInstantByCalendarDays(Date.parse("2026-03-09T02:59:00-05:00"), -1, CHICAGO);
+    expect(late - early).toBe(58 * MINUTE);
   });
 
   it("TR-TZ-005 reset preserves the remembered live timezone", () => {
@@ -271,5 +274,19 @@ describe("IANA timezone and calendar semantics", () => {
       "UTC",
     );
     expect(resetTimeRange(fixed).timezone).toBe(CHICAGO);
+  });
+
+  it("TR-DOM-005 rejects contradictory controlled paused values and invalid timezone transitions", () => {
+    const contradictory = {
+      playback: { fromMs: 9 * HOUR, kind: "paused" as const, toMs: 10 * HOUR },
+      selection: { durationMs: 6 * HOUR, kind: "relative" as const },
+      timezone: CHICAGO,
+    };
+    expect(validateTimeRangeValue(contradictory, 20 * HOUR, config)?.code).toBe(
+      "invalid_semantics",
+    );
+    expect(() =>
+      changeTimeRangeTimezone(createRelativeRange(HOUR, undefined, CHICAGO), "Bad/Zone"),
+    ).toThrow("invalid_timezone");
   });
 });

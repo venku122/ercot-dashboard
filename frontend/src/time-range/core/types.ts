@@ -89,6 +89,7 @@ export type TimeRangeValidationErrorCode =
   | "from_not_before_to"
   | "invalid_instant"
   | "invalid_timezone"
+  | "invalid_semantics"
   | "range_too_long"
   | "range_too_short";
 

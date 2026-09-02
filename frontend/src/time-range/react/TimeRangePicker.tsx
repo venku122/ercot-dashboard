@@ -28,6 +28,7 @@ import {
   validateTimeRangeValue,
   type CalendarPresetId,
   type TimeRangeConfig,
+  type TimeRangeValidationError,
   type TimeRangeValue,
   type WallTimeOccurrence,
 } from "../core";
@@ -92,6 +93,7 @@ export type TimeRangePickerProps = {
     code: "ambiguous" | "invalid" | "nonexistent",
     field: "from" | "to",
   ) => string;
+  formatValidationError?: (error: TimeRangeValidationError) => string;
   labels?: TimeRangePickerLabels;
   nowMs: number;
   onCommit: (value: TimeRangeValue) => void;
@@ -142,6 +144,7 @@ export function TimeRangePicker({
   className = "",
   config,
   formatDraftError,
+  formatValidationError = (validation) => validation.message,
   labels = {},
   nowMs,
   onCommit,
@@ -257,7 +260,7 @@ export function TimeRangePicker({
   const commitAndClose = (next: TimeRangeValue) => {
     const validation = validateTimeRangeValue(next, nowMs, config);
     if (validation) {
-      setError({ field: validation.field, message: validation.message });
+      setError({ field: validation.field, message: formatValidationError(validation) });
       return;
     }
     onCommit(next);
@@ -322,7 +325,7 @@ export function TimeRangePicker({
         config,
       );
       if (validation) {
-        setError({ field: validation.field, message: validation.message });
+        setError({ field: validation.field, message: formatValidationError(validation) });
         return;
       }
       commitAndClose(createGrowingRange(from.instantMs, draftTimezone));
@@ -338,7 +341,7 @@ export function TimeRangePicker({
       config,
     );
     if (validation) {
-      setError({ field: validation.field, message: validation.message });
+      setError({ field: validation.field, message: formatValidationError(validation) });
       return;
     }
     commitAndClose(
@@ -430,7 +433,7 @@ export function TimeRangePicker({
           <label>
             <span>{text.timezone}</span>
             <select
-              aria-label="Time range timezone"
+              aria-label={text.timezone}
               onChange={(event) => {
                 setDraftTimezone(event.target.value);
                 setFromOccurrence("");

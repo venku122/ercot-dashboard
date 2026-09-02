@@ -49,6 +49,14 @@ describe("semantic time URL codec", () => {
   it("TR-URL-005 round trips a paused semantic selection and frozen endpoints", () => {
     const paused = pauseTimeRange(createCalendarRange("today", "America/Chicago"), nowMs, config);
     expect(decodeTimeRange(encodeTimeRange(paused), config, nowMs + HOUR)).toEqual(paused);
+    expect(
+      decodeTimeRange(encodeTimeRange(paused), config, Date.parse("2026-09-02T00:01:00-05:00")),
+    ).toEqual(paused);
+
+    const growing = pauseTimeRange(createGrowingRange(nowMs - 2 * HOUR, "UTC"), nowMs, config);
+    expect(decodeTimeRange(encodeTimeRange(growing), config, nowMs + 100 * 24 * HOUR)).toEqual(
+      growing,
+    );
   });
 
   it("TR-URL-008 preserves unrelated parameters while replacing owned time fields", () => {

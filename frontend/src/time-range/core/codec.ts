@@ -1,5 +1,4 @@
 import { isValidTimezone } from "./timezone";
-import { isLiveCapableSelection, resolveTimeRange } from "./resolve";
 import {
   createCalendarRange,
   createFixedRange,
@@ -104,7 +103,6 @@ export function encodeTimeRange(
 function parseLiveSelection(
   params: URLSearchParams,
   config: TimeRangeConfig,
-  nowMs: number,
   prefix: string,
   selectionPrefix: "" | "last_" = "",
 ): LiveTimeRangeSpec | null {
@@ -124,7 +122,7 @@ function parseLiveSelection(
   }
   if (kindValue === "growing") {
     const fromMs = safeInteger(value);
-    if (fromMs === null || validateResolvedTimeWindow({ fromMs, toMs: nowMs }, config) !== null) {
+    if (fromMs === null || Math.abs(fromMs) > 8_640_000_000_000_000) {
       return null;
     }
     return { fromMs, kind: "growing" };
@@ -138,12 +136,11 @@ function parseLiveSelection(
 function parseLastLiveSelection(
   params: URLSearchParams,
   config: TimeRangeConfig,
-  nowMs: number,
   prefix: string,
 ): LastLiveSelection | null {
   const timezone = params.get(key(prefix, "last_tz"));
   if (!timezone || !isValidTimezone(timezone)) return null;
-  const selection = parseLiveSelection(params, config, nowMs, prefix, "last_");
+  const selection = parseLiveSelection(params, config, prefix, "last_");
   return selection ? { selection, timezone } : null;
 }
 
@@ -174,10 +171,10 @@ export function decodeTimeRange(
     const fixed = createFixedRange(fromMs, toMs, origin, undefined, timezone);
     const hasLast = params.has(key(prefix, "last_kind"));
     if (!hasLast) return fixed;
-    const lastLiveSelection = parseLastLiveSelection(params, config, nowMs, prefix);
+    const lastLiveSelection = parseLastLiveSelection(params, config, prefix);
     return lastLiveSelection ? { ...fixed, lastLiveSelection } : null;
   }
-  const selection = parseLiveSelection(params, config, nowMs, prefix);
+  const selection = parseLiveSelection(params, config, prefix);
   if (!selection) return null;
   let value: TimeRangeValue;
   if (selection.kind === "relative") {
@@ -187,8 +184,8 @@ export function decodeTimeRange(
   } else {
     value = createCalendarRange(selection.preset, timezone);
   }
-  if (validateTimeRangeValue(value, nowMs, config) !== null) return null;
-  if (playback === "running") return value;
+  if (playback === "running")
+    return validateTimeRangeValue(value, nowMs, config) === null ? value : null;
   if (playback !== "paused") return null;
   const fromMs = safeInteger(params.get(key(prefix, "from_ms")));
   const toMs = safeInteger(params.get(key(prefix, "to_ms")));
@@ -199,12 +196,10 @@ export function decodeTimeRange(
   ) {
     return null;
   }
-  if (!isLiveCapableSelection(value.selection)) return null;
-  const expected = resolveTimeRange(value, toMs, config);
-  if (expected.fromMs !== fromMs || expected.toMs !== toMs) return null;
-  return {
+  const paused: TimeRangeValue = {
     playback: { fromMs, kind: "paused", toMs },
     selection: value.selection,
     timezone,
   };
+  return validateTimeRangeValue(paused, nowMs, config) === null ? paused : null;
 }

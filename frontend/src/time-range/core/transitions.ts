@@ -170,5 +170,6 @@ export function resetTimeRange(value: TimeRangeValue, config?: TimeRangeConfig):
 }
 
 export function changeTimeRangeTimezone(value: TimeRangeValue, timezone: string): TimeRangeValue {
+  assertTimezone(timezone);
   return { ...value, timezone };
 }

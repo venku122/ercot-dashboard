@@ -603,6 +603,7 @@ export function App() {
       state.customCompareSeconds,
       requestRevision,
     ]);
+    const priorSeriesData = seriesDataRef.current;
     if (loadedChartContextRef.current !== loadContext) {
       loadedChartContextRef.current = loadContext;
       loadedChartIdsRef.current.clear();
@@ -630,7 +631,7 @@ export function App() {
       state.compare,
       state.customCompareSeconds,
       controller.signal,
-      seriesDataRef.current,
+      priorSeriesData,
     )
       .then((nextSeries) => {
         if (

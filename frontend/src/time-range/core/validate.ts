@@ -1,4 +1,4 @@
-import { resolveTimeRange } from "./resolve";
+import { isLiveCapableSelection, resolveTimeRange } from "./resolve";
 import { isValidTimezone } from "./timezone";
 import type { TimeRangeConfig, TimeRangeValidationError, TimeRangeValue } from "./types";
 
@@ -56,6 +56,35 @@ export function validateTimeRangeValue(
       field: "range",
       message: "Timezone must be a valid IANA timezone.",
     };
+  }
+  if (value.playback.kind === "paused") {
+    if (value.selection.kind === "fixed") {
+      return {
+        code: "invalid_semantics",
+        field: "range",
+        message: "A fixed range cannot use paused playback.",
+      };
+    }
+    if (!isLiveCapableSelection(value.selection)) {
+      return {
+        code: "invalid_semantics",
+        field: "range",
+        message: "This calendar range cannot be paused or resumed live.",
+      };
+    }
+    const running = {
+      playback: { kind: "running" as const },
+      selection: value.selection,
+      timezone: value.timezone,
+    };
+    const expected = resolveTimeRange(running, value.playback.toMs, config);
+    if (expected.fromMs !== value.playback.fromMs || expected.toMs !== value.playback.toMs) {
+      return {
+        code: "invalid_semantics",
+        field: "range",
+        message: "Paused endpoints must match the semantic live range.",
+      };
+    }
   }
   const resolved = resolveTimeRange(value, nowMs, config);
   return validateResolvedTimeWindow(resolved, config);

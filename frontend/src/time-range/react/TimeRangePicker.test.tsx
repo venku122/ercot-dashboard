@@ -248,6 +248,8 @@ describe("controlled TimeRangePicker", () => {
         maxDurationMs: 48 * HOUR,
         minDurationMs: 15 * 60_000,
       },
+      formatValidationError: (validation) => `Localized ${validation.code}`,
+      labels: { timezone: "Zone locale" },
       onCommit,
       timezoneOptions: ["America/New_York"],
       value: createRelativeRange(2 * HOUR, undefined, "America/New_York"),
@@ -263,7 +265,8 @@ describe("controlled TimeRangePicker", () => {
       setInput(document.querySelector<HTMLInputElement>('[aria-label="To"]')!, "2026-09-01T08:05");
       button(document, "Apply").click();
     });
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain("at least 15 minutes");
+    expect(document.querySelector('[aria-label="Zone locale"]')).not.toBeNull();
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe("Localized range_too_short");
     expect(onCommit).not.toHaveBeenCalled();
   });
 
