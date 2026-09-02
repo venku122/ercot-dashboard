@@ -5,6 +5,7 @@ import { expectNoHorizontalOverflow, installMobileApi } from "./mobile-fixtures"
 test("mobile picker is an opaque focus-trapped sheet without overflow @mobile-core @responsive", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await installMobileApi(page);
   await page.goto("/");
   const trigger = page.getByRole("button", { name: "Choose time range" });

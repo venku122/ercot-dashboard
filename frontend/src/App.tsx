@@ -16,6 +16,7 @@ import { MobileDialog } from "./components/MobileDialog";
 import { DataLifecycleMessage } from "./components/DataLifecycleMessage";
 import { Button } from "./components/ui/button";
 import { loadSeries } from "./dashboard/api";
+import { shouldCommitRequest } from "./dashboard/request-generation";
 import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
@@ -627,7 +628,10 @@ export function App() {
       seriesDataRef.current,
     )
       .then((nextSeries) => {
-        if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
+        if (
+          !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+        )
+          return;
         setSeriesData((current) => new Map([...current, ...nextSeries]));
         completed = true;
       })

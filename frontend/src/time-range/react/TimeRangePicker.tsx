@@ -17,6 +17,7 @@ import {
   resolveWallTime,
   resumeTimeRange,
   validateResolvedTimeWindow,
+  validateTimeRangeValue,
   type CalendarPresetId,
   type TimeRangeConfig,
   type TimeRangeValue,
@@ -148,6 +149,11 @@ export function TimeRangePicker({
   };
 
   const commitAndClose = (next: TimeRangeValue) => {
+    const validation = validateTimeRangeValue(next, nowMs, config);
+    if (validation) {
+      setError({ field: validation.field, message: validation.message });
+      return;
+    }
     onCommit(next);
     close();
   };

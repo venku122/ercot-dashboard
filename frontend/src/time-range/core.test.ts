@@ -17,6 +17,7 @@ import {
   selectRelativeRange,
   shiftInstantByCalendarDays,
   validateResolvedTimeWindow,
+  validateTimeRangeValue,
   type TimeRangeConfig,
 } from "./index";
 
@@ -124,6 +125,9 @@ describe("semantic time range state machine", () => {
     );
     expect(validateResolvedTimeWindow({ fromMs: HOUR, toMs: HOUR }, config)?.code).toBe(
       "from_not_before_to",
+    );
+    expect(validateTimeRangeValue(createRelativeRange(MINUTE), 10 * HOUR, config)?.code).toBe(
+      "range_too_short",
     );
   });
 });

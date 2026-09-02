@@ -10,6 +10,15 @@ async function openPicker(page: Parameters<typeof installMobileApi>[0]) {
   return page.getByRole("dialog", { name: "Time range" });
 }
 
+function isTimeSeriesRequest(url: string): boolean {
+  const path = new URL(url).pathname;
+  return (
+    path.includes("/api/series") ||
+    path.includes("/api/v1/series/chunk") ||
+    path.includes("/api/v2/tiles")
+  );
+}
+
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
   await installMobileApi(page);
@@ -51,10 +60,7 @@ test("semantic preset, pause, resume, calendar URL and reload round trip", async
 test("custom draft is request-silent until Apply and Cancel restores focus", async ({ page }) => {
   const seriesRequests: string[] = [];
   page.on("request", (request) => {
-    const path = new URL(request.url()).pathname;
-    if (path.includes("/api/series") || path.includes("/api/v2/series")) {
-      seriesRequests.push(request.url());
-    }
+    if (isTimeSeriesRequest(request.url())) seriesRequests.push(request.url());
   });
   await page.waitForTimeout(250);
   seriesRequests.length = 0;
@@ -108,10 +114,7 @@ test("twenty rapid commits settle on the final semantic URL without runaway requ
   const requests: string[] = [];
   page.on("pageerror", (error) => errors.push(error));
   page.on("request", (request) => {
-    const path = new URL(request.url()).pathname;
-    if (path.includes("/api/series") || path.includes("/api/v2/series")) {
-      requests.push(request.url());
-    }
+    if (isTimeSeriesRequest(request.url())) requests.push(request.url());
   });
   await page.waitForTimeout(250);
   requests.length = 0;

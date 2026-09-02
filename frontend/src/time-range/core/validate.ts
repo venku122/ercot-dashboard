@@ -1,4 +1,5 @@
-import type { TimeRangeConfig, TimeRangeValidationError } from "./types";
+import { resolveTimeRange } from "./resolve";
+import type { TimeRangeConfig, TimeRangeValidationError, TimeRangeValue } from "./types";
 
 function durationLabel(durationMs: number): string {
   if (durationMs % 86_400_000 === 0) return `${durationMs / 86_400_000} days`;
@@ -39,4 +40,13 @@ export function validateResolvedTimeWindow(
     };
   }
   return null;
+}
+
+export function validateTimeRangeValue(
+  value: TimeRangeValue,
+  nowMs: number,
+  config: TimeRangeConfig,
+): TimeRangeValidationError | null {
+  const resolved = resolveTimeRange(value, nowMs, config);
+  return validateResolvedTimeWindow(resolved, config);
 }
