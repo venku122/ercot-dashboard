@@ -32,7 +32,7 @@ const config: TimeRangeConfig = {
 
 describe("semantic time range state machine", () => {
   it("TR-DOM-001/002/003 keeps relative semantics distinct while resolved time ticks", () => {
-    const value = createRelativeRange(6 * HOUR, "past-6-hours");
+    const value = createRelativeRange(6 * HOUR, "past-6-hours", CHICAGO);
     expect(value.selection).toEqual({
       durationMs: 6 * HOUR,
       kind: "relative",
@@ -52,11 +52,17 @@ describe("semantic time range state machine", () => {
   });
 
   it("TR-DOM-004/005/006 selects live from history and pauses/resumes at the new clock", () => {
-    const original = createRelativeRange(6 * HOUR, "past-6-hours");
-    const fixed = createFixedRange(HOUR, 7 * HOUR, "zoom", {
-      selection: original.selection,
-      timezone: original.timezone,
-    });
+    const original = createRelativeRange(6 * HOUR, "past-6-hours", CHICAGO);
+    const fixed = createFixedRange(
+      HOUR,
+      7 * HOUR,
+      "zoom",
+      {
+        selection: original.selection,
+        timezone: original.timezone,
+      },
+      CHICAGO,
+    );
     const selected = selectRelativeRange(fixed, 24 * HOUR, "past-24-hours");
     expect(resolveTimeRange(selected, 100 * HOUR, config)).toMatchObject({
       fromMs: 76 * HOUR,
@@ -79,11 +85,17 @@ describe("semantic time range state machine", () => {
   });
 
   it("TR-DOM-007/008/009/010 preserves fixed origin, duration, and last live reset", () => {
-    const live = createRelativeRange(6 * HOUR, "past-6-hours");
-    const zoom = createFixedRange(20 * HOUR, 22 * HOUR + 13 * MINUTE, "zoom", {
-      selection: live.selection,
-      timezone: live.timezone,
-    });
+    const live = createRelativeRange(6 * HOUR, "past-6-hours", CHICAGO);
+    const zoom = createFixedRange(
+      20 * HOUR,
+      22 * HOUR + 13 * MINUTE,
+      "zoom",
+      {
+        selection: live.selection,
+        timezone: live.timezone,
+      },
+      CHICAGO,
+    );
     expect(resolveTimeRange(zoom, 100 * HOUR, config)).toMatchObject({
       fromMs: 20 * HOUR,
       live: false,
@@ -91,6 +103,15 @@ describe("semantic time range state machine", () => {
       toMs: 22 * HOUR + 13 * MINUTE,
     });
     const previous = navigateTimeRange(zoom, -1, 100 * HOUR, config);
+    expect(previous.selection).toMatchObject({
+      fromMs: 17 * HOUR + 47 * MINUTE,
+      toMs: 20 * HOUR,
+    });
+    const directNext = navigateTimeRange(zoom, 1, 100 * HOUR, config);
+    expect(directNext.selection).toMatchObject({
+      fromMs: 22 * HOUR + 13 * MINUTE,
+      toMs: 24 * HOUR + 26 * MINUTE,
+    });
     const next = navigateTimeRange(previous, 1, 100 * HOUR, config);
     expect(next.selection).toMatchObject({
       fromMs: 20 * HOUR,
@@ -106,7 +127,7 @@ describe("semantic time range state machine", () => {
   });
 
   it("TR-DOM-011 grows from a fixed instant and resumes growth after pause", () => {
-    const growing = createGrowingRange(HOUR);
+    const growing = createGrowingRange(HOUR, CHICAGO);
     const paused = pauseTimeRange(growing, 10 * HOUR, config);
     expect(resolveTimeRange(paused, 20 * HOUR, config)).toMatchObject({
       fromMs: HOUR,
@@ -132,9 +153,23 @@ describe("semantic time range state machine", () => {
     expect(validateResolvedTimeWindow({ fromMs: HOUR, toMs: HOUR }, config)?.code).toBe(
       "from_not_before_to",
     );
-    expect(validateTimeRangeValue(createRelativeRange(MINUTE), 10 * HOUR, config)?.code).toBe(
-      "range_too_short",
-    );
+    expect(
+      validateTimeRangeValue(createRelativeRange(MINUTE, undefined, CHICAGO), 10 * HOUR, config)
+        ?.code,
+    ).toBe("range_too_short");
+    expect(() => createRelativeRange(HOUR, undefined, "Not/AZone")).toThrow("invalid_timezone");
+    expect(() => createRelativeRange(Number.NaN, undefined, CHICAGO)).toThrow("invalid_duration");
+  });
+
+  it("TR-DOM-010 resets closed calendar selections to the configured live default", () => {
+    for (const preset of ["yesterday", "previous_week", "previous_month"] as const) {
+      const reset = resetTimeRange(createCalendarRange(preset, CHICAGO), {
+        ...config,
+        defaultRelativeRange: { durationMs: 2 * HOUR, presetId: "consumer-default" },
+        defaultTimezone: "America/New_York",
+      });
+      expect(reset).toEqual(createRelativeRange(2 * HOUR, "consumer-default", "America/New_York"));
+    }
   });
 });
 
@@ -177,31 +212,30 @@ describe("IANA timezone and calendar semantics", () => {
 
   it("TR-DOM-012 resolves the complete calendar preset set", () => {
     const now = Date.parse("2028-02-29T12:00:00-06:00");
-    for (const preset of [
-      "today",
-      "yesterday",
-      "week_to_date",
-      "month_to_date",
-      "previous_week",
-      "previous_month",
-      "year_to_date",
-    ] as const) {
+    const cases = {
+      month_to_date: ["2028-02-01T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      previous_month: ["2028-01-01T00:00:00-06:00", "2028-02-01T00:00:00-06:00"],
+      previous_week: ["2028-02-21T00:00:00-06:00", "2028-02-28T00:00:00-06:00"],
+      today: ["2028-02-29T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      week_to_date: ["2028-02-28T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      year_to_date: ["2028-01-01T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      yesterday: ["2028-02-28T00:00:00-06:00", "2028-02-29T00:00:00-06:00"],
+    } as const;
+    for (const preset of Object.keys(cases) as Array<keyof typeof cases>) {
+      const expected = cases[preset];
       const resolved = resolveTimeRange(createCalendarRange(preset, CHICAGO), now, config);
-      expect(resolved.fromMs, preset).toBeLessThan(resolved.toMs);
+      expect([resolved.fromMs, resolved.toMs], preset).toEqual(expected.map(Date.parse));
     }
-    expect(resolveTimeRange(createCalendarRange("today", CHICAGO), now, config).fromMs).toBe(
-      Date.parse("2028-02-29T00:00:00-06:00"),
-    );
   });
 
   it("TR-TZ-003/004/005 applies timezone changes according to semantic kind", () => {
     const now = Date.parse("2026-09-01T12:00:00Z");
-    const fixed = createFixedRange(now - HOUR, now, "custom");
+    const fixed = createFixedRange(now - HOUR, now, "custom", undefined, CHICAGO);
     expect(resolveTimeRange(changeTimeRangeTimezone(fixed, "UTC"), now, config)).toMatchObject({
       fromMs: now - HOUR,
       toMs: now,
     });
-    const relative = createRelativeRange(HOUR);
+    const relative = createRelativeRange(HOUR, undefined, CHICAGO);
     expect(resolveTimeRange(changeTimeRangeTimezone(relative, "UTC"), now, config)).toMatchObject({
       fromMs: now - HOUR,
       toMs: now,

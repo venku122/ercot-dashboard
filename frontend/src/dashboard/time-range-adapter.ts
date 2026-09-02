@@ -15,6 +15,7 @@ import type { TimeState } from "./types";
 const HOUR_MS = 3_600_000;
 
 export const ERCOT_TIME_RANGE_CONFIG: TimeRangeConfig = {
+  defaultRelativeRange: { durationMs: 6 * HOUR_MS, presetId: "past-6-hours" },
   defaultTimezone: "America/Chicago",
   locale: "en-US",
   maxDurationMs: 365 * DAY_MS,

@@ -1,4 +1,5 @@
 import { resolveTimeRange } from "./resolve";
+import { isValidTimezone } from "./timezone";
 import type { TimeRangeConfig, TimeRangeValidationError, TimeRangeValue } from "./types";
 
 const MAX_DATE_MS = 8_640_000_000_000_000;
@@ -49,6 +50,13 @@ export function validateTimeRangeValue(
   nowMs: number,
   config: TimeRangeConfig,
 ): TimeRangeValidationError | null {
+  if (!isValidTimezone(value.timezone)) {
+    return {
+      code: "invalid_timezone",
+      field: "range",
+      message: "Timezone must be a valid IANA timezone.",
+    };
+  }
   const resolved = resolveTimeRange(value, nowMs, config);
   return validateResolvedTimeWindow(resolved, config);
 }

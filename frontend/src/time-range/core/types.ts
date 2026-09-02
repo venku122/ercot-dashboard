@@ -78,6 +78,7 @@ export type ResolvedTimeWindow = {
 };
 
 export type TimeRangeConfig = {
+  defaultRelativeRange?: { durationMs: number; presetId?: string };
   defaultTimezone: string;
   locale: string;
   maxDurationMs: number;
@@ -87,6 +88,7 @@ export type TimeRangeConfig = {
 export type TimeRangeValidationErrorCode =
   | "from_not_before_to"
   | "invalid_instant"
+  | "invalid_timezone"
   | "range_too_long"
   | "range_too_short";
 

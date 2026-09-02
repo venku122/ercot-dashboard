@@ -50,6 +50,7 @@
 
 .time-range-picker__surface button {
   min-height: 44px;
+  min-width: 44px;
 }
 
 .time-range-picker__surface legend {
@@ -99,6 +100,7 @@
 
 .time-range-picker__form-grid input,
 .time-range-picker__form-grid select {
+  height: 44px;
   max-width: 100%;
   min-height: 44px;
   min-width: 0;

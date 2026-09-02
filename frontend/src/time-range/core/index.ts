@@ -1,16 +1,56 @@
 import { DAY_MS, MINUTE_MS, type TimeRangeConfig } from "./types";
 
 export const DEFAULT_TIME_RANGE_CONFIG: TimeRangeConfig = {
+  defaultRelativeRange: { durationMs: 6 * 60 * 60 * 1000 },
   defaultTimezone: "UTC",
   locale: "en-US",
   maxDurationMs: 365 * DAY_MS,
   minDurationMs: 5 * MINUTE_MS,
 };
 
-export * from "./codec";
-export * from "./format";
-export * from "./resolve";
-export * from "./timezone";
-export * from "./transitions";
-export * from "./types";
-export * from "./validate";
+export { decodeTimeRange, encodeTimeRange } from "./codec";
+export { formatDuration, formatInstant, formatTimeRangeLabel } from "./format";
+export { resolveTimeRange } from "./resolve";
+export {
+  formatWallTimeInput,
+  isValidTimezone,
+  parseWallTime,
+  resolveWallTime,
+  shiftInstantByCalendarDays,
+} from "./timezone";
+export {
+  changeTimeRangeTimezone,
+  commitFixedTimeRange,
+  createCalendarRange,
+  createFixedRange,
+  createGrowingRange,
+  createRelativeRange,
+  navigateTimeRange,
+  pauseTimeRange,
+  resetTimeRange,
+  resumeTimeRange,
+  selectRelativeRange,
+} from "./transitions";
+export { DAY_MS, HOUR_MS, MINUTE_MS } from "./types";
+export type {
+  CalendarPresetId,
+  CalendarTimeRangeSpec,
+  FixedRangeOrigin,
+  FixedTimeRangeSpec,
+  FixedTimeRangeValue,
+  GrowingTimeRangeSpec,
+  LastLiveSelection,
+  LiveTimeRangeSpec,
+  PausedTimeRangeValue,
+  RelativeTimeRangeSpec,
+  ResolvedTimeWindow,
+  RunningTimeRangeValue,
+  TimeRangeConfig,
+  TimeRangeValidationError,
+  TimeRangeValidationErrorCode,
+  TimeRangeValue,
+  WallTimeOccurrence,
+  WallTimeParseResult,
+  WallTimeResolution,
+} from "./types";
+export { validateResolvedTimeWindow, validateTimeRangeValue } from "./validate";

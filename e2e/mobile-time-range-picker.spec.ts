@@ -16,14 +16,14 @@ test("mobile picker is an opaque focus-trapped sheet without overflow @mobile-co
   await expect(sheet.getByRole("button", { name: "Close time range picker" })).toBeFocused();
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
   await expectNoHorizontalOverflow(page);
-  for (const control of [
-    trigger,
-    sheet.getByRole("button", { name: "Past 1 hour" }),
-    sheet.getByRole("button", { name: "Today" }),
-    sheet.getByRole("button", { name: "Apply" }),
-  ]) {
+  for (const control of [trigger, ...(await sheet.locator("button, input, select").all())]) {
     const box = await control.boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    const identity = await control.evaluate(
+      (element) =>
+        `${element.tagName}:${element.getAttribute("aria-label") ?? element.textContent}`,
+    );
+    expect(box?.height ?? 0, identity).toBeGreaterThanOrEqual(44);
+    expect(box?.width ?? 0, identity).toBeGreaterThanOrEqual(44);
   }
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();

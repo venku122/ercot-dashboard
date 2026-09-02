@@ -1,4 +1,5 @@
 import { isLiveCapableSelection, resolveTimeRange } from "./resolve";
+import { isValidTimezone } from "./timezone";
 import type {
   CalendarPresetId,
   FixedTimeRangeValue,
@@ -11,19 +12,34 @@ import type {
 } from "./types";
 
 const FALLBACK_DURATION_MS = 6 * 60 * 60 * 1000;
+const MAX_DATE_MS = 8_640_000_000_000_000;
+
+function assertTimezone(timezone: string) {
+  if (!isValidTimezone(timezone)) throw new RangeError("invalid_timezone");
+}
+
+function assertInstant(instantMs: number) {
+  if (!Number.isSafeInteger(instantMs) || Math.abs(instantMs) > MAX_DATE_MS)
+    throw new RangeError("invalid_instant");
+}
 
 export function createRelativeRange(
   durationMs: number,
-  presetId?: string,
-  timezone = "UTC",
+  presetId: string | undefined,
+  timezone: string,
 ): RunningTimeRangeValue {
+  assertTimezone(timezone);
+  if (!Number.isSafeInteger(durationMs) || durationMs <= 0)
+    throw new RangeError("invalid_duration");
   const selection = presetId
     ? ({ durationMs, kind: "relative", presetId } as const)
     : ({ durationMs, kind: "relative" } as const);
   return { playback: { kind: "running" }, selection, timezone };
 }
 
-export function createGrowingRange(fromMs: number, timezone = "UTC"): RunningTimeRangeValue {
+export function createGrowingRange(fromMs: number, timezone: string): RunningTimeRangeValue {
+  assertTimezone(timezone);
+  assertInstant(fromMs);
   return { playback: { kind: "running" }, selection: { fromMs, kind: "growing" }, timezone };
 }
 
@@ -31,6 +47,7 @@ export function createCalendarRange(
   preset: CalendarPresetId,
   timezone: string,
 ): RunningTimeRangeValue {
+  assertTimezone(timezone);
   return { playback: { kind: "running" }, selection: { kind: "calendar", preset }, timezone };
 }
 
@@ -38,9 +55,13 @@ export function createFixedRange(
   fromMs: number,
   toMs: number,
   origin: FixedRangeOrigin,
-  lastLiveSelection?: LastLiveSelection,
-  timezone = "UTC",
+  lastLiveSelection: LastLiveSelection | undefined,
+  timezone: string,
 ): FixedTimeRangeValue {
+  assertTimezone(timezone);
+  assertInstant(fromMs);
+  assertInstant(toMs);
+  if (fromMs >= toMs) throw new RangeError("invalid_range");
   const base = {
     playback: { kind: "fixed" } as const,
     selection: { fromMs, kind: "fixed" as const, origin, toMs },
@@ -63,7 +84,9 @@ function isPausedValue(value: TimeRangeValue): value is PausedTimeRangeValue {
 
 function lastLive(value: TimeRangeValue) {
   if (!isFixedValue(value)) {
-    return { selection: value.selection, timezone: value.timezone };
+    return isLiveCapableSelection(value.selection)
+      ? { selection: value.selection, timezone: value.timezone }
+      : undefined;
   }
   return value.lastLiveSelection;
 }
@@ -129,7 +152,7 @@ export function navigateTimeRange(
     : fixed;
 }
 
-export function resetTimeRange(value: TimeRangeValue): TimeRangeValue {
+export function resetTimeRange(value: TimeRangeValue, config?: TimeRangeConfig): TimeRangeValue {
   const remembered = lastLive(value);
   if (remembered) {
     return {
@@ -138,7 +161,12 @@ export function resetTimeRange(value: TimeRangeValue): TimeRangeValue {
       timezone: remembered.timezone,
     };
   }
-  return createRelativeRange(FALLBACK_DURATION_MS, "past-6-hours", value.timezone);
+  const fallback = config?.defaultRelativeRange ?? { durationMs: FALLBACK_DURATION_MS };
+  return createRelativeRange(
+    fallback.durationMs,
+    fallback.presetId,
+    config?.defaultTimezone ?? value.timezone,
+  );
 }
 
 export function changeTimeRangeTimezone(value: TimeRangeValue, timezone: string): TimeRangeValue {

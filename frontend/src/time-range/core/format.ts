@@ -31,7 +31,13 @@ export function formatTimeRangeLabel(
   config: TimeRangeConfig,
   labels: {
     calendar?: ReadonlyMap<string, string>;
+    custom?: string;
+    past?: string;
+    paused?: string;
     presets?: ReadonlyMap<string, string>;
+    since?: string;
+    window?: string;
+    zoom?: string;
   } = {},
 ): string {
   const resolved = resolveTimeRange(value, nowMs, config);
@@ -39,20 +45,20 @@ export function formatTimeRangeLabel(
   if (value.selection.kind === "relative") {
     label =
       (value.selection.presetId && labels.presets?.get(value.selection.presetId)) ||
-      `Past ${formatDuration(value.selection.durationMs)}`;
+      `${labels.past ?? "Past"} ${formatDuration(value.selection.durationMs)}`;
   } else if (value.selection.kind === "calendar") {
     label =
       labels.calendar?.get(value.selection.preset) ?? value.selection.preset.replaceAll("_", " ");
   } else if (value.selection.kind === "growing") {
-    label = `Since ${formatInstant(value.selection.fromMs, value.timezone, config.locale)}`;
+    label = `${labels.since ?? "Since"} ${formatInstant(value.selection.fromMs, value.timezone, config.locale)}`;
   } else {
     const origin =
       value.selection.origin === "custom"
-        ? "Custom"
+        ? (labels.custom ?? "Custom")
         : value.selection.origin === "zoom"
-          ? "Zoom"
-          : "Window";
+          ? (labels.zoom ?? "Zoom")
+          : (labels.window ?? "Window");
     label = `${origin} · ${formatDuration(resolved.toMs - resolved.fromMs)}`;
   }
-  return value.playback.kind === "paused" ? `${label} · Paused` : label;
+  return value.playback.kind === "paused" ? `${label} · ${labels.paused ?? "Paused"}` : label;
 }

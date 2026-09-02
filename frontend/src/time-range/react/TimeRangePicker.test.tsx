@@ -149,6 +149,12 @@ describe("controlled TimeRangePicker", () => {
     controls.at(-1)!.focus();
     act(() => dialog.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Tab" })));
     expect(document.activeElement).toBe(controls[0]);
+    act(() =>
+      dialog.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Tab", shiftKey: true }),
+      ),
+    );
+    expect(document.activeElement).toBe(controls.at(-1));
     act(() => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(trigger);
@@ -230,5 +236,53 @@ describe("controlled TimeRangePicker", () => {
     expect(backdrop.classList.contains("consumer-portal")).toBe(true);
     expect(backdrop.style.getPropertyValue("--trp-background")).toBe("#123456");
     expect(document.querySelector("h2")?.textContent).toBe("Analysis interval");
+  });
+
+  it("TR-MOD-004/007 enforces a second consumer's non-default bounds", async () => {
+    const onCommit = vi.fn();
+    await render({
+      config: {
+        defaultRelativeRange: { durationMs: 2 * HOUR },
+        defaultTimezone: "America/New_York",
+        locale: "fr-CA",
+        maxDurationMs: 48 * HOUR,
+        minDurationMs: 15 * 60_000,
+      },
+      onCommit,
+      timezoneOptions: ["America/New_York"],
+      value: createRelativeRange(2 * HOUR, undefined, "America/New_York"),
+    });
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Choose time range"]')!.click(),
+    );
+    act(() => {
+      setInput(
+        document.querySelector<HTMLInputElement>('[aria-label="From"]')!,
+        "2026-09-01T08:00",
+      );
+      setInput(document.querySelector<HTMLInputElement>('[aria-label="To"]')!, "2026-09-01T08:05");
+      button(document, "Apply").click();
+    });
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("at least 15 minutes");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("TR-PERF-010 releases its outside listener through repeated open/close cycles", async () => {
+    const added = vi.spyOn(document, "addEventListener");
+    const removed = vi.spyOn(document, "removeEventListener");
+    await render();
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Choose time range"]')!;
+    for (let index = 0; index < 20; index += 1) {
+      act(() => trigger.click());
+      act(() =>
+        document
+          .querySelector('[role="dialog"]')!
+          .dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })),
+      );
+    }
+    const pointerAdds = added.mock.calls.filter(([type]) => type === "pointerdown").length;
+    const pointerRemoves = removed.mock.calls.filter(([type]) => type === "pointerdown").length;
+    expect(pointerAdds).toBe(20);
+    expect(pointerRemoves).toBe(20);
   });
 });

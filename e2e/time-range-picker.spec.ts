@@ -115,6 +115,39 @@ test("desktop outside dismissal prevents competing dashboard dialogs", async ({ 
   await expect(page.getByRole("dialog")).toHaveCount(1);
 });
 
+test("closed calendar ranges offer a working return to live", async ({ page }) => {
+  for (const preset of ["Yesterday", "Previous week", "Previous month"]) {
+    let picker = await openPicker(page);
+    await picker.getByRole("button", { name: preset, exact: true }).click();
+    picker = await openPicker(page);
+    await expect(picker.getByRole("button", { name: "Resume live" })).toBeVisible();
+    await picker.getByRole("button", { name: "Resume live" }).click();
+    await expect(page.getByRole("button", { name: "Choose time range" })).toContainText(
+      "Past 6 hours",
+    );
+  }
+});
+
+test("legacy fixed links canonicalize safely and browser history restores semantic time", async ({
+  page,
+}) => {
+  const from = Math.floor(FIXED_NOW.getTime() / 1000) - 7_980;
+  const to = Math.floor(FIXED_NOW.getTime() / 1000);
+  await page.goto(`/?range=7980&live=0&from=${from}&to=${to}&view=market&foreign=kept`);
+  const trigger = page.getByRole("button", { name: "Choose time range" });
+  await expect(trigger).toContainText("Custom · 2h 13m");
+  await expect.poll(() => new URL(page.url()).searchParams.get("time_kind")).toBe("fixed");
+  expect(new URL(page.url()).searchParams.get("foreign")).toBe("kept");
+
+  await page.goto(
+    "/?time_kind=relative&time_value=3600000&time_preset=past-1-hour&time_tz=America%2FChicago&time_play=running&foreign=new",
+  );
+  await expect(trigger).toContainText("Past 1 hour");
+  await page.goBack();
+  await expect(trigger).toContainText("Custom · 2h 13m");
+  expect(new URL(page.url()).searchParams.get("foreign")).toBe("kept");
+});
+
 test("twenty rapid commits settle on the final semantic URL without runaway requests", async ({
   page,
 }) => {

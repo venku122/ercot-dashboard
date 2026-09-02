@@ -54,29 +54,44 @@ export type TimeRangePickerLabels = {
   custom?: string;
   description?: string;
   fixed?: string;
+  fixedMode?: string;
   from?: string;
+  fromOccurrence?: string;
   growingMode?: string;
   live?: string;
   mode?: string;
+  modeAria?: string;
   nextWindow?: string;
   pause?: string;
   paused?: string;
+  occurrenceChoose?: string;
+  occurrenceEarlier?: string;
+  occurrenceLater?: string;
+  past?: string;
   previousWindow?: string;
   quickRanges?: string;
   resetLive?: string;
   resume?: string;
   resumeLive?: string;
+  since?: string;
   timezone?: string;
   title?: string;
   to?: string;
+  toOccurrence?: string;
   trigger?: string;
   windowNavigation?: string;
+  windowOrigin?: string;
+  zoomOrigin?: string;
 };
 
 export type TimeRangePickerProps = {
   calendarPresets: readonly CalendarPreset[];
   className?: string;
   config: TimeRangeConfig;
+  formatDraftError?: (
+    code: "ambiguous" | "invalid" | "nonexistent",
+    field: "from" | "to",
+  ) => string;
   labels?: TimeRangePickerLabels;
   nowMs: number;
   onCommit: (value: TimeRangeValue) => void;
@@ -107,16 +122,17 @@ function resolveDraftInstant(
   value: string,
   timezone: string,
   occurrence: WallTimeOccurrence | "",
-  field: "From" | "To",
+  field: "from" | "to",
+  formatError: NonNullable<TimeRangePickerProps["formatDraftError"]>,
 ): { error?: string; instantMs?: number } {
   const parsed = parseWallTime(value);
-  if (!parsed.ok) return { error: `${field} must be a valid local date and time.` };
+  if (!parsed.ok) return { error: formatError("invalid", field) };
   const result = resolveWallTime(parsed.parts, timezone, occurrence || undefined);
   if (result.kind === "nonexistent") {
-    return { error: `${field} is not a real local time because of DST.` };
+    return { error: formatError("nonexistent", field) };
   }
   if (result.kind === "ambiguous") {
-    return { error: `Choose the earlier or later occurrence for ${field}.` };
+    return { error: formatError("ambiguous", field) };
   }
   return { instantMs: result.instantMs };
 }
@@ -125,6 +141,7 @@ export function TimeRangePicker({
   calendarPresets,
   className = "",
   config,
+  formatDraftError,
   labels = {},
   nowMs,
   onCommit,
@@ -161,25 +178,44 @@ export function TimeRangePicker({
     custom: "Custom",
     description: "Choose a live, calendar, or custom analysis window.",
     fixed: "Fixed",
+    fixedMode: "From and To",
     from: "From",
+    fromOccurrence: "From occurrence",
     growingMode: "Since From",
     live: "Live",
     mode: "Mode",
+    modeAria: "Custom range mode",
     nextWindow: "Next window",
     pause: "Pause",
     paused: "Paused",
+    occurrenceChoose: "Choose…",
+    occurrenceEarlier: "Earlier occurrence",
+    occurrenceLater: "Later occurrence",
+    past: "Past",
     previousWindow: "Previous window",
     quickRanges: "Quick ranges",
     resetLive: "Reset to live",
     resume: "Resume",
     resumeLive: "Resume live",
+    since: "Since",
     timezone: "Timezone",
     title: "Time range",
     to: "To",
+    toOccurrence: "To occurrence",
     trigger: "Choose time range",
     windowNavigation: "Window navigation",
+    windowOrigin: "Window",
+    zoomOrigin: "Zoom",
     ...labels,
   };
+  const draftError =
+    formatDraftError ??
+    ((code: "ambiguous" | "invalid" | "nonexistent", field: "from" | "to") => {
+      const name = field === "from" ? text.from : text.to;
+      if (code === "ambiguous") return `Choose the earlier or later occurrence for ${name}.`;
+      if (code === "nonexistent") return `${name} is not a real local time because of DST.`;
+      return `${name} must be a valid local date and time.`;
+    });
 
   const presetLabels = useMemo(
     () => new Map(presets.map((preset) => [preset.id, preset.label])),
@@ -191,7 +227,13 @@ export function TimeRangePicker({
   );
   const triggerLabel = formatTimeRangeLabel(value, nowMs, config, {
     calendar: calendarLabels,
+    custom: text.custom,
+    past: text.past,
+    paused: text.paused,
     presets: presetLabels,
+    since: text.since,
+    window: text.windowOrigin,
+    zoom: text.zoomOrigin,
   });
   const fromWall = wallResolution(draftFrom, draftTimezone);
   const toWall = wallResolution(draftTo, draftTimezone);
@@ -269,7 +311,7 @@ export function TimeRangePicker({
   };
 
   const applyCustom = () => {
-    const from = resolveDraftInstant(draftFrom, draftTimezone, fromOccurrence, "From");
+    const from = resolveDraftInstant(draftFrom, draftTimezone, fromOccurrence, "from", draftError);
     if (from.error || from.instantMs === undefined) {
       setError({ field: "from", message: from.error ?? "From must be a valid time." });
       return;
@@ -286,7 +328,7 @@ export function TimeRangePicker({
       commitAndClose(createGrowingRange(from.instantMs, draftTimezone));
       return;
     }
-    const to = resolveDraftInstant(draftTo, draftTimezone, toOccurrence, "To");
+    const to = resolveDraftInstant(draftTo, draftTimezone, toOccurrence, "to", draftError);
     if (to.error || to.instantMs === undefined) {
       setError({ field: "to", message: to.error ?? "To must be a valid time." });
       return;
@@ -377,11 +419,11 @@ export function TimeRangePicker({
           <label>
             <span>{text.mode}</span>
             <select
-              aria-label="Custom range mode"
+              aria-label={text.modeAria}
               onChange={(event) => setCustomMode(event.target.value as CustomMode)}
               value={customMode}
             >
-              <option value="fixed">From and To</option>
+              <option value="fixed">{text.fixedMode}</option>
               <option value="growing">{text.growingMode}</option>
             </select>
           </label>
@@ -423,17 +465,17 @@ export function TimeRangePicker({
           </label>
           {fromWall?.kind === "ambiguous" ? (
             <label>
-              <span>From occurrence</span>
+              <span>{text.fromOccurrence}</span>
               <select
-                aria-label="From occurrence"
+                aria-label={text.fromOccurrence}
                 onChange={(event) =>
                   setFromOccurrence(event.target.value as WallTimeOccurrence | "")
                 }
                 value={fromOccurrence}
               >
-                <option value="">Choose…</option>
-                <option value="earlier">Earlier occurrence</option>
-                <option value="later">Later occurrence</option>
+                <option value="">{text.occurrenceChoose}</option>
+                <option value="earlier">{text.occurrenceEarlier}</option>
+                <option value="later">{text.occurrenceLater}</option>
               </select>
             </label>
           ) : null}
@@ -458,15 +500,15 @@ export function TimeRangePicker({
           ) : null}
           {customMode === "fixed" && toWall?.kind === "ambiguous" ? (
             <label>
-              <span>To occurrence</span>
+              <span>{text.toOccurrence}</span>
               <select
-                aria-label="To occurrence"
+                aria-label={text.toOccurrence}
                 onChange={(event) => setToOccurrence(event.target.value as WallTimeOccurrence | "")}
                 value={toOccurrence}
               >
-                <option value="">Choose…</option>
-                <option value="earlier">Earlier occurrence</option>
-                <option value="later">Later occurrence</option>
+                <option value="">{text.occurrenceChoose}</option>
+                <option value="earlier">{text.occurrenceEarlier}</option>
+                <option value="later">{text.occurrenceLater}</option>
               </select>
             </label>
           ) : null}
@@ -516,18 +558,19 @@ export function TimeRangePicker({
         <button
           onClick={() => {
             if (value.playback.kind === "paused") commitAndClose(resumeTimeRange(value));
-            else if (value.playback.kind === "fixed") commitAndClose(resetTimeRange(value));
+            else if (value.playback.kind === "fixed" || !resolved.live)
+              commitAndClose(resetTimeRange(value, config));
             else commitAndClose(pauseTimeRange(value, nowMs, config));
           }}
           type="button"
         >
           {value.playback.kind === "paused"
             ? text.resume
-            : value.playback.kind === "fixed"
+            : value.playback.kind === "fixed" || !resolved.live
               ? text.resumeLive
               : text.pause}
         </button>
-        <button onClick={() => commitAndClose(resetTimeRange(value))} type="button">
+        <button onClick={() => commitAndClose(resetTimeRange(value, config))} type="button">
           {text.resetLive}
         </button>
       </div>

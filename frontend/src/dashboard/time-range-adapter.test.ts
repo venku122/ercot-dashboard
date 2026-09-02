@@ -28,7 +28,10 @@ describe("ERCOT time range adapter", () => {
       start: NOW_MS / 1000 - 6 * 3600,
     });
     expect(
-      toErcotTimeState(createFixedRange(NOW_MS - HOUR_MS, NOW_MS, "zoom"), NOW_MS + HOUR_MS),
+      toErcotTimeState(
+        createFixedRange(NOW_MS - HOUR_MS, NOW_MS, "zoom", undefined, "America/Chicago"),
+        NOW_MS + HOUR_MS,
+      ),
     ).toEqual({
       end: NOW_MS / 1000,
       mode: "fixed",

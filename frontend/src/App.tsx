@@ -987,7 +987,7 @@ export function App() {
             ...current,
             time:
               current.time.selection.kind === "fixed" && current.time.selection.origin === "zoom"
-                ? resetTimeRange(current.time)
+                ? resetTimeRange(current.time, ERCOT_TIME_RANGE_CONFIG)
                 : current.time,
           }))
         }
