@@ -168,11 +168,18 @@ export function decodeTimeRange(
     ) {
       return null;
     }
-    const fixed = createFixedRange(fromMs, toMs, origin, undefined, timezone);
     const hasLast = params.has(key(prefix, "last_kind"));
-    if (!hasLast) return fixed;
-    const lastLiveSelection = parseLastLiveSelection(params, config, prefix);
-    return lastLiveSelection ? { ...fixed, lastLiveSelection } : null;
+    const parsedLastLiveSelection = hasLast
+      ? parseLastLiveSelection(params, config, prefix)
+      : undefined;
+    if (hasLast && !parsedLastLiveSelection) return null;
+    const lastLiveSelection = parsedLastLiveSelection ?? undefined;
+    try {
+      const fixed = createFixedRange(fromMs, toMs, origin, lastLiveSelection, timezone);
+      return validateTimeRangeValue(fixed, nowMs, config) === null ? fixed : null;
+    } catch {
+      return null;
+    }
   }
   const selection = parseLiveSelection(params, config, prefix);
   if (!selection) return null;

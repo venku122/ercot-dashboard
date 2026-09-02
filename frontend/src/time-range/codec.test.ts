@@ -82,6 +82,8 @@ describe("semantic time URL codec", () => {
       "time_kind=fixed&time_origin=custom&time_from_ms=8639999999999700&time_to_ms=8640000000000300&time_tz=UTC&time_play=fixed",
       `time_kind=relative&time_value=${6 * HOUR}&time_tz=UTC&time_play=paused&time_from_ms=${nowMs - HOUR}&time_to_ms=${nowMs}`,
       `time_kind=calendar&time_value=previous_week&time_tz=UTC&time_play=paused&time_from_ms=${nowMs - 7 * 24 * HOUR}&time_to_ms=${nowMs}`,
+      `time_kind=fixed&time_origin=custom&time_from_ms=${nowMs - HOUR}&time_to_ms=${nowMs}&time_tz=UTC&time_play=fixed&time_last_kind=calendar&time_last_value=previous_week&time_last_tz=UTC`,
+      `time_kind=fixed&time_origin=custom&time_from_ms=${nowMs - HOUR}&time_to_ms=${nowMs}&time_tz=UTC&time_play=fixed&time_last_kind=growing&time_last_value=${nowMs - 400 * 24 * HOUR}&time_last_tz=UTC`,
     ]) {
       expect(decodeTimeRange(new URLSearchParams(query), config, nowMs), query).toBeNull();
     }
