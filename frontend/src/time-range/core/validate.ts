@@ -1,6 +1,8 @@
 import { resolveTimeRange } from "./resolve";
 import type { TimeRangeConfig, TimeRangeValidationError, TimeRangeValue } from "./types";
 
+const MAX_DATE_MS = 8_640_000_000_000_000;
+
 function durationLabel(durationMs: number): string {
   if (durationMs % 86_400_000 === 0) return `${durationMs / 86_400_000} days`;
   if (durationMs % 3_600_000 === 0) return `${durationMs / 3_600_000} hours`;
@@ -11,10 +13,10 @@ export function validateResolvedTimeWindow(
   window: { fromMs: number; toMs: number },
   config: TimeRangeConfig,
 ): TimeRangeValidationError | null {
-  if (!Number.isFinite(window.fromMs)) {
+  if (!Number.isFinite(window.fromMs) || Math.abs(window.fromMs) > MAX_DATE_MS) {
     return { code: "invalid_instant", field: "from", message: "From must be a valid time." };
   }
-  if (!Number.isFinite(window.toMs)) {
+  if (!Number.isFinite(window.toMs) || Math.abs(window.toMs) > MAX_DATE_MS) {
     return { code: "invalid_instant", field: "to", message: "To must be a valid time." };
   }
   if (window.fromMs >= window.toMs) {

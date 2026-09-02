@@ -97,7 +97,7 @@ export function legacyTimeRangeFromUrl(
     fromMs,
     toMs,
     "custom",
-    relative.selection,
+    { selection: relative.selection, timezone: relative.timezone },
     ERCOT_TIME_RANGE_CONFIG.defaultTimezone,
   );
 }

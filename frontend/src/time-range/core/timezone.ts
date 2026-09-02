@@ -161,7 +161,17 @@ export function shiftInstantByCalendarDays(
   days: number,
   timezone: string,
 ): number {
-  return exactInstantForWallParts(shiftWallDate(wallPartsAt(instantMs, timezone), days), timezone);
+  const shifted = shiftWallDate(wallPartsAt(instantMs, timezone), days);
+  const resolved = resolveWallTime(shifted, timezone);
+  if (resolved.kind === "exact") return resolved.instantMs;
+  if (resolved.kind === "ambiguous") return resolved.earlierMs;
+  // Match Temporal's compatible disambiguation: advance a gap wall time by the gap.
+  for (let minutes = 1; minutes <= 180; minutes += 1) {
+    const candidate = shiftWallDate({ ...shifted, minute: shifted.minute + minutes }, 0);
+    const next = resolveWallTime(candidate, timezone, "earlier");
+    if (next.kind === "exact") return next.instantMs;
+  }
+  throw new Error("nonexistent_wall_time");
 }
 
 export function formatWallTimeInput(instantMs: number, timezone: string): string {

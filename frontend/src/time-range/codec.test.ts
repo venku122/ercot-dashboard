@@ -40,7 +40,7 @@ describe("semantic time URL codec", () => {
       nowMs - 2 * HOUR - 13 * 60_000 - 321,
       nowMs - 321,
       "zoom",
-      live.selection,
+      { selection: live.selection, timezone: live.timezone },
       "America/Chicago",
     );
     expect(decodeTimeRange(encodeTimeRange(fixed), config, nowMs)).toEqual(fixed);
@@ -71,8 +71,22 @@ describe("semantic time URL codec", () => {
       "time_kind=calendar&time_value=made_up&time_tz=UTC&time_play=running",
       "time_kind=growing&time_value=0&time_tz=Not%2FAZone&time_play=running",
       "time_kind=fixed&time_from_ms=1&time_tz=UTC&time_play=fixed",
+      "time_kind=fixed&time_origin=custom&time_from_ms=8639999999999700&time_to_ms=8640000000000300&time_tz=UTC&time_play=fixed",
+      `time_kind=relative&time_value=${6 * HOUR}&time_tz=UTC&time_play=paused&time_from_ms=${nowMs - HOUR}&time_to_ms=${nowMs}`,
+      `time_kind=calendar&time_value=previous_week&time_tz=UTC&time_play=paused&time_from_ms=${nowMs - 7 * 24 * HOUR}&time_to_ms=${nowMs}`,
     ]) {
       expect(decodeTimeRange(new URLSearchParams(query), config, nowMs), query).toBeNull();
     }
+  });
+
+  it("TR-URL-009 enforces configured bounds for calendar links", () => {
+    const firstMinute = Date.parse("2026-09-01T00:01:00Z");
+    expect(
+      decodeTimeRange(
+        new URLSearchParams("time_kind=calendar&time_value=today&time_tz=UTC&time_play=running"),
+        config,
+        firstMinute,
+      ),
+    ).toBeNull();
   });
 });

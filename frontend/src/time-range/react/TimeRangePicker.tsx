@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -38,8 +46,31 @@ export type CalendarPreset = {
 
 export type TimeRangePickerLabels = {
   apply?: string;
+  applyTimezone?: string;
   cancel?: string;
+  calendar?: string;
+  close?: string;
+  closeAria?: string;
+  custom?: string;
+  description?: string;
+  fixed?: string;
+  from?: string;
+  growingMode?: string;
+  live?: string;
+  mode?: string;
+  nextWindow?: string;
+  pause?: string;
+  paused?: string;
+  previousWindow?: string;
+  quickRanges?: string;
+  resetLive?: string;
+  resume?: string;
+  resumeLive?: string;
+  timezone?: string;
+  title?: string;
+  to?: string;
   trigger?: string;
+  windowNavigation?: string;
 };
 
 export type TimeRangePickerProps = {
@@ -50,7 +81,9 @@ export type TimeRangePickerProps = {
   nowMs: number;
   onCommit: (value: TimeRangeValue) => void;
   presentation?: "desktop" | "mobile";
+  portalClassName?: string;
   presets: readonly DurationPreset[];
+  style?: CSSProperties;
   timezoneOptions: readonly string[];
   value: TimeRangeValue;
 };
@@ -96,7 +129,9 @@ export function TimeRangePicker({
   nowMs,
   onCommit,
   presentation = "desktop",
+  portalClassName = "",
   presets,
+  style,
   timezoneOptions,
   value,
 }: TimeRangePickerProps) {
@@ -116,6 +151,35 @@ export function TimeRangePicker({
   const [fromOccurrence, setFromOccurrence] = useState<WallTimeOccurrence | "">("");
   const [toOccurrence, setToOccurrence] = useState<WallTimeOccurrence | "">("");
   const [error, setError] = useState<DraftError | null>(null);
+  const text = {
+    apply: "Apply",
+    applyTimezone: "Apply timezone",
+    cancel: "Cancel",
+    calendar: "Calendar",
+    close: "Close",
+    closeAria: "Close time range picker",
+    custom: "Custom",
+    description: "Choose a live, calendar, or custom analysis window.",
+    fixed: "Fixed",
+    from: "From",
+    growingMode: "Since From",
+    live: "Live",
+    mode: "Mode",
+    nextWindow: "Next window",
+    pause: "Pause",
+    paused: "Paused",
+    previousWindow: "Previous window",
+    quickRanges: "Quick ranges",
+    resetLive: "Reset to live",
+    resume: "Resume",
+    resumeLive: "Resume live",
+    timezone: "Timezone",
+    title: "Time range",
+    to: "To",
+    trigger: "Choose time range",
+    windowNavigation: "Window navigation",
+    ...labels,
+  };
 
   const presetLabels = useMemo(
     () => new Map(presets.map((preset) => [preset.id, preset.label])),
@@ -168,6 +232,18 @@ export function TimeRangePicker({
       document.body.style.overflow = previousOverflow;
     };
   }, [open, presentation]);
+
+  useEffect(() => {
+    if (!open || presentation !== "desktop") return;
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (surfaceRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      resetDraft();
+      close();
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [open, presentation, value]);
 
   const onSurfaceKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
@@ -240,11 +316,11 @@ export function TimeRangePicker({
     >
       <div className="time-range-picker__heading">
         <div>
-          <h2 id={titleId}>Time range</h2>
-          <p id={descriptionId}>Choose a live, calendar, or custom analysis window.</p>
+          <h2 id={titleId}>{text.title}</h2>
+          <p id={descriptionId}>{text.description}</p>
         </div>
         <button
-          aria-label="Close time range picker"
+          aria-label={text.closeAria}
           data-autofocus
           onClick={() => {
             resetDraft();
@@ -252,19 +328,19 @@ export function TimeRangePicker({
           }}
           type="button"
         >
-          Close
+          {text.close}
         </button>
       </div>
 
       <div className="time-range-picker__status" role="status">
         <strong>{triggerLabel}</strong>
         <span>
-          {value.playback.kind === "paused" ? "Paused" : resolved.live ? "Live" : "Fixed"}
+          {value.playback.kind === "paused" ? text.paused : resolved.live ? text.live : text.fixed}
         </span>
       </div>
 
       <fieldset>
-        <legend>Quick ranges</legend>
+        <legend>{text.quickRanges}</legend>
         <div className="time-range-picker__choices">
           {presets.map((preset) => (
             <button
@@ -281,7 +357,7 @@ export function TimeRangePicker({
       </fieldset>
 
       <fieldset>
-        <legend>Calendar</legend>
+        <legend>{text.calendar}</legend>
         <div className="time-range-picker__choices">
           {calendarPresets.map((preset) => (
             <button
@@ -296,21 +372,21 @@ export function TimeRangePicker({
       </fieldset>
 
       <fieldset>
-        <legend>Custom</legend>
+        <legend>{text.custom}</legend>
         <div className="time-range-picker__form-grid">
           <label>
-            <span>Mode</span>
+            <span>{text.mode}</span>
             <select
               aria-label="Custom range mode"
               onChange={(event) => setCustomMode(event.target.value as CustomMode)}
               value={customMode}
             >
               <option value="fixed">From and To</option>
-              <option value="growing">Since From</option>
+              <option value="growing">{text.growingMode}</option>
             </select>
           </label>
           <label>
-            <span>Timezone</span>
+            <span>{text.timezone}</span>
             <select
               aria-label="Time range timezone"
               onChange={(event) => {
@@ -329,13 +405,13 @@ export function TimeRangePicker({
             </select>
           </label>
           <label>
-            <span>From</span>
+            <span>{text.from}</span>
             <input
               aria-describedby={
                 error?.field === "from" || error?.field === "range" ? errorId : undefined
               }
               aria-invalid={error?.field === "from" || error?.field === "range" || undefined}
-              aria-label="From"
+              aria-label={text.from}
               onChange={(event) => {
                 setDraftFrom(event.target.value);
                 setFromOccurrence("");
@@ -363,13 +439,13 @@ export function TimeRangePicker({
           ) : null}
           {customMode === "fixed" ? (
             <label>
-              <span>To</span>
+              <span>{text.to}</span>
               <input
                 aria-describedby={
                   error?.field === "to" || error?.field === "range" ? errorId : undefined
                 }
                 aria-invalid={error?.field === "to" || error?.field === "range" || undefined}
-                aria-label="To"
+                aria-label={text.to}
                 onChange={(event) => {
                   setDraftTo(event.target.value);
                   setToOccurrence("");
@@ -402,7 +478,7 @@ export function TimeRangePicker({
         ) : null}
         <div className="time-range-picker__actions">
           <button onClick={applyCustom} type="button">
-            {labels.apply ?? "Apply"}
+            {text.apply}
           </button>
           <button
             onClick={() => {
@@ -411,31 +487,31 @@ export function TimeRangePicker({
             }}
             type="button"
           >
-            {labels.cancel ?? "Cancel"}
+            {text.cancel}
           </button>
           {draftTimezone !== value.timezone ? (
             <button
               onClick={() => commitAndClose(changeTimeRangeTimezone(value, draftTimezone))}
               type="button"
             >
-              Apply timezone
+              {text.applyTimezone}
             </button>
           ) : null}
         </div>
       </fieldset>
 
-      <div aria-label="Window navigation" className="time-range-picker__actions">
+      <div aria-label={text.windowNavigation} className="time-range-picker__actions">
         <button
           onClick={() => commitAndClose(navigateTimeRange(value, -1, nowMs, config))}
           type="button"
         >
-          Previous window
+          {text.previousWindow}
         </button>
         <button
           onClick={() => commitAndClose(navigateTimeRange(value, 1, nowMs, config))}
           type="button"
         >
-          Next window
+          {text.nextWindow}
         </button>
         <button
           onClick={() => {
@@ -446,24 +522,24 @@ export function TimeRangePicker({
           type="button"
         >
           {value.playback.kind === "paused"
-            ? "Resume"
+            ? text.resume
             : value.playback.kind === "fixed"
-              ? "Resume live"
-              : "Pause"}
+              ? text.resumeLive
+              : text.pause}
         </button>
         <button onClick={() => commitAndClose(resetTimeRange(value))} type="button">
-          Reset to live
+          {text.resetLive}
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className={`time-range-picker ${className}`}>
+    <div className={`time-range-picker ${className}`} style={style}>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={labels.trigger ?? "Choose time range"}
+        aria-label={text.trigger}
         className="time-range-picker__trigger"
         onClick={() => {
           resetDraft();
@@ -474,14 +550,15 @@ export function TimeRangePicker({
       >
         <span>{triggerLabel}</span>
         <small>
-          {value.playback.kind === "paused" ? "Paused" : resolved.live ? "Live" : "Fixed"}
+          {value.playback.kind === "paused" ? text.paused : resolved.live ? text.live : text.fixed}
         </small>
       </button>
       {open && presentation === "desktop" ? surface : null}
       {open && presentation === "mobile"
         ? createPortal(
             <div
-              className="time-range-picker__backdrop"
+              className={`time-range-picker__backdrop ${portalClassName || className}`}
+              style={style}
               onPointerDown={(event) => {
                 if (event.target === event.currentTarget) {
                   resetDraft();

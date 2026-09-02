@@ -146,6 +146,12 @@ describe("live request planning", () => {
 
     expect(liveQuerySince(time, previous)).toBe(301);
     expect(
+      liveQuerySince(time, [
+        [-10_000, 1],
+        [-9_000, 2],
+      ]),
+    ).toBe(100);
+    expect(
       mergePoints(
         previous,
         [

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, type CSSProperties } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -111,6 +111,9 @@ describe("controlled TimeRangePicker", () => {
       button(document, "Apply").click();
     });
     expect(document.body.textContent).toContain("From is not a real local time because of DST");
+    expect(from.getAttribute("aria-describedby")).toBe(
+      document.querySelector('[role="alert"]')?.id,
+    );
     expect(onCommit).not.toHaveBeenCalled();
 
     act(() => {
@@ -137,6 +140,39 @@ describe("controlled TimeRangePicker", () => {
     expect(trigger).toBe(document.activeElement);
   });
 
+  it("TR-UI-008/013 dismisses a desktop draft on outside pointer and traps Tab", async () => {
+    await render();
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Choose time range"]')!;
+    act(() => trigger.click());
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const controls = [...dialog.querySelectorAll<HTMLElement>("button, input, select")];
+    controls.at(-1)!.focus();
+    act(() => dialog.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Tab" })));
+    expect(document.activeElement).toBe(controls[0]);
+    act(() => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("TR-UI-007/017 applies a custom value once and reflects a controlled rerender", async () => {
+    const onCommit = vi.fn();
+    await render({ onCommit });
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Choose time range"]')!.click(),
+    );
+    act(() => {
+      setInput(
+        document.querySelector<HTMLInputElement>('[aria-label="From"]')!,
+        "2026-09-01T08:00",
+      );
+      setInput(document.querySelector<HTMLInputElement>('[aria-label="To"]')!, "2026-09-01T10:13");
+      button(document, "Apply").click();
+    });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    await render({ onCommit, value: onCommit.mock.calls[0]![0] });
+    expect(container.textContent).toContain("Custom · 2h 13m");
+  });
+
   it("TR-MOD-004/006 proves a non-ERCOT second consumer and independent instances", async () => {
     const firstCommit = vi.fn();
     const secondCommit = vi.fn();
@@ -151,7 +187,13 @@ describe("controlled TimeRangePicker", () => {
               maxDurationMs: 48 * HOUR,
               minDurationMs: 15 * 60_000,
             }}
-            labels={{ trigger: "Analysis interval" }}
+            className="consumer-theme"
+            labels={{
+              apply: "Use interval",
+              calendar: "Calendar choices",
+              title: "Analysis interval",
+              trigger: "Analysis interval",
+            }}
             onCommit={firstCommit}
             presets={[{ durationMs: 2 * HOUR, id: "two-hours", label: "Trailing two hours" }]}
             timezoneOptions={["America/New_York", "UTC"]}
@@ -171,5 +213,22 @@ describe("controlled TimeRangePicker", () => {
     act(() => button(document, "Trailing two hours").click());
     expect(firstCommit).toHaveBeenCalledTimes(1);
     expect(secondCommit).not.toHaveBeenCalled();
+  });
+
+  it("TR-MOD-004/005 carries consumer labels, classes, and theme variables into a mobile portal", async () => {
+    await render({
+      className: "consumer-theme",
+      labels: { title: "Analysis interval", trigger: "Analysis interval" },
+      portalClassName: "consumer-portal",
+      presentation: "mobile",
+      style: { "--trp-background": "#123456" } as CSSProperties,
+    });
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Analysis interval"]')!.click(),
+    );
+    const backdrop = document.querySelector<HTMLElement>(".time-range-picker__backdrop")!;
+    expect(backdrop.classList.contains("consumer-portal")).toBe(true);
+    expect(backdrop.style.getPropertyValue("--trp-background")).toBe("#123456");
+    expect(document.querySelector("h2")?.textContent).toBe("Analysis interval");
   });
 });

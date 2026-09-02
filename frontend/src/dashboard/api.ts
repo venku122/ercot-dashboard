@@ -802,6 +802,7 @@ export function liveQuerySince(time: TimeState, previous: Point[]): number {
     previous.length > 0 &&
     previous[0]![0] <= time.start &&
     lastTimestamp !== undefined &&
+    lastTimestamp >= time.start &&
     lastTimestamp < time.end;
   return canTail ? lastTimestamp + 1 : time.start;
 }

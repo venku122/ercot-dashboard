@@ -1,4 +1,5 @@
 import { isValidTimezone } from "./timezone";
+import { isLiveCapableSelection, resolveTimeRange } from "./resolve";
 import {
   createCalendarRange,
   createFixedRange,
@@ -14,7 +15,7 @@ import type {
   TimeRangeConfig,
   TimeRangeValue,
 } from "./types";
-import { validateResolvedTimeWindow } from "./validate";
+import { validateResolvedTimeWindow, validateTimeRangeValue } from "./validate";
 
 const calendarPresets = new Set<CalendarPresetId>([
   "month_to_date",
@@ -186,6 +187,7 @@ export function decodeTimeRange(
   } else {
     value = createCalendarRange(selection.preset, timezone);
   }
+  if (validateTimeRangeValue(value, nowMs, config) !== null) return null;
   if (playback === "running") return value;
   if (playback !== "paused") return null;
   const fromMs = safeInteger(params.get(key(prefix, "from_ms")));
@@ -197,6 +199,9 @@ export function decodeTimeRange(
   ) {
     return null;
   }
+  if (!isLiveCapableSelection(value.selection)) return null;
+  const expected = resolveTimeRange(value, toMs, config);
+  if (expected.fromMs !== fromMs || expected.toMs !== toMs) return null;
   return {
     playback: { fromMs, kind: "paused", toMs },
     selection: value.selection,

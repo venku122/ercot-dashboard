@@ -606,6 +606,8 @@ export function App() {
     if (loadedChartContextRef.current !== loadContext) {
       loadedChartContextRef.current = loadContext;
       loadedChartIdsRef.current.clear();
+      seriesDataRef.current = new Map();
+      setSeriesData(new Map());
     }
     const requestedCharts = chartDefinitions.filter(
       (chart) =>
@@ -614,7 +616,10 @@ export function App() {
         !collapsedGroups.has(chart.group) &&
         !loadedChartIdsRef.current.has(chart.id),
     );
-    if (!requestedCharts.length) return () => controller.abort();
+    if (!requestedCharts.length) {
+      setLoading(false);
+      return () => controller.abort();
+    }
     for (const chart of requestedCharts) loadedChartIdsRef.current.add(chart.id);
     let completed = false;
     setLoading(true);
@@ -636,13 +641,16 @@ export function App() {
         completed = true;
       })
       .catch((error: unknown) => {
+        if (
+          !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+        )
+          return;
         for (const chart of requestedCharts) loadedChartIdsRef.current.delete(chart.id);
-        if (!controller.signal.aborted) {
-          setRequestError(error instanceof Error ? error.message : String(error));
-        }
+        setRequestError(error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal))
+          setLoading(false);
       });
     return () => {
       controller.abort();

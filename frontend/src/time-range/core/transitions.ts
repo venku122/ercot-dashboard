@@ -3,7 +3,7 @@ import type {
   CalendarPresetId,
   FixedTimeRangeValue,
   FixedRangeOrigin,
-  LiveTimeRangeSpec,
+  LastLiveSelection,
   PausedTimeRangeValue,
   RunningTimeRangeValue,
   TimeRangeConfig,
@@ -38,7 +38,7 @@ export function createFixedRange(
   fromMs: number,
   toMs: number,
   origin: FixedRangeOrigin,
-  lastLiveSelection?: LiveTimeRangeSpec,
+  lastLiveSelection?: LastLiveSelection,
   timezone = "UTC",
 ): FixedTimeRangeValue {
   const base = {
@@ -46,9 +46,7 @@ export function createFixedRange(
     selection: { fromMs, kind: "fixed" as const, origin, toMs },
     timezone,
   };
-  return lastLiveSelection
-    ? { ...base, lastLiveSelection: { selection: lastLiveSelection, timezone } }
-    : base;
+  return lastLiveSelection ? { ...base, lastLiveSelection } : base;
 }
 
 function isFixedValue(value: TimeRangeValue): value is FixedTimeRangeValue {

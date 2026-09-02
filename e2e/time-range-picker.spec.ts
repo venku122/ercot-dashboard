@@ -107,6 +107,14 @@ test("keyboard and DST validation expose specific accessible recovery", async ({
   await expect(trigger).toContainText("Custom · 2h");
 });
 
+test("desktop outside dismissal prevents competing dashboard dialogs", async ({ page }) => {
+  await openPicker(page);
+  await page.getByRole("button", { name: "Analyze" }).click();
+  await expect(page.getByRole("dialog", { name: "Time range" })).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Analyze" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+});
+
 test("twenty rapid commits settle on the final semantic URL without runaway requests", async ({
   page,
 }) => {
@@ -130,4 +138,61 @@ test("twenty rapid commits settle on the final semantic URL without runaway requ
   await expect.poll(() => new URL(page.url()).searchParams.get("time_value")).toBe("21600000");
   expect(errors).toEqual([]);
   expect(requests.length).toBeLessThanOrEqual(30);
+});
+
+test("a delayed obsolete chart response cannot replace the latest committed window", async ({
+  page,
+}) => {
+  let releaseFirst!: () => void;
+  const firstGate = new Promise<void>((resolve) => (releaseFirst = resolve));
+  let controlledRequests = 0;
+  await page.route("**/api/series/batch", async (route) => {
+    const payload = route.request().postDataJSON() as {
+      queries: Array<{ id: string; metric: string; since: number; until: number }>;
+    };
+    if (!payload.queries.some((query) => query.id === "supply-demand:demand:current")) {
+      await route.fallback();
+      return;
+    }
+    controlledRequests += 1;
+    const generation = controlledRequests;
+    if (generation === 1) await firstGate;
+    const value = generation === 1 ? 11_111 : 22_222;
+    try {
+      await route.fulfill({
+        json: {
+          series: payload.queries.map((query) => ({
+            id: query.id,
+            meta: { latest: value },
+            metric: query.metric,
+            points: [
+              [query.since, value],
+              [query.until, value],
+            ],
+          })),
+        },
+      });
+    } catch {
+      // The obsolete request may already be aborted by the browser.
+    }
+  });
+
+  let picker = await openPicker(page);
+  await picker.getByRole("button", { name: "Past 1 hour" }).click();
+  await expect.poll(() => controlledRequests).toBeGreaterThanOrEqual(1);
+  const beforeSecondCommit = controlledRequests;
+  picker = await openPicker(page);
+  await picker.getByRole("button", { name: "Past 12 hours" }).click();
+  await expect.poll(() => controlledRequests).toBeGreaterThan(beforeSecondCommit);
+  await expect(
+    page.locator('[data-chart-id="supply-demand"] .legend-latest').first(),
+  ).toContainText("22.2 GW");
+  releaseFirst();
+  await page.waitForTimeout(200);
+  await expect(
+    page.locator('[data-chart-id="supply-demand"] .legend-latest').first(),
+  ).toContainText("22.2 GW");
+  await expect(page.getByRole("button", { name: "Choose time range" })).toContainText(
+    "Past 12 hours",
+  );
 });

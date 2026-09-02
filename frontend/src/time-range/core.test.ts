@@ -53,7 +53,10 @@ describe("semantic time range state machine", () => {
 
   it("TR-DOM-004/005/006 selects live from history and pauses/resumes at the new clock", () => {
     const original = createRelativeRange(6 * HOUR, "past-6-hours");
-    const fixed = createFixedRange(HOUR, 7 * HOUR, "zoom", original.selection);
+    const fixed = createFixedRange(HOUR, 7 * HOUR, "zoom", {
+      selection: original.selection,
+      timezone: original.timezone,
+    });
     const selected = selectRelativeRange(fixed, 24 * HOUR, "past-24-hours");
     expect(resolveTimeRange(selected, 100 * HOUR, config)).toMatchObject({
       fromMs: 76 * HOUR,
@@ -77,7 +80,10 @@ describe("semantic time range state machine", () => {
 
   it("TR-DOM-007/008/009/010 preserves fixed origin, duration, and last live reset", () => {
     const live = createRelativeRange(6 * HOUR, "past-6-hours");
-    const zoom = createFixedRange(20 * HOUR, 22 * HOUR + 13 * MINUTE, "zoom", live.selection);
+    const zoom = createFixedRange(20 * HOUR, 22 * HOUR + 13 * MINUTE, "zoom", {
+      selection: live.selection,
+      timezone: live.timezone,
+    });
     expect(resolveTimeRange(zoom, 100 * HOUR, config)).toMatchObject({
       fromMs: 20 * HOUR,
       live: false,
@@ -214,5 +220,22 @@ describe("IANA timezone and calendar semantics", () => {
     const after = shiftInstantByCalendarDays(before, 1, CHICAGO);
     expect(after).toBe(Date.parse("2026-03-08T12:00:00-05:00"));
     expect(after - before).toBe(23 * HOUR);
+    const gap = shiftInstantByCalendarDays(Date.parse("2026-03-09T02:30:00-05:00"), -1, CHICAGO);
+    expect(gap).toBe(Date.parse("2026-03-08T03:00:00-05:00"));
+  });
+
+  it("TR-TZ-005 reset preserves the remembered live timezone", () => {
+    const live = createCalendarRange("today", CHICAGO);
+    const fixed = createFixedRange(
+      0,
+      HOUR,
+      "custom",
+      {
+        selection: live.selection,
+        timezone: live.timezone,
+      },
+      "UTC",
+    );
+    expect(resetTimeRange(fixed).timezone).toBe(CHICAGO);
   });
 });
