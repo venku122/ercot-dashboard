@@ -1156,7 +1156,7 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
     const chartId =
       scenario === "normal" ? "supply-demand" : scenario === "stale" ? "storage" : "pricing";
     const card = page.locator(`[data-chart-id="${chartId}"]`);
-    await card.evaluate((element) => element.scrollIntoView({ block: "end" }));
+    await card.evaluate((element) => element.scrollIntoView({ block: "center" }));
     await expect(card).toHaveAttribute("data-visible", "true");
     await expect(card.locator(".chart-placeholder")).toHaveCount(0);
     const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;

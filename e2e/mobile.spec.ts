@@ -651,7 +651,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect(warning.getByLabel("ERCOT emergency conditions active")).toBeVisible();
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
   const structuredAlert = page.getByLabel("Active grid alerts");
-  await structuredAlert.scrollIntoViewIfNeeded();
+  await structuredAlert.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
     maxDiffPixels: 1600,
   });

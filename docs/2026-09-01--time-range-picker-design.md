@@ -1,6 +1,6 @@
 # Reusable TimeRangePicker design
 
-Status: design frozen before production implementation on 2026-09-01.
+Status: frozen before implementation on 2026-09-01 and updated after implementation to describe the implemented source-module boundary.
 
 ## Why a source module
 
@@ -14,7 +14,7 @@ The reusable API uses epoch milliseconds with names ending in `Ms`.
 type LiveTimeRangeSpec =
   | { kind: "relative"; durationMs: number; presetId?: string }
   | { kind: "growing"; fromMs: number }
-  | { kind: "calendar"; preset: CalendarPresetId; timezone: string };
+  | { kind: "calendar"; preset: CalendarPresetId };
 
 type FixedTimeRangeSpec = {
   kind: "fixed";
@@ -24,15 +24,17 @@ type FixedTimeRangeSpec = {
 };
 
 type TimeRangeValue =
-  | { selection: LiveTimeRangeSpec; playback: { kind: "running" } }
+  | { selection: LiveTimeRangeSpec; playback: { kind: "running" }; timezone: string }
   | {
       selection: LiveTimeRangeSpec;
       playback: { kind: "paused"; fromMs: number; toMs: number };
+      timezone: string;
     }
   | {
       selection: FixedTimeRangeSpec;
       playback: { kind: "fixed" };
-      lastLiveSelection?: LiveTimeRangeSpec;
+      lastLiveSelection?: { selection: LiveTimeRangeSpec; timezone: string };
+      timezone: string;
     };
 ```
 
@@ -74,7 +76,7 @@ The dashboard adapter parses these first, then bounded legacy seconds fields. Da
 
 `TimeRangePicker` is controlled: `value`, `onCommit`, `nowMs`, preset/calendar lists, timezone options, duration bounds, labels/locale, class name, and presentation configuration are inputs. Draft mode/from/to/timezone/ambiguity choices stay local and never invoke `onCommit`. Preset buttons commit once. Apply validates and commits once. Cancel, Escape, or outside close discards draft and restores trigger focus.
 
-Desktop uses a compact non-modal popover surface with dialog semantics and managed focus. Mobile uses the existing accessible `MobileDialog` through an ERCOT presentation adapter; the generic picker receives a presentation slot instead of importing dashboard code. Both surfaces render the same editor body and transitions.
+Desktop uses a compact non-modal popover surface with dialog semantics and managed focus. Mobile portals the same generic editor into an opaque, focus-trapped sheet. Consumer class, portal class, style variables, labels, validation formatting, and presentation mode are inputs; the module imports no dashboard component. Both surfaces render the same editor and transitions.
 
 Styles are scoped under `.time-range-picker` and use CSS custom properties. No page-level selector is required.
 
@@ -82,13 +84,13 @@ Styles are scoped under `.time-range-picker` and use CSS custom properties. No p
 
 `frontend/src/dashboard/time-range-adapter.ts` is the only conversion between milliseconds and the existing seconds-based query/chart boundary. It exposes the resolved `TimeState` shape needed by Chart.js, compare, API, SWR, and tile planning. `DashboardState` owns `TimeRangeValue`, while resolved seconds are derived once in `App` from semantic state and the current tick.
 
-Chart zoom commits a fixed value with `origin: "zoom"`. Previous/Next derives a fixed navigation value. Reset Live calls the semantic transition. Chart.js remains unchanged apart from receiving resolved seconds and emitting its existing completion callback.
+Chart zoom commits a fixed value with `origin: "zoom"`; fractional Chart.js scale values are rounded at the milliseconds adapter boundary. Previous/Next derives a fixed navigation value. Reset Live calls the semantic transition. Chart.js remains the renderer.
 
 Compare day/week will reuse generic timezone calendar shifting through a thin seconds adapter. Previous period stays exact-duration arithmetic. API request code continues to receive the established seconds `TimeState`, preserving fixed tiles/chunks, live tails, max points, decimation, and server-authoritative statistics.
 
 ## Fetch/race behavior
 
-Picker drafts do not touch dashboard state, so they cannot change SWR keys or the chart load context. Every commit changes semantic state once; App derives one resolved window. Existing per-effect `AbortController` cleanup remains, and a request-generation guard will ensure a late non-cooperative result cannot settle over a newer range.
+Picker drafts do not touch dashboard state, so they cannot change SWR keys or the chart load context. Every commit changes semantic state once; App derives one resolved window. Existing per-effect `AbortController` cleanup remains, and a request-generation guard prevents a late non-cooperative result from settling over a newer range. During refresh, existing data stays paired with its prior x-domain and is marked busy until replacement data and its matching domain commit together.
 
 ## Second-consumer proof
 
