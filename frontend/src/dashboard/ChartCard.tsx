@@ -537,7 +537,10 @@ export function ChartCard({
   );
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
   const showStatusRow = Boolean(
-    (sourceHealth && sourceHealth.state !== "healthy") || (partial && hasData) || pinned,
+    (loading && hasData) ||
+    (sourceHealth && sourceHealth.state !== "healthy") ||
+    (partial && hasData) ||
+    pinned,
   );
   const resetChartZoom = () => {
     suppressZoomCommit.current = true;
@@ -554,6 +557,7 @@ export function ChartCard({
   return (
     <article
       aria-label={inspect ? "Inspect " + chart.title : undefined}
+      aria-busy={loading}
       aria-modal={inspect ? "true" : undefined}
       className={`chart-card ${presentation === "featured" ? "chart-card-featured" : ""} ${inspect ? "chart-card-inspect" : ""}`}
       data-chart-id={chart.id}
@@ -680,6 +684,9 @@ export function ChartCard({
 
       {showStatusRow ? (
         <div className="chart-status-row" aria-live="polite">
+          {loading && hasData ? (
+            <span className="status-chip status-partial">Updating selected range…</span>
+          ) : null}
           {sourceHealth && sourceHealth.state !== "healthy" ? (
             <span className={`status-chip status-${sourceHealth.state}`}>
               Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}

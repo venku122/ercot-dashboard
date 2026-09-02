@@ -32,6 +32,16 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 960 } },
     },
     {
+      name: "webkit-keyboard",
+      grep: /@keyboard/,
+      testMatch: /\/time-range-picker\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Safari"],
+        permissions: [],
+        viewport: { width: 1280, height: 960 },
+      },
+    },
+    {
       name: "mobile",
       grep: /@mobile-core|@mobile-performance|@responsive/,
       testMatch: /\/mobile.*\.spec\.ts$/,

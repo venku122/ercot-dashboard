@@ -289,4 +289,16 @@ describe("IANA timezone and calendar semantics", () => {
       changeTimeRangeTimezone(createRelativeRange(HOUR, undefined, CHICAGO), "Bad/Zone"),
     ).toThrow("invalid_timezone");
   });
+
+  it("TR-DOM-010 rejects invalid reset-live memory at construction", () => {
+    expect(() =>
+      createFixedRange(
+        0,
+        HOUR,
+        "custom",
+        { selection: { durationMs: 0, kind: "relative" }, timezone: "Not/AZone" },
+        "UTC",
+      ),
+    ).toThrow();
+  });
 });

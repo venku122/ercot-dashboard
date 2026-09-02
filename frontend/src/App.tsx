@@ -531,6 +531,7 @@ export function App() {
   const dashboardTitleRef = useRef<HTMLHeadingElement>(null);
   const viewHeadingRef = useRef<HTMLHeadingElement>(null);
   const resolvedTime = useMemo(() => toErcotTimeState(state.time, clockMs), [clockMs, state.time]);
+  const [seriesTime, setSeriesTime] = useState(resolvedTime);
   const {
     derivedContext,
     error: overviewError,
@@ -607,8 +608,6 @@ export function App() {
     if (loadedChartContextRef.current !== loadContext) {
       loadedChartContextRef.current = loadContext;
       loadedChartIdsRef.current.clear();
-      seriesDataRef.current = new Map();
-      setSeriesData(new Map());
     }
     const requestedCharts = chartDefinitions.filter(
       (chart) =>
@@ -639,6 +638,7 @@ export function App() {
         )
           return;
         setSeriesData((current) => new Map([...current, ...nextSeries]));
+        setSeriesTime(resolvedTime);
         completed = true;
       })
       .catch((error: unknown) => {
@@ -713,7 +713,12 @@ export function App() {
   const onZoom = useCallback((start: number, end: number) => {
     setState((current) => ({
       ...current,
-      time: commitFixedTimeRange(current.time, start * 1000, end * 1000, "zoom"),
+      time: commitFixedTimeRange(
+        current.time,
+        Math.round(start * 1000),
+        Math.round(end * 1000),
+        "zoom",
+      ),
     }));
   }, []);
 
@@ -1001,7 +1006,7 @@ export function App() {
         requestError={effectiveRequestError}
         seriesData={seriesData}
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
-        time={resolvedTime}
+        time={seriesTime}
       />
     </Suspense>
   );

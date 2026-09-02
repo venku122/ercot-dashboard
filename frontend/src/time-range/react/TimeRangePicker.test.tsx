@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createFixedRange,
+  createGrowingRange,
   createRelativeRange,
   TimeRangePicker,
   type TimeRangePickerProps,
@@ -240,6 +241,7 @@ describe("controlled TimeRangePicker", () => {
 
   it("TR-MOD-004/007 enforces a second consumer's non-default bounds", async () => {
     const onCommit = vi.fn();
+    const growingFrom = Date.parse("2026-09-01T10:00:00Z");
     await render({
       config: {
         defaultRelativeRange: { durationMs: 2 * HOUR },
@@ -252,8 +254,18 @@ describe("controlled TimeRangePicker", () => {
       labels: { timezone: "Zone locale" },
       onCommit,
       timezoneOptions: ["America/New_York"],
-      value: createRelativeRange(2 * HOUR, undefined, "America/New_York"),
+      value: createGrowingRange(growingFrom, "America/New_York"),
     });
+    const expectedFrenchInstant = new Intl.DateTimeFormat("fr-CA", {
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      month: "short",
+      timeZone: "America/New_York",
+    }).format(growingFrom);
+    expect(
+      container.querySelector<HTMLButtonElement>('[aria-label="Choose time range"]')?.textContent,
+    ).toContain(expectedFrenchInstant);
     act(() =>
       container.querySelector<HTMLButtonElement>('[aria-label="Choose time range"]')!.click(),
     );

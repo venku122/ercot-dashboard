@@ -107,6 +107,46 @@ test("keyboard and DST validation expose specific accessible recovery", async ({
   await expect(trigger).toContainText("Custom · 2h");
 });
 
+test("keyboard-only preset, focus trap, Apply, and Cancel work in real browsers @keyboard", async ({
+  page,
+}) => {
+  const trigger = page.getByRole("button", { name: "Choose time range" });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  let picker = page.getByRole("dialog", { name: "Time range" });
+  const close = picker.getByRole("button", { name: "Close time range picker" });
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(picker.getByRole("button", { name: "Reset to live" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+
+  const preset = picker.getByRole("button", { name: "Past 1 hour" });
+  await preset.focus();
+  await page.keyboard.press("Enter");
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toContainText("Past 1 hour");
+
+  await page.keyboard.press("Enter");
+  picker = page.getByRole("dialog", { name: "Time range" });
+  const mode = picker.getByLabel("Custom range mode");
+  await mode.focus();
+  await expect(mode).toBeFocused();
+  await page.keyboard.press("s");
+  await expect(mode).toHaveValue("growing");
+  await picker.getByRole("button", { name: "Apply" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toContainText("Since");
+
+  await page.keyboard.press("Enter");
+  picker = page.getByRole("dialog", { name: "Time range" });
+  await picker.getByRole("button", { name: "Cancel" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toContainText("Since");
+});
+
 test("desktop outside dismissal prevents competing dashboard dialogs", async ({ page }) => {
   await openPicker(page);
   await page.getByRole("button", { name: "Analyze" }).click();

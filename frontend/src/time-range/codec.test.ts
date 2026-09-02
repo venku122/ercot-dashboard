@@ -54,7 +54,7 @@ describe("semantic time URL codec", () => {
     ).toEqual(paused);
 
     const growing = pauseTimeRange(createGrowingRange(nowMs - 2 * HOUR, "UTC"), nowMs, config);
-    expect(decodeTimeRange(encodeTimeRange(growing), config, nowMs + 100 * 24 * HOUR)).toEqual(
+    expect(decodeTimeRange(encodeTimeRange(growing), config, nowMs + 400 * 24 * HOUR)).toEqual(
       growing,
     );
   });

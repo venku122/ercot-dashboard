@@ -57,6 +57,24 @@ export function validateTimeRangeValue(
       message: "Timezone must be a valid IANA timezone.",
     };
   }
+  if ("lastLiveSelection" in value && value.lastLiveSelection) {
+    const remembered = value.lastLiveSelection;
+    if (!isValidTimezone(remembered.timezone) || !isLiveCapableSelection(remembered.selection)) {
+      return {
+        code: "invalid_semantics",
+        field: "range",
+        message: "Reset-live memory must contain a valid live selection and timezone.",
+      };
+    }
+    const rememberedValue = {
+      playback: { kind: "running" as const },
+      selection: remembered.selection,
+      timezone: remembered.timezone,
+    };
+    const rememberedWindow = resolveTimeRange(rememberedValue, nowMs, config);
+    const rememberedError = validateResolvedTimeWindow(rememberedWindow, config);
+    if (rememberedError) return rememberedError;
+  }
   if (value.playback.kind === "paused") {
     if (value.selection.kind === "fixed") {
       return {

@@ -789,6 +789,7 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await page.goto("/?compare=previous_period");
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
+  await expect(card).toHaveAttribute("aria-busy", "false");
   const canvas = card.locator("canvas");
   await expect(canvas).toBeVisible();
   await expect(canvas).toHaveAttribute("aria-label", /[1-9]\d* observations/);

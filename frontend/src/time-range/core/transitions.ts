@@ -23,6 +23,21 @@ function assertInstant(instantMs: number) {
     throw new RangeError("invalid_instant");
 }
 
+function assertLiveSelection(lastLiveSelection: LastLiveSelection) {
+  assertTimezone(lastLiveSelection.timezone);
+  if (!isLiveCapableSelection(lastLiveSelection.selection))
+    throw new RangeError("invalid_semantics");
+  if (lastLiveSelection.selection.kind === "relative") {
+    if (
+      !Number.isSafeInteger(lastLiveSelection.selection.durationMs) ||
+      lastLiveSelection.selection.durationMs <= 0
+    )
+      throw new RangeError("invalid_duration");
+  } else if (lastLiveSelection.selection.kind === "growing") {
+    assertInstant(lastLiveSelection.selection.fromMs);
+  }
+}
+
 export function createRelativeRange(
   durationMs: number,
   presetId: string | undefined,
@@ -62,6 +77,7 @@ export function createFixedRange(
   assertInstant(fromMs);
   assertInstant(toMs);
   if (fromMs >= toMs) throw new RangeError("invalid_range");
+  if (lastLiveSelection) assertLiveSelection(lastLiveSelection);
   const base = {
     playback: { kind: "fixed" } as const,
     selection: { fromMs, kind: "fixed" as const, origin, toMs },
@@ -155,11 +171,15 @@ export function navigateTimeRange(
 export function resetTimeRange(value: TimeRangeValue, config?: TimeRangeConfig): TimeRangeValue {
   const remembered = lastLive(value);
   if (remembered) {
-    return {
-      playback: { kind: "running" },
-      selection: remembered.selection,
-      timezone: remembered.timezone,
-    };
+    if (remembered.selection.kind === "relative")
+      return createRelativeRange(
+        remembered.selection.durationMs,
+        remembered.selection.presetId,
+        remembered.timezone,
+      );
+    if (remembered.selection.kind === "growing")
+      return createGrowingRange(remembered.selection.fromMs, remembered.timezone);
+    return createCalendarRange(remembered.selection.preset, remembered.timezone);
   }
   const fallback = config?.defaultRelativeRange ?? { durationMs: FALLBACK_DURATION_MS };
   return createRelativeRange(
