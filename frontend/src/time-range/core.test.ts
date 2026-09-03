@@ -1,0 +1,304 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  changeTimeRangeTimezone,
+  createCalendarRange,
+  createFixedRange,
+  createGrowingRange,
+  createRelativeRange,
+  DEFAULT_TIME_RANGE_CONFIG,
+  navigateTimeRange,
+  parseWallTime,
+  pauseTimeRange,
+  resetTimeRange,
+  resolveTimeRange,
+  resolveWallTime,
+  resumeTimeRange,
+  selectRelativeRange,
+  shiftInstantByCalendarDays,
+  validateResolvedTimeWindow,
+  validateTimeRangeValue,
+  type TimeRangeConfig,
+} from "./index";
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const CHICAGO = "America/Chicago";
+const config: TimeRangeConfig = {
+  ...DEFAULT_TIME_RANGE_CONFIG,
+  defaultTimezone: CHICAGO,
+};
+
+describe("semantic time range state machine", () => {
+  it("TR-DOM-001/002/003 keeps relative semantics distinct while resolved time ticks", () => {
+    const value = createRelativeRange(6 * HOUR, "past-6-hours", CHICAGO);
+    expect(value.selection).toEqual({
+      durationMs: 6 * HOUR,
+      kind: "relative",
+      presetId: "past-6-hours",
+    });
+    expect(resolveTimeRange(value, 10 * HOUR, config)).toMatchObject({
+      fromMs: 4 * HOUR,
+      live: true,
+      paused: false,
+      toMs: 10 * HOUR,
+    });
+    expect(resolveTimeRange(value, 11 * HOUR, config)).toMatchObject({
+      fromMs: 5 * HOUR,
+      toMs: 11 * HOUR,
+    });
+    expect(value.selection.kind).toBe("relative");
+  });
+
+  it("TR-DOM-004/005/006 selects live from history and pauses/resumes at the new clock", () => {
+    const original = createRelativeRange(6 * HOUR, "past-6-hours", CHICAGO);
+    const fixed = createFixedRange(
+      HOUR,
+      7 * HOUR,
+      "zoom",
+      {
+        selection: original.selection,
+        timezone: original.timezone,
+      },
+      CHICAGO,
+    );
+    const selected = selectRelativeRange(fixed, 24 * HOUR, "past-24-hours");
+    expect(resolveTimeRange(selected, 100 * HOUR, config)).toMatchObject({
+      fromMs: 76 * HOUR,
+      toMs: 100 * HOUR,
+      live: true,
+    });
+
+    const paused = pauseTimeRange(selected, 100 * HOUR, config);
+    expect(resolveTimeRange(paused, 200 * HOUR, config)).toMatchObject({
+      fromMs: 76 * HOUR,
+      toMs: 100 * HOUR,
+      paused: true,
+    });
+    const resumed = resumeTimeRange(paused);
+    expect(resolveTimeRange(resumed, 200 * HOUR, config)).toMatchObject({
+      fromMs: 176 * HOUR,
+      toMs: 200 * HOUR,
+      paused: false,
+    });
+  });
+
+  it("TR-DOM-007/008/009/010 preserves fixed origin, duration, and last live reset", () => {
+    const live = createRelativeRange(6 * HOUR, "past-6-hours", CHICAGO);
+    const zoom = createFixedRange(
+      20 * HOUR,
+      22 * HOUR + 13 * MINUTE,
+      "zoom",
+      {
+        selection: live.selection,
+        timezone: live.timezone,
+      },
+      CHICAGO,
+    );
+    expect(resolveTimeRange(zoom, 100 * HOUR, config)).toMatchObject({
+      fromMs: 20 * HOUR,
+      live: false,
+      origin: "zoom",
+      toMs: 22 * HOUR + 13 * MINUTE,
+    });
+    const previous = navigateTimeRange(zoom, -1, 100 * HOUR, config);
+    expect(previous.selection).toMatchObject({
+      fromMs: 17 * HOUR + 47 * MINUTE,
+      toMs: 20 * HOUR,
+    });
+    const directNext = navigateTimeRange(zoom, 1, 100 * HOUR, config);
+    expect(directNext.selection).toMatchObject({
+      fromMs: 22 * HOUR + 13 * MINUTE,
+      toMs: 24 * HOUR + 26 * MINUTE,
+    });
+    const next = navigateTimeRange(previous, 1, 100 * HOUR, config);
+    expect(next.selection).toMatchObject({
+      fromMs: 20 * HOUR,
+      kind: "fixed",
+      origin: "navigation",
+      toMs: 22 * HOUR + 13 * MINUTE,
+    });
+    expect(resolveTimeRange(resetTimeRange(next), 200 * HOUR, config)).toMatchObject({
+      fromMs: 194 * HOUR,
+      toMs: 200 * HOUR,
+      live: true,
+    });
+  });
+
+  it("TR-DOM-011 grows from a fixed instant and resumes growth after pause", () => {
+    const growing = createGrowingRange(HOUR, CHICAGO);
+    const paused = pauseTimeRange(growing, 10 * HOUR, config);
+    expect(resolveTimeRange(paused, 20 * HOUR, config)).toMatchObject({
+      fromMs: HOUR,
+      toMs: 10 * HOUR,
+      paused: true,
+    });
+    expect(resolveTimeRange(resumeTimeRange(paused), 20 * HOUR, config)).toMatchObject({
+      fromMs: HOUR,
+      toMs: 20 * HOUR,
+      live: true,
+    });
+  });
+
+  it("TR-DOM-014 validates configurable duration limits", () => {
+    expect(validateResolvedTimeWindow({ fromMs: 0, toMs: 4 * MINUTE }, config)).toEqual({
+      code: "range_too_short",
+      field: "range",
+      message: "Time range must be at least 5 minutes.",
+    });
+    expect(validateResolvedTimeWindow({ fromMs: 0, toMs: 366 * DAY }, config)?.code).toBe(
+      "range_too_long",
+    );
+    expect(validateResolvedTimeWindow({ fromMs: HOUR, toMs: HOUR }, config)?.code).toBe(
+      "from_not_before_to",
+    );
+    expect(
+      validateTimeRangeValue(createRelativeRange(MINUTE, undefined, CHICAGO), 10 * HOUR, config)
+        ?.code,
+    ).toBe("range_too_short");
+    expect(() => createRelativeRange(HOUR, undefined, "Not/AZone")).toThrow("invalid_timezone");
+    expect(() => createRelativeRange(Number.NaN, undefined, CHICAGO)).toThrow("invalid_duration");
+  });
+
+  it("TR-DOM-010 resets closed calendar selections to the configured live default", () => {
+    for (const preset of ["yesterday", "previous_week", "previous_month"] as const) {
+      const reset = resetTimeRange(createCalendarRange(preset, CHICAGO), {
+        ...config,
+        defaultRelativeRange: { durationMs: 2 * HOUR, presetId: "consumer-default" },
+        defaultTimezone: "America/New_York",
+      });
+      expect(reset).toEqual(createRelativeRange(2 * HOUR, "consumer-default", "America/New_York"));
+    }
+  });
+});
+
+describe("IANA timezone and calendar semantics", () => {
+  it("TR-TZ-006 rejects a nonexistent spring-forward wall time", () => {
+    const parsed = parseWallTime("2026-03-08T02:30");
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(resolveWallTime(parsed.parts, CHICAGO)).toEqual({ kind: "nonexistent" });
+  });
+
+  it("TR-TZ-007 exposes both fall-back occurrences", () => {
+    const parsed = parseWallTime("2026-11-01T01:30");
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const result = resolveWallTime(parsed.parts, CHICAGO);
+    expect(result.kind).toBe("ambiguous");
+    if (result.kind !== "ambiguous") return;
+    expect(result.laterMs - result.earlierMs).toBe(HOUR);
+    expect(resolveWallTime(parsed.parts, CHICAGO, "earlier")).toEqual({
+      instantMs: result.earlierMs,
+      kind: "exact",
+      occurrence: "earlier",
+    });
+    expect(resolveWallTime(parsed.parts, CHICAGO, "later")).toEqual({
+      instantMs: result.laterMs,
+      kind: "exact",
+      occurrence: "later",
+    });
+  });
+
+  it("TR-TZ-008 resolves spring and fall calendar days to 23 and 25 hours", () => {
+    const springNow = Date.parse("2026-03-09T04:59:00-05:00");
+    const fallNow = Date.parse("2026-11-02T04:59:00-06:00");
+    const spring = resolveTimeRange(createCalendarRange("yesterday", CHICAGO), springNow, config);
+    const fall = resolveTimeRange(createCalendarRange("yesterday", CHICAGO), fallNow, config);
+    expect(spring.toMs - spring.fromMs).toBe(23 * HOUR);
+    expect(fall.toMs - fall.fromMs).toBe(25 * HOUR);
+  });
+
+  it("TR-DOM-012 resolves the complete calendar preset set", () => {
+    const now = Date.parse("2028-02-29T12:00:00-06:00");
+    const cases = {
+      month_to_date: ["2028-02-01T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      previous_month: ["2028-01-01T00:00:00-06:00", "2028-02-01T00:00:00-06:00"],
+      previous_week: ["2028-02-21T00:00:00-06:00", "2028-02-28T00:00:00-06:00"],
+      today: ["2028-02-29T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      week_to_date: ["2028-02-28T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      year_to_date: ["2028-01-01T00:00:00-06:00", "2028-02-29T12:00:00-06:00"],
+      yesterday: ["2028-02-28T00:00:00-06:00", "2028-02-29T00:00:00-06:00"],
+    } as const;
+    for (const preset of Object.keys(cases) as Array<keyof typeof cases>) {
+      const expected = cases[preset];
+      const resolved = resolveTimeRange(createCalendarRange(preset, CHICAGO), now, config);
+      expect([resolved.fromMs, resolved.toMs], preset).toEqual(expected.map(Date.parse));
+    }
+  });
+
+  it("TR-TZ-003/004/005 applies timezone changes according to semantic kind", () => {
+    const now = Date.parse("2026-09-01T12:00:00Z");
+    const fixed = createFixedRange(now - HOUR, now, "custom", undefined, CHICAGO);
+    expect(resolveTimeRange(changeTimeRangeTimezone(fixed, "UTC"), now, config)).toMatchObject({
+      fromMs: now - HOUR,
+      toMs: now,
+    });
+    const relative = createRelativeRange(HOUR, undefined, CHICAGO);
+    expect(resolveTimeRange(changeTimeRangeTimezone(relative, "UTC"), now, config)).toMatchObject({
+      fromMs: now - HOUR,
+      toMs: now,
+    });
+    const chicagoToday = resolveTimeRange(createCalendarRange("today", CHICAGO), now, config);
+    const utcToday = resolveTimeRange(
+      changeTimeRangeTimezone(createCalendarRange("today", CHICAGO), "UTC"),
+      now,
+      config,
+    );
+    expect(utcToday.fromMs).not.toBe(chicagoToday.fromMs);
+  });
+
+  it("TR-TZ-009 shifts the same local clock by calendar days across DST", () => {
+    const before = Date.parse("2026-03-07T12:00:00-06:00");
+    const after = shiftInstantByCalendarDays(before, 1, CHICAGO);
+    expect(after).toBe(Date.parse("2026-03-08T12:00:00-05:00"));
+    expect(after - before).toBe(23 * HOUR);
+    const gap = shiftInstantByCalendarDays(Date.parse("2026-03-09T02:30:00-05:00"), -1, CHICAGO);
+    expect(gap).toBe(Date.parse("2026-03-08T03:30:00-05:00"));
+    const early = shiftInstantByCalendarDays(Date.parse("2026-03-09T02:01:00-05:00"), -1, CHICAGO);
+    const late = shiftInstantByCalendarDays(Date.parse("2026-03-09T02:59:00-05:00"), -1, CHICAGO);
+    expect(late - early).toBe(58 * MINUTE);
+  });
+
+  it("TR-TZ-005 reset preserves the remembered live timezone", () => {
+    const live = createCalendarRange("today", CHICAGO);
+    const fixed = createFixedRange(
+      0,
+      HOUR,
+      "custom",
+      {
+        selection: live.selection,
+        timezone: live.timezone,
+      },
+      "UTC",
+    );
+    expect(resetTimeRange(fixed).timezone).toBe(CHICAGO);
+  });
+
+  it("TR-DOM-005 rejects contradictory controlled paused values and invalid timezone transitions", () => {
+    const contradictory = {
+      playback: { fromMs: 9 * HOUR, kind: "paused" as const, toMs: 10 * HOUR },
+      selection: { durationMs: 6 * HOUR, kind: "relative" as const },
+      timezone: CHICAGO,
+    };
+    expect(validateTimeRangeValue(contradictory, 20 * HOUR, config)?.code).toBe(
+      "invalid_semantics",
+    );
+    expect(() =>
+      changeTimeRangeTimezone(createRelativeRange(HOUR, undefined, CHICAGO), "Bad/Zone"),
+    ).toThrow("invalid_timezone");
+  });
+
+  it("TR-DOM-010 rejects invalid reset-live memory at construction", () => {
+    expect(() =>
+      createFixedRange(
+        0,
+        HOUR,
+        "custom",
+        { selection: { durationMs: 0, kind: "relative" }, timezone: "Not/AZone" },
+        "UTC",
+      ),
+    ).toThrow();
+  });
+});

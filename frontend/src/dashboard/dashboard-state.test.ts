@@ -4,15 +4,6 @@ import { canonicalChunkUrl, liveQuerySince, mergePoints } from "./api";
 import { alignComparison, alignComparisonForMode, compareOffset, compareWindow } from "./compare";
 import { freshnessState } from "./freshness";
 import { seriesStats } from "./stats";
-import {
-  createTimeState,
-  navigateWindow,
-  resetLive,
-  setCustomRange,
-  tickLive,
-  togglePause,
-  zoomTo,
-} from "./time-state";
 import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./zoned-time";
 import {
   dashboardStateFromUrl,
@@ -21,35 +12,6 @@ import {
   dashboardViewToUrl,
 } from "./url-state";
 import { formatAge, formatValue } from "./units";
-
-describe("global time state", () => {
-  it("defaults live, pauses without moving, and resumes on the current clock", () => {
-    const initial = createTimeState(10_000, 3600);
-    expect(initial).toMatchObject({ mode: "live", start: 6400, end: 10_000 });
-    const paused = togglePause(initial, 10_100);
-    expect(paused.paused).toBe(true);
-    expect(tickLive(paused, 20_000)).toEqual(paused);
-    const resumed = togglePause(paused, 20_000);
-    expect(resumed.paused).toBe(false);
-    expect(tickLive(resumed, 20_030)).toMatchObject({ start: 16_430, end: 20_030 });
-  });
-
-  it("moves exactly one window and zoom transitions to fixed mode", () => {
-    const initial = createTimeState(10_000, 1000);
-    expect(navigateWindow(initial, -1)).toMatchObject({ start: 8000, end: 9000, mode: "fixed" });
-    expect(zoomTo(initial, 9200, 9700)).toMatchObject({
-      start: 9200,
-      end: 9700,
-      rangeSeconds: 500,
-      mode: "fixed",
-    });
-    expect(resetLive(setCustomRange(1, 101), 500)).toMatchObject({
-      start: 400,
-      end: 500,
-      mode: "live",
-    });
-  });
-});
 
 describe("shareable URL state", () => {
   it("normalizes and serializes the active progressive-disclosure view", () => {
@@ -78,7 +40,7 @@ describe("shareable URL state", () => {
       ),
       1000,
     );
-    expect(parsed.time.mode).toBe("fixed");
+    expect(parsed.time.selection.kind).toBe("fixed");
     expect(parsed.compare).toBe("day");
     expect(parsed.events).toBe(false);
     expect(parsed.history).toBe(true);
@@ -183,6 +145,12 @@ describe("live request planning", () => {
     ];
 
     expect(liveQuerySince(time, previous)).toBe(301);
+    expect(
+      liveQuerySince(time, [
+        [-10_000, 1],
+        [-9_000, 2],
+      ]),
+    ).toBe(100);
     expect(
       mergePoints(
         previous,

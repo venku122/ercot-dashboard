@@ -232,6 +232,7 @@ export function ChartCard({
   );
 
   const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time });
+  const suppressZoomCommit = useRef(false);
   dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time };
 
   useEffect(() => {
@@ -364,6 +365,7 @@ export function ChartCard({
               mode: "x",
               modifierKey: dynamic.current.interactionPolicy.panModifier,
               onPanComplete({ chart: panned }) {
+                if (suppressZoomCommit.current) return;
                 const minimum = panned.scales["x"].min;
                 const maximum = panned.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
@@ -384,6 +386,7 @@ export function ChartCard({
                 speed: 0.08,
               },
               onZoomComplete({ chart: zoomed }) {
+                if (suppressZoomCommit.current) return;
                 const minimum = zoomed.scales["x"].min;
                 const maximum = zoomed.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
@@ -534,10 +537,15 @@ export function ChartCard({
   );
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
   const showStatusRow = Boolean(
-    (sourceHealth && sourceHealth.state !== "healthy") || (partial && hasData) || pinned,
+    (loading && hasData) ||
+    (sourceHealth && sourceHealth.state !== "healthy") ||
+    (partial && hasData) ||
+    pinned,
   );
   const resetChartZoom = () => {
+    suppressZoomCommit.current = true;
     chartRef.current?.resetZoom();
+    suppressZoomCommit.current = false;
     onResetZoom();
   };
   const showDataTable = () => {
@@ -549,6 +557,7 @@ export function ChartCard({
   return (
     <article
       aria-label={inspect ? "Inspect " + chart.title : undefined}
+      aria-busy={loading}
       aria-modal={inspect ? "true" : undefined}
       className={`chart-card ${presentation === "featured" ? "chart-card-featured" : ""} ${inspect ? "chart-card-inspect" : ""}`}
       data-chart-id={chart.id}
@@ -610,13 +619,7 @@ export function ChartCard({
               >
                 {compare === "none" ? "Enable comparison" : "Disable comparison"}
               </button>
-              <button
-                onClick={() => {
-                  chartRef.current?.resetZoom();
-                  onResetZoom();
-                }}
-                role="menuitem"
-              >
+              <button onClick={resetChartZoom} role="menuitem">
                 Reset zoom
               </button>
               <button
@@ -681,6 +684,9 @@ export function ChartCard({
 
       {showStatusRow ? (
         <div className="chart-status-row" aria-live="polite">
+          {loading && hasData ? (
+            <span className="status-chip status-partial">Updating selected range…</span>
+          ) : null}
           {sourceHealth && sourceHealth.state !== "healthy" ? (
             <span className={`status-chip status-${sourceHealth.state}`}>
               Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}
