@@ -132,6 +132,8 @@ Any Critical or High adversarial finding blocks GO. A Medium finding blocks GO w
 
 ## Final evidence
 
+> Superseded for PR #56 by the DRUIDS-conformance evidence in `2026-09-03--datadog-time-range-picker-compatibility-contract.md`. The results below describe the earlier picker head and are retained only as historical evidence.
+
 - Reviewed implementation head: `eedc690` (stacked on `79d77ecfc4561bc8e1d48893add72a19337e291f`).
 - Commit gate: PASS — 60 frontend files / 367 tests, 266 receiver tests, and 20 contract tests.
 - Production build: PASS — main JS 460.97 kB / 137.98 kB gzip; CSS 85.11 kB / 16.16 kB gzip. Main-JS growth from baseline is 5.86 KiB gzip, below the 25 KiB blocker threshold.

@@ -130,7 +130,7 @@ test("P0 quick controls open a focus-trapped restorable sheet @mobile-core", asy
   await expect(sheet.getByLabel("Compare time")).toBeVisible();
   await expect(sheet.getByLabel("Legend detail")).toBeVisible();
   await expect(sheet.getByText("Custom range", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Choose time range" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -183,7 +183,7 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
   const targets = [
     page.locator(".mobile-supporting-metrics > summary"),
     page.getByRole("button", { name: "Analyze" }),
-    page.getByRole("button", { name: "Choose time range" }),
+    page.getByRole("combobox", { name: "Time range picker" }),
     card.getByRole("button", { name: "Open Supply and demand inspect mode" }),
     card.getByLabel("Supply and demand chart menu"),
     card.getByRole("button", { name: "Actual demand", exact: true }),

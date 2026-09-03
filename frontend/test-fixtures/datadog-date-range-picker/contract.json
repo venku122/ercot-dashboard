@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "capturedAt": "2026-09-03T05:35:14.412Z",
+    "customTimeFramesUrl": "https://docs.datadoghq.com/dashboards/guide/custom_time_frames/",
+    "druidsUrl": "https://druids.datadoghq.com/components/time/DateRangePicker",
+    "pageContentHash": "be85ea096d29c25ef4b0a1d22b93d71bbb3327242fb21118077465984fdd5700"
+  },
+  "viewports": {
+    "desktop": { "width": 1280, "height": 960, "deviceScaleFactor": 1 },
+    "mobile": { "width": 390, "height": 844, "deviceScaleFactor": 1 }
+  },
+  "geometry": {
+    "controlMinWidth": 250,
+    "controlWidth": 375,
+    "desktopControlHeight": 28,
+    "desktopIconButtonSize": 28,
+    "durationPillHeight": 22,
+    "menuRowHeight": 28,
+    "menuWidth": 375,
+    "sidecarWidth": 332,
+    "borderWidth": 1,
+    "radius": 4,
+    "toleranceCssPx": 2
+  },
+  "typography": {
+    "inputFontSize": 13,
+    "inputFontWeight": 400,
+    "inputLineHeight": 19,
+    "optionFontSize": 13,
+    "optionLineHeight": 19
+  },
+  "controlOrder": ["Time range picker", "Step back", "Play or Pause", "Step forward"],
+  "presetOrder": [
+    "Past 5 Minutes",
+    "Past 15 Minutes",
+    "Past 30 Minutes",
+    "Past 1 Hour",
+    "Past 4 Hours",
+    "Past 1 Day",
+    "Past 2 Days",
+    "Past 1 Week",
+    "Past 1 Month",
+    "Select from calendar…",
+    "More"
+  ],
+  "exampleGroups": {
+    "Relative": ["45m", "12 hours", "10d", "2 weeks", "last month", "yesterday", "today"],
+    "Fixed": ["Aug 1", "Aug 1 - Aug 2", "8/1", "8/1 - 8/2", "5:00 pm - 11:00 pm"],
+    "Growing": ["since 8/1", "Aug 2 12pm to now"],
+    "Unix timestamps": ["seconds range"]
+  },
+  "states": [
+    "closed",
+    "presets",
+    "more",
+    "calendar",
+    "editing",
+    "invalid",
+    "fixed",
+    "paused",
+    "live",
+    "mobile"
+  ],
+  "visualReferences": [
+    "screenshots/druids-presets.png",
+    "screenshots/druids-more.png",
+    "screenshots/druids-calendar.png"
+  ],
+  "visualReferenceHashes": {
+    "screenshots/druids-calendar.png": "7b14030472e669c791c396e6a1b65707eb5c3408c821e0e44f32b6c15a3aba2e",
+    "screenshots/druids-more.png": "9d043d1ff752773460812adf8892c34b57e0453437a86596886a0804ae3ec15c",
+    "screenshots/druids-presets.png": "3df615dd362db379fb3e483df5cb9e34bc8514c22e7f7114c610d99f7076b1ac"
+  },
+  "themeSubstitutions": [
+    "font-family",
+    "color",
+    "background-color",
+    "border-color",
+    "box-shadow-color"
+  ]
+}

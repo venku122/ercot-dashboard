@@ -1,5 +1,7 @@
 # Time Range Picker implementation report
 
+> Historical implementation report. PR #56's DRUIDS-conformant replacement is governed by `2026-09-03--datadog-time-range-picker-compatibility-contract.md`.
+
 ## Outcome
 
 The ERCOT dashboard now uses a controlled semantic `TimeRangePicker` backed by a reusable TypeScript/React source module in `frontend/src/time-range/`. Semantic selections are resolved against an injected clock, encoded canonically in the URL, and converted from epoch milliseconds to the dashboard's seconds boundary only in `frontend/src/dashboard/time-range-adapter.ts`.

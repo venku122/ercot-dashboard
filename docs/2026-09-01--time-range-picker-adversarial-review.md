@@ -1,5 +1,7 @@
 # Time Range Picker adversarial review
 
+> Historical review of the pre-DRUIDS picker. The current independent review result and exact-head evidence are recorded in `2026-09-03--datadog-time-range-picker-compatibility-contract.md` and the PR #56 evidence comment.
+
 ## Method
 
 Six independent specialty roles reviewed the implementation and tests. Medium correctness, accessibility, URL, race, or reusability findings were treated as blocking. Findings were remediated and affected roles re-ran focused tests on the remediated implementation heads.

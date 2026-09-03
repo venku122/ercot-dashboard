@@ -11,12 +11,16 @@ export {
   encodeTimeRange,
   formatDuration,
   formatInstant,
+  formatTimeRangeExpression,
   formatTimeRangeLabel,
+  formatTimeRangePill,
   formatWallTimeInput,
   HOUR_MS,
   isValidTimezone,
   MINUTE_MS,
   navigateTimeRange,
+  incrementTimeRangeExpression,
+  parseTimeRangeExpression,
   parseWallTime,
   pauseTimeRange,
   resetTimeRange,
@@ -48,6 +52,12 @@ export type {
   WallTimeOccurrence,
   WallTimeParseResult,
   WallTimeResolution,
+} from "./core";
+export type {
+  ParseTimeRangeExpressionOptions,
+  ParseTimeRangeExpressionResult,
+  TimeRangeExpressionErrorCode,
+  TimeRangeExpressionSegment,
 } from "./core";
 export { TimeRangePicker } from "./react";
 export type {

@@ -10,6 +10,12 @@ export const DEFAULT_TIME_RANGE_CONFIG: TimeRangeConfig = {
 
 export { decodeTimeRange, encodeTimeRange } from "./codec";
 export { formatDuration, formatInstant, formatTimeRangeLabel } from "./format";
+export {
+  formatTimeRangeExpression,
+  formatTimeRangePill,
+  incrementTimeRangeExpression,
+  parseTimeRangeExpression,
+} from "./expression";
 export { resolveTimeRange } from "./resolve";
 export {
   formatWallTimeInput,
@@ -53,4 +59,10 @@ export type {
   WallTimeParseResult,
   WallTimeResolution,
 } from "./types";
+export type {
+  ParseTimeRangeExpressionOptions,
+  ParseTimeRangeExpressionResult,
+  TimeRangeExpressionErrorCode,
+  TimeRangeExpressionSegment,
+} from "./expression";
 export { validateResolvedTimeWindow, validateTimeRangeValue } from "./validate";

@@ -8,14 +8,18 @@ test("mobile picker is an opaque focus-trapped sheet without overflow @mobile-co
   await page.emulateMedia({ reducedMotion: "reduce" });
   await installMobileApi(page);
   await page.goto("/");
-  const trigger = page.getByRole("button", { name: "Choose time range" });
+  const trigger = page.locator(".time-range-picker__cluster .time-range-picker__input");
   await trigger.click();
   const sheet = page.getByRole("dialog", { name: "Time range" });
   await expect(sheet).toBeVisible();
   await expect(sheet).toHaveCSS("background-color", "rgb(15, 23, 42)");
-  await expect(sheet.getByRole("button", { name: "Close time range picker" })).toBeFocused();
+  await expect(sheet.getByRole("combobox", { name: "Time range picker" })).toBeFocused();
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
   await expectNoHorizontalOverflow(page);
+  await page.keyboard.press("Shift+Tab");
+  await expect(sheet.getByRole("option", { name: "More" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(sheet.getByRole("combobox", { name: "Time range picker" })).toBeFocused();
   for (const control of [trigger, ...(await sheet.locator("button, input, select").all())]) {
     const box = await control.boundingBox();
     const identity = await control.evaluate(

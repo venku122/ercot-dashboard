@@ -1,5 +1,7 @@
 # Time Range Picker human-review handoff
 
+> Historical handoff. PR #56's current review and acceptance evidence is in `2026-09-03--datadog-time-range-picker-compatibility-contract.md` and the latest exact-head PR evidence comment.
+
 ## Decision
 
 GO for review as a draft PR stacked on PR #55. Do not merge or deploy without explicit human authorization.

@@ -19,6 +19,9 @@
     "test:contracts": "python3 -m unittest discover -s scripts -p 'test*.py'",
     "test:ercot-api:live": "node --experimental-strip-types ercot-collector/ercot_api_live.ts",
     "test:performance": "python3 scripts/benchmark_receiver.py",
+    "reference:datadog-picker": "node scripts/reference_datadog_picker.mjs",
+    "evidence:datadog-picker": "node scripts/render_datadog_picker_evidence.mjs",
+    "validate:datadog-picker": "node scripts/validate_datadog_picker.mjs && vitest run frontend/src/time-range/expression.test.ts frontend/src/time-range/react/TimeRangePicker.test.tsx && playwright test e2e/datadog-picker-conformance.spec.ts --project=chromium",
     "test:receiver": "python3 -m unittest discover -s ercot-receiver -p 'test*.py'",
     "test": "pnpm run test:frontend && pnpm run test:receiver && pnpm run test:contracts",
     "validate:commit": "pnpm run check && pnpm run test:frontend && pnpm run test:receiver && pnpm run test:contracts"

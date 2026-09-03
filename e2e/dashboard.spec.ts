@@ -715,20 +715,13 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
 
   let analyze = await openAnalyze(page);
   await analyze.getByRole("button", { name: "Close Analyze" }).click();
-  const timeTrigger = page.getByRole("button", { name: "Choose time range" });
-  await timeTrigger.click();
-  await page
-    .getByRole("dialog", { name: "Time range" })
-    .getByRole("button", { name: "Pause" })
-    .click();
-  await expect(timeTrigger).toContainText("Paused");
-  await timeTrigger.click();
-  await page.getByRole("button", { name: "Previous window" }).click();
+  await page.getByRole("button", { name: "Pause" }).click();
+  await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
+  await page.getByRole("button", { name: "Step back" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   const fixedFrom = new URL(page.url()).searchParams.get("from");
   expect(fixedFrom).not.toBeNull();
-  await timeTrigger.click();
-  await page.getByRole("button", { name: "Next window" }).click();
+  await page.getByRole("button", { name: "Step forward" }).click();
   await expect.poll(() => timeChunkRequests.length).toBeGreaterThan(0);
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
@@ -779,8 +772,7 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await page.getByRole("menuitem", { name: "Reset zoom" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   await page.keyboard.press("Escape");
-  await timeTrigger.click();
-  await page.getByRole("button", { name: "Reset to live" }).click();
+  await page.getByRole("button", { name: "Play" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
 });
 
@@ -803,7 +795,7 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await page.mouse.up();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   await expect.poll(() => new URL(page.url()).searchParams.get("compare")).toBe("previous_period");
-  await expect(page.getByRole("button", { name: "Choose time range" })).toContainText("Zoom ·");
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue(/ – /);
   const beforePan = new URL(page.url()).searchParams.get("from");
   await page.keyboard.down("Shift");
   await page.mouse.move(box.x + 300, box.y + 130);
@@ -815,8 +807,8 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await card.getByLabel("Supply and demand chart menu").click();
   await page.getByRole("menuitem", { name: "Reset zoom" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
-  await expect(page.getByRole("button", { name: "Choose time range" })).toContainText(
-    "Past 6 hours",
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue(
+    "Past 6 Hours",
   );
 });
 
