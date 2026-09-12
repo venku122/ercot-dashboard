@@ -55,6 +55,12 @@
   box-shadow: 0 0 0 1px var(--trp-focus);
 }
 
+/* The shell owns the focus indicator, including when rendered in the mobile portal. */
+.time-range-picker__input-shell .time-range-picker__input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .time-range-picker__offset {
   color: var(--trp-muted);
   font-size: 10px;
@@ -364,6 +370,14 @@
 .time-range-picker__calendar-grid > button[aria-pressed="true"] {
   background: var(--trp-selected);
   outline: 0;
+}
+
+.time-range-picker__calendar-grid > button[data-in-range="true"] {
+  background: var(--trp-hover);
+}
+
+.time-range-picker__calendar-grid > button[aria-pressed="true"] {
+  background: var(--trp-selected);
 }
 
 .time-range-picker__back {

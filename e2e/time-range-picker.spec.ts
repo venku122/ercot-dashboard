@@ -30,6 +30,7 @@ test("click to replace accepts shorthand and keeps empty drafts silent", async (
   const initialUrl = page.url();
   await editor(page).click();
   await expect(editor(page)).toHaveValue("");
+  await expect(editor(page)).toHaveCSS("outline-style", "none");
   await editor(page).press("Enter");
   expect(page.url()).toBe(initialUrl);
   await expect(editor(page)).toHaveValue("Past 6 Hours");

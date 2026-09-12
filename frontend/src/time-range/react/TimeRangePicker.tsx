@@ -243,6 +243,7 @@ export function TimeRangePicker({
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [calendarStart, setCalendarStart] = useState<CalendarDay | null>(null);
+  const [calendarHover, setCalendarHover] = useState<CalendarDay | null>(null);
   const current = useMemo(() => new Date(nowMs), [nowMs]);
   const [visibleMonth, setVisibleMonth] = useState(() => ({
     month: Number(
@@ -306,6 +307,7 @@ export function TimeRangePicker({
     setOpen(false);
     setMode("presets");
     setCalendarStart(null);
+    setCalendarHover(null);
     setError(null);
     setErrorCode(null);
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -338,6 +340,26 @@ export function TimeRangePicker({
     onCommit(next);
     close();
     return true;
+  };
+
+  const openCalendar = () => {
+    const start = new Date(resolved.fromMs);
+    setVisibleMonth({
+      month: Number(
+        new Intl.DateTimeFormat("en-US", { month: "numeric", timeZone: value.timezone }).format(
+          start,
+        ),
+      ),
+      year: Number(
+        new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: value.timezone }).format(
+          start,
+        ),
+      ),
+    });
+    setCalendarStart(null);
+    setCalendarHover(null);
+    setMode("calendar");
+    setActiveOptionIndex(-1);
   };
 
   const commitExpression = (expression = draftExpression, occurrence?: "earlier" | "later") => {
@@ -427,8 +449,7 @@ export function TimeRangePicker({
           const preset = presets[activeOptionIndex]!;
           commit(createRelativeRange(preset.durationMs, preset.id, value.timezone));
         } else if (activeOptionIndex === presets.length) {
-          setMode("calendar");
-          setActiveOptionIndex(-1);
+          openCalendar();
         } else {
           setMode("more");
           setActiveOptionIndex(-1);
@@ -570,7 +591,7 @@ export function TimeRangePicker({
         aria-selected={activeOptionIndex === presets.length}
         className="time-range-picker__option"
         id={`${listboxId}-option-${String(presets.length)}`}
-        onClick={() => setMode("calendar")}
+        onClick={openCalendar}
         role="option"
         type="button"
       >
@@ -702,7 +723,10 @@ export function TimeRangePicker({
             <Icon kind="forward" />
           </button>
         </header>
-        <div className="time-range-picker__calendar-grid">
+        <div
+          className="time-range-picker__calendar-grid"
+          onMouseLeave={() => setCalendarHover(null)}
+        >
           {(text.weekdays ?? WEEKDAYS).map((weekday) => (
             <span aria-hidden="true" key={weekday}>
               {weekday}
@@ -714,6 +738,17 @@ export function TimeRangePicker({
           {Array.from({ length: dayCount }, (_, index) => {
             const day = index + 1;
             const date = new Date(Date.UTC(visibleMonth.year, visibleMonth.month - 1, day));
+            const hovered =
+              calendarHover &&
+              Date.UTC(calendarHover.year, calendarHover.month - 1, calendarHover.day);
+            const started =
+              calendarStart &&
+              Date.UTC(calendarStart.year, calendarStart.month - 1, calendarStart.day);
+            const inRange =
+              started !== null &&
+              hovered !== null &&
+              date.getTime() >= Math.min(started, hovered) &&
+              date.getTime() <= Math.max(started, hovered);
             const label = new Intl.DateTimeFormat(config.locale, {
               dateStyle: "long",
               timeZone: "UTC",
@@ -727,6 +762,13 @@ export function TimeRangePicker({
                   year: visibleMonth.year,
                 })}
                 key={day}
+                data-in-range={inRange || undefined}
+                onMouseEnter={() =>
+                  setCalendarHover({ day, month: visibleMonth.month, year: visibleMonth.year })
+                }
+                onFocus={() =>
+                  setCalendarHover({ day, month: visibleMonth.month, year: visibleMonth.year })
+                }
                 onClick={() => selectDay(day)}
                 type="button"
               >

@@ -203,11 +203,30 @@ describe("DRUIDS-conformant controlled TimeRangePicker", () => {
     act(() => first.click());
     expect(onCommit).not.toHaveBeenCalled();
     expect(first.getAttribute("aria-pressed")).toBe("true");
+    act(() => third.focus());
+    expect(
+      document.querySelector('[aria-label="September 2, 2026"]')?.getAttribute("data-in-range"),
+    ).toBe("true");
     act(() => third.click());
     expect(onCommit).toHaveBeenCalledOnce();
     const selection = onCommit.mock.calls[0]![0].selection;
     expect(selection.kind).toBe("fixed");
     if (selection.kind === "fixed") expect(selection.toMs - selection.fromMs).toBe(72 * HOUR);
+  });
+
+  it("opens the calendar at the committed range instead of today's month", async () => {
+    await render({
+      value: createFixedRange(
+        Date.parse("2025-02-10T12:00:00Z"),
+        Date.parse("2025-02-12T12:00:00Z"),
+        "custom",
+        undefined,
+        "America/Chicago",
+      ),
+    });
+    const dialog = open();
+    act(() => byTextButton(dialog, "Select from calendar…").click());
+    expect(dialog.querySelector('[aria-label="February 10, 2025"]')).not.toBeNull();
   });
 
   it("DD-SYN-006 increments a selected component with Arrow Up without committing", async () => {
