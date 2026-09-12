@@ -40,6 +40,8 @@ This contract is additive to `2026-09-01--time-range-picker-acceptance-contract.
 
 ## Deterministic defaults and deviations
 
+- UX review: More anchors to the toolbar's right edge to stay on screen and stacks vertically at narrow desktop widths; mobile uses 12px header padding and a 20px close icon within its 44px touch target. The closed mobile cluster is constrained to its container.
+
 - User-requested toolbar refinement: the desktop control and playback buttons are 42px high to align with Analyze, playback icons are 20px, and the timezone sits inline. These explicit ERCOT overrides are recorded separately from the unchanged DRUIDS reference measurements.
 
 - Missing years use the current year in the selected timezone.

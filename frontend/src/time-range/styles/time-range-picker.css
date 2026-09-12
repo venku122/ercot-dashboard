@@ -184,7 +184,8 @@
   z-index: 1;
 }
 
-.time-range-picker svg {
+.time-range-picker svg,
+.time-range-picker__backdrop svg {
   fill: currentcolor;
   height: 16px;
   width: 16px;
@@ -208,6 +209,12 @@
   left: 0;
   position: absolute;
   top: 100%;
+}
+
+.time-range-picker__surface--desktop.time-range-picker__surface--more {
+  left: auto;
+  right: 0;
+  max-width: calc(100vw - 24px);
 }
 
 .time-range-picker__panels {
@@ -432,7 +439,17 @@
   border-bottom: 1px solid var(--trp-border);
   display: flex;
   gap: 8px;
-  padding: 20px 12px 10px;
+  padding: 12px;
+}
+
+.time-range-picker__mobile-heading > button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.time-range-picker--mobile {
+  min-width: 0;
+  width: 100%;
 }
 
 .time-range-picker__mobile-heading > button {
@@ -451,6 +468,7 @@
 }
 
 .time-range-picker__input-shell--sheet {
+  min-width: 0;
   height: 44px;
   width: 100%;
 }
@@ -492,6 +510,21 @@
 .time-range-picker__surface--mobile .time-range-picker__option {
   height: 44px;
   min-height: 44px;
+}
+
+@media (min-width: 701px) and (max-width: 900px) {
+  .time-range-picker__surface--desktop.time-range-picker__surface--more .time-range-picker__panels {
+    flex-direction: column;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .time-range-picker__surface--desktop.time-range-picker__surface--more .time-range-picker__more {
+    border-left: 0;
+    border-top: 1px solid var(--trp-border);
+    max-height: none;
+    width: var(--trp-menu-width);
+  }
 }
 
 @media (max-width: 700px) {

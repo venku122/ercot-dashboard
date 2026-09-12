@@ -794,7 +794,7 @@ export function TimeRangePicker({
     <div
       aria-labelledby={titleId}
       aria-modal={presentation === "mobile" ? "true" : undefined}
-      className={`time-range-picker__surface time-range-picker__surface--${presentation}`}
+      className={`time-range-picker__surface time-range-picker__surface--${presentation}${mode === "more" ? " time-range-picker__surface--more" : ""}`}
       onKeyDown={onSurfaceKeyDown}
       ref={surfaceRef}
       role="dialog"

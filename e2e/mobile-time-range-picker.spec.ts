@@ -9,6 +9,11 @@ test("mobile picker is an opaque focus-trapped sheet without overflow @mobile-co
   await installMobileApi(page);
   await page.goto("/");
   const trigger = page.locator(".time-range-picker__cluster .time-range-picker__input");
+  for (const name of ["Step back", "Pause", "Step forward"]) {
+    const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
   await trigger.click();
   const sheet = page.getByRole("dialog", { name: "Time range" });
   await expect(sheet).toBeVisible();

@@ -86,6 +86,9 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   await expect(surface).toHaveScreenshot("picker-presets.png");
 
   await surface.getByRole("option", { name: "More" }).click();
+  const moreBox = await surface.boundingBox();
+  expect(moreBox!.x).toBeGreaterThanOrEqual(0);
+  expect(moreBox!.x + moreBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await expectGeometry(
     surface.getByRole("complementary", { name: "Custom time examples" }),
     contract.geometry.sidecarWidth,
@@ -94,9 +97,10 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   const sidecarBox = await surface
     .getByRole("complementary", { name: "Custom time examples" })
     .boundingBox();
-  expect(Math.abs(sidecarBox!.x - (menuBox!.x + menuBox!.width))).toBeLessThanOrEqual(
-    contract.geometry.toleranceCssPx,
-  );
+  const expandedMenuBox = await surface.getByRole("listbox").boundingBox();
+  expect(
+    Math.abs(sidecarBox!.x - (expandedMenuBox!.x + expandedMenuBox!.width)),
+  ).toBeLessThanOrEqual(contract.geometry.toleranceCssPx);
   await expect(surface).toHaveScreenshot("picker-more.png");
 
   await surface.getByRole("option", { name: "More" }).click();
@@ -123,6 +127,18 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   await expect(cluster).toHaveScreenshot("picker-live.png");
   await page.getByRole("button", { name: "Pause" }).click();
   await expect(cluster).toHaveScreenshot("picker-paused.png");
+});
+
+test("More stays within the viewport at narrow desktop widths", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 900 });
+  await editor(page).click();
+  await page.getByRole("option", { name: "More", exact: true }).click();
+  const surface = page.getByRole("dialog", { name: "Time range" });
+  const box = await surface.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(768);
+  expect(box!.height).toBeLessThanOrEqual(900);
+  await expect(surface.getByRole("complementary")).toBeVisible();
 });
 
 test("mobile sheet is deterministic and fits the pinned viewport", async ({ page }) => {
