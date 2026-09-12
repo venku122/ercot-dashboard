@@ -1,0 +1,20 @@
+digraph system_context {
+  graph [bgcolor="transparent", rankdir=LR, pad=0.25, nodesep=0.45, ranksep=0.7];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#334155", fillcolor="#e2e8f0"];
+  edge [fontname="Helvetica", fontsize=9, color="#475569"];
+  ercot [label="ERCOT official sources\nMIS, dashboards, notices"];
+  nws [label="NWS official sources\nforecasts and alerts"];
+  external [label="External context\nEPA eGRID (bounded slice)"];
+  collector [label="Collector\nstrict parsing, source clocks, health", fillcolor="#cffafe"];
+  receiver [label="Receiver\nSQLite authority, APIs, in-memory LRU", fillcolor="#bae6fd"];
+  edgecache [label="Cloudflare / HTTP cache\nsemantic URLs + revalidation", fillcolor="#ddd6fe"];
+  browser [label="Browser dashboard\nplanner, SWR, lazy panels", fillcolor="#dcfce7"];
+  reviewer [label="Human reviewer\ndesktop and mobile evidence", fillcolor="#fef3c7"];
+  ercot -> collector [label="official publications"];
+  nws -> collector [label="official forecasts/alerts"];
+  external -> collector [label="annual context"];
+  collector -> receiver [label="authenticated ingest"];
+  receiver -> edgecache [label="canonical API responses"];
+  edgecache -> browser [label="ETag / 304 / bytes"];
+  browser -> reviewer [label="truthful views and exact tables"];
+}

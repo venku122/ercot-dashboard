@@ -37,6 +37,7 @@ function catalog(series = [entry({ key: "fixture.power", metric: "fixture.power"
       edge_lod: "native",
       rule: "native edges",
     },
+    derived_resources: [],
     lod_seconds: { native: null, "5m": 300, "15m": 900, "1h": 3_600 },
     schema: 2,
     series: [...series].sort((left, right) => left.key.localeCompare(right.key)),
@@ -244,6 +245,79 @@ describe("semantic tile catalog resolution", () => {
         series: [{ ...value.series[0], tags: ["z", "a"] }],
       }),
     ).toThrow("invalid_tile_catalog_series");
+  });
+
+  it("strictly accepts the heterogeneous derived-resource authority", () => {
+    const value = catalog();
+    const actual = {
+      alignment: "utc_day",
+      formula: "demand_mw - wind_mw - solar_mw",
+      native_interval_seconds: 300,
+      official_ercot_net_load: false,
+      route_template:
+        "/api/v2/net-load/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+      series_key: "net-load.actual",
+      storage_policy: "context_only_not_in_formula",
+      supported_lods: ["native"],
+    };
+    const forecast = {
+      alignment: "utc_day",
+      formula: "demand_mw - wind_mw - solar_mw",
+      native_interval_seconds: 3600,
+      official_ercot_net_load: false,
+      route_template:
+        "/api/v2/net-load/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+      selection_policy: "coherent_whole_curve_latest_capped_before_utc_day",
+      series_key: "net-load.forecast.latest-capped-6h-before-utc-day",
+      snapshot_lead_seconds: 21600,
+      supported_lods: ["native"],
+    };
+    const load = {
+      alignment: "utc_day",
+      diagnostic_error_formula: "actual_minus_forecast",
+      native_interval_seconds: 3600,
+      route_template:
+        "/api/v2/regional/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+      selection_policy: "latest-capped-1h-before-utc-day",
+      series_key: "regional.load.weather-zone.coast.forecast",
+      supported_lods: ["native"],
+      taxonomy: "load_weather_zone",
+    };
+    const renewable = {
+      alignment: "utc_day",
+      current_measure: "GEN",
+      forecast_basis: "HSL_potential",
+      forecast_error_available: false,
+      forecast_measure: "STPPF",
+      native_interval_seconds: 3600,
+      route_template:
+        "/api/v2/regional/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+      series_key: "regional.solar.center-west.hourly",
+      supported_lods: ["native"],
+      taxonomy: "solar_region",
+    };
+    const parsed = parseTileCatalog({
+      ...value,
+      derived_resources: [actual, forecast, load, renewable],
+    });
+    expect(parsed.derived_resources.map((entry) => entry.series_key)).toEqual([
+      "net-load.actual",
+      "net-load.forecast.latest-capped-6h-before-utc-day",
+      "regional.load.weather-zone.coast.forecast",
+      "regional.solar.center-west.hourly",
+    ]);
+    expect(() => parseTileCatalog({ ...value, derived_resources: [actual, actual] })).toThrow(
+      "invalid_tile_catalog_derived_resource",
+    );
+    expect(() =>
+      parseTileCatalog({
+        ...value,
+        derived_resources: [{ ...forecast, snapshot_lead_seconds: 3600 }],
+      }),
+    ).toThrow("invalid_tile_catalog_derived_resource");
+    expect(() =>
+      parseTileCatalog({ ...value, derived_resources: [{ ...renewable, invented: true }] }),
+    ).toThrow("invalid_tile_catalog_derived_resource");
   });
 });
 

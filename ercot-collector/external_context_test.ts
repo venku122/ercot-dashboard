@@ -99,15 +99,16 @@ Deno.test("eGRID fails closed on workbook and value drift", () => {
 
 Deno.test("external context runner is disabled by default with zero requests", async () => {
   let calls = 0;
+  const disabled = startExternalContext({
+    environment: { get: () => undefined },
+    fetcher: (() => {
+      calls++;
+      throw new Error("unexpected_fetch");
+    }) as typeof fetch,
+  });
   const winner = await Promise.race([
-    startExternalContext({
-      environment: { get: () => undefined },
-      fetcher: (() => {
-        calls++;
-        throw new Error("unexpected_fetch");
-      }) as typeof fetch,
-    }),
-    Promise.resolve("peer_loop"),
+    disabled.then(() => "external_context"),
+    new Promise<string>((resolve) => setTimeout(() => resolve("peer_loop"), 0)),
   ]);
   assert(winner === "peer_loop");
   assert(calls === 0);

@@ -1,0 +1,15 @@
+digraph deployment {
+  graph [bgcolor="transparent", rankdir=LR, pad=0.25, nodesep=0.4, ranksep=0.7];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#334155", fillcolor="#e2e8f0"];
+  edge [fontname="Helvetica", fontsize=9, color="#475569"];
+  review [label="Human review\nPR stack + exact-head CI", fillcolor="#cffafe"];
+  pin [label="Pin matching receiver + collector images\nPreserve complete stack Env"];
+  disabled [label="Deploy with new opt-ins disabled\nPrune=false", fillcolor="#fef3c7"];
+  smoke [label="Smoke routes, auth, restart counts, freshness"];
+  enable [label="Enable one source at a time\nObserve health and timestamps"];
+  stable [label="Stable production candidate", fillcolor="#dcfce7"];
+  rollback [label="Rollback: collector first, then both prior images\nRestore full Env; Prune=false", fillcolor="#fee2e2"];
+  review -> pin -> disabled -> smoke -> enable -> stable;
+  smoke -> rollback [label="failure"];
+  enable -> rollback [label="failure"];
+}

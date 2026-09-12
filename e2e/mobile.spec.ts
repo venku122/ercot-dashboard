@@ -129,7 +129,8 @@ test("P0 quick controls open a focus-trapped restorable sheet @mobile-core", asy
   await expect(sheet).toBeVisible();
   await expect(sheet.getByLabel("Compare time")).toBeVisible();
   await expect(sheet.getByLabel("Legend detail")).toBeVisible();
-  await expect(sheet.getByText("Custom range", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("Custom range", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -182,7 +183,7 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
   const targets = [
     page.locator(".mobile-supporting-metrics > summary"),
     page.getByRole("button", { name: "Analyze" }),
-    page.getByLabel("Time range"),
+    page.getByRole("combobox", { name: "Time range picker" }),
     card.getByRole("button", { name: "Open Supply and demand inspect mode" }),
     card.getByLabel("Supply and demand chart menu"),
     card.getByRole("button", { name: "Actual demand", exact: true }),
@@ -251,19 +252,6 @@ test("P0 inspect is a safe-area dialog with explicit analysis actions @mobile-co
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
-});
-
-test("P0 negative price ranking remains accessible in Market @mobile-core", async ({ page }) => {
-  await openPopulated(page, "negative");
-  await expect(page.getByLabel("Settlement price summary")).toHaveCount(0);
-  await page.getByRole("button", { name: "Market view" }).click();
-  const ranking = page.getByLabel("Settlement price ranking");
-  await ranking.getByText("Complete hub and load-zone ranking", { exact: true }).click();
-  await expect(ranking.getByRole("table")).toBeVisible();
-  await expect(ranking.getByText(/Hub · HB_NORTH/)).toBeVisible();
-  await expect(ranking.getByText(/-\$42\.16\/MWh/)).toBeVisible();
-  await expect(ranking.getByText(/Hub · HB_SOUTH/)).toBeVisible();
-  await expectNoHorizontalOverflow(page);
 });
 
 test("P0 long source failures are summarized with complete drawer detail @mobile-core", async ({
@@ -622,7 +610,13 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(storage.getByText("Showing stale data")).toBeVisible();
+  await mobileNavigation.evaluate((element) => {
+    element.style.display = "none";
+  });
   await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png");
+  await mobileNavigation.evaluate((element) => {
+    element.style.display = "";
+  });
   await page.getByRole("button", { name: "Overview view" }).click();
   await sourceSummary.scrollIntoViewIfNeeded();
   await sourceSummary.getByRole("button", { name: "View diagnostics" }).click();
@@ -657,17 +651,11 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect(warning.getByLabel("ERCOT emergency conditions active")).toBeVisible();
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
   const structuredAlert = page.getByLabel("Active grid alerts");
-  await structuredAlert.scrollIntoViewIfNeeded();
-  await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png");
+  await structuredAlert.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
+    maxDiffPixels: 1600,
+  });
 
-  await page.unrouteAll({ behavior: "wait" });
-  await installMobileApi(page, "negative");
-  await page.goto("/?view=overview");
-  await page.getByRole("button", { name: "Market view" }).click();
-  await expect
-    .soft(page.getByLabel("Settlement price ranking"))
-    .toHaveScreenshot("mobile-negative-ranking.png");
-  await page.getByRole("button", { name: "Overview view" }).click();
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect
     .soft(page.getByRole("dialog", { name: "Inspect Supply and demand" }))

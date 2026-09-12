@@ -37,7 +37,9 @@ The collector polls ERCOT's public dashboard resources and reports metrics, oper
 
 See [architecture](docs/architecture.md), [legacy parity matrix](docs/parity-matrix.md),
 [ERCOT sources and schemas](docs/ercot-sources.md), [operations and rollback](docs/operations.md),
-and [verification evidence](docs/verification.md).
+and [verification evidence](docs/verification.md). The complete 23-PR review,
+promotion, and rollback sequence is in the
+[integrated Observatory handoff](docs/pr23-integrated-hardening-handoff.md).
 The opt-in NWS collector and its representative-point limitations are documented in
 [Predictive weather](docs/PREDICTIVE_WEATHER.md).
 The opt-in credential-free eGRID collector and its non-operational limitations are documented in

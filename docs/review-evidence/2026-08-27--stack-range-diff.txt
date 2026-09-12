@@ -1,0 +1,300 @@
+ 1:  41e0f97 <  -:  ------- fix: version immutable tile resources
+ -:  ------- >  1:  ea50b58 fix: keep canonical tiles memory-only
+ 2:  aa5ccce =  2:  dbf5552 feat: migrate fixed history to semantic tiles
+ 3:  5eab817 =  3:  ee09ebd feat: reuse semantic tiles for comparisons
+ 4:  06cc1ef !  4:  5eb190c feat: prepare v2 edge rollout observability
+    @@ docs/ercot-cloudflare-v2-tile-rollout.md (new)
+     +ETag: "214086f096d4e238aed49ac28487423310dfabe43a2df8dc27dadf6f4a44fa11"
+     +```
+     +
+    -+This is current public evidence that the v1 rule is still effective. It is not
+    -+a reason to replace or reorder that rule.
+    ++This is current public evidence that the v1 rule is still effective. The
+    ++`immutable` token is an unsafe age-based historical classification because
+    ++corrections remain possible; it is recorded here as observed legacy behavior,
+    ++not as the v2 target and not as proof of immutable bytes. It is not a reason to
+    ++replace or reorder that rule during this unapproved preparation.
+     +
+     +Production returned `404` and `CF-Cache-Status: DYNAMIC` for both
+     +`/api/v2/tile-catalog` and a canonical-looking `/api/v2/tiles/...` request.
+    @@ docs/ercot-cloudflare-v2-tile-rollout.md (new)
+     +| ------ | -------------------------------------------------- | -----------: | ------: | ----------: | ------------------------------------------------------------- |
+     +| live   | ends less than 5 minutes ago or in the future      |   10 seconds |   5 sec |      15 sec | `public, max-age=5, s-maxage=15, stale-while-revalidate=30`   |
+     +| recent | ends at least 5 minutes but less than 24 hours ago |    5 minutes |  60 sec |       5 min | `public, max-age=60, s-maxage=300, stale-while-revalidate=60` |
+    -+| sealed | ends at least 24 hours ago                         |     24 hours |  1 hour |    24 hours | `public, max-age=3600, s-maxage=86400, immutable`             |
+    ++| sealed | ends at least 24 hours ago                         |    5 minutes |  60 sec |       5 min | `public, max-age=60, s-maxage=300, must-revalidate`           |
+     +
+     +The proposed rule uses `edge_ttl.mode=respect_origin` and
+     +`browser_ttl.mode=respect_origin`; it must not override these class-specific
+    @@ docs/ercot-cloudflare-v2-tile-rollout.md (new)
+     +browser freshness. Free, Pro, and Business zones have Origin Cache Control on
+     +by default; an Enterprise zone must also be checked for an overriding setting.
+     +
+    -+`sealed` is an operational age class, not proof that corrections are
+    -+impossible. Receiver invalidation does not purge Cloudflare. Keep the 24-hour
+    -+sealed edge TTL until correction telemetry and a purge or URL-version contract
+    -+justify a change. Cloudflare distinguishes configurable freshness from
+    -+non-configurable LRU retention; a fresh object can still be evicted. See
+    ++`sealed` is only an operational age label, not proof that corrections are
+    ++impossible and not an immutable cache class. Receiver invalidation does not
+    ++purge Cloudflare, so v2 keeps a finite five-minute shared-cache freshness bound
+    ++until a separately reviewed purge or content-version URL design exists.
+    ++Cloudflare distinguishes configurable freshness from non-configurable LRU
+    ++retention; a fresh object can still be evicted. See
+     +[Retention versus freshness](https://developers.cloudflare.com/cache/concepts/retention-vs-freshness/).
+     +
+     +## Credential and control-plane preflight
+    @@ docs/pr08-v2-performance-evidence.md (new)
+     +MISS-to-HIT evidence remains a separate human-authorized deployment gate.
+     
+      ## ercot-receiver/server.py ##
+    -@@ ercot-receiver/server.py: TILE_SCHEMA_VERSION = 2
+    - TILE_CONTENT_VERSION_RE = re.compile(r"^t2-[0-9a-f]{64}$")
+    +@@ ercot-receiver/server.py: DB_LOCAL = threading.local()
+    + TILE_SCHEMA_VERSION = 2
+      TILE_SPANS = {"1h": 3600, "1d": 86400}
+      TILE_LOD_SECONDS = {"native": None, "5m": 300, "15m": 900, "1h": 3600}
+     +TILE_OBSERVABILITY_KEYS = frozenset(
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                      extra_headers = {
+                          "X-ERCOT-Cache": "HIT",
+                          "X-ERCOT-Cache-Class": category,
+    -@@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                             "X-ERCOT-Content-Version": content_version,
+    -                         }
+    -                     )
+    +                 }
+     -                self._send_json(
+     +                record_tile_metric(app, "tile_receiver_lru_hits_total")
+     +                record_cache_metric(app, "tile_lru_hits")
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+     +                        elapsed,
+     +                        maximum=True,
+     +                    )
+    -                 if category == "sealed":
+    -                     persist_tile_resource(get_db(), identity, payload_out)
+                      stored = app.cache.set_if_generation(
+    +                     cache_key,
+    +                     payload_out,
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                          ttl_seconds=ttl_seconds,
+                          category=f"tile:{category}",
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  extra_headers = {
+                      "X-ERCOT-Cache": "MISS" if generated else "HIT",
+                      "X-ERCOT-Cache-Class": category,
+    -@@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                         "X-ERCOT-Content-Version": content_version,
+    -                     }
+    -                 )
+    +                 "X-ERCOT-Singleflight": "SHARED" if shared else "LEADER",
+    +                 "X-ERCOT-Cache-Store": "STORED" if stored else "SKIPPED_RACE",
+    +             }
+     -            self._send_json(
+     +            not_modified = self._send_json(
+                      200,
+    @@ ercot-receiver/server.py: class Server(ThreadingHTTPServer):
+      
+     
+      ## ercot-receiver/test_server.py ##
+    +@@ ercot-receiver/test_server.py: import tempfile
+    + import threading
+    + import time
+    + import unittest
+    ++from unittest import mock
+    + 
+    + SERVER_PATH = Path(__file__).with_name("server.py")
+    + SPEC = importlib.util.spec_from_file_location("ercot_receiver_server", SERVER_PATH)
+     @@ ercot-receiver/test_server.py: class HttpQueryBoundsTests(unittest.TestCase):
+                  {
+                      "cache": server.Cache(60),
+    @@ ercot-receiver/test_server.py: class HttpQueryBoundsTests(unittest.TestCase):
+                      "limiter": server.RateLimiter(),
+                      "singleflight": server.SingleFlight(),
+                  },
+    +@@ ercot-receiver/test_server.py: class HttpQueryBoundsTests(unittest.TestCase):
+    +             }
+    +         ]
+    + 
+    +-        cached_empty, _headers = self.invoke("GET", "/api/v1/correction-age")
+    +-        self.assertEqual(cached_empty, {"corrections": []})
+    ++        with mock.patch.object(server, "now_ts", return_value=observed_at):
+    ++            cached_empty, _headers = self.invoke("GET", "/api/v1/correction-age")
+    ++            self.assertEqual(cached_empty, {"corrections": []})
+    + 
+    +-        original_api_key = server.API_KEY
+    +-        server.API_KEY = "fixture-api-key"
+    +-        try:
+    +-            request_headers = {"X-API-Key": "fixture-api-key"}
+    +-            self.invoke("POST", "/api/ingest", payload, request_headers)
+    +-            payload[0]["points"][0]["value"] = 2
+    +-            self.invoke("POST", "/api/ingest", payload, request_headers)
+    +-        finally:
+    +-            server.API_KEY = original_api_key
+    ++            original_api_key = server.API_KEY
+    ++            server.API_KEY = "fixture-api-key"
+    ++            try:
+    ++                request_headers = {"X-API-Key": "fixture-api-key"}
+    ++                self.invoke("POST", "/api/ingest", payload, request_headers)
+    ++                payload[0]["points"][0]["value"] = 2
+    ++                self.invoke("POST", "/api/ingest", payload, request_headers)
+    ++            finally:
+    ++                server.API_KEY = original_api_key
+    + 
+    +-        response, headers = self.invoke("GET", "/api/v1/correction-age")
+    ++            response, headers = self.invoke("GET", "/api/v1/correction-age")
+    + 
+    +         self.assertEqual(
+    +             response,
+     @@ ercot-receiver/test_server.py: class HttpQueryBoundsTests(unittest.TestCase):
+              self.assertEqual(regenerated_raw, first_raw)
+              self.assertEqual(regenerated_headers["ETag"], first_headers["ETag"])
+    @@ ercot-receiver/test_server.py: class HttpQueryBoundsTests(unittest.TestCase):
+     +        self.assertGreaterEqual(observed["tile_generation_latency_seconds_sum"], 0)
+     +        self.assertGreaterEqual(observed["tile_generation_latency_seconds_max"], 0)
+      
+    -     def test_v2_sealed_correction_mints_new_version_and_preserves_old_bytes(self):
+    +     def test_v2_correction_regenerates_affected_tile_and_keeps_unrelated_warm(self):
+              path = "/api/v2/tiles/supply-demand.demand/1d/86400/native"
+     @@ ercot-receiver/test_server.py: class HttpQueryBoundsTests(unittest.TestCase):
+              self.assertEqual(payload, {"error": "tile_series_backfill_incomplete"})
+ 5:  1750834 !  5:  6d2c670 feat: preserve ERCOT forecast vintages
+    @@ ercot-receiver/server.py: from tile_aggregates import (
+      
+      DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
+      WEB_DIR = os.path.join(BASE_DIR, "web")
+    -@@ ercot-receiver/server.py: TILE_RESOURCE_RETENTION_SECONDS = max(
+    -     int(os.environ.get("TILE_RESOURCE_RETENTION_SECONDS", str(366 * 86400))),
+    - )
+    +@@ ercot-receiver/server.py: SEALED_HISTORY_AGE_SECONDS = int(os.environ.get("SEALED_HISTORY_AGE_SECONDS", "8
+    + SEALED_CACHE_TTL_SECONDS = int(os.environ.get("SEALED_CACHE_TTL_SECONDS", "86400"))
+    + RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300"))
+      MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
+     +MAX_FORECAST_BODY_BYTES = 1024 * 1024
+      MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  if not self._rate_limit("ingest", RATE_LIMIT_INGEST_RPM):
+                      return
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/forecast-publications":
+ 6:  db3e9ff =  6:  ef6a96c feat: add grid outlook view
+ 7:  1f21f37 !  7:  a545cdc feat: add forecast quality analytics
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  self._send_json(200, {"updated": len(attempts)}, cache_control="no-store")
+                  return
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/forecast-quality":
+ 8:  8b43d27 !  8:  7af520e feat: add canonical net-load ramp resources
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  return
+      
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/net-load":
+ 9:  5b8fb41 !  9:  7e60b62 feat: add regional ERCOT geography diagnostics
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  self._send_json(200, result, cache_control="no-store")
+                  return
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/regional-geography":
+10:  e486ca0 ! 10:  c6b1ddc feat: add ERCOT market mechanics context
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  if not self._rate_limit("regional_renewable_ingest", RATE_LIMIT_INGEST_RPM):
+                      return
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/market-mechanics":
+11:  b03c391 ! 11:  9aa00b8 feat: add ERCOT congestion and price geography
+    @@ ercot-receiver/server.py: from market_mechanics import (
+      REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
+      
+      DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
+    -@@ ercot-receiver/server.py: TILE_RESOURCE_RETENTION_SECONDS = max(
+    - )
+    +@@ ercot-receiver/server.py: SEALED_CACHE_TTL_SECONDS = int(os.environ.get("SEALED_CACHE_TTL_SECONDS", "86400
+    + RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300"))
+      MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
+      MAX_FORECAST_BODY_BYTES = 1024 * 1024
+     +MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  if not self._rate_limit("market_mechanics_ingest", RATE_LIMIT_INGEST_RPM):
+                      return
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/market-geography":
+12:  c74ca5e = 12:  0b659cc feat: add truthful fleet storage operations
+13:  0d331fe = 13:  333c790 feat: add multi-cadence storage context replay
+14:  fb1a259 = 14:  dd6a2f6 docs: record blocked historical ESR preflight
+15:  50f7320 ! 15:  5c5f41f feat: add predictive NWS weather context
+    @@ ercot-receiver/server.py: from market_geography import (
+      REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
+      
+      DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
+    -@@ ercot-receiver/server.py: TILE_RESOURCE_RETENTION_SECONDS = max(
+    +@@ ercot-receiver/server.py: RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300")
+      MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
+      MAX_FORECAST_BODY_BYTES = 1024 * 1024
+      MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  return
+      
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/predictive-weather":
+16:  5f090ec ! 16:  1e2f67d feat: add unified grid event timeline
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  return
+      
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/grid-events":
+17:  5e988d4 ! 17:  5c24f3d feat: add observed historical demand context
+    @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+                  record_tile_metric(
+                      app,
+     @@ ercot-receiver/server.py: class Handler(BaseHTTPRequestHandler):
+    -                 extra_headers={"X-ERCOT-Content-Version": content_version},
+    +                 etag=True,
+                  )
+                  return
+     +        if parsed.path == "/api/v1/historical-context":
+18:  e855741 = 18:  051bb6b feat: add Texas Grid planning snapshots
+19:  7a10a41 = 19:  edc2e07 Complete reviewed long-term load forecast integration
+20:  46303ab = 20:  e86c03b feat: add external context methodology view
+21:  ec2efd8 = 21:  5fd6727 Implement optional EIA and Henry Hub collection
+22:  cae155c = 22:  efa0560 test: harden integrated Observatory handoff
+23:  2654b5c = 23:  3fb8ae6 docs: add plain-text campaign handoffs
+24:  b69cb26 = 24:  f3d32ed Add collector-local liveness and delivery health
+25:  1587e89 = 25:  a009c69 Document final remediation and staged deployment
+26:  4526db6 = 26:  27f771d Fix outage collector normalized metric type
+27:  30ca539 = 27:  991c4b6 Rebind Texas Grid VRI for load forecast
+28:  f988ee9 = 28:  d6f78c7 Stabilize chart screenshot tolerances
+29:  f4aa64c = 29:  4b75418 docs: add final human-review verification package
+ -:  ------- > 30:  76f323d docs: add technical human review packet

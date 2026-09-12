@@ -1,0 +1,565 @@
+{
+  "aggregate_reuse": {
+    "url_cardinality_reduction": -69,
+    "url_cardinality_reduction_percent": -12.455,
+    "v1_total_references": 24855,
+    "v1_unique_urls": 554,
+    "v2_reuse_factor": 42.13,
+    "v2_total_references": 26247,
+    "v2_unique_urls": 623,
+    "window_count": 300
+  },
+  "benchmark": {
+    "application_cache_definition": "same navigation process deduplicating exact canonical URLs",
+    "cold_definition": "fresh explicitly empty receiver LRU; OS page cache uncontrolled",
+    "correction_horizon_seconds": 86400,
+    "name": "canonical_tile_overlapping_window_reuse",
+    "production_planner": "frontend/src/dashboard/tile-planner.ts",
+    "seed": 20260827,
+    "target_point_count": 1200,
+    "total_windows": 300,
+    "warm_definition": "same receiver process with requested canonical tiles retained in bounded LRU",
+    "windows_per_range": 50
+  },
+  "correction": {
+    "affected_bytes_changed": true,
+    "affected_cache_after": "MISS",
+    "affected_etag_changed": true,
+    "unrelated_bytes_identical": true,
+    "unrelated_cache_after": "HIT",
+    "unrelated_etag_identical": true
+  },
+  "fixture": {
+    "cadence_seconds": 300,
+    "database_bytes": 59580416,
+    "end": 1772841600,
+    "physical_series_count": 2,
+    "rows": 247680,
+    "synthetic": true
+  },
+  "generated_at": 1787821200,
+  "mixed_key_concurrency": {
+    "leaders": 2,
+    "singleflight_waiters": 0.0,
+    "sqlite_generations": 2.0,
+    "statuses": [200]
+  },
+  "navigation_traces": {
+    "A": {
+      "reuse_factor": 1.359,
+      "reused_references": 14,
+      "steps": 6,
+      "total_references": 53,
+      "unique_urls": 39
+    },
+    "B": {
+      "reuse_factor": 1.6842,
+      "reused_references": 13,
+      "steps": 4,
+      "total_references": 32,
+      "unique_urls": 19
+    },
+    "C": {
+      "reuse_factor": 1.418,
+      "reused_references": 153,
+      "steps": 4,
+      "total_references": 519,
+      "unique_urls": 366
+    },
+    "D": {
+      "reuse_factor": 1.5556,
+      "reused_references": 5,
+      "steps": 4,
+      "total_references": 14,
+      "unique_urls": 9
+    }
+  },
+  "production_mutation": false,
+  "ranges": {
+    "1y": {
+      "planner": {
+        "application_cache_hit_ratio": 0.975291,
+        "application_cache_hits": 18117,
+        "application_cache_misses": 459,
+        "average_references_per_unique_tile": 40.4706,
+        "reuse_factor": 40.4706,
+        "url_cardinality_reduction": -84,
+        "url_cardinality_reduction_percent": -22.4,
+        "v1_total_references": 18280,
+        "v1_unique_urls": 375,
+        "v2_total_references": 18576,
+        "v2_unique_urls": 459,
+        "window_count": 50,
+        "windows_reusing_existing_tile_percent": 98.0
+      },
+      "receiver": {
+        "cold": {
+          "cache_headers": ["MISS"],
+          "json_parse": {
+            "p50_seconds": 5.6541990488767624e-5,
+            "p95_seconds": 6.479199510067701e-5,
+            "p99_seconds": 0.0006364999862853438
+          },
+          "latency": {
+            "p50_seconds": 0.001856833987403661,
+            "p95_seconds": 0.002259375003632158,
+            "p99_seconds": 0.005582958983723074
+          },
+          "receiver_hits": 0.0,
+          "receiver_misses": 459.0,
+          "sqlite_generations": 459.0,
+          "sqlite_query_seconds": 0.052022796822711825,
+          "sqlite_statements": 1377.0,
+          "tile_merge": {
+            "p50_seconds": 1.2919772416353226e-6,
+            "p95_seconds": 1.3750104699283838e-6,
+            "p99_seconds": 1.3500015484169126e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0018472919764462858,
+            "p95_seconds": 0.002247832977445796,
+            "p99_seconds": 0.005570916982833296
+          }
+        },
+        "requests": 459,
+        "response_bytes": 4134745,
+        "warm": {
+          "cache_headers": ["HIT"],
+          "json_parse": {
+            "p50_seconds": 5.658299778588116e-5,
+            "p95_seconds": 6.062499596737325e-5,
+            "p99_seconds": 0.0006376249948516488
+          },
+          "latency": {
+            "p50_seconds": 0.0003713329788297415,
+            "p95_seconds": 0.00041454200982116163,
+            "p99_seconds": 0.0011016659846063703
+          },
+          "receiver_hits": 459.0,
+          "receiver_misses": 0.0,
+          "sqlite_generations": 0.0,
+          "sqlite_query_seconds": 0.0,
+          "sqlite_statements": 0.0,
+          "tile_merge": {
+            "p50_seconds": 1.2920063454657793e-6,
+            "p95_seconds": 1.374981366097927e-6,
+            "p99_seconds": 1.3541983207687736e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0003632080042734742,
+            "p95_seconds": 0.0004049580020364374,
+            "p99_seconds": 0.0010883340146392584
+          }
+        }
+      }
+    },
+    "24h": {
+      "planner": {
+        "application_cache_hit_ratio": 0.659664,
+        "application_cache_hits": 157,
+        "application_cache_misses": 81,
+        "average_references_per_unique_tile": 2.9383,
+        "reuse_factor": 2.9383,
+        "url_cardinality_reduction": -70,
+        "url_cardinality_reduction_percent": -636.364,
+        "v1_total_references": 80,
+        "v1_unique_urls": 11,
+        "v2_total_references": 238,
+        "v2_unique_urls": 81,
+        "window_count": 50,
+        "windows_reusing_existing_tile_percent": 98.0
+      },
+      "receiver": {
+        "cold": {
+          "cache_headers": ["MISS"],
+          "json_parse": {
+            "p50_seconds": 2.6250199880450964e-6,
+            "p95_seconds": 0.0006585000082850456,
+            "p99_seconds": 0.0007915000023785979
+          },
+          "latency": {
+            "p50_seconds": 0.0010382079926785082,
+            "p95_seconds": 0.005630041006952524,
+            "p99_seconds": 0.0057366249966435134
+          },
+          "receiver_hits": 0.0,
+          "receiver_misses": 81.0,
+          "sqlite_generations": 81.0,
+          "sqlite_query_seconds": 0.0033491361828055233,
+          "sqlite_statements": 243.0,
+          "tile_merge": {
+            "p50_seconds": 2.0800507627427578e-7,
+            "p95_seconds": 1.329102087765932e-5,
+            "p99_seconds": 1.4082994312047958e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0010288330086041242,
+            "p95_seconds": 0.0056157910148613155,
+            "p99_seconds": 0.005724374990677461
+          }
+        },
+        "requests": 81,
+        "response_bytes": 769168,
+        "warm": {
+          "cache_headers": ["HIT"],
+          "json_parse": {
+            "p50_seconds": 2.6249908842146397e-6,
+            "p95_seconds": 0.0006608749972656369,
+            "p99_seconds": 0.0006696670025121421
+          },
+          "latency": {
+            "p50_seconds": 0.0002766670077107847,
+            "p95_seconds": 0.0010882920178119093,
+            "p99_seconds": 0.0011295829899609089
+          },
+          "receiver_hits": 81.0,
+          "receiver_misses": 0.0,
+          "sqlite_generations": 0.0,
+          "sqlite_query_seconds": 0.0,
+          "sqlite_statements": 0.0,
+          "tile_merge": {
+            "p50_seconds": 2.0800507627427578e-7,
+            "p95_seconds": 1.329201040789485e-5,
+            "p99_seconds": 1.3459008187055588e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.000269292009761557,
+            "p95_seconds": 0.0010715000098571181,
+            "p99_seconds": 0.0011068329913541675
+          }
+        }
+      }
+    },
+    "30d": {
+      "planner": {
+        "application_cache_hit_ratio": 0.93264,
+        "application_cache_hits": 1703,
+        "application_cache_misses": 123,
+        "average_references_per_unique_tile": 14.8455,
+        "reuse_factor": 14.8455,
+        "url_cardinality_reduction": -83,
+        "url_cardinality_reduction_percent": -207.5,
+        "v1_total_references": 1530,
+        "v1_unique_urls": 40,
+        "v2_total_references": 1826,
+        "v2_unique_urls": 123,
+        "window_count": 50,
+        "windows_reusing_existing_tile_percent": 98.0
+      },
+      "receiver": {
+        "cold": {
+          "cache_headers": ["MISS"],
+          "json_parse": {
+            "p50_seconds": 2.707995008677244e-6,
+            "p95_seconds": 0.0006205000099726021,
+            "p99_seconds": 0.0006277079810388386
+          },
+          "latency": {
+            "p50_seconds": 0.001054332999046892,
+            "p95_seconds": 0.005469042022014037,
+            "p99_seconds": 0.005611499975202605
+          },
+          "receiver_hits": 0.0,
+          "receiver_misses": 123.0,
+          "sqlite_generations": 123.0,
+          "sqlite_query_seconds": 0.008482457662466913,
+          "sqlite_statements": 369.0,
+          "tile_merge": {
+            "p50_seconds": 2.0899460650980473e-7,
+            "p95_seconds": 1.3417011359706521e-5,
+            "p99_seconds": 1.3499986380338669e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0010454579896759242,
+            "p95_seconds": 0.005454208003357053,
+            "p99_seconds": 0.005600208998657763
+          }
+        },
+        "requests": 123,
+        "response_bytes": 1263669,
+        "warm": {
+          "cache_headers": ["HIT"],
+          "json_parse": {
+            "p50_seconds": 2.6659981813281775e-6,
+            "p95_seconds": 0.0006201660144142807,
+            "p99_seconds": 0.0006234579777810723
+          },
+          "latency": {
+            "p50_seconds": 0.0002811669837683439,
+            "p95_seconds": 0.0010766249906737357,
+            "p99_seconds": 0.00108695900416933
+          },
+          "receiver_hits": 123.0,
+          "receiver_misses": 0.0,
+          "sqlite_generations": 0.0,
+          "sqlite_query_seconds": 0.0,
+          "sqlite_statements": 0.0,
+          "tile_merge": {
+            "p50_seconds": 2.0899460650980473e-7,
+            "p95_seconds": 1.3499986380338669e-5,
+            "p99_seconds": 1.3582990504801273e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0002734159934334457,
+            "p95_seconds": 0.0010599159868434072,
+            "p99_seconds": 0.0010769999935291708
+          }
+        }
+      }
+    },
+    "6h": {
+      "planner": {
+        "application_cache_hit_ratio": 0.714286,
+        "application_cache_hits": 75,
+        "application_cache_misses": 30,
+        "average_references_per_unique_tile": 3.5,
+        "reuse_factor": 3.5,
+        "url_cardinality_reduction": -19,
+        "url_cardinality_reduction_percent": -172.727,
+        "v1_total_references": 55,
+        "v1_unique_urls": 11,
+        "v2_total_references": 105,
+        "v2_unique_urls": 30,
+        "window_count": 50,
+        "windows_reusing_existing_tile_percent": 92.0
+      },
+      "receiver": {
+        "cold": {
+          "cache_headers": ["MISS"],
+          "json_parse": {
+            "p50_seconds": 2.6874913601204753e-6,
+            "p95_seconds": 0.0006986660009715706,
+            "p99_seconds": 0.000979125004960224
+          },
+          "latency": {
+            "p50_seconds": 0.0012921875168103725,
+            "p95_seconds": 0.006634958001086488,
+            "p99_seconds": 0.007136792002711445
+          },
+          "receiver_hits": 0.0,
+          "receiver_misses": 30.0,
+          "sqlite_generations": 30.0,
+          "sqlite_query_seconds": 0.001983039896003902,
+          "sqlite_statements": 90.0,
+          "tile_merge": {
+            "p50_seconds": 2.0849984139204025e-7,
+            "p95_seconds": 1.3791985111311078e-5,
+            "p99_seconds": 1.4666991773992777e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0012815210066037253,
+            "p95_seconds": 0.006618166022235528,
+            "p99_seconds": 0.007094333006534725
+          }
+        },
+        "requests": 30,
+        "response_bytes": 754888,
+        "warm": {
+          "cache_headers": ["HIT"],
+          "json_parse": {
+            "p50_seconds": 2.687011146917939e-6,
+            "p95_seconds": 0.0006705840060021728,
+            "p99_seconds": 0.000674375012749806
+          },
+          "latency": {
+            "p50_seconds": 0.00026620850258041173,
+            "p95_seconds": 0.0011574579984880984,
+            "p99_seconds": 0.001175290992250666
+          },
+          "receiver_hits": 30.0,
+          "receiver_misses": 0.0,
+          "sqlite_generations": 0.0,
+          "sqlite_query_seconds": 0.0,
+          "sqlite_statements": 0.0,
+          "tile_merge": {
+            "p50_seconds": 2.0800507627427578e-7,
+            "p95_seconds": 1.3374985428526998e-5,
+            "p99_seconds": 1.3457989552989602e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0002581250009825453,
+            "p95_seconds": 0.0011344170197844505,
+            "p99_seconds": 0.0011554579832591116
+          }
+        }
+      }
+    },
+    "7d": {
+      "planner": {
+        "application_cache_hit_ratio": 0.852071,
+        "application_cache_hits": 576,
+        "application_cache_misses": 100,
+        "average_references_per_unique_tile": 6.76,
+        "reuse_factor": 6.76,
+        "url_cardinality_reduction": -83,
+        "url_cardinality_reduction_percent": -488.235,
+        "v1_total_references": 380,
+        "v1_unique_urls": 17,
+        "v2_total_references": 676,
+        "v2_unique_urls": 100,
+        "window_count": 50,
+        "windows_reusing_existing_tile_percent": 98.0
+      },
+      "receiver": {
+        "cold": {
+          "cache_headers": ["MISS"],
+          "json_parse": {
+            "p50_seconds": 2.6250199880450964e-6,
+            "p95_seconds": 0.0006272079772315919,
+            "p99_seconds": 0.0006295829953160137
+          },
+          "latency": {
+            "p50_seconds": 0.001039396011037752,
+            "p95_seconds": 0.005645958997774869,
+            "p99_seconds": 0.005832124996231869
+          },
+          "receiver_hits": 0.0,
+          "receiver_misses": 100.0,
+          "sqlite_generations": 100.0,
+          "sqlite_query_seconds": 0.005565413710428402,
+          "sqlite_statements": 300.0,
+          "tile_merge": {
+            "p50_seconds": 2.0800507627427578e-7,
+            "p95_seconds": 1.3499986380338669e-5,
+            "p99_seconds": 1.404198701493442e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.001030062499921769,
+            "p95_seconds": 0.005628166982205585,
+            "p99_seconds": 0.00580516699119471
+          }
+        },
+        "requests": 100,
+        "response_bytes": 1407046,
+        "warm": {
+          "cache_headers": ["HIT"],
+          "json_parse": {
+            "p50_seconds": 2.604501787573099e-6,
+            "p95_seconds": 0.0006270830053836107,
+            "p99_seconds": 0.000629082991508767
+          },
+          "latency": {
+            "p50_seconds": 0.0002810004953062162,
+            "p95_seconds": 0.0010822920012287796,
+            "p99_seconds": 0.0011073339846916497
+          },
+          "receiver_hits": 100.0,
+          "receiver_misses": 0.0,
+          "sqlite_generations": 0.0,
+          "sqlite_query_seconds": 0.0,
+          "sqlite_statements": 0.0,
+          "tile_merge": {
+            "p50_seconds": 2.0800507627427578e-7,
+            "p95_seconds": 1.362498733215034e-5,
+            "p99_seconds": 1.3749988283962011e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0002731874992605299,
+            "p95_seconds": 0.0010719589772634208,
+            "p99_seconds": 0.0010908340045716614
+          }
+        }
+      }
+    },
+    "90d": {
+      "planner": {
+        "application_cache_hit_ratio": 0.96208,
+        "application_cache_hits": 4643,
+        "application_cache_misses": 183,
+        "average_references_per_unique_tile": 26.3716,
+        "reuse_factor": 26.3716,
+        "url_cardinality_reduction": -83,
+        "url_cardinality_reduction_percent": -83.0,
+        "v1_total_references": 4530,
+        "v1_unique_urls": 100,
+        "v2_total_references": 4826,
+        "v2_unique_urls": 183,
+        "window_count": 50,
+        "windows_reusing_existing_tile_percent": 98.0
+      },
+      "receiver": {
+        "cold": {
+          "cache_headers": ["MISS"],
+          "json_parse": {
+            "p50_seconds": 5.591599619947374e-5,
+            "p95_seconds": 0.000625124986981973,
+            "p99_seconds": 0.0006408329936675727
+          },
+          "latency": {
+            "p50_seconds": 0.0018006669997703284,
+            "p95_seconds": 0.005434167018393055,
+            "p99_seconds": 0.0056642909767106175
+          },
+          "receiver_hits": 0.0,
+          "receiver_misses": 183.0,
+          "sqlite_generations": 183.0,
+          "sqlite_query_seconds": 0.01630429085344076,
+          "sqlite_statements": 549.0,
+          "tile_merge": {
+            "p50_seconds": 1.2500095181167126e-6,
+            "p95_seconds": 1.3374985428526998e-5,
+            "p99_seconds": 1.3625016435980797e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.0017922919942066073,
+            "p95_seconds": 0.005422250018455088,
+            "p99_seconds": 0.005634707980789244
+          }
+        },
+        "requests": 183,
+        "response_bytes": 1761129,
+        "warm": {
+          "cache_headers": ["HIT"],
+          "json_parse": {
+            "p50_seconds": 5.58749889023602e-5,
+            "p95_seconds": 0.0006190419953782111,
+            "p99_seconds": 0.0006313330086413771
+          },
+          "latency": {
+            "p50_seconds": 0.0003532499831635505,
+            "p95_seconds": 0.0011079579999204725,
+            "p99_seconds": 0.0011953340144827962
+          },
+          "receiver_hits": 183.0,
+          "receiver_misses": 0.0,
+          "sqlite_generations": 0.0,
+          "sqlite_query_seconds": 0.0,
+          "sqlite_statements": 0.0,
+          "tile_merge": {
+            "p50_seconds": 1.2500095181167126e-6,
+            "p95_seconds": 1.3500015484169126e-5,
+            "p99_seconds": 1.3625016435980797e-5
+          },
+          "ttfb": {
+            "p50_seconds": 0.000344915984896943,
+            "p95_seconds": 0.0010871660197153687,
+            "p99_seconds": 0.0011831250158138573
+          }
+        }
+      }
+    }
+  },
+  "restart": {
+    "bytes_identical": true,
+    "cache_header": "MISS",
+    "etag_identical": true,
+    "persistent_tile_table_absent": true,
+    "sqlite_generations": 1.0
+  },
+  "runtime": {
+    "node": "v25.8.2",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3"
+  },
+  "same_key_concurrency": {
+    "clients": 10,
+    "leader_responses": 1,
+    "shared_responses": 9,
+    "statuses": [200],
+    "tile_origin_requests_total": 10.0,
+    "tile_singleflight_waits_total": 9.0,
+    "tile_sqlite_generation_attempts_total": 1.0,
+    "tile_sqlite_generations_total": 1.0
+  },
+  "schema": 1
+}

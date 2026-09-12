@@ -1,0 +1,21 @@
+digraph tile_paths {
+  graph [bgcolor="transparent", rankdir=TB, pad=0.25, nodesep=0.45, ranksep=0.65];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#334155", fillcolor="#e2e8f0"];
+  edge [fontname="Helvetica", fontsize=9, color="#475569"];
+  request [label="Canonical tile request"];
+  browser [label="Browser cache"];
+  cdn [label="CDN / shared HTTP cache"];
+  lru [label="Receiver process LRU"];
+  sqlite [label="Authoritative SQLite metrics", fillcolor="#bae6fd"];
+  response [label="Deterministic bytes + strong ETag", fillcolor="#dcfce7"];
+  nofiles [label="No tile body files\nNo tile_resources table", fillcolor="#fee2e2"];
+  request -> browser [label="1"];
+  browser -> response [label="HIT"];
+  browser -> cdn [label="MISS"];
+  cdn -> response [label="HIT / 304"];
+  cdn -> lru [label="MISS / revalidate"];
+  lru -> response [label="HIT"];
+  lru -> sqlite [label="MISS: one bounded query"];
+  sqlite -> response [label="generate once; cache in memory"];
+  sqlite -> nofiles [style=dashed, label="persistence boundary"];
+}

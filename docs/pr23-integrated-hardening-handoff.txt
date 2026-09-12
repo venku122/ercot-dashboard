@@ -1,0 +1,279 @@
+Integrated Observatory hardening and deployment handoff
+
+Outcome
+
+The 23-draft Observatory stack is implementation-complete for human review. It
+adds source-time and provenance contracts, correction-safe historical resources,
+lazy analytical views, and explicit unavailable states without replacing ERCOT's
+faster operational feeds. Every campaign branch remains unmerged and nothing in
+this campaign has been deployed.
+
+This document is a review and promotion handoff, not deployment authorization.
+Production promotion still requires approved credentials, a complete Portainer
+environment backup, pinned images, a database backup, real-origin smoke tests,
+and an explicit human go/no-go decision.
+
+Review stack
+
+Review and merge strictly from the bottom upward. Each draft is based on the
+preceding branch; reviewing a later draft in isolation hides its dependencies.
+
+| Order | Draft                                                      | Scope                                                 |
+| ----: | ---------------------------------------------------------- | ----------------------------------------------------- |
+|     1 | #33 (https://github.com/venku122/ercot-dashboard/pull/33) | Safe-start authenticated ERCOT API foundation         |
+|     2 | #34 (https://github.com/venku122/ercot-dashboard/pull/34) | Product catalog and source framework                  |
+|     3 | #35 (https://github.com/venku122/ercot-dashboard/pull/35) | Historical source-contract baselines                  |
+|     4 | #36 (https://github.com/venku122/ercot-dashboard/pull/36) | Normalized series identity                            |
+|     5 | #37 (https://github.com/venku122/ercot-dashboard/pull/37) | Canonical v2 aggregate tiles, cache, and singleflight |
+|     6 | #38 (https://github.com/venku122/ercot-dashboard/pull/38) | Frontend semantic tile planner                        |
+|     7 | #39 (https://github.com/venku122/ercot-dashboard/pull/39) | Comparison request reuse                              |
+|     8 | #40 (https://github.com/venku122/ercot-dashboard/pull/40) | Edge-rollout observability and performance evidence   |
+|     9 | #41 (https://github.com/venku122/ercot-dashboard/pull/41) | Forecast-vintage storage                              |
+|    10 | #42 (https://github.com/venku122/ercot-dashboard/pull/42) | Grid Outlook UI                                       |
+|    11 | #43 (https://github.com/venku122/ercot-dashboard/pull/43) | Forecast-quality analytics                            |
+|    12 | #44 (https://github.com/venku122/ercot-dashboard/pull/44) | Net-load and ramp resources                           |
+|    13 | #45 (https://github.com/venku122/ercot-dashboard/pull/45) | Regional ERCOT geography                              |
+|    14 | #46 (https://github.com/venku122/ercot-dashboard/pull/46) | Market-mechanics evidence                             |
+|    15 | #47 (https://github.com/venku122/ercot-dashboard/pull/47) | Congestion and price geography                        |
+|    16 | #48 (https://github.com/venku122/ercot-dashboard/pull/48) | Fleet storage operations                              |
+|    17 | #49 (https://github.com/venku122/ercot-dashboard/pull/49) | Multi-cadence storage context replay                  |
+|    18 | #50 (https://github.com/venku122/ercot-dashboard/pull/50) | Predictive NWS weather context                        |
+|    19 | #51 (https://github.com/venku122/ercot-dashboard/pull/51) | Unified grid-event timeline                           |
+|    20 | #52 (https://github.com/venku122/ercot-dashboard/pull/52) | Observed historical demand context                    |
+|    21 | #53 (https://github.com/venku122/ercot-dashboard/pull/53) | Texas Grid planning snapshots                         |
+|    22 | #54 (https://github.com/venku122/ercot-dashboard/pull/54) | External EIA/EPA/natural-gas context boundaries       |
+|    23 | PR23                                                       | Integrated hardening, handoff, and final evidence     |
+
+Source and methodology boundary
+
+- ERCOT operational sources remain authoritative for ERCOT operations. External,
+  weather, planning, and settlement products never backfill or override them.
+- Native timestamps, repeated-hour flags, forecast vintages, publication clocks,
+  and retrieval clocks remain distinct. Missing observations are not zero-filled,
+  interpolated, forward-filled, or borrowed from a nearby interval.
+- Multi-source panels align a common UTC viewport only. They do not claim causal
+  attribution, exact price decomposition, battery response, or weather-driven
+  grid outcomes.
+- Four-second ESR is historical-only and discontinued after 2025-12-05. The UI
+  does not present a current four-second battery feed, resource-level storage,
+  state of charge, or inferred dispatch intent.
+- TXANS has no reviewed structured public history feed in this campaign and is
+  explicitly unavailable. NWS alerts remain Texas-statewide weather evidence,
+  not ERCOT grid alerts or ERCOT-footprint coverage.
+- Texas Grid publishes aggregate official planning snapshots. Installed,
+  operational, planned, studied, inactive, cancelled, and retirement concepts
+  are never collapsed into one capacity number.
+- PR22's runnable source is credential-free annual EPA eGRID methodology context.
+  EIA-930 and Henry Hub remain disabled in this bounded slice, and EPA CAMD
+  remains unavailable until its footprint, coverage, and unit methodology are
+  reviewed.
+
+Integrated deterministic evidence
+
+The final evidence must be rerun at PR23 head before promotion. Evidence belongs
+in the PR discussion or change record with the exact commit and environment; do
+not substitute results from an earlier stacked branch.
+
+Static, unit, and contract suites
+
+bash
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run test:frontend
+pnpm run test:receiver
+pnpm run test:collector
+pnpm run build
+
+
+At the final PR23 candidate head, the deterministic suites passed with 327
+frontend tests, 257 receiver tests, 150 collector tests, and 13 cross-layer
+script contract/benchmark tests. Typecheck, lint with zero warnings, format,
+the 419-module production build, and development/production Compose expansion
+passed. The receiver run emitted only the pre-existing regional-geography test
+connection ResourceWarning messages.
+
+Storage, cardinality, and correction behavior
+
+The receiver acceptance suites exercise bounded publication and resource growth:
+
+- 300 open-day market-mechanics runs create no immutable daily blobs; rollover
+  seals once and a completed-day correction adds only the affected scalar version.
+- 300 open-day market-geography snapshots likewise create no immutable resources;
+  rollover seals once.
+- Predictive weather retains at most eight snapshots per stream.
+- Texas Grid enforces a 365-day immutable grace, at most four corrected versions
+  per source month after that grace, and a 120-month publication horizon.
+- External eGRID resources retain at least the latest five versions and honor the
+  advertised one-year immutable cache lifetime within a ten-year grace.
+- Historical context rebuilds bounded Chicago civil-hour/day summaries and keeps
+  old content-versioned bytes stable after correction.
+
+These are application bounds, not claims about upstream completeness or
+production database size.
+
+Synthetic receiver benchmark
+
+pnpm run test:performance at PR22 head loaded 105,120 tagged five-minute rows.
+The temporary SQLite database was 30,736,384 bytes; an idempotent replay caused
+zero page growth. Processed-cache evidence showed 11 hits, two misses (84.6%),
+with approximately 372× warm speedup for a six-hour window and 3,012× for seven
+days. The 12-month raw query median was about 82.8 ms, the hourly query median
+about 59.0 ms, and the two-hour min/max query median about 183.8 ms.
+
+This is deterministic local evidence. It is not a production latency, storage,
+Cloudflare HIT, purge, or retention measurement.
+
+The PR23 historical-context benchmark used 401 Chicago local dates and 115,488
+raw points in a 26,570,752-byte temporary database. Initial materialization took
+about 2.66 seconds; warm resolution had a 40.5 ms median. A correction rebuilt
+one day through one bounded raw query in about 46.9 ms, created one new resource,
+and preserved the prior content-version bytes. The materialized cardinality was
+401 day rows, 9,623 civil-hour rows, and two resource rows totaling 8,120 bytes.
+These figures are likewise isolated local evidence, not a production capacity
+forecast.
+
+The full canonical-tile benchmark used 105,696 rows in a 23,351,296-byte
+temporary database. Across the fixed 6h through 1y windows, the v2 planner made
+500 requests to 374 unique URLs versus 494 independently frozen v1 URLs, a 120
+URL (24.291%) cross-window reuse gain. Cold and warm bodies were byte-identical;
+warm requests performed zero SQLite generation work. The 10-client singleflight
+case generated once, served one leader plus nine waiters, and returned 200 to all
+clients. The one-year window remains 366 tile requests and about 3.03 MB of
+response bodies, so annual history is bounded and cacheable but not a single
+small request.
+
+Browser, accessibility, and visual regression
+
+Run the complete Chromium project and the explicit mobile matrix used by CI:
+
+bash
+pnpm exec playwright test --project=chromium
+pnpm exec playwright test \
+  e2e/mobile.spec.ts \
+  e2e/mobile-regional-geography.spec.ts \
+  e2e/mobile-market-mechanics.spec.ts \
+  e2e/mobile-market-geography.spec.ts \
+  e2e/mobile-storage-operations.spec.ts \
+  e2e/mobile-storage-context-replay.spec.ts \
+  e2e/mobile-predictive-weather.spec.ts \
+  e2e/mobile-grid-event-timeline.spec.ts \
+  e2e/mobile-historical-context.spec.ts \
+  e2e/mobile-texas-grid.spec.ts \
+  e2e/mobile-external-context.spec.ts \
+  --project=mobile \
+  --project=iphone-pro-max-webkit \
+  --project=compact-mobile \
+  --project=iphone-landscape-webkit
+
+
+The committed baselines include Darwin and pinned Playwright 1.61.1 Noble images
+for every new analytical surface. Promotion requires immediate no-update
+comparison, visual inspection, keyboard/focus checks, 44 px mobile controls, no
+page-level horizontal overflow, and focusable internal scrolling for wide exact
+tables. A passing pixel threshold does not replace human inspection.
+
+Final PR23 browser evidence passed 48/48 desktop Chromium cases on Darwin and
+48/48 in pinned Noble, plus 76/76 cases across the explicit mobile Chromium,
+iPhone WebKit, compact mobile, and iPhone landscape matrix in both environments.
+Each platform had an update run followed by an immediate no-update comparison;
+the only Darwin retry was a scoped text-antialias tolerance for the already
+geometry-asserted 54 px structured-alert image. The final analytical overview,
+storage cards, derived readings, structured alert, inspect view, and market
+mechanics images were visually reviewed. No body overflow, clipped exact table,
+or black-marker regression remained.
+
+API compatibility and failure behavior
+
+- Legacy v1 endpoints remain available while v2 semantic tile and immutable
+  resource routes are additive. Do not remove v1 paths during stacked review.
+- Public manifest/resolver routes reject unknown query parameters and noncanonical
+  numeric or content-version aliases where their contracts require queryless or
+  canonical URLs.
+- Authenticated ingest routes return 401 without the shared receiver key. Rate
+  limits return 429 without mutating data; invalid bodies and source collisions
+  fail closed; upstream or materialization failure keeps a truthful last-good
+  pointer when one exists and exposes failure health separately.
+- ETag/304, singleflight waiter bytes, generation-aware invalidation, and
+  correction-created content versions are covered by black-box receiver tests.
+- A 5xx must not advance a publication pointer, checkpoint, or materialization
+  generation. Retry/recovery must reset failure counters only after a valid
+  success.
+
+Environment and secret inventory
+
+Production Compose requires METRICS_API_KEY. Every new collector is opt-in and
+disabled by default:
+
+- ERCOT_FORECAST_INGEST_ENABLED
+- ERCOT_RENEWABLE_INGEST_ENABLED
+- ERCOT_REGIONAL_RENEWABLE_INGEST_ENABLED
+- ERCOT_MARKET_MECHANICS_INGEST_ENABLED
+- ERCOT_MARKET_GEOGRAPHY_INGEST_ENABLED
+- NWS_WEATHER_INGEST_ENABLED
+- ERCOT_LONG_HORIZON_INGEST_ENABLED
+- EXTERNAL_CONTEXT_INGEST_ENABLED
+
+The associated endpoint variables default to the internal receiver. NWS also
+requires an identifying user agent. Credentialed ERCOT products require the
+username, password, and reviewed subscription keys. EIA_API_KEY is optional
+and unused by PR22's bounded runner. Never place real values in Git, PR text,
+screenshots, logs, source-health metadata, or receiver payloads.
+
+Before a Portainer update, export the current stack definition and its complete
+Env array, record image digests and OCI revisions, and compare the variable-name
+inventory with Compose. Preserve unknown existing variables. Use Prune=false.
+Do not enable every collector at once: credentials, source contracts, and initial
+backfill/load must be reviewed per source.
+
+Safest promotion order
+
+1. Review and merge PRs #33 through #55 in stack order. Rebase later heads after
+   each merge if GitHub cannot preserve the stacked ancestry; rerun the final
+   deterministic suite at the resulting main revision.
+2. Build receiver and collector images from that exact revision. Record immutable
+   digests and retain the current production digests as rollback inputs.
+3. Export the production Portainer stack file and complete environment array.
+   Back up SQLite using the backup API or with the receiver stopped; preserve the
+   database, WAL, and SHM coherently.
+4. Deploy the receiver first with all new collectors disabled. Use Prune=false.
+   Verify health, migrations, legacy v1 APIs, v2 catalog/resources, 401 behavior,
+   and real-origin browser loading.
+5. Deploy the collector image with all new opt-ins still false. Verify existing
+   source health and data timestamps before enabling any new source.
+6. Enable only authorized, source-reviewed collectors, one complete Env-preserving
+   update at a time. The safest new-surface order is market geography, NWS,
+   Texas Grid, then eGRID; validate each before proceeding. Keep EIA-930, Henry
+   Hub, EPA CAMD, and any credential-dependent source without approved runtime
+   credentials disabled. Verify publication identity, data timestamp, correction
+   behavior, source health, request volume, database growth, and UI truth after
+   each change.
+7. Run desktop Chromium, physical or pinned WebKit mobile smoke checks through the
+   real public origin and confirm the API response body—not only the HTML shell.
+8. Activate or alter Cloudflare cache rules only after origin validation, using
+   the separately reviewed rule snapshot and narrow operation. Verify MISS/HIT,
+   strong ETag/304, invalid-path non-caching, purge, and rollback at the same PoP.
+
+Rollback
+
+If receiver validation fails, stop the collector, restore the previous pinned
+receiver and collector image digests, restore the saved complete Portainer Env
+array, and restart without pruning. Additive tables can remain if the old build
+ignores them; restore the coherent database backup only when the reviewed
+migration/compatibility decision requires it. Never restore only a live SQLite
+main file while discarding an active WAL.
+
+If one opt-in source fails, disable only that source, verify its requests stop,
+and preserve the other sources and last-good data. Do not represent the failure
+as a valid empty dataset. Cloudflare rollback is separate: remove or disable only
+the saved v2 rule ID and re-verify the previous rule ordering and cache behavior.
+
+Deliberately deferred
+
+- Production deployment, Portainer mutation, and Cloudflare mutation.
+- Current four-second ESR and resource-level storage/SOC claims.
+- Complete TXANS history and ERCOT-footprint filtering of NWS alerts.
+- Binding-constraint price attribution without shift factors.
+- Large-load status, verified gross retirements, and unit-frozen LTLF publication.
+- Credentialed EIA-930/Henry Hub transport and EPA CAMD integration.
+- Any claim of all-time records, source completeness before collection start, or
+  immutable age-only tile bytes after an upstream correction.

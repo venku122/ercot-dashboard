@@ -11,13 +11,18 @@ if (!entry) throw new Error("benchmark_series_missing_from_catalog");
 
 function plannedWindows(correctionHorizonSeconds) {
   return Object.fromEntries(
-    options.windows.map(([label, span]) => {
+    options.windows.map((window) => {
+      const [label, span] = Array.isArray(window)
+        ? window
+        : [window.label, window.end - window.start];
+      const windowEnd = Array.isArray(window) ? options.end : window.end;
+      const windowStart = Array.isArray(window) ? options.end - span : window.start;
       const request = {
         catalog,
-        end: options.end,
+        end: windowEnd,
         entry,
         now: options.now,
-        start: options.end - span,
+        start: windowStart,
       };
       if (correctionHorizonSeconds !== undefined) {
         request.correctionHorizonSeconds = correctionHorizonSeconds;

@@ -1,5 +1,12 @@
 import { fixedInterval } from "./deps.ts";
 import {
+  collectorCycleStarted,
+  collectorDeliveryFailed,
+  collectorDeliverySucceeded,
+  collectorUpstreamFailed,
+  collectorUpstreamSucceeded,
+} from "./collector_health.ts";
+import {
   configuredEiaKey,
   EIA930_SOURCE_URL,
   EGRID_DISCOVERY_URL,
@@ -179,6 +186,7 @@ export async function runEiaExternalContextCycle(
   const target = endpointUrl(endpoint);
   const key = configuredEiaKey(eiaApiKey);
   if (!key) return;
+  collectorCycleStarted("external_context");
   const products = [
     {
       stream: "eia930_demand",
@@ -199,9 +207,19 @@ export async function runEiaExternalContextCycle(
   ] as const;
   const failures: Error[] = [];
   for (const product of products) {
+    let phase: "upstream" | "delivery" = "upstream";
     try {
-      await receiverPost(dependencies, target, apiKey, await product.collect());
+      const payload = await product.collect();
+      collectorUpstreamSucceeded("external_context");
+      phase = "delivery";
+      await receiverPost(dependencies, target, apiKey, payload);
+      collectorDeliverySucceeded("external_context");
     } catch (error) {
+      if (phase === "upstream") collectorUpstreamFailed("external_context");
+      else collectorDeliveryFailed("external_context");
+      console.error(
+        JSON.stringify({ event: "collector_cycle_failure", runner: "external_context", phase }),
+      );
       const reason = error instanceof Error ? error.message : "external_context_unknown_failure";
       await reportFailure(dependencies, target, apiKey, retrievedAt, reason, product.stream);
       failures.push(error instanceof Error ? error : new Error(reason));
@@ -218,6 +236,8 @@ export async function runExternalContextCycle(
 ): Promise<void> {
   if (!apiKey) throw new Error("external_context_receiver_key");
   const target = endpointUrl(endpoint);
+  collectorCycleStarted("external_context");
+  let phase: "upstream" | "delivery" = "upstream";
   try {
     const html = new TextDecoder("utf-8", { fatal: true }).decode(
       await upstream(dependencies, EGRID_DISCOVERY_URL, "text/html", 2 * 1024 * 1024),
@@ -229,13 +249,21 @@ export async function runExternalContextCycle(
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       2 * 1024 * 1024,
     );
+    collectorUpstreamSucceeded("external_context");
+    phase = "delivery";
     await receiverPost(
       dependencies,
       target,
       apiKey,
       await parseEgridWorkbook(workbook, discovery, retrievedAt),
     );
+    collectorDeliverySucceeded("external_context");
   } catch (error) {
+    if (phase === "upstream") collectorUpstreamFailed("external_context");
+    else collectorDeliveryFailed("external_context");
+    console.error(
+      JSON.stringify({ event: "collector_cycle_failure", runner: "external_context", phase }),
+    );
     const reason = error instanceof Error ? error.message : "external_context_unknown_failure";
     await reportFailure(dependencies, target, apiKey, retrievedAt, reason);
     throw error;
@@ -244,9 +272,10 @@ export async function runExternalContextCycle(
 
 export async function startExternalContext(
   dependencies: RunnerDependencies = DEFAULT_DEPENDENCIES,
-) {
-  if (dependencies.environment.get("EXTERNAL_CONTEXT_INGEST_ENABLED") !== "true")
+): Promise<never> {
+  if (dependencies.environment.get("EXTERNAL_CONTEXT_INGEST_ENABLED") !== "true") {
     return await new Promise<never>(() => {});
+  }
   const endpoint =
     dependencies.environment.get("EXTERNAL_CONTEXT_ENDPOINT") ??
     "http://receiver:8080/api/external-context/ingest";
@@ -286,4 +315,5 @@ export async function startExternalContext(
       }
     })(),
   ]);
+  throw new Error("external_context_loops_ended");
 }

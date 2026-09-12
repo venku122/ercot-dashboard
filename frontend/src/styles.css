@@ -746,6 +746,7 @@ main {
 }
 
 @media (max-width: 640px) {
+  .outlook-days-panel > .section-heading button,
   .net-load-panel button {
     min-height: 44px;
   }

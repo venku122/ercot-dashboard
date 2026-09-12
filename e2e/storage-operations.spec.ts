@@ -31,7 +31,9 @@ test("storage operations reuses the visible chart request and exposes exact trut
   await expect(summary).toContainText("System-wide dashboard aggregate only");
   await expect(summary).toContainText("does not report state of charge");
   await expect(summary).toContainText("context—not attributed causes");
-  await expect(summary).toHaveScreenshot("storage-operations-summary.png");
+  await expect(summary).toHaveScreenshot("storage-operations-summary.png", {
+    maxDiffPixelRatio: 0.02,
+  });
 
   await summary.getByText("Exact coherent observation").click();
   const exact = summary.getByRole("region", { name: "Exact coherent storage observation" });

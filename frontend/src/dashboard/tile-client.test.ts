@@ -58,6 +58,7 @@ function catalog(entries = [catalogEntry()]) {
       edge_lod: "native",
       rule: "native edges",
     },
+    derived_resources: [],
     lod_seconds: { native: null, "5m": 300, "15m": 900, "1h": HOUR },
     schema: 2,
     series: entries,

@@ -227,6 +227,7 @@ def request(port: int, path: str) -> dict[str, Any]:
         return {
             "body": body,
             "cache": response.getheader("X-ERCOT-Cache"),
+            "etag": response.getheader("ETag"),
             "singleflight": response.getheader("X-ERCOT-Singleflight"),
             "status": response.status,
             "total_seconds": total,

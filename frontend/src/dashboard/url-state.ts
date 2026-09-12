@@ -1,4 +1,9 @@
-import { createTimeState, setCustomRange } from "./time-state";
+import { createRelativeRange, decodeTimeRange, encodeTimeRange } from "../time-range";
+import {
+  ERCOT_TIME_RANGE_CONFIG,
+  legacyTimeRangeFromUrl,
+  writeLegacyTimeRangeProjection,
+} from "./time-range-adapter";
 import type { CompareMode, DashboardState, LegendMode } from "./types";
 import { dashboardViewDefinitions, type DashboardViewId } from "./information-architecture";
 
@@ -27,16 +32,15 @@ export function dashboardViewToUrl(view: DashboardViewId, base: URL): URL {
 
 export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
   const params = url.searchParams;
-  const range = finiteNumber(params.get("range")) ?? 6 * 60 * 60;
-  let time = createTimeState(now, range);
-  const from = finiteNumber(params.get("from"));
-  const to = finiteNumber(params.get("to"));
-  if (params.get("live") === "0" && from !== null && to !== null && from < to) {
-    time = setCustomRange(from, to);
-  }
-  if (time.mode === "live" && params.get("paused") === "1") {
-    time = { ...time, paused: true };
-  }
+  const nowMs = now * 1000;
+  const time =
+    decodeTimeRange(params, ERCOT_TIME_RANGE_CONFIG, nowMs) ??
+    legacyTimeRangeFromUrl(params, nowMs) ??
+    createRelativeRange(
+      6 * 60 * 60 * 1000,
+      "past-6-hours",
+      ERCOT_TIME_RANGE_CONFIG.defaultTimezone,
+    );
   const compareParam = params.get("compare") as CompareMode | null;
   const legendParam = params.get("legend") as LegendMode | null;
   const customCompareSeconds = Math.max(
@@ -60,21 +64,14 @@ export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
   };
 }
 
-export function dashboardStateToUrl(state: DashboardState, base: URL): URL {
+export function dashboardStateToUrl(
+  state: DashboardState,
+  base: URL,
+  now = Date.now() / 1000,
+): URL {
   const url = new URL(base);
-  const params = url.searchParams;
-  params.set("range", String(state.time.rangeSeconds));
-  params.set("live", state.time.mode === "live" ? "1" : "0");
-  if (state.time.mode === "fixed") {
-    params.set("from", String(Math.round(state.time.start)));
-    params.set("to", String(Math.round(state.time.end)));
-    params.delete("paused");
-  } else {
-    params.delete("from");
-    params.delete("to");
-    if (state.time.paused) params.set("paused", "1");
-    else params.delete("paused");
-  }
+  const semanticParams = encodeTimeRange(state.time, url.searchParams);
+  const params = writeLegacyTimeRangeProjection(state.time, semanticParams, now * 1000);
   params.set("compare", state.compare);
   if (state.compare === "custom") params.set("compare_offset", String(state.customCompareSeconds));
   else params.delete("compare_offset");
@@ -87,5 +84,6 @@ export function dashboardStateToUrl(state: DashboardState, base: URL): URL {
   const hidden = [...state.hiddenSeries].sort();
   if (hidden.length) params.set("hidden", hidden.join(","));
   else params.delete("hidden");
+  url.search = params.toString();
   return url;
 }

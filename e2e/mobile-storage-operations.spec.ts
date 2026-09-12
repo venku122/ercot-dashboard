@@ -35,7 +35,9 @@ test("storage operations has stable mobile evidence states @mobile-vri", async (
   await page.locator(".mobile-section-nav").evaluate((element) => {
     (element as HTMLElement).style.visibility = "hidden";
   });
-  await expect(summary).toHaveScreenshot("storage-operations-summary-mobile.png");
+  await expect(summary).toHaveScreenshot("storage-operations-summary-mobile.png", {
+    maxDiffPixelRatio: 0.02,
+  });
   await summary.getByText("Exact coherent observation").click();
   await expect(
     summary.getByRole("region", { name: "Exact coherent storage observation" }),

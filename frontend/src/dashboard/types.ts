@@ -1,3 +1,5 @@
+import type { TimeRangeValue } from "../time-range";
+
 export type Point = [number, number];
 
 export type TimeMode = "fixed" | "live";
@@ -22,7 +24,7 @@ export type DashboardState = {
   expandedChart: string | null;
   hiddenSeries: Set<string>;
   legendMode: LegendMode;
-  time: TimeState;
+  time: TimeRangeValue;
 };
 
 export type SeriesDefinition = {
