@@ -23,6 +23,13 @@
     "radius": 4,
     "toleranceCssPx": 2
   },
+  "ercotOverrides": {
+    "reason": "User-requested toolbar sizing and inline timezone; DRUIDS measurements above remain unchanged.",
+    "desktopControlHeight": 42,
+    "desktopIconButtonSize": 42,
+    "playbackIconSize": 20,
+    "timezonePlacement": "inline"
+  },
   "typography": {
     "inputFontSize": 13,
     "inputFontWeight": 400,

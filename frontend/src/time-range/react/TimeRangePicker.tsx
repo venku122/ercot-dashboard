@@ -555,10 +555,10 @@ export function TimeRangePicker({
         spellCheck={false}
         value={open ? draftExpression : committedExpression}
       />
+      <span className="time-range-picker__offset">{timezoneOffset}</span>
       <span aria-hidden="true" className="time-range-picker__caret">
         ▾
       </span>
-      <span className="time-range-picker__offset">{timezoneOffset}</span>
     </div>
   );
 

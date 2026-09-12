@@ -43,7 +43,7 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   await expectGeometry(
     shell,
     contract.geometry.controlWidth,
-    contract.geometry.desktopControlHeight,
+    contract.ercotOverrides.desktopControlHeight,
   );
   const shellBox = await shell.boundingBox();
   expect(shellBox!.width).toBeGreaterThanOrEqual(contract.geometry.controlMinWidth);
@@ -52,10 +52,15 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   for (const name of ["Step back", "Pause", "Step forward"]) {
     await expectGeometry(
       page.getByRole("button", { name }),
-      contract.geometry.desktopIconButtonSize,
-      contract.geometry.desktopIconButtonSize,
+      contract.ercotOverrides.desktopIconButtonSize,
+      contract.ercotOverrides.desktopIconButtonSize,
     );
   }
+  const analyzeBox = await page.getByRole("button", { name: "Analyze", exact: true }).boundingBox();
+  expect(Math.abs(shellBox!.height - analyzeBox!.height)).toBeLessThanOrEqual(2);
+  const offsetBox = await shell.locator(".time-range-picker__offset").boundingBox();
+  expect(offsetBox!.y).toBeGreaterThanOrEqual(shellBox!.y);
+  expect(offsetBox!.y + offsetBox!.height).toBeLessThanOrEqual(shellBox!.y + shellBox!.height);
   await expect(shell.locator(".time-range-picker__pill")).toHaveCSS(
     "height",
     `${contract.geometry.durationPillHeight}px`,

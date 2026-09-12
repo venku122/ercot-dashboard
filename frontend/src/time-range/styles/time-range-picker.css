@@ -4,7 +4,7 @@
   --trp-background: #0f172a;
   --trp-border: #334155;
   --trp-control: #111c30;
-  --trp-control-height: 28px;
+  --trp-control-height: 42px;
   --trp-control-text: #cbd5e1;
   --trp-error: #fca5a5;
   --trp-focus: #38bdf8;
@@ -30,7 +30,7 @@
 
 .time-range-picker__cluster,
 .time-range-picker__playback {
-  align-items: flex-end;
+  align-items: center;
   display: flex;
 }
 
@@ -64,11 +64,11 @@
 .time-range-picker__offset {
   color: var(--trp-muted);
   font-size: 10px;
-  left: 50px;
+  flex-shrink: 0;
   line-height: 12px;
   pointer-events: none;
-  position: absolute;
-  top: -13px;
+  padding-right: 8px;
+  white-space: nowrap;
 }
 
 .time-range-picker__pill,
@@ -88,6 +88,7 @@
 }
 
 .time-range-picker__pill {
+  flex-shrink: 0;
   margin-left: 3px;
 }
 
@@ -166,10 +167,11 @@
 .time-range-picker .time-range-picker__calendar header button {
   border: 0;
   border-radius: 0;
-  height: var(--trp-control-height);
-  min-height: var(--trp-control-height);
+  height: 28px;
+  min-height: 28px;
+  min-width: 28px;
   padding: 0;
-  width: var(--trp-control-height);
+  width: 28px;
 }
 
 .time-range-picker__playback button:hover,
@@ -186,6 +188,11 @@
   fill: currentcolor;
   height: 16px;
   width: 16px;
+}
+
+.time-range-picker__playback svg {
+  height: 20px;
+  width: 20px;
 }
 
 .time-range-picker__surface {

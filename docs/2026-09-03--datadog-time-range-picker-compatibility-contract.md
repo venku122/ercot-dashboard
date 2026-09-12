@@ -40,6 +40,8 @@ This contract is additive to `2026-09-01--time-range-picker-acceptance-contract.
 
 ## Deterministic defaults and deviations
 
+- User-requested toolbar refinement: the desktop control and playback buttons are 42px high to align with Analyze, playback icons are 20px, and the timezone sits inline. These explicit ERCOT overrides are recorded separately from the unchanged DRUIDS reference measurements.
+
 - Missing years use the current year in the selected timezone.
 - Time-only values use the current local date. An end time not after its start advances one local day.
 - A yearless end date before its start advances one year.
