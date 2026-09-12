@@ -129,7 +129,8 @@ test("P0 quick controls open a focus-trapped restorable sheet @mobile-core", asy
   await expect(sheet).toBeVisible();
   await expect(sheet.getByLabel("Compare time")).toBeVisible();
   await expect(sheet.getByLabel("Legend detail")).toBeVisible();
-  await expect(sheet.getByText("Custom range", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("Custom range", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -182,7 +183,7 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
   const targets = [
     page.locator(".mobile-supporting-metrics > summary"),
     page.getByRole("button", { name: "Analyze" }),
-    page.getByLabel("Time range"),
+    page.getByRole("combobox", { name: "Time range picker" }),
     card.getByRole("button", { name: "Open Supply and demand inspect mode" }),
     card.getByLabel("Supply and demand chart menu"),
     card.getByRole("button", { name: "Actual demand", exact: true }),
@@ -650,7 +651,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect(warning.getByLabel("ERCOT emergency conditions active")).toBeVisible();
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
   const structuredAlert = page.getByLabel("Active grid alerts");
-  await structuredAlert.scrollIntoViewIfNeeded();
+  await structuredAlert.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
     maxDiffPixels: 1600,
   });

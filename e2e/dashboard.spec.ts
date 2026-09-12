@@ -467,6 +467,12 @@ async function installApi(
 ) {
   if (installClock) await page.clock.install({ time: FIXED_NOW });
   else await page.clock.setFixedTime(FIXED_NOW);
+  await page.route("**/api/v2/tile-catalog", (route) =>
+    route.fulfill({ status: 503, body: "fixture v2 catalog unavailable" }),
+  );
+  await page.route("**/api/v2/tiles/**", (route) =>
+    route.fulfill({ status: 503, body: "fixture v2 tile unavailable" }),
+  );
   await page.route("**/api/v1/series/chunk**", async (route) => {
     const url = new URL(route.request().url());
     chunkRequests.push(url.toString());
@@ -702,19 +708,21 @@ test("net-load details remain lazy and accessible in Chromium", async ({ page })
 });
 
 test("time, inspect, cursor, legend, compare, events, CSV and URL state", async ({ page }) => {
-  await installApi(page);
+  const timeChunkRequests: string[] = [];
+  await installApi(page, "normal", [], timeChunkRequests);
   await page.goto("/?range=21600&compare=none&events=1");
   await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
 
   let analyze = await openAnalyze(page);
+  await analyze.getByRole("button", { name: "Close Analyze" }).click();
   await page.getByRole("button", { name: "Pause" }).click();
-  await expect(page.getByText(/Paused · updated/)).toBeVisible();
-  await page.getByRole("button", { name: "Previous time window" }).click();
+  await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
+  await page.getByRole("button", { name: "Step back" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   const fixedFrom = new URL(page.url()).searchParams.get("from");
   expect(fixedFrom).not.toBeNull();
-  await page.getByRole("button", { name: "Next time window" }).click();
-  await analyze.getByRole("button", { name: "Close Analyze" }).click();
+  await page.getByRole("button", { name: "Step forward" }).click();
+  await expect.poll(() => timeChunkRequests.length).toBeGreaterThan(0);
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect(page.locator('[data-chart-id="supply-demand"]')).toHaveClass(/chart-card-inspect/);
@@ -764,16 +772,16 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await page.getByRole("menuitem", { name: "Reset zoom" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   await page.keyboard.press("Escape");
-  analyze = await openAnalyze(page);
-  await analyze.getByRole("button", { name: "Reset to live" }).click();
+  await page.getByRole("button", { name: "Play" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
 });
 
 test("drag zoom and modified pan update the fixed global window", async ({ page }) => {
   await installApi(page);
-  await page.goto("/");
+  await page.goto("/?compare=previous_period");
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
+  await expect(card).toHaveAttribute("aria-busy", "false");
   const canvas = card.locator("canvas");
   await expect(canvas).toBeVisible();
   await expect(canvas).toHaveAttribute("aria-label", /[1-9]\d* observations/);
@@ -786,6 +794,8 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await page.mouse.move(box.x + 420, box.y + 130, { steps: 8 });
   await page.mouse.up();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
+  await expect.poll(() => new URL(page.url()).searchParams.get("compare")).toBe("previous_period");
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue(/ – /);
   const beforePan = new URL(page.url()).searchParams.get("from");
   await page.keyboard.down("Shift");
   await page.mouse.move(box.x + 300, box.y + 130);
@@ -794,6 +804,12 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await page.mouse.up();
   await page.keyboard.up("Shift");
   await expect.poll(() => new URL(page.url()).searchParams.get("from")).not.toBe(beforePan);
+  await card.getByLabel("Supply and demand chart menu").click();
+  await page.getByRole("menuitem", { name: "Reset zoom" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue(
+    "Past 6 Hours",
+  );
 });
 
 test("failure, no-data distinction, and stale source state are explicit", async ({ page }) => {
@@ -1132,7 +1148,7 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
     const chartId =
       scenario === "normal" ? "supply-demand" : scenario === "stale" ? "storage" : "pricing";
     const card = page.locator(`[data-chart-id="${chartId}"]`);
-    await card.evaluate((element) => element.scrollIntoView({ block: "end" }));
+    await card.evaluate((element) => element.scrollIntoView({ block: "center" }));
     await expect(card).toHaveAttribute("data-visible", "true");
     await expect(card.locator(".chart-placeholder")).toHaveCount(0);
     const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;
