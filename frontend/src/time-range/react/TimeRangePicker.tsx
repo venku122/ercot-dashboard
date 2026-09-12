@@ -311,15 +311,19 @@ export function TimeRangePicker({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
-  const openPicker = () => {
+  const openPicker = (replaceExpression = false) => {
     const selectedPresetId =
       value.selection.kind === "relative" ? value.selection.presetId : undefined;
-    setDraftExpression(committedExpression);
+    setDraftExpression(replaceExpression ? "" : committedExpression);
     setError(null);
     setErrorCode(null);
     setMode("presets");
     setActiveOptionIndex(
-      selectedPresetId ? presets.findIndex((preset) => preset.id === selectedPresetId) : 0,
+      replaceExpression
+        ? -1
+        : selectedPresetId
+          ? presets.findIndex((preset) => preset.id === selectedPresetId)
+          : 0,
     );
     setOpen(true);
   };
@@ -337,7 +341,7 @@ export function TimeRangePicker({
   };
 
   const commitExpression = (expression = draftExpression, occurrence?: "earlier" | "later") => {
-    if (!occurrence && expression.trim() === committedExpression) {
+    if (!occurrence && (!expression.trim() || expression.trim() === committedExpression)) {
       close();
       return true;
     }
@@ -522,7 +526,7 @@ export function TimeRangePicker({
           setErrorCode(null);
         }}
         onClick={() => {
-          if (!open) openPicker();
+          if (!open) openPicker(true);
         }}
         onKeyDown={onInputKeyDown}
         ref={mobile ? undefined : inputRef}

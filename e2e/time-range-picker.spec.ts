@@ -26,6 +26,29 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
 });
 
+test("click to replace accepts shorthand and keeps empty drafts silent", async ({ page }) => {
+  const initialUrl = page.url();
+  await editor(page).click();
+  await expect(editor(page)).toHaveValue("");
+  await editor(page).press("Enter");
+  expect(page.url()).toBe(initialUrl);
+  await expect(editor(page)).toHaveValue("Past 6 Hours");
+  for (const [expression, label, duration] of [
+    ["1w", "Past 1 Week", "604800000"],
+    ["2mo", "Past 2 Months", "5184000000"],
+  ]) {
+    await editor(page).click();
+    await expect(editor(page)).toHaveValue("");
+    await editor(page).pressSequentially(expression!);
+    await editor(page).press("Enter");
+    await expect(editor(page)).toHaveValue(label!);
+    expect(new URL(page.url()).searchParams.get("time_value")).toBe(duration);
+  }
+  await editor(page).click();
+  await editor(page).press("Escape");
+  await expect(editor(page)).toHaveValue("Past 2 Months");
+});
+
 test("preset, playback, navigation, URL and reload preserve semantic time", async ({ page }) => {
   let picker = await openPicker(page);
   await picker.getByRole("option", { name: /Past 1 hour/ }).click();
