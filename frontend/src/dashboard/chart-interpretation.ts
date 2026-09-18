@@ -11,6 +11,21 @@ export type ResolvedInterpretationBand = InterpretationBand & {
   upperValue: number | undefined;
 };
 
+export function frequencyColor(
+  chart: ChartDefinition,
+  value: number | null | undefined,
+  fallback: string,
+) {
+  if (chart.id !== "frequency" || value == null || !Number.isFinite(value)) return fallback;
+  const band = chart.interpretation?.bands.find(
+    (band) =>
+      (band.lower === undefined || value >= band.lower) &&
+      (band.upper === undefined || value < band.upper),
+  );
+  const colors = { normal: "#34d399", watch: "#fbbf24", strained: "#fb923c", critical: "#f87171" };
+  return band && band.tone in colors ? colors[band.tone as keyof typeof colors] : fallback;
+}
+
 function latestFiniteValue(loaded: LoadedSeries | undefined) {
   for (let index = (loaded?.points.length ?? 0) - 1; index >= 0; index -= 1) {
     const value = loaded?.points[index]?.[1];

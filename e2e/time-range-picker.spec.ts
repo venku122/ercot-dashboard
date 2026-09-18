@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
   await installMobileApi(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ERCOT Grid Dashboard" })).toBeVisible();
 });
 
 test("click to replace accepts shorthand and keeps empty drafts silent", async ({ page }) => {
@@ -161,9 +161,9 @@ test("More sidecar and two-date calendar match documented state transitions", as
 
 test("outside dismissal allows a competing dashboard dialog", async ({ page }) => {
   await openPicker(page);
-  await page.getByRole("button", { name: "Analyze" }).click();
+  await page.getByRole("button", { name: "Time & compare" }).click();
   await expect(page.getByRole("dialog", { name: "Time range" })).toBeHidden();
-  await expect(page.getByRole("dialog", { name: "Analyze" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Time & comparison" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(1);
 });
 

@@ -85,7 +85,7 @@ describe("PR20 historical context browser lifecycle acceptance", () => {
     await act(async () => render(true, false));
     await flush();
     expect(mocks.loadHistoricalContext).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("Open historical context and records");
+    expect(container.textContent).toContain("Historical context and records");
 
     await act(async () => render(true, true));
     await flush();

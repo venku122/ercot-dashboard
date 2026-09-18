@@ -11,7 +11,7 @@ test("market mechanics meets mobile target and overflow contracts @mobile-core",
   await installMarketMechanicsApi(page, requests);
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "What changed with the price move?" });
-  await panel.getByRole("button", { name: "Load market-mechanics details" }).click();
+  await panel.getByRole("button", { name: "What changed with the price move?" }).click();
   await expect(panel.getByText(/Exact SCED alignment/)).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expect.poll(() => requests.length).toBe(2);
@@ -43,7 +43,7 @@ test("market mechanics has a stable mobile evidence state @mobile-vri", async ({
   await installMarketMechanicsApi(page, requests);
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "What changed with the price move?" });
-  await panel.getByRole("button", { name: "Load market-mechanics details" }).click();
+  await panel.getByRole("button", { name: "What changed with the price move?" }).click();
   await expect(panel.getByText(/Exact SCED alignment/)).toBeVisible();
   await page.locator(".mobile-section-nav").evaluate((element) => {
     (element as HTMLElement).style.visibility = "hidden";

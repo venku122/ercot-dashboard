@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
+import { DisclosureCard } from "../components/ui/disclosure-card";
 import { formatValue } from "./units";
 import {
   loadMarketManifest,
@@ -128,28 +129,14 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
   const materializationFailed = manifest.data?.materialization_health["state"] === "failed";
 
   return (
-    <section aria-labelledby="market-mechanics-title" className="market-mechanics-panel">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Market mechanics</p>
-          <h2 id="market-mechanics-title">What changed with the price move?</h2>
-          <p>
-            Signals observed in the same window. Context, not a price decomposition or proof of
-            cause.
-          </p>
-        </div>
-        <button
-          aria-expanded={expanded}
-          className="secondary-button"
-          onClick={() => setExpanded((value) => !value)}
-          type="button"
-        >
-          {expanded ? "Hide market-mechanics details" : "Load market-mechanics details"}
-        </button>
-      </div>
-      {!expanded ? (
-        <p>Open to load current SCED context and selected completed-day history.</p>
-      ) : null}
+    <DisclosureCard
+      titleId="market-mechanics-title"
+      title="What changed with the price move?"
+      description="Signals observed in the same window. Context, not a price decomposition or proof of cause."
+      className="market-mechanics-panel"
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+    >
       {expanded && manifest.isLoading ? <DataLifecycleMessage state="loading" /> : null}
       {expanded && manifest.error && !manifest.data ? (
         <DataLifecycleMessage state="unavailable" />
@@ -251,7 +238,7 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
                 )}
                 <div
                   aria-label={`${label(selected)} exact values`}
-                  className="table-scroll"
+                  className="table-scroll ui-data-table"
                   role="region"
                   tabIndex={0}
                 >
@@ -301,6 +288,6 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
           </p>
         </>
       ) : null}
-    </section>
+    </DisclosureCard>
   );
 }

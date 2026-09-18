@@ -11,10 +11,19 @@ test("market geography meets mobile target and overflow contracts @mobile-core",
   await installMarketGeographyApi(page, requests);
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "Where are prices diverging?" });
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  const toggle = panel.getByRole("button", { name: "Where are prices diverging?", exact: true });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.focus();
+  await toggle.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(panel.getByRole("region", { name: "Settlement price exact values" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expect.poll(() => requests.length).toBe(2);
+  for (const label of ["Settlement prices", "Coincident constraints"]) {
+    const control = panel.getByRole("button", { name: label, exact: true });
+    await expect(control).toHaveCSS("padding-left", "16px");
+    await expect(control).toHaveCSS("padding-right", "16px");
+  }
 
   const viewportWidth = page.viewportSize()!.width;
   const violations: string[] = [];
@@ -47,7 +56,7 @@ test("market geography has stable mobile evidence states @mobile-vri", async ({ 
   await installMarketGeographyApi(page, requests);
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "Where are prices diverging?" });
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  await panel.getByRole("button", { name: "Where are prices diverging?" }).click();
   await expect(panel.getByRole("region", { name: "Settlement price exact values" })).toBeVisible();
   await page.locator(".mobile-section-nav").evaluate((element) => {
     (element as HTMLElement).style.visibility = "hidden";

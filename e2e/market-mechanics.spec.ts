@@ -12,7 +12,7 @@ test("market mechanics is lazy, contextual, and selected-history only", async ({
   await expect(panel).toBeVisible();
   expect(requests).toEqual([]);
 
-  await panel.getByRole("button", { name: "Load market-mechanics details" }).click();
+  await panel.getByRole("button", { name: "What changed with the price move?" }).click();
   await expect(panel.getByText(/Exact SCED alignment/)).toBeVisible();
   await expect.poll(() => requests.length).toBe(2);
   expect(requests[0]).toBe("/api/v1/market-mechanics");

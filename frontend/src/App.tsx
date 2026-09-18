@@ -8,6 +8,7 @@ import {
   useState,
   type Dispatch,
   type CSSProperties,
+  type ReactNode,
   type RefObject,
   type SetStateAction,
 } from "react";
@@ -31,6 +32,7 @@ import { buildDerivedMetrics } from "./dashboard/derived-metrics";
 import { useOverviewData } from "./dashboard/data-hooks";
 import {
   chartGroupDefinition,
+  chartGroupDisplayLabel,
   criticalMetricDefinitions,
   dashboardViewDefinition,
   dashboardViewDefinitions,
@@ -318,7 +320,10 @@ function MetricOverviewCard({
       className="overview-card"
       data-metric-id={item.id}
     >
-      <span>{item.label}</span>
+      <span className="overview-card-label">
+        <MetricIcon id={item.id} />
+        {item.label}
+      </span>
       <strong>{valueLabel}</strong>
       {trendUnavailable ? (
         <div aria-hidden="true" className="hero-trend hero-trend-empty" />
@@ -326,6 +331,22 @@ function MetricOverviewCard({
         <HeroTrendDetail id={item.id} label={item.label} loading={loading} trend={item.trend} />
       )}
     </article>
+  );
+}
+
+function MetricIcon({ id }: { id: CriticalMetricId }) {
+  const paths: Record<CriticalMetricId, ReactNode> = {
+    "available-capacity": <path d="M4 15h16M6 15V9m4 6V5m4 10V8m4 7V3" />,
+    demand: <path d="m13 2-7 11h6l-1 9 7-12h-6l1-8Z" />,
+    frequency: <path d="M3 12h3l2-6 4 12 3-9 2 3h4" />,
+    "grid-status": <path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Zm-3 9 2 2 4-5" />,
+    "real-time-price": <path d="M12 2v20m4-16H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7" />,
+    "reserve-margin": <path d="M4 18 9 12l4 3 7-9M15 6h5v5" />,
+  };
+  return (
+    <svg aria-hidden="true" className="metric-icon" fill="none" viewBox="0 0 24 24">
+      {paths[id]}
+    </svg>
   );
 }
 
@@ -347,6 +368,17 @@ function GridHealthSummary({
       return `${factor.label}: ${String(Math.round(factor.weight - factor.penalty))} of ${String(factor.weight)} points retained`;
     })
     .join(". ");
+  const availableFactors = gridHealth.factors.filter((factor) => factor.available).length;
+  const scoreBand =
+    gridHealth.score === null
+      ? "Unavailable"
+      : gridHealth.score >= 85
+        ? "Normal · 85–100"
+        : gridHealth.score >= 70
+          ? "Watch · 70–84"
+          : gridHealth.score >= 50
+            ? "Strained · 50–69"
+            : "Critical · below 50";
   return (
     <section
       aria-label={`Grid Health: ${gridHealth.label}. ${gridHealth.score === null ? "Not enough fresh inputs to calculate the score." : `${String(gridHealth.score)} of 100 with ${String(gridHealth.coveragePercent)} percent input coverage.`} ${accessibleFactors}`}
@@ -366,7 +398,9 @@ function GridHealthSummary({
               {String(gridHealth.score)} <span>/ 100</span>
             </strong>
           )}
-          <small>{String(gridHealth.coveragePercent)}% input coverage</small>
+          {gridHealth.coveragePercent < 100 ? (
+            <small>{String(gridHealth.coveragePercent)}% input coverage</small>
+          ) : null}
         </div>
       </div>
       <div aria-hidden="true" className="grid-health-contribution-bar">
@@ -387,13 +421,22 @@ function GridHealthSummary({
           );
         })}
       </div>
-      <p>
-        {gridHealth.score === null
-          ? "Fresh demand, capacity, frequency, and sufficient weighted coverage are required."
-          : pressures.length
-            ? `Main pressure: ${pressures.join(", ")}.`
-            : "No material pressure is present in the available inputs."}
-      </p>
+      <dl className="grid-health-context">
+        <div>
+          <dt>Score band</dt>
+          <dd>{scoreBand}</dd>
+        </div>
+        <div>
+          <dt>Inputs reporting</dt>
+          <dd>
+            {String(availableFactors)} of {String(gridHealth.factors.length)}
+          </dd>
+        </div>
+        <div>
+          <dt>Main pressure</dt>
+          <dd>{pressures.length ? pressures.join(", ") : "None in available inputs"}</dd>
+        </div>
+      </dl>
     </section>
   );
 }
@@ -1014,10 +1057,18 @@ export function App() {
   return (
     <div className="dashboard-shell">
       <header className="dashboard-header">
-        <div>
-          <h1 ref={dashboardTitleRef} tabIndex={-1}>
-            ERCOT Grid Status
-          </h1>
+        <div className="dashboard-brand">
+          <span aria-hidden="true" className="dashboard-brand-mark">
+            <svg fill="none" viewBox="0 0 32 32">
+              <path d="M5 22 11 9l5 8 4-6 7 11" />
+              <path d="M5 25h22M8 19h16" />
+            </svg>
+          </span>
+          <div>
+            <h1 ref={dashboardTitleRef} tabIndex={-1}>
+              ERCOT Grid Dashboard
+            </h1>
+          </div>
         </div>
         {resolvedTime.mode === "fixed" ||
         selectedView === "outlook" ||
@@ -1049,7 +1100,7 @@ export function App() {
               onClick={() => setMobileDialog("controls")}
               ref={controlsTriggerRef}
             >
-              Analyze
+              Time &amp; compare
             </Button>
           </section>
         )}
@@ -1073,7 +1124,6 @@ export function App() {
       >
         {selectedView !== "overview" ? (
           <section className="dashboard-view-heading">
-            <p className="eyebrow">Dashboard view</p>
             <h2 ref={viewHeadingRef} tabIndex={-1}>
               {activeView.label}
             </h2>
@@ -1085,11 +1135,11 @@ export function App() {
           <>
             <section aria-labelledby="dashboard-outlook-title" className="outlook-promo">
               <div>
-                <p className="eyebrow">Forward view</p>
-                <h2 id="dashboard-outlook-title">Dashboard outlook — not an ERCOT declaration</h2>
+                <p className="eyebrow">Next day and week</p>
+                <h2 id="dashboard-outlook-title">Demand &amp; capacity outlook</h2>
                 <p>
-                  Review published ERCOT demand and system-adequacy outlooks for the next day and
-                  week.
+                  Published ERCOT demand forecasts and system-adequacy projections, with source
+                  coverage shown alongside each view.
                 </p>
               </div>
               <Button onClick={() => navigateToView("outlook")}>Open Grid Outlook</Button>
@@ -1211,7 +1261,7 @@ export function App() {
             ) : null}
 
             <details className="grid-health-details">
-              <summary>How status is determined</summary>
+              <summary>Grid Health inputs and scoring</summary>
               <div>
                 <h3>Analytical Grid Health Score</h3>
                 <p>
@@ -1264,8 +1314,8 @@ export function App() {
         ) : null}
 
         {selectedView === "overview" ? (
-          <details className="derived-insights-section" data-information-level="operational">
-            <summary>Calculated grid insights</summary>
+          <details className="derived-insights-section" data-information-level="operational" open>
+            <summary>Calculated grid insights and formulas</summary>
             <div>
               <p>Transparent calculations from current readings and bounded comparison windows.</p>
               <div aria-label="Derived grid metrics" className="derived-insights-grid">
@@ -1313,23 +1363,6 @@ export function App() {
           </Suspense>
         ) : null}
 
-        {selectedView === "reliability" ? (
-          state.events ? (
-            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
-              <GridEventTimeline enabled time={resolvedTime} />
-            </Suspense>
-          ) : (
-            <section aria-label="Unified grid event timeline" className="events-panel">
-              <div className="view-empty-note">
-                <p>Grid-event annotations are off for the shared dashboard window.</p>
-                <Button aria-haspopup="dialog" onClick={() => setMobileDialog("controls")}>
-                  Review controls
-                </Button>
-              </div>
-            </section>
-          )
-        ) : null}
-
         {selectedView === "market" ? (
           <>
             <Suspense fallback={<DataLifecycleMessage state="loading" />}>
@@ -1364,7 +1397,9 @@ export function App() {
               {showGroupHeading ? (
                 <button
                   aria-expanded={!collapsed}
-                  aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
+                  aria-label={
+                    chartGroupDisplayLabel(group) + " " + (collapsed ? "Expand" : "Collapse")
+                  }
                   className="group-heading"
                   onClick={() =>
                     setCollapsedGroups((current) => {
@@ -1376,7 +1411,7 @@ export function App() {
                   }
                 >
                   <span>
-                    {group}
+                    {chartGroupDisplayLabel(group)}
                     <small>{groupInformation.description}</small>
                   </span>
                   <span>{collapsed ? "Expand" : "Collapse"}</span>
@@ -1397,6 +1432,23 @@ export function App() {
           );
         })}
 
+        {selectedView === "reliability" ? (
+          state.events ? (
+            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+              <GridEventTimeline enabled time={resolvedTime} />
+            </Suspense>
+          ) : (
+            <section aria-label="Unified grid event timeline" className="events-panel">
+              <div className="view-empty-note">
+                <p>Grid-event annotations are off for the shared dashboard window.</p>
+                <Button aria-haspopup="dialog" onClick={() => setMobileDialog("controls")}>
+                  Review controls
+                </Button>
+              </div>
+            </section>
+          )
+        ) : null}
+
         {selectedView === "diagnostics" ? (
           <>
             <section
@@ -1406,7 +1458,7 @@ export function App() {
               data-information-level="diagnostics"
             >
               <div>
-                <p className="eyebrow">Diagnostics</p>
+                <p className="eyebrow">Collection status</p>
                 <h2>System health</h2>
               </div>
               <div className="diagnostics-summary-content">
@@ -1436,11 +1488,11 @@ export function App() {
       ) : null}
 
       <MobileDialog
-        description="Change the shared analytical time window, comparison, legend, and event settings."
+        description="Set the comparison, legend, and event settings used across charts."
         onClose={() => setMobileDialog(null)}
         open={mobileDialog === "controls"}
         returnFocusRef={controlsTriggerRef}
-        title="Analyze"
+        title="Time & comparison"
       >
         <div className="sheet-controls">
           <DashboardControls {...controls} />

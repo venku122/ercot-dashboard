@@ -340,9 +340,11 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
                 disabled={!manifest.data.generator_interconnection.selected}
                 onClick={() => choose(selectedStream === "gis" ? null : "gis")}
               >
-                {selectedStream === "gis"
-                  ? "Close interconnection history"
-                  : "Open interconnection history"}
+                {!manifest.data.generator_interconnection.selected
+                  ? "Open interconnection history — unavailable"
+                  : selectedStream === "gis"
+                    ? "Close interconnection history"
+                    : "Open interconnection history"}
               </Button>
             </article>
             <article>
@@ -358,9 +360,11 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
                   )
                 }
               >
-                {selectedStream === "resource_capacity_trend"
-                  ? "Close capacity history"
-                  : "Open capacity history"}
+                {!manifest.data.resource_capacity_trend.selected
+                  ? "Open capacity history — unavailable"
+                  : selectedStream === "resource_capacity_trend"
+                    ? "Close capacity history"
+                    : "Open capacity history"}
               </Button>
             </article>
             <article>
@@ -376,9 +380,11 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
                   )
                 }
               >
-                {selectedStream === "long_term_load_forecast"
-                  ? "Close load forecast"
-                  : "Open load forecast"}
+                {!manifest.data.long_term_load_forecast.selected
+                  ? "Open load forecast — unavailable"
+                  : selectedStream === "long_term_load_forecast"
+                    ? "Close load forecast"
+                    : "Open load forecast"}
               </Button>
             </article>
           </div>

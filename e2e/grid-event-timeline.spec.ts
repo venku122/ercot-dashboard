@@ -13,7 +13,7 @@ test("grid event timeline is Reliability-only, strict, shareable, and noncausal"
   const requests: string[] = [];
   await installGridEventTimelineApi(page, requests);
   await page.goto("/?view=overview");
-  await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ERCOT Grid Dashboard" })).toBeVisible();
   expect(requests).toEqual([]);
 
   await page.goto(GRID_EVENT_URL);
@@ -89,6 +89,6 @@ test("events-off Reliability state and other views make zero grid-event requests
   await expect(page.getByText("Grid-event annotations are off")).toBeVisible();
   expect(requests).toEqual([]);
   await page.goto("/?view=generation&events=1");
-  await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ERCOT Grid Dashboard" })).toBeVisible();
   expect(requests).toEqual([]);
 });

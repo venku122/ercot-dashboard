@@ -32,7 +32,7 @@ test("market geography is contextual, lazy, selected-only, exact, and noncausal"
   await expect(panel).toBeVisible();
   expect(requests).toEqual([]);
 
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  await panel.getByRole("button", { name: "Where are prices diverging?" }).click();
   await expect(panel.getByRole("region", { name: "Settlement price exact values" })).toBeVisible();
   await expect.poll(() => requests.length).toBe(2);
   expect(requests).toEqual([
@@ -98,7 +98,7 @@ test("market geography restores layer and selection through browser history", as
   await installMarketGeographyApi(page, requests);
   await page.goto("/?view=market&marketLayer=prices&marketPoint=HB_HOUSTON--HU");
   const panel = page.getByRole("region", { name: "Where are prices diverging?" });
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  await panel.getByRole("button", { name: "Where are prices diverging?" }).click();
   await expect(panel.getByRole("button", { name: /^Houston HU,/ })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -133,7 +133,7 @@ test("market geography exposes partial and stale evidence without borrowing valu
   await installMarketGeographyApi(page, requests, { partial: true, stale: true });
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "Where are prices diverging?" });
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  await panel.getByRole("button", { name: "Where are prices diverging?" }).click();
   await expect(panel.getByText(/source or history pipelines are stale/)).toBeVisible();
   await expect(panel.getByText(/Partial publication: missing LZ_WEST--LZ/)).toBeVisible();
   await expect(panel.getByRole("button", { name: /West LZ, not reported/ })).toContainText(
@@ -150,7 +150,7 @@ test("market geography names durable official document gaps", async ({ page }) =
   await installMarketGeographyApi(page, requests, { gapCount: 2 });
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "Where are prices diverging?" });
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  await panel.getByRole("button", { name: "Where are prices diverging?" }).click();
   await expect(panel.getByText(/source or history pipelines are stale/)).toBeVisible();
   await panel.getByText("Source provenance and freshness").click();
   await expect(panel.getByText(/2 official document gaps recorded/)).toBeVisible();
@@ -162,7 +162,7 @@ test("market geography exposes manifest and selected-history failures", async ({
   await installMarketGeographyApi(page, manifestRequests, { manifestError: true });
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "Where are prices diverging?" });
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  await panel.getByRole("button", { name: "Where are prices diverging?" }).click();
   await expect(panel.getByText("Temporarily unavailable…")).toBeVisible();
 
   const historyRequests: string[] = [];
@@ -170,7 +170,7 @@ test("market geography exposes manifest and selected-history failures", async ({
   await installMobileApi(page);
   await installMarketGeographyApi(page, historyRequests, { historyError: true });
   await page.reload();
-  await panel.getByRole("button", { name: "Load price-geography details" }).click();
+  await panel.getByRole("button", { name: "Where are prices diverging?" }).click();
   await expect(panel.getByText("Selected history is unavailable.")).toBeVisible();
   await expect(panel.getByRole("region", { name: "Settlement price exact values" })).toBeVisible();
 });

@@ -19,16 +19,14 @@ const FIXED_NOW = new Date("2026-07-21T18:00:00-05:00");
 const FIXED_NOW_SECONDS = Math.floor(FIXED_NOW.getTime() / 1000);
 
 async function openMoreView(page: Page, name: "Advanced" | "Diagnostics" | "Weather") {
-  await page.getByRole("button", { name: /More views/ }).click();
-  await page
-    .getByRole("navigation", { name: "More dashboard views" })
-    .getByRole("button", { name })
-    .click();
+  const label =
+    name === "Advanced" ? "Grid Signals" : name === "Diagnostics" ? "System Health" : name;
+  await page.getByRole("button", { name: `${label} view`, exact: true }).click();
 }
 
 async function openAnalyze(page: Page) {
-  await page.getByRole("button", { name: "Analyze" }).click();
-  return page.getByRole("dialog", { name: "Analyze" });
+  await page.getByRole("button", { name: "Time & compare" }).click();
+  return page.getByRole("dialog", { name: "Time & comparison" });
 }
 
 function metricValue(metric: string, tags: string[], index: number, scenario: Scenario) {
@@ -73,6 +71,13 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
     await expect(trend).toBeVisible();
     await expect(trend).toHaveAttribute("aria-label", /Last hour/);
     await expect(trend.locator("time")).toHaveCount(1);
+    const direction = await trend.getAttribute("data-direction");
+    if (direction === "up" || direction === "down") {
+      await expect(trend.locator(".hero-trend-delta > span")).toHaveCSS(
+        "color",
+        direction === "up" ? "rgb(52, 211, 153)" : "rgb(248, 113, 113)",
+      );
+    }
   }
   await expect(page.locator('[data-hero-trend="demand"]')).toHaveAttribute(
     "aria-label",
@@ -103,7 +108,9 @@ test("derived insights exclude the superseded unconditioned history cards", asyn
   await installApi(page);
   await page.goto("/");
 
-  await page.getByText("Calculated grid insights", { exact: true }).click();
+  await expect(
+    page.getByText("Calculated grid insights and formulas", { exact: true }),
+  ).toBeVisible();
   const metrics = page.getByLabel("Derived grid metrics");
   await expect(metrics.getByRole("article")).toHaveCount(7);
   await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(7);
@@ -149,9 +156,9 @@ test("Grid Health Score is concise, bounded, explainable, and coverage-aware", a
   await expect(summary).toBeVisible();
   await expect(summary).toContainText(/\d+ \/ 100/);
   await expect(summary.locator(".grid-health-contribution")).toHaveCount(8);
-  await expect(summary).toContainText("input coverage");
+  await expect(summary).not.toContainText("100% input coverage");
 
-  const explanation = page.getByText("How status is determined", { exact: true });
+  const explanation = page.getByText("Grid Health inputs and scoring", { exact: true });
   await explanation.click();
   await expect(page.getByText(/Current result: \d+ \/ 100/)).toBeVisible();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
@@ -162,6 +169,7 @@ test("Grid Health Score is concise, bounded, explainable, and coverage-aware", a
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "empty");
   await page.reload();
+  await expect(summary).toContainText("90% input coverage");
   await explanation.click();
   await expect(page.getByText(/Current result: \d+ \/ 100 · 90% weighted coverage/)).toBeVisible();
 
@@ -711,10 +719,10 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   const timeChunkRequests: string[] = [];
   await installApi(page, "normal", [], timeChunkRequests);
   await page.goto("/?range=21600&compare=none&events=1");
-  await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ERCOT Grid Dashboard" })).toBeVisible();
 
   let analyze = await openAnalyze(page);
-  await analyze.getByRole("button", { name: "Close Analyze" }).click();
+  await analyze.getByRole("button", { name: "Close Time & comparison" }).click();
   await page.getByRole("button", { name: "Pause" }).click();
   await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
   await page.getByRole("button", { name: "Step back" }).click();
@@ -760,7 +768,7 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await analyze.getByLabel("Custom comparison offset hours").fill("48");
   await expect.poll(() => new URL(page.url()).searchParams.get("compare")).toBe("custom");
   await expect.poll(() => new URL(page.url()).searchParams.get("compare_offset")).toBe("172800");
-  await analyze.getByRole("button", { name: "Close Analyze" }).click();
+  await analyze.getByRole("button", { name: "Close Time & comparison" }).click();
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await page.getByLabel("Supply and demand chart menu").click();
@@ -877,7 +885,7 @@ test("empty optional panels collapse to lifecycle or selected-range states", asy
   await page.goto("/?view=market");
   const geography = page.getByRole("region", { name: "Where are prices diverging?" });
   await expect(
-    geography.getByRole("button", { name: "Load price-geography details" }),
+    geography.getByRole("button", { name: "Where are prices diverging?" }),
   ).toHaveAttribute("aria-expanded", "false");
   await expect(geography.getByRole("table")).toHaveCount(0);
 
@@ -972,7 +980,7 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const analyze = await openAnalyze(page);
   await analyze.getByLabel("Compare time").selectOption("week");
   await analyze.getByLabel("Compare time").selectOption("none");
-  await analyze.getByRole("button", { name: "Close Analyze" }).click();
+  await analyze.getByRole("button", { name: "Close Time & comparison" }).click();
   const lifecycle = await page.evaluate(() => window.__ercotChartLifecycle);
   expect(lifecycle?.constructed).toBe(beforeChurn?.constructed);
   expect(lifecycle?.destroyed).toBe(beforeChurn?.destroyed);
@@ -1008,13 +1016,11 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
     currentStatus.locator(".status-strip-item").first().locator("strong"),
   ).toHaveAttribute("aria-label", /ERCOT grid watch active|No active ERCOT emergency/);
   await expect(page.getByLabel("Featured grid trend")).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Dashboard outlook — not an ERCOT declaration" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Demand & capacity outlook" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open Grid Outlook" })).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Dashboard views" }).getByRole("button"),
-  ).toHaveCount(6);
+  ).toHaveCount(9);
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(false);
@@ -1069,7 +1075,7 @@ test("direct Outlook loads once without Overview requests and exposes exact valu
   await expect(page.getByLabel("Global dashboard controls")).toHaveCount(0);
   await expect(page.locator(".freshness-state")).toHaveCount(0);
   await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
-  await expect(page.getByText("Dashboard outlook — not an ERCOT declaration")).toBeVisible();
+  await expect(page.getByText("Demand & capacity", { exact: true })).toHaveCount(7);
   await expect(
     page.getByText(
       "Current METAR observations are displayed independently from forecast and load evidence.",
@@ -1100,7 +1106,7 @@ test("Outlook reports stale forecast input without converting it into an ERCOT s
   const warning = page.getByLabel("Outlook source freshness");
   await expect(warning).toHaveAttribute("data-outlook-source-state", "partial");
   await expect(warning).toContainText("Load forecast: stale, data stale");
-  await expect(page.getByText("Dashboard outlook — not an ERCOT declaration")).toBeVisible();
+  await expect(page.getByText("Demand & capacity", { exact: true })).toHaveCount(7);
 });
 
 test("view changes clear chart-specific inspect state and legacy inspect links find their view", async ({
@@ -1129,7 +1135,7 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
   await expect(page).toHaveScreenshot("progressive-outlook-desktop.png");
 
   await openMoreView(page, "Advanced");
-  await expect(page.getByRole("heading", { name: "Advanced", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Grid Signals", exact: true })).toBeVisible();
   await expect(page).toHaveScreenshot("progressive-advanced-desktop.png");
 
   await openMoreView(page, "Diagnostics");
@@ -1181,7 +1187,7 @@ test("visual regression Grid Health Score", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const scoreDetails = page.locator(".grid-health-details");
-  await scoreDetails.getByText("How status is determined", { exact: true }).click();
+  await scoreDetails.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
   await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
 });

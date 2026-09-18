@@ -216,7 +216,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
   it("is disabled/collapsed lazy, then fetches one manifest and selected histories only", async () => {
     let rendered = renderPanel(false);
     activeRoot = rendered.root;
-    await act(async () => button(rendered.host, "Load price-geography details").click());
+    await act(async () => button(rendered.host, "Where are prices diverging?").click());
     await flush();
     expect(mocks.loadManifest).not.toHaveBeenCalled();
     expect(mocks.loadResource).not.toHaveBeenCalled();
@@ -227,7 +227,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
     rendered = renderPanel(true);
     activeRoot = rendered.root;
     expect(mocks.loadManifest).not.toHaveBeenCalled();
-    await act(async () => button(rendered.host, "Load price-geography details").click());
+    await act(async () => button(rendered.host, "Where are prices diverging?").click());
     await flush();
     expect(mocks.loadManifest).toHaveBeenCalledTimes(1);
     expect(mocks.loadResource).toHaveBeenCalledTimes(1);
@@ -259,9 +259,9 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
     });
     let rendered = renderPanel();
     activeRoot = rendered.root;
-    await act(async () => button(rendered.host, "Load price-geography details").click());
+    await act(async () => button(rendered.host, "Where are prices diverging?").click());
     await flush();
-    await act(async () => button(rendered.host, "Hide price-geography details").click());
+    await act(async () => button(rendered.host, "Where are prices diverging?").click());
     expect(manifestSignals[0]?.aborted).toBe(true);
 
     await act(async () => activeRoot?.unmount());
@@ -275,7 +275,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
     });
     rendered = renderPanel();
     activeRoot = rendered.root;
-    await act(async () => button(rendered.host, "Load price-geography details").click());
+    await act(async () => button(rendered.host, "Where are prices diverging?").click());
     await flush();
     const westLoadZone = rendered.host.querySelector<HTMLButtonElement>(
       '.market-price-matrix button[aria-label^="West LZ"]',
@@ -283,7 +283,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
     await act(async () => westLoadZone.click());
     await flush();
     expect(historySignals[0]?.aborted).toBe(true);
-    await act(async () => button(rendered.host, "Hide price-geography details").click());
+    await act(async () => button(rendered.host, "Where are prices diverging?").click());
     expect(historySignals.at(-1)?.aborted).toBe(true);
   });
 
@@ -295,7 +295,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
     );
     const { host, root } = renderPanel();
     activeRoot = root;
-    await act(async () => button(host, "Load price-geography details").click());
+    await act(async () => button(host, "Where are prices diverging?").click());
     await flush();
     expect(mocks.loadResource).toHaveBeenCalledTimes(1);
     expect(mocks.loadResource.mock.calls[0]![0].kind).toBe("constraints");
@@ -311,7 +311,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
     );
     const { host, root } = renderPanel();
     activeRoot = root;
-    await act(async () => button(host, "Load price-geography details").click());
+    await act(async () => button(host, "Where are prices diverging?").click());
     await flush();
     const url = new URL(window.location.href);
     expect(url.searchParams.get("marketPoint")).toBe("HB_HOUSTON--HU");
@@ -322,7 +322,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
   it("uses one roving matrix tab stop with Arrow/Home/End selection", async () => {
     const { host, root } = renderPanel();
     activeRoot = root;
-    await act(async () => button(host, "Load price-geography details").click());
+    await act(async () => button(host, "Where are prices diverging?").click());
     await flush();
     const matrix = [...host.querySelectorAll<HTMLButtonElement>(".market-price-matrix button")];
     expect(matrix.filter((item) => item.tabIndex === 0)).toHaveLength(1);
@@ -338,7 +338,7 @@ describe("PR15 market geography panel lifecycle acceptance", () => {
   it("segments missing price history and keeps the exact table keyboard reachable", async () => {
     const { host, root } = renderPanel();
     activeRoot = root;
-    await act(async () => button(host, "Load price-geography details").click());
+    await act(async () => button(host, "Where are prices diverging?").click());
     await flush();
     expect(host.querySelectorAll(".market-geography-profile polyline")).toHaveLength(2);
     expect(

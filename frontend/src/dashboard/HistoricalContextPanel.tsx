@@ -82,28 +82,23 @@ export function HistoricalContextPanel({
       className="historical-context-panel"
       data-historical-context-state={lifecycle}
     >
-      <header>
-        <div>
-          <p className="eyebrow">Dashboard observations</p>
-          <h2 id="historical-context-title">Historical context and records</h2>
-          <p>
-            Demand context from observations collected by this dashboard, conditioned on season and
-            America/Chicago civil hour. This is not a forecast or an all-time ERCOT record.
-          </p>
-        </div>
+      <h2 id="historical-context-title">
         <Button
+          className="historical-context-toggle"
           aria-controls="historical-context-content"
           aria-expanded={expanded}
           onClick={() => onExpandedChange(!expanded)}
         >
-          {expanded
-            ? "Close historical context and records"
-            : "Open historical context and records"}
+          Historical context and records
         </Button>
-      </header>
+      </h2>
 
       {expanded ? (
         <div id="historical-context-content">
+          <p>
+            Demand context from dashboard observations by season and America/Chicago civil hour.
+            This is not a forecast or an all-time ERCOT record.
+          </p>
           {!data && request.isLoading ? (
             <DataLifecycleMessage
               detail="Resolving the latest completed demand hour and its available collection history."

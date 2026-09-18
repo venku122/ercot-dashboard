@@ -12,10 +12,10 @@ test("historical context is contained and keyboard reachable on mobile @mobile-c
   await installMobileApi(page);
   await installHistoricalContextApi(page, requests);
   await page.goto(
-    `/?view=overview&live=0&from=${String(AS_OF - 21_600)}&to=${String(AS_OF)}&range=21600`,
+    `/?view=overview&history=0&live=0&from=${String(AS_OF - 21_600)}&to=${String(AS_OF)}&range=21600`,
   );
   const panel = page.getByRole("region", { name: "Historical context and records" });
-  const toggle = panel.getByRole("button", { name: "Open historical context and records" });
+  const toggle = panel.getByRole("button", { name: "Historical context and records" });
   const toggleBox = await toggle.boundingBox();
   expect(toggleBox).not.toBeNull();
   expect(toggleBox!.height).toBeGreaterThanOrEqual(44);

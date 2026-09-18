@@ -892,6 +892,31 @@ class MigrationAndIngestTests(unittest.TestCase):
             server.list_metric_correction_age(self.conn)[0]["source_id"], "fixture"
         )
 
+    def test_concurrent_event_ingest_serializes_read_write_transactions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "events.db")
+            setup = sqlite3.connect(path)
+            setup.execute("PRAGMA journal_mode=WAL")
+            server.init_db(setup)
+            setup.close()
+            ready = threading.Barrier(8)
+
+            def ingest(index):
+                conn = sqlite3.connect(path, timeout=5)
+                try:
+                    ready.wait(timeout=5)
+                    return server.ingest_events(conn, [{
+                        "dedupe_key": "shared-notice", "source_id": "operations_messages",
+                        "starts_at": 100, "event_type": "notice", "title": f"Revision {index}",
+                    }])
+                finally:
+                    conn.close()
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                results = list(pool.map(ingest, range(8)))
+            self.assertEqual(sum(result["inserted"] for result in results), 1)
+            self.assertEqual(sum(result["updated"] for result in results), 7)
+
     def test_event_retry_upserts_without_duplicate(self):
         event = {
             "dedupe_key": "operations:2026-07-21:notice",

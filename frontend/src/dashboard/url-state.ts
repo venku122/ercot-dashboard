@@ -77,7 +77,7 @@ export function dashboardStateToUrl(
   else params.delete("compare_offset");
   params.set("events", state.events ? "1" : "0");
   if (state.history) params.set("history", "1");
-  else params.delete("history");
+  else params.set("history", "0");
   params.set("legend", state.legendMode);
   if (state.expandedChart) params.set("inspect", state.expandedChart);
   else params.delete("inspect");

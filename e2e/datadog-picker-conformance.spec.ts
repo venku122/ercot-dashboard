@@ -56,7 +56,9 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
       contract.ercotOverrides.desktopIconButtonSize,
     );
   }
-  const analyzeBox = await page.getByRole("button", { name: "Analyze", exact: true }).boundingBox();
+  const analyzeBox = await page
+    .getByRole("button", { name: "Time & compare", exact: true })
+    .boundingBox();
   expect(Math.abs(shellBox!.height - analyzeBox!.height)).toBeLessThanOrEqual(2);
   const offsetBox = await shell.locator(".time-range-picker__offset").boundingBox();
   expect(offsetBox!.y).toBeGreaterThanOrEqual(shellBox!.y);

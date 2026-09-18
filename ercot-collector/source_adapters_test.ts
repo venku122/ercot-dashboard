@@ -228,6 +228,13 @@ Deno.test("wind and solar live schema remains useful", async () => {
   assert(windSolarAdapter.publicationIntervalSeconds === 3600, "hourly publication");
 });
 
+Deno.test("blank operations status is explicit and accepted by both event contracts", async () => {
+  const html = `<table><tr><td class="datetime">Sep 12, 2026 6:00:00 PM</td><td class="summary">Operating notice</td><td class="type">Operational Information</td><td class="priority"> </td></tr></table>`;
+  const result = await parseOperationsMessages(html);
+  assert(result.events[0].status === "Unknown", "legacy status is explicit");
+  assert(result.gridEvents?.[0].status === "Unknown", "grid event status is nonempty");
+});
+
 Deno.test("operations message HTML becomes stable structured events", async () => {
   const html = await Deno.readTextFile(fixture("operations_messages.success.html"));
   const first = await parseOperationsMessages(html);

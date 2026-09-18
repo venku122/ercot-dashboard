@@ -23,9 +23,11 @@ import { seriesKey } from "./chart-config";
 import {
   formatInterpretationRange,
   interpretationAriaDescription,
+  frequencyColor,
   resolveInterpretationBands,
 } from "./chart-interpretation";
 import { chartCoordinator } from "./chart-coordinator";
+import { chartGroupDisplayLabel } from "./information-architecture";
 import { chartInteractionPolicy } from "./interaction-policy";
 import { resolveDataLifecycleState } from "./data-lifecycle";
 import { seriesStats } from "./stats";
@@ -203,6 +205,13 @@ export function ChartCard({
         })),
         borderColor: series.color,
         backgroundColor: series.color,
+        ...(chart.id === "frequency"
+          ? {
+              segment: {
+                borderColor: (context) => frequencyColor(chart, context.p1.parsed.y, series.color),
+              },
+            }
+          : {}),
         ...(series.lineStyle === "dashed" ? { borderDash: [5, 4] } : {}),
         borderWidth: 1.6,
         pointRadius: 0,
@@ -260,7 +269,7 @@ export function ChartCard({
     const overlayPlugin: Plugin<"line"> = {
       id: `ercot-overlay-${chart.id}`,
       beforeDatasetsDraw(instance) {
-        if (!chart.interpretation) return;
+        if (!chart.interpretation || chart.id === "supply-demand") return;
         const area = instance.chartArea;
         const context = instance.ctx;
         const yScale = instance.scales["y"];
@@ -402,7 +411,13 @@ export function ChartCard({
             min: dynamic.current.time.start * 1000,
             max: dynamic.current.time.end * 1000,
             time: { tooltipFormat: "MMM d, yyyy HH:mm:ss" },
-            ticks: { color: "#94a3b8", maxRotation: 0, sampleSize: 8 },
+            ticks: {
+              autoSkip: true,
+              color: "#aebdd0",
+              maxRotation: 0,
+              maxTicksLimit: mobile ? 4 : presentation === "featured" ? 7 : 6,
+              sampleSize: 8,
+            },
             grid: { color: "rgba(148, 163, 184, 0.08)" },
           },
           y: {
@@ -532,15 +547,9 @@ export function ChartCard({
           : ` · last valid observation ${formatAge(sourceHealth?.data_age_seconds ?? null)}.`
       }`
     : undefined;
-  const partial = visibleSeries.some(
-    (series) => seriesData.get(seriesKey(chart.id, series.id))?.meta.partial_current_bucket,
-  );
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
   const showStatusRow = Boolean(
-    (loading && hasData) ||
-    (sourceHealth && sourceHealth.state !== "healthy") ||
-    (partial && hasData) ||
-    pinned,
+    (loading && hasData) || (sourceHealth && sourceHealth.state !== "healthy") || pinned,
   );
   const resetChartZoom = () => {
     suppressZoomCommit.current = true;
@@ -595,9 +604,13 @@ export function ChartCard({
     >
       <header className="chart-card-header">
         <div>
-          <p className="eyebrow">{chart.group}</p>
+          {chart.id !== "frequency" ? (
+            <p className="eyebrow">{chartGroupDisplayLabel(chart.group)}</p>
+          ) : null}
           <h3>{chart.title}</h3>
-          <p className="chart-description">{chart.description}</p>
+          {chart.id !== "frequency" ? (
+            <p className="chart-description">{chart.description}</p>
+          ) : null}
         </div>
         <div className="chart-actions">
           <button
@@ -692,9 +705,6 @@ export function ChartCard({
               Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}
             </span>
           ) : null}
-          {partial && hasData ? (
-            <span className="status-chip status-partial">partial bucket</span>
-          ) : null}
           {pinned ? <span className="status-chip status-pinned">cursor pinned</span> : null}
         </div>
       ) : null}
@@ -709,7 +719,10 @@ export function ChartCard({
         </p>
       ) : null}
 
-      {interpretation && hasData && (presentation === "standard" || inspect) ? (
+      {interpretation &&
+      (chart.id !== "supply-demand" || inspect) &&
+      hasData &&
+      (presentation === "standard" || inspect) ? (
         <details
           className="chart-interpretation"
           onToggle={(event) => setInterpretationOpen(event.currentTarget.open)}
@@ -805,7 +818,11 @@ export function ChartCard({
                   aria-pressed={!hidden}
                   className="legend-toggle"
                   onClick={() => onToggleSeries(key)}
-                  style={{ "--series-color": series.color } as React.CSSProperties}
+                  style={
+                    {
+                      "--series-color": frequencyColor(chart, stats.latest, series.color),
+                    } as React.CSSProperties
+                  }
                 >
                   <span
                     className={`legend-swatch ${series.lineStyle === "dashed" ? "legend-swatch-dashed" : ""}`}

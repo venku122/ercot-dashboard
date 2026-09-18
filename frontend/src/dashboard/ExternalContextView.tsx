@@ -311,9 +311,11 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
                 disabled={!manifest.data.eia_930.selected}
                 onClick={() => choose("eia930_demand")}
               >
-                {selectedStream === "eia930_demand"
-                  ? "Close EIA-930 evidence"
-                  : "Open EIA-930 evidence"}
+                {!manifest.data.eia_930.selected
+                  ? "Open EIA-930 evidence — unavailable"
+                  : selectedStream === "eia930_demand"
+                    ? "Close EIA-930 evidence"
+                    : "Open EIA-930 evidence"}
               </Button>
             </article>
             <article>
@@ -333,9 +335,11 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
                 disabled={!manifest.data.natural_gas.selected}
                 onClick={() => choose("henry_hub_daily")}
               >
-                {selectedStream === "henry_hub_daily"
-                  ? "Close natural-gas evidence"
-                  : "Open natural-gas evidence"}
+                {!manifest.data.natural_gas.selected
+                  ? "Open natural-gas evidence — unavailable"
+                  : selectedStream === "henry_hub_daily"
+                    ? "Close natural-gas evidence"
+                    : "Open natural-gas evidence"}
               </Button>
             </article>
             <article>
@@ -357,7 +361,11 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
                 disabled={!manifest.data.epa_egrid.selected}
                 onClick={() => choose("epa_egrid")}
               >
-                {selectedStream === "epa_egrid" ? "Close eGRID evidence" : "Open eGRID evidence"}
+                {!manifest.data.epa_egrid.selected
+                  ? "Open eGRID evidence — unavailable"
+                  : selectedStream === "epa_egrid"
+                    ? "Close eGRID evidence"
+                    : "Open eGRID evidence"}
               </Button>
             </article>
             <article>

@@ -1583,7 +1583,7 @@ def ingest_events(conn, payload, current_ts=None):
     updated = 0
     invalid = 0
     ingested_at = current_ts if current_ts is not None else now_ts()
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     try:
         for event in payload:
             if not isinstance(event, dict):

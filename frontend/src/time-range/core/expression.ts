@@ -514,7 +514,7 @@ function parseTimeRangeExpressionInternal(
       }
     );
   }
-  return failure("invalid_expression", "Enter a supported Datadog time range.");
+  return failure("invalid_expression", "Enter a supported time range.");
 }
 
 export function parseTimeRangeExpression(

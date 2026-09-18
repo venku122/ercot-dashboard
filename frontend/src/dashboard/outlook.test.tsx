@@ -197,7 +197,7 @@ describe("Grid Outlook contract", () => {
     expect(html).toContain("Some Outlook inputs are partial or stale");
     expect(html).toContain("Current observations only");
     expect(html).toContain("Current METAR observations are displayed independently");
-    expect(html).toContain("not an ERCOT declaration");
+    expect(html).toContain("Published outlook sources");
   });
 
   it("does not label stale or failed METAR observations as current", () => {

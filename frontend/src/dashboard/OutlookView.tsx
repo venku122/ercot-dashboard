@@ -109,7 +109,7 @@ function DayCard({
     <article className="outlook-day-card" data-outlook-day={card.deliveryDate}>
       <header>
         <p className="eyebrow">{dayLabel(card.deliveryDate)}</p>
-        <strong>Dashboard outlook</strong>
+        <strong>Demand &amp; capacity</strong>
       </header>
       <dl>
         <div>
@@ -312,7 +312,7 @@ export function OutlookContent({ outlook }: { outlook: GridOutlook }) {
       <ForecastQualityPanel enabled />
 
       <footer className="outlook-provenance">
-        <strong>Dashboard outlook — not an ERCOT declaration</strong>
+        <strong>Published outlook sources</strong>
         <span>{outlook.sourceLabel}</span>
         <span>
           Forecast source {outlook.forecastSourceHealth?.freshness_state ?? "unknown"} · Adequacy

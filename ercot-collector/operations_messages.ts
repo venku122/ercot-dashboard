@@ -88,7 +88,7 @@ export async function parseOperationsMessages(
       evidence_class: "official",
       source_id: "ercot_operations_messages",
       source_url: URL,
-      status: status ?? "Unknown",
+      status: status || "Unknown",
       title: titleFor(summary),
     };
     const gridEvent = buildOperationsGridEvent(evidence, retrievedAt);
@@ -108,7 +108,7 @@ export async function parseOperationsMessages(
       starts_at: wallTime.starts_at,
       observed_at: retrievedAt,
       event_type: type,
-      status: status ?? "Unknown",
+      status: status || "Unknown",
       severity: /emergency|warning|watch/i.test(summary) ? "warning" : "info",
       title: titleFor(summary),
       body: summary,

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import useSWR from "swr";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
+import { DisclosureCard } from "../components/ui/disclosure-card";
+import { Button } from "../components/ui/button";
 import {
   loadMarketGeographyManifest,
   loadMarketGeographyResource,
@@ -222,26 +224,14 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
   const unhealthy = manifest.data?.source_health.some((source) => source.state !== "healthy");
 
   return (
-    <section aria-labelledby="market-geography-title" className="market-geography-panel">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Congestion and price geography</p>
-          <h2 id="market-geography-title">Where are prices diverging?</h2>
-          <p>
-            A settlement-price matrix and coincident binding constraints. This is not a geographic
-            boundary map or a causal price decomposition.
-          </p>
-        </div>
-        <button
-          aria-expanded={expanded}
-          className="secondary-button"
-          onClick={() => setExpanded((value) => !value)}
-          type="button"
-        >
-          {expanded ? "Hide price-geography details" : "Load price-geography details"}
-        </button>
-      </div>
-      {!expanded ? <p>Open to load one current evidence manifest and selected history.</p> : null}
+    <DisclosureCard
+      titleId="market-geography-title"
+      title="Where are prices diverging?"
+      description="Settlement prices and coincident constraints. This is not a geographic boundary map or a causal price decomposition."
+      className="market-geography-panel"
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+    >
       {expanded && manifest.isLoading ? <DataLifecycleMessage state="loading" /> : null}
       {expanded && manifest.error && !manifest.data ? (
         <DataLifecycleMessage state="unavailable" />
@@ -257,21 +247,23 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
               details appear below.
             </p>
           ) : null}
-          <div aria-label="Market geography layer" className="market-geography-tabs" role="group">
-            <button
+          <div aria-label="Market geography layer" className="ui-segmented-control" role="group">
+            <Button
+              variant="segmented"
               aria-pressed={layer === "prices"}
               onClick={() => selectLayer("prices")}
               type="button"
             >
               Settlement prices
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="segmented"
               aria-pressed={layer === "constraints"}
               onClick={() => selectLayer("constraints")}
               type="button"
             >
               Coincident constraints
-            </button>
+            </Button>
           </div>
 
           {layer === "prices" ? (
@@ -331,7 +323,7 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
                   </div>
                   <div
                     aria-label="Settlement price exact values"
-                    className="table-scroll"
+                    className="table-scroll ui-data-table"
                     role="region"
                     tabIndex={0}
                   >
@@ -395,7 +387,7 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
               {(constraints?.rows.length ?? 0) > 0 ? (
                 <div
                   aria-label="Coincident binding constraint exact values"
-                  className="table-scroll"
+                  className="table-scroll ui-data-table"
                   role="region"
                   tabIndex={0}
                 >
@@ -474,7 +466,7 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
                 ) : null}
                 <div
                   aria-label="Selected market geography exact history"
-                  className="table-scroll"
+                  className="table-scroll ui-data-table"
                   role="region"
                   tabIndex={0}
                 >
@@ -531,6 +523,6 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
           </details>
         </>
       ) : null}
-    </section>
+    </DisclosureCard>
   );
 }

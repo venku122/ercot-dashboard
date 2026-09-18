@@ -123,20 +123,6 @@
   min-width: 42rem;
 }
 
-.market-mechanics-panel .table-scroll {
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  width: 100%;
-}
-
-.market-mechanics-panel .table-scroll th,
-.market-mechanics-panel .table-scroll td {
-  padding: 0.55rem 0.75rem;
-  vertical-align: top;
-  white-space: nowrap;
-}
-
 .market-geography-panel {
   display: grid;
   gap: 1rem;
@@ -154,13 +140,6 @@
   min-height: 44px;
 }
 
-.market-geography-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.market-geography-tabs button,
 .market-price-matrix button,
 .market-constraint-list button {
   border: 1px solid rgba(148, 163, 184, 0.24);
@@ -169,7 +148,6 @@
   color: inherit;
 }
 
-.market-geography-tabs button[aria-pressed="true"],
 .market-price-matrix button[aria-pressed="true"],
 .market-constraint-list button[aria-pressed="true"] {
   border-color: #7dd3fc;
@@ -221,22 +199,8 @@
   height: clamp(8rem, 24vw, 15rem);
 }
 
-.market-geography-panel .table-scroll {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-}
-
 .market-geography-panel .table-scroll table {
   min-width: 48rem;
-}
-
-.market-geography-panel .table-scroll th,
-.market-geography-panel .table-scroll td {
-  padding: 0.55rem 0.75rem;
-  vertical-align: top;
-  white-space: nowrap;
 }
 
 @media (max-width: 700px) {
@@ -4256,11 +4220,11 @@ main[data-dashboard-view="overview"] {
   }
 
   .mobile-section-nav {
-    overflow: hidden;
+    overflow-x: auto;
   }
   .mobile-section-nav button {
-    min-width: 0;
-    flex: 1 1 0;
+    min-width: 80px;
+    flex: 0 0 auto;
   }
 
   .outlook-promo {
@@ -4505,6 +4469,476 @@ main[data-dashboard-view="overview"] {
   border: 1px solid var(--border);
   border-radius: 0.85rem;
   background: var(--surface);
+}
+
+/* Human-review visual remediation: clearer identity, hierarchy, and density. */
+:root {
+  --panel: #0e1728;
+  --panel-strong: #111c30;
+  --border: rgba(174, 189, 208, 0.22);
+  --muted: #aebdd0;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dashboard-shell {
+  width: min(1640px, 100%);
+  padding-top: 22px;
+}
+
+.dashboard-header {
+  grid-template-columns: minmax(340px, 1fr) auto auto;
+  min-height: 84px;
+  gap: 20px;
+  padding: 8px 0 18px;
+}
+
+.dashboard-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+}
+
+.dashboard-brand-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border: 1px solid rgba(34, 211, 238, 0.42);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(8, 145, 178, 0.24), rgba(15, 23, 42, 0.95));
+  color: #67e8f9;
+}
+
+.dashboard-brand-mark svg {
+  width: 27px;
+  height: 27px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dashboard-brand p,
+.dashboard-brand h1 {
+  margin: 0;
+}
+
+.dashboard-brand p {
+  margin-bottom: 3px;
+  color: #8fa3ba;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-header h1 {
+  font-size: clamp(1.65rem, 2.7vw, 2.35rem);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.desktop-view-nav {
+  margin-top: 0;
+  border-radius: 12px;
+  background: #0a1220;
+  padding: 6px;
+}
+
+.dashboard-view-nav button {
+  min-height: 38px;
+  padding: 7px 12px;
+  color: #aebdd0;
+}
+
+.dashboard-view-heading {
+  gap: 7px;
+  padding: 2px 0 17px;
+}
+
+.dashboard-view-heading h2 {
+  font-size: clamp(1.65rem, 2.5vw, 2.25rem);
+}
+
+.outlook-promo {
+  border-color: rgba(34, 211, 238, 0.34);
+  background: linear-gradient(110deg, #0d2635, #101a2b 68%);
+  padding: 17px 20px;
+}
+
+.outlook-promo h2 {
+  font-size: 1.05rem;
+}
+
+.overview-card,
+.source-health-panel,
+.events-panel,
+.diagnostics-view-details,
+.chart-card {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  backdrop-filter: none;
+}
+
+.overview-readings {
+  border-color: rgba(174, 189, 208, 0.26);
+  background: #0e1728;
+}
+
+.overview-readings .overview-card {
+  min-height: 118px;
+  padding: 14px 16px;
+}
+
+.overview-card-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.metric-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: #67e8f9;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.overview-card strong {
+  color: #f3f7fc;
+}
+
+.hero-trend-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #dce6f2;
+  font-weight: 800;
+}
+
+.hero-trend[data-direction="up"] .hero-trend-delta > span {
+  color: #34d399;
+}
+
+.hero-trend[data-direction="down"] .hero-trend-delta > span {
+  color: #f87171;
+}
+
+.chart-card {
+  gap: 10px;
+  border-radius: 14px;
+  background: #0e1728;
+  padding: 15px;
+}
+
+.chart-card-featured {
+  border-color: rgba(96, 165, 250, 0.34);
+  background: #101d31;
+}
+
+.chart-status-row:empty {
+  display: none;
+}
+
+.chart-canvas-wrap canvas {
+  image-rendering: auto;
+}
+
+.grid-health-summary {
+  gap: 13px;
+  background: #101d31;
+  padding: 17px 18px;
+}
+
+.grid-health-context {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  gap: 8px;
+}
+
+.grid-health-context > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  border-left: 2px solid rgba(103, 232, 249, 0.35);
+  padding-left: 9px;
+}
+
+.grid-health-context dt {
+  color: #8fa3ba;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.grid-health-context dd {
+  margin: 0;
+  color: #e5edf8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.grid-health-details summary,
+.derived-insights-section > summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+}
+
+.derived-insights-section > summary {
+  color: #e5edf8;
+}
+
+.grid-health-details > summary::before,
+.historical-context-toggle::before {
+  content: "▸";
+  margin-right: 10px;
+  color: #67e8f9;
+}
+
+.grid-health-details[open] > summary::before,
+.historical-context-toggle[aria-expanded="true"]::before {
+  content: "▾";
+}
+
+.historical-context-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 48px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.historical-context-panel > h2 {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.historical-context-panel:has(> h2) {
+  padding: 0;
+}
+#historical-context-content {
+  padding: 16px;
+}
+
+.historical-context-panel {
+  margin-top: 0;
+  border-color: rgba(174, 189, 208, 0.24);
+  background: #0b1422;
+  padding: 18px;
+}
+
+.historical-context-panel > header {
+  align-items: center;
+}
+
+.historical-context-panel > header button,
+.outlook-promo button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-grid {
+  align-items: start;
+}
+
+.storage-operations-summary {
+  gap: 8px;
+  padding: 10px;
+}
+
+.storage-operations-summary > p {
+  max-width: 85ch;
+}
+
+.mobile-dialog-backdrop {
+  align-items: center;
+  padding: 24px;
+}
+
+.mobile-dialog {
+  width: min(620px, 100%);
+  max-height: min(82dvh, 720px);
+  border-radius: 18px;
+  padding: 0 18px 18px;
+}
+
+.mobile-dialog-header {
+  align-items: center;
+  padding: 18px 0 13px;
+}
+
+.sheet-controls {
+  gap: 10px;
+}
+
+.sheet-controls .checkbox-control {
+  display: flex !important;
+  min-height: 44px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.sheet-controls .checkbox-control input {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+}
+
+.sheet-fieldset {
+  padding: 10px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .dashboard-header .freshness-state {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .dashboard-header .compact-control-bar {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .grid-health-context {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-group[data-group="Generation"] .chart-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.chart-group[data-group="Generation"] .chart-canvas-wrap {
+  height: clamp(260px, 30vw, 410px);
+}
+
+.chart-group[data-group="Market"] .chart-card:only-child {
+  grid-column: 1 / -1;
+}
+
+.chart-group[data-group="Diagnostics"] .chart-card:only-child {
+  grid-column: 1 / -1;
+}
+
+.market-geography-panel,
+.market-mechanics-panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #0e1728;
+  padding: 18px;
+}
+
+.section-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.section-heading > div {
+  min-width: 0;
+}
+
+.section-heading h2,
+.section-heading p:last-child {
+  margin-bottom: 0;
+}
+
+.section-heading p:last-child {
+  max-width: 76ch;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.secondary-button {
+  display: inline-flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  border-radius: 9px;
+  background: #142238;
+  padding: 9px 13px;
+  color: #dce8f7;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.secondary-button:hover {
+  border-color: rgba(103, 232, 249, 0.52);
+  background: #182a44;
+}
+
+@media (max-width: 700px), (max-height: 500px) and (pointer: coarse) {
+  .dashboard-view-nav button {
+    min-height: 44px;
+    min-width: 80px;
+  }
+
+  .dashboard-shell {
+    padding-top: 10px;
+  }
+
+  .dashboard-header {
+    min-height: 0;
+  }
+
+  .dashboard-brand-mark {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .dashboard-brand p {
+    font-size: 0.58rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .mobile-dialog-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .mobile-dialog {
+    max-height: 88dvh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .external-context-policy {

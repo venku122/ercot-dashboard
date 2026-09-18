@@ -169,13 +169,13 @@ export const dashboardViewDefinitions = [
   },
   {
     id: "advanced",
-    label: "Advanced",
-    description: "Engineering signals and ancillary products.",
+    label: "Grid Signals",
+    description: "Operating reserves, time error, inertia, DC ties, and ancillary products.",
     groups: ["Advanced grid", "Ancillary services"],
   },
   {
     id: "diagnostics",
-    label: "Diagnostics",
+    label: "System Health",
     description: "Collection health, source freshness, timestamps, and failure detail.",
     groups: ["Diagnostics"],
   },
@@ -192,14 +192,14 @@ export const primaryDashboardViewIds: ReadonlyArray<DashboardViewId> = [
   "generation",
   "reliability",
   "market",
+  "weather",
+  "advanced",
+  "diagnostics",
 ];
 
 export const moreDashboardViewIds: ReadonlyArray<DashboardViewId> = [
   "texas-grid",
   "external-context",
-  "weather",
-  "advanced",
-  "diagnostics",
 ];
 
 const groupByName = new Map<string, (typeof chartGroupDefinitions)[number]>(
@@ -230,6 +230,13 @@ export function chartGroupDefinition(name: string) {
   const definition = groupByName.get(name);
   if (!definition) throw new Error(`unknown_chart_group:${name}`);
   return definition;
+}
+
+export function chartGroupDisplayLabel(name: string): string {
+  if (name === "Advanced grid") return "Core operating signals";
+  if (name === "Ancillary services") return "Reserve products";
+  if (name === "Diagnostics") return "System health";
+  return name;
 }
 
 export function initiallyCollapsedGroups(mobile: boolean): Set<string> {

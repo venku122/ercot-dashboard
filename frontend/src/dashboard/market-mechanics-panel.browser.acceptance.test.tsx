@@ -207,7 +207,7 @@ describe("market mechanics panel independent lifecycle acceptance", () => {
     expect(mocks.loadResource).not.toHaveBeenCalled();
     expect(host.textContent).toContain("Context, not a price decomposition or proof of cause");
 
-    await act(async () => button(host, "Load market-mechanics details").click());
+    await act(async () => button(host, "What changed with the price move?").click());
     await flush();
     expect(mocks.loadManifest).toHaveBeenCalledTimes(1);
     expect(mocks.loadResource).toHaveBeenCalledTimes(1);
@@ -239,9 +239,9 @@ describe("market mechanics panel independent lifecycle acceptance", () => {
     });
     let rendered = renderPanel();
     activeRoot = rendered.root;
-    await act(async () => button(rendered.host, "Load market-mechanics details").click());
+    await act(async () => button(rendered.host, "What changed with the price move?").click());
     await flush();
-    await act(async () => button(rendered.host, "Hide market-mechanics details").click());
+    await act(async () => button(rendered.host, "What changed with the price move?").click());
     expect(manifestSignals[0]?.aborted).toBe(true);
 
     await act(async () => activeRoot?.unmount());
@@ -255,19 +255,19 @@ describe("market mechanics panel independent lifecycle acceptance", () => {
     });
     rendered = renderPanel();
     activeRoot = rendered.root;
-    await act(async () => button(rendered.host, "Load market-mechanics details").click());
+    await act(async () => button(rendered.host, "What changed with the price move?").click());
     await flush();
     await act(async () => button(rendered.host, "Reg-Up adder").click());
     await flush();
     expect(historySignals[0]?.aborted).toBe(true);
-    await act(async () => button(rendered.host, "Hide market-mechanics details").click());
+    await act(async () => button(rendered.host, "What changed with the price move?").click());
     expect(historySignals.at(-1)?.aborted).toBe(true);
   });
 
   it("keeps labeled last-good data when manifest revalidation fails", async () => {
     const { host, root } = renderPanel();
     activeRoot = root;
-    await act(async () => button(host, "Load market-mechanics details").click());
+    await act(async () => button(host, "What changed with the price move?").click());
     await flush();
     expect(host.querySelector('[aria-label="System Lambda exact values"]')).not.toBeNull();
 
