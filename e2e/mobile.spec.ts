@@ -31,10 +31,11 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
 }) => {
   await openPopulated(page);
   const primaryOverview = page.getByLabel("Time-aligned grid readings");
-  for (const label of ["Demand", "Derived headroom", "Reported PRC", "Houston Hub", "Frequency"]) {
+  for (const label of ["Demand", "Derived headroom", "Reported PRC", "Frequency"]) {
     const card = primaryOverview.getByText(label, { exact: true });
     await expect(card).toBeVisible();
   }
+  await expect(primaryOverview.getByText("Houston Hub · $/MWh", { exact: true })).toBeVisible();
   const status = page.getByLabel("Current ERCOT status");
   await expect(status.getByLabel("No active ERCOT emergency")).toBeVisible();
   await expect(status.getByLabel("Core readings are current")).toBeVisible();
@@ -77,7 +78,7 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
   await expect(page.getByRole("button", { name: "Generation view" })).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("legend")).toBe("compact");
   const primaryPrice = await primaryOverview
-    .getByText("Houston Hub", { exact: true })
+    .getByText("Houston Hub · $/MWh", { exact: true })
     .boundingBox();
   const firstChart = await page.locator('[data-chart-id="supply-demand"]').boundingBox();
   const supportingBox = await supporting.boundingBox();
