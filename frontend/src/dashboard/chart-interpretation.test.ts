@@ -48,7 +48,7 @@ describe("chart interpretation policy", () => {
     }
   });
 
-  it("resolves demand and outage ratios from the latest finite capacity", () => {
+  it("DATA-02 never classifies historical demand using the last capacity", () => {
     const chart = chartDefinitions.find((candidate) => candidate.id === "supply-demand")!;
     const interpretation = chart.interpretation!;
     const data = new Map([
@@ -63,12 +63,9 @@ describe("chart interpretation policy", () => {
     ]);
     const bands = resolveInterpretationBands(interpretation, data);
 
-    expect(bands.map(({ lowerValue, upperValue }) => [lowerValue, upperValue])).toEqual([
-      [undefined, 80_000],
-      [80_000, 90_000],
-      [90_000, 100_000],
-      [100_000, undefined],
-    ]);
+    expect(bands).toEqual([]);
+    data.set("supply-demand:available-capacity", loaded([[100, 200_000]]));
+    expect(resolveInterpretationBands(interpretation, data)).toEqual([]);
     expect(formatInterpretationRange(interpretation, interpretation.bands[1]!, chart.unit)).toBe(
       "80.0%–90.0%",
     );

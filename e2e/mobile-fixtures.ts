@@ -139,9 +139,9 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Mo
   if (metric.includes("demand_mw")) return 68_200 + wave * 3200;
   if (metric.includes("capacity_mw")) return 88_500 + wave * 1800;
   if (metric.includes("Frequency")) return 60.001 + wave * 0.018;
-  if (metric.includes("charging_mw")) return -900 - wave * 500;
+  if (metric.includes(".charging_mw")) return -900 - wave * 500;
   if (metric.includes("discharging_mw")) return 450 + wave * 300;
-  if (metric.includes("net_output_mw")) return -450 + wave * 800;
+  if (metric.includes("net_output_mw")) return -450 - wave * 200;
   if (metric.includes("eea_level")) return 0;
   if (metric.includes("metar.temperature")) return 31 + wave * 4;
   if (metric.includes("metar.winds.speed")) return 12 + wave * 4;
@@ -316,6 +316,7 @@ export async function installMobileApi(
   page: Page,
   scenario: MobileScenario = "normal",
   requests: string[][] = [],
+  options: { nativeCadence?: boolean } = {},
 ) {
   await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/series/batch", async (route) => {
@@ -328,7 +329,11 @@ export async function installMobileApi(
     };
     requests.push(payload.queries.map((query) => query.id));
     const series = payload.queries.map((query) => {
-      const count = query.id.includes("compare") ? 42 : 64;
+      const count = options.nativeCadence
+        ? Math.min(1200, Math.floor((query.until - query.since) / 300) + 1)
+        : query.id.includes("compare")
+          ? 42
+          : 64;
       const step = Math.max(60, Math.floor((query.until - query.since) / (count - 1)));
       const points =
         scenario === "empty"

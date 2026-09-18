@@ -34,9 +34,9 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Sc
   if (metric.includes("demand_mw")) return 68_000 + wave * 3200;
   if (metric.includes("capacity_mw")) return 93_000 + wave * 1800;
   if (metric.includes("Frequency")) return 60 + wave * 0.018;
-  if (metric.includes("charging_mw")) return -900 - wave * 500;
+  if (metric.includes(".charging_mw")) return -900 - wave * 500;
   if (metric.includes("discharging_mw")) return 450 + wave * 300;
-  if (metric.includes("net_output_mw")) return -450 + wave * 800;
+  if (metric.includes("net_output_mw")) return -450 - wave * 200;
   if (metric.includes("eea_level")) return 0;
   if (metric.includes("metar.temperature")) return 31 + wave * 4;
   if (metric.includes("duty_cycle")) return 12 + wave * 3;
@@ -59,6 +59,7 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Sc
 test("hero metrics expose honest hourly direction, delta, and timestamp", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
+  await page.getByText("Grid Health inputs and scoring", { exact: true }).click();
 
   for (const id of [
     "demand",
@@ -94,6 +95,7 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
     await route.fallback();
   });
   await page.reload();
+  await page.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await expect(page.locator('[data-metric-id="demand"] strong')).toContainText("GW");
   await expect(page.locator('[data-hero-trend="demand"]')).toHaveCount(0);
   await expect(page.getByText(/Recent comparison unavailable for/)).toHaveCount(0);
@@ -111,6 +113,7 @@ test("derived insights exclude the superseded unconditioned history cards", asyn
   await expect(
     page.getByText("Calculated grid insights and formulas", { exact: true }),
   ).toBeVisible();
+  await page.getByText("Calculated grid insights and formulas", { exact: true }).click();
   const metrics = page.getByLabel("Derived grid metrics");
   await expect(metrics.getByRole("article")).toHaveCount(7);
   await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(7);
@@ -153,13 +156,14 @@ test("Grid Health Score is concise, bounded, explainable, and coverage-aware", a
   await expect(page.locator(".grid-health-score-value")).toHaveCount(0);
   await expect(page.getByLabel("Current ERCOT status")).not.toContainText("/ 100");
   const summary = page.locator(".grid-health-summary");
+  const explanation = page.getByText("Grid Health inputs and scoring", { exact: true });
+  await expect(summary).not.toBeVisible();
+  await explanation.click();
   await expect(summary).toBeVisible();
   await expect(summary).toContainText(/\d+ \/ 100/);
   await expect(summary.locator(".grid-health-contribution")).toHaveCount(8);
   await expect(summary).not.toContainText("100% input coverage");
 
-  const explanation = page.getByText("Grid Health inputs and scoring", { exact: true });
-  await explanation.click();
   await expect(page.getByText(/Current result: \d+ \/ 100/)).toBeVisible();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
   await expect(page.getByLabel("Grid Health Score factors")).toContainText("Reserve margin");
@@ -206,6 +210,7 @@ test("chart thresholds pair semantic bands with non-color interpretation text", 
 
   const frequency = page.locator('[data-chart-id="frequency"]');
   await frequency.scrollIntoViewIfNeeded();
+  await frequency.getByRole("button", { name: "Open Grid frequency inspect mode" }).click();
   await expect(
     frequency.getByLabel("Grid frequency interpretation bands").getByRole("listitem"),
   ).toHaveCount(7);
@@ -451,6 +456,7 @@ test("live background refresh keeps populated KPI text and dimensions stable", a
   await page.goto("/");
 
   const card = page.locator('[data-metric-id="demand"]');
+  await page.getByText("Grid Health inputs and scoring", { exact: true }).click();
   const value = card.locator("strong");
   const originalText = await value.textContent();
   const originalBox = await card.boundingBox();
@@ -815,9 +821,7 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await card.getByLabel("Supply and demand chart menu").click();
   await page.getByRole("menuitem", { name: "Reset zoom" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
-  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue(
-    "Past 6 Hours",
-  );
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue("Past 1 Day");
 });
 
 test("failure, no-data distinction, and stale source state are explicit", async ({ page }) => {
@@ -961,14 +965,14 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const session = await page.context().newCDPSession(page);
   await session.send("Performance.enable");
   await page.goto("/");
-  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(2);
+  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(6);
   const total = await page.locator("[data-chart-id]").count();
   const initiallyMounted = await page.locator('[data-chart-id][data-mounted="true"]').count();
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();
-  expect(total).toBe(2);
+  expect(total).toBe(6);
   await expect(page.locator('[data-chart-id="time-error"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "More views" })).toBeVisible();
-  expect(initiallyMounted).toBeLessThanOrEqual(4);
+  expect(initiallyMounted).toBeLessThanOrEqual(5);
   expect(initiallyVisible).toBeLessThanOrEqual(4);
   const heapBefore = await session.send("Performance.getMetrics");
   await page.getByRole("button", { name: "Market view" }).click();
@@ -1015,15 +1019,17 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   await expect(
     currentStatus.locator(".status-strip-item").first().locator("strong"),
   ).toHaveAttribute("aria-label", /ERCOT grid watch active|No active ERCOT emergency/);
-  await expect(page.getByLabel("Featured grid trend")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Demand & capacity outlook" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open Grid Outlook" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Grid charts", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Next-day demand & capacity outlook" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Dashboard views" }).getByRole("button"),
   ).toHaveCount(9);
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
-  expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(false);
+  expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(true);
+  expect(requests.flat().some((id) => id.startsWith("time-error:"))).toBe(false);
 
   await page.getByRole("button", { name: "Reliability view" }).click();
   await expect(page.getByRole("heading", { name: "Unused capacity and headroom" })).toBeAttached();
@@ -1196,7 +1202,7 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
-  await expect(cards).toHaveCount(2);
+  await expect(cards).toHaveCount(6);
   for (let index = 0; index < (await cards.count()); index += 1) {
     const card = cards.nth(index);
     await card.scrollIntoViewIfNeeded();

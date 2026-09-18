@@ -21,6 +21,8 @@ import { shouldCommitRequest } from "./dashboard/request-generation";
 import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
+import { OverviewCharts } from "./dashboard/OverviewCharts";
+import { homepageSeries, overviewChartIds, engineeringChartIds } from "./dashboard/homepage-model";
 import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
 import {
   dataLifecycleCopy,
@@ -39,8 +41,6 @@ import {
   dashboardViewForGroup,
   initiallyCollapsedGroups,
   moreDashboardViewIds,
-  mobilePrimaryCriticalMetricIds,
-  mobileSupportingCriticalMetricIds,
   primaryDashboardViewIds,
   reserveMarginPercent,
   type CriticalMetricId,
@@ -72,7 +72,12 @@ import {
 } from "./dashboard/url-state";
 import { mediaQueryMatches, MOBILE_MEDIA_QUERY, useMediaQuery } from "./dashboard/use-media-query";
 import { formatAge, formatValue } from "./dashboard/units";
-import { commitFixedTimeRange, resetTimeRange, TimeRangePicker } from "./time-range";
+import {
+  commitFixedTimeRange,
+  pauseTimeRange,
+  resetTimeRange,
+  TimeRangePicker,
+} from "./time-range";
 
 const ChartCard = lazy(() =>
   import("./dashboard/ChartCard").then((module) => ({ default: module.ChartCard })),
@@ -548,8 +553,21 @@ export function App() {
       : parsed;
   });
   const [seriesData, setSeriesData] = useState<Map<string, LoadedSeries>>(new Map());
+  const overviewSeriesData = useMemo(() => homepageSeries(seriesData), [seriesData]);
   const seriesDataRef = useRef(seriesData);
   const requestGenerationRef = useRef(0);
+  const historyControllers = useRef(new Set<AbortController>());
+  const [historyQueueRevision, setHistoryQueueRevision] = useState(0);
+  useEffect(
+    () => () => {
+      for (const controller of historyControllers.current) controller.abort();
+      historyControllers.current.clear();
+      loadedChartIdsRef.current.clear();
+      loadedChartContextRef.current = "";
+      requestGenerationRef.current += 1;
+    },
+    [],
+  );
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -575,6 +593,22 @@ export function App() {
   const viewHeadingRef = useRef<HTMLHeadingElement>(null);
   const resolvedTime = useMemo(() => toErcotTimeState(state.time, clockMs), [clockMs, state.time]);
   const [seriesTime, setSeriesTime] = useState(resolvedTime);
+  useEffect(() => {
+    const unsubscribe = chartCoordinator.subscribe((_timestamp, pinned) => {
+      if (pinned)
+        setState((current) =>
+          current.time.playback.kind === "running"
+            ? {
+                ...current,
+                time: pauseTimeRange(current.time, seriesTime.end * 1000, ERCOT_TIME_RANGE_CONFIG),
+              }
+            : current,
+        );
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [seriesTime.end]);
   const {
     derivedContext,
     error: overviewError,
@@ -603,7 +637,7 @@ export function App() {
     if (explicitLegendRef.current) return;
     setState((current) => ({
       ...current,
-      legendMode: isMobile ? "compact" : "expanded",
+      legendMode: "compact",
     }));
   }, [isMobile]);
 
@@ -638,9 +672,11 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const requestGeneration = ++requestGenerationRef.current;
+    const loadKey = (chart: (typeof chartDefinitions)[number]) =>
+      selectedView === "overview" && chart.id === "capacity-headroom"
+        ? "capacity-headroom:prc-only"
+        : chart.id;
     const loadContext = JSON.stringify([
-      selectedView,
       resolvedTime.start,
       resolvedTime.end,
       state.compare,
@@ -649,22 +685,42 @@ export function App() {
     ]);
     const priorSeriesData = seriesDataRef.current;
     if (loadedChartContextRef.current !== loadContext) {
+      for (const pending of historyControllers.current) pending.abort();
+      historyControllers.current.clear();
+      requestGenerationRef.current += 1;
       loadedChartContextRef.current = loadContext;
       loadedChartIdsRef.current.clear();
     }
-    const requestedCharts = chartDefinitions.filter(
-      (chart) =>
-        dashboardViewForGroup(chart.group) === selectedView &&
-        activeChartIds.has(chart.id) &&
-        !collapsedGroups.has(chart.group) &&
-        !loadedChartIdsRef.current.has(chart.id),
-    );
+    const requestGeneration = requestGenerationRef.current;
+    // Serialize visibility batches. New placements reuse completed data and wait
+    // for the current batch instead of aborting and duplicating its requests.
+    if (historyControllers.current.size) return;
+    const requestedCharts = chartDefinitions
+      .filter(
+        (chart) =>
+          (selectedView === "overview"
+            ? overviewChartIds.has(chart.id) || engineeringChartIds.has(chart.id)
+            : dashboardViewForGroup(chart.group) === selectedView) &&
+          (activeChartIds.has(chart.id) ||
+            (selectedView === "overview" &&
+              ["supply-demand", "capacity-headroom", "pricing", "frequency"].includes(chart.id)) ||
+            (selectedView === "overview" &&
+              chart.id === "capacity-headroom" &&
+              activeChartIds.has("overview-headroom"))) &&
+          (selectedView === "overview" || !collapsedGroups.has(chart.group)) &&
+          !loadedChartIdsRef.current.has(loadKey(chart)),
+      )
+      .map((chart) =>
+        selectedView === "overview" && chart.id === "capacity-headroom"
+          ? { ...chart, series: chart.series.filter((series) => series.id === "prc") }
+          : chart,
+      );
     if (!requestedCharts.length) {
       setLoading(false);
-      return () => controller.abort();
+      return;
     }
-    for (const chart of requestedCharts) loadedChartIdsRef.current.add(chart.id);
-    let completed = false;
+    for (const chart of requestedCharts) loadedChartIdsRef.current.add(loadKey(chart));
+    historyControllers.current.add(controller);
     setLoading(true);
     setRequestError(null);
     void loadSeries(
@@ -682,27 +738,27 @@ export function App() {
           return;
         setSeriesData((current) => new Map([...current, ...nextSeries]));
         setSeriesTime(resolvedTime);
-        completed = true;
       })
       .catch((error: unknown) => {
         if (
           !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
         )
           return;
-        for (const chart of requestedCharts) loadedChartIdsRef.current.delete(chart.id);
+        // Keep failed keys attempted for this generation. Explicit retry or a
+        // new window invalidates them; the visibility queue must not hot-loop.
         setRequestError(error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal))
+        historyControllers.current.delete(controller);
+        if (
+          shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+        ) {
           setLoading(false);
+          setHistoryQueueRevision((value) => value + 1);
+        }
       });
-    return () => {
-      controller.abort();
-      if (!completed) {
-        for (const chart of requestedCharts) loadedChartIdsRef.current.delete(chart.id);
-      }
-    };
   }, [
+    historyQueueRevision,
     activeChartIds,
     collapsedGroups,
     state.compare,
@@ -907,13 +963,6 @@ export function App() {
       trend: heroTrends[definition.id],
       value: criticalValues[definition.id],
     }));
-  const mobilePrimaryOverview = overview.filter((item) =>
-    mobilePrimaryCriticalMetricIds.includes(item.id),
-  );
-  const mobileSupportingOverview = overview.filter((item) =>
-    mobileSupportingCriticalMetricIds.includes(item.id),
-  );
-  const visibleOverview = isMobile ? mobilePrimaryOverview : overview;
   const operatingSummary = useMemo(
     () =>
       buildOperatingSummary({
@@ -986,7 +1035,7 @@ export function App() {
   );
   const activeView = dashboardViewDefinition(selectedView);
   const activeChartGroups = chartGroups.filter(
-    (group) => dashboardViewForGroup(group) === selectedView,
+    (group) => selectedView !== "overview" && dashboardViewForGroup(group) === selectedView,
   );
   const featuredChart = chartDefinitions.find((chart) => chart.id === "supply-demand")!;
 
@@ -1010,7 +1059,7 @@ export function App() {
 
   const renderChart = (
     chart: (typeof chartDefinitions)[number],
-    presentation: "featured" | "standard" = "standard",
+    presentation: "featured" | "standard" | "overview" = "standard",
   ) => (
     <Suspense
       fallback={<article className="chart-card chart-card-lazy">Loading chart workspace…</article>}
@@ -1047,7 +1096,7 @@ export function App() {
         onZoom={onZoom}
         presentation={presentation}
         requestError={effectiveRequestError}
-        seriesData={seriesData}
+        seriesData={selectedView === "overview" ? overviewSeriesData : seriesData}
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
         time={seriesTime}
       />
@@ -1133,50 +1182,6 @@ export function App() {
 
         {selectedView === "overview" ? (
           <>
-            <section aria-labelledby="dashboard-outlook-title" className="outlook-promo">
-              <div>
-                <p className="eyebrow">Next day and week</p>
-                <h2 id="dashboard-outlook-title">Demand &amp; capacity outlook</h2>
-                <p>
-                  Published ERCOT demand forecasts and system-adequacy projections, with source
-                  coverage shown alongside each view.
-                </p>
-              </div>
-              <Button onClick={() => navigateToView("outlook")}>Open Grid Outlook</Button>
-            </section>
-            <section
-              aria-label="Grid overview"
-              className="overview-grid overview-readings"
-              data-mobile-tier="primary"
-            >
-              {visibleOverview.map((item) => (
-                <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
-              ))}
-            </section>
-            <section aria-label="Featured grid trend" className="featured-chart-section">
-              {renderChart(featuredChart, "featured")}
-            </section>
-
-            <GridHealthSummary gridHealth={gridHealth} />
-
-            {isMobile ? (
-              <details className="mobile-supporting-metrics">
-                <summary>
-                  <span>Supporting grid readings</span>
-                  <small>Available capacity and frequency</small>
-                  <span aria-hidden="true" className="mobile-supporting-indicator">
-                    <span className="mobile-supporting-indicator-closed">+</span>
-                    <span className="mobile-supporting-indicator-open">−</span>
-                  </span>
-                </summary>
-                <section aria-label="Supporting grid readings" className="overview-grid">
-                  {mobileSupportingOverview.map((item) => (
-                    <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
-                  ))}
-                </section>
-              </details>
-            ) : null}
-
             <section
               aria-label="Current ERCOT status"
               className="status-strip"
@@ -1210,6 +1215,23 @@ export function App() {
                   Diagnostics
                 </Button>
               ) : null}
+            </section>
+
+            <OverviewCharts
+              renderChart={renderChart}
+              seriesData={overviewSeriesData}
+              time={seriesTime}
+            />
+            <section className="homepage-events" aria-label="Operations context">
+              <Button ref={eventsTriggerRef} onClick={() => setMobileDialog("events")}>
+                Operations messages · {events.length} in window
+              </Button>
+              <Button onClick={() => navigateToView("outlook")}>
+                Next-day demand &amp; capacity outlook
+              </Button>
+              <small>
+                Messages retain source timestamps. Temporal overlap does not establish cause.
+              </small>
             </section>
 
             {publicAlerts.length ? (
@@ -1263,6 +1285,15 @@ export function App() {
             <details className="grid-health-details">
               <summary>Grid Health inputs and scoring</summary>
               <div>
+                <GridHealthSummary gridHealth={gridHealth} />
+                <section
+                  aria-label="Current source readings"
+                  className="overview-grid overview-readings"
+                >
+                  {overview.map((item) => (
+                    <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
+                  ))}
+                </section>
                 <h3>Analytical Grid Health Score</h3>
                 <p>
                   Eight weighted factors contribute 100 possible points. Threshold penalties are
@@ -1314,7 +1345,7 @@ export function App() {
         ) : null}
 
         {selectedView === "overview" ? (
-          <details className="derived-insights-section" data-information-level="operational" open>
+          <details className="derived-insights-section" data-information-level="operational">
             <summary>Calculated grid insights and formulas</summary>
             <div>
               <p>Transparent calculations from current readings and bounded comparison windows.</p>

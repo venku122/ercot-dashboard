@@ -33,7 +33,7 @@ test("click to replace accepts shorthand and keeps empty drafts silent", async (
   await expect(editor(page)).toHaveCSS("outline-style", "none");
   await editor(page).press("Enter");
   expect(page.url()).toBe(initialUrl);
-  await expect(editor(page)).toHaveValue("Past 6 Hours");
+  await expect(editor(page)).toHaveValue("Past 1 Day");
   for (const [expression, label, duration] of [
     ["1w", "Past 1 Week", "604800000"],
     ["2mo", "Past 2 Months", "5184000000"],
@@ -140,7 +140,7 @@ test("keyboard-only combobox traverses and commits a preset @keyboard", async ({
   expect(activeId).not.toBeNull();
   await expect(page.locator(`#${activeId}`)).toHaveAttribute("aria-selected", "true");
   await editor(page).press("Enter");
-  await expect(editor(page)).toHaveValue("Past 12 Hours");
+  await expect(editor(page)).toHaveValue("Past 3 Days");
   await expect(page.getByRole("dialog", { name: "Time range" })).toBeHidden();
 });
 

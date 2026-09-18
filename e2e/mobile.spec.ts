@@ -30,41 +30,39 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
   page,
 }) => {
   await openPopulated(page);
-  const primaryOverview = page.getByLabel("Grid overview");
-  await expect(primaryOverview.getByRole("article")).toHaveCount(3);
-  for (const label of ["Demand", "Reserve margin", "Real-time price"]) {
+  const primaryOverview = page.getByLabel("Time-aligned grid readings");
+  for (const label of ["Demand", "Derived headroom", "Reported PRC", "Houston Hub", "Frequency"]) {
     const card = primaryOverview.getByText(label, { exact: true });
     await expect(card).toBeVisible();
-  }
-  await expect(primaryOverview.getByText("Available capacity", { exact: true })).toHaveCount(0);
-  await expect(primaryOverview.getByText("Frequency", { exact: true })).toHaveCount(0);
-  for (const id of ["demand", "reserve-margin", "real-time-price"]) {
-    const trend = page.locator(`[data-hero-trend="${id}"]`);
-    await expect(trend).toBeVisible();
-    await expect(trend).toHaveAttribute("aria-label", /Last hour/);
   }
   const status = page.getByLabel("Current ERCOT status");
   await expect(status.getByLabel("No active ERCOT emergency")).toBeVisible();
   await expect(status.getByLabel("Core readings are current")).toBeVisible();
   await expect(status).not.toContainText("/ 100");
   await expect(page.getByText("Grid Health inputs and scoring", { exact: true })).toBeVisible();
-  const featured = page.getByLabel("Featured grid trend");
+  const featured = page.getByRole("region", { name: "Grid charts", exact: true });
   await expect(featured.locator('[data-chart-id="supply-demand"]')).toBeVisible();
-  const supporting = page.locator(".mobile-supporting-metrics");
+  const supporting = page.locator(".grid-health-details");
   const supportingSummary = supporting.locator("summary");
   await expect(supporting).not.toHaveAttribute("open", "");
-  await expect(supportingSummary).toHaveAccessibleName(
-    "Supporting grid readings Available capacity and frequency",
-  );
+  await expect(supportingSummary).toHaveAccessibleName(/Grid Health inputs and scoring/);
   await expect(supporting.getByText("Available capacity", { exact: true })).toBeHidden();
-  await expect(supporting.getByText("Frequency", { exact: true })).toBeHidden();
+  await expect(
+    supporting
+      .getByRole("region", { name: "Current source readings" })
+      .getByText("Frequency", { exact: true }),
+  ).toBeHidden();
   await supportingSummary.focus();
   await expect(supportingSummary).toBeFocused();
   await expect(supportingSummary).toHaveCSS("outline-width", "2px");
   await page.keyboard.press("Enter");
   await expect(supporting).toHaveAttribute("open", "");
   await expect(supporting.getByText("Available capacity", { exact: true })).toBeVisible();
-  await expect(supporting.getByText("Frequency", { exact: true })).toBeVisible();
+  await expect(
+    supporting
+      .getByRole("region", { name: "Current source readings" })
+      .getByText("Frequency", { exact: true }),
+  ).toBeVisible();
   for (const id of ["available-capacity", "frequency"]) {
     await expect(supporting.locator(`[data-hero-trend="${id}"]`)).toHaveAttribute(
       "aria-label",
@@ -79,7 +77,7 @@ test("P0 operational summary precedes mobile controls and charts @mobile-core", 
   await expect(page.getByRole("button", { name: "Generation view" })).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("legend")).toBe("compact");
   const primaryPrice = await primaryOverview
-    .getByText("Real-time price", { exact: true })
+    .getByText("Houston Hub", { exact: true })
     .boundingBox();
   const firstChart = await page.locator('[data-chart-id="supply-demand"]').boundingBox();
   const supportingBox = await supporting.boundingBox();
@@ -103,6 +101,7 @@ test("P0 all derived metrics remain accessible without horizontal overflow @mobi
   await expect(
     page.getByText("Calculated grid insights and formulas", { exact: true }),
   ).toBeVisible();
+  await page.getByText("Calculated grid insights and formulas", { exact: true }).click();
   const metrics = page.getByLabel("Derived grid metrics");
   await metrics.scrollIntoViewIfNeeded();
   await expect(metrics.getByRole("article")).toHaveCount(7);
@@ -149,7 +148,7 @@ test("P0 compact legends preserve explicit shared expanded state @mobile-core", 
   await page.goto("/?legend=expanded");
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
-  await expect(card.locator(".legend-stats")).toHaveCount(0);
+  await expect(card.locator(".legend-stats")).toHaveCount(3);
   const frequency = page.locator('[data-chart-id="frequency"]');
   await frequency.scrollIntoViewIfNeeded();
   await expect(frequency.locator(".legend-stats").first()).toBeVisible();
@@ -181,7 +180,7 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator("canvas")).toBeVisible();
   const targets = [
-    page.locator(".mobile-supporting-metrics > summary"),
+    page.locator(".grid-health-details > summary"),
     page.getByRole("button", { name: "Time & compare" }),
     page.getByRole("combobox", { name: "Time range picker" }),
     card.getByRole("button", { name: "Open Supply and demand inspect mode" }),
@@ -565,7 +564,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     /[1-9]\d* observations/,
   );
   await expect.soft(page).toHaveScreenshot("mobile-after-first-viewport.png");
-  const supportingReadings = page.locator(".mobile-supporting-metrics");
+  const supportingReadings = page.locator(".grid-health-details");
   await supportingReadings.locator("summary").click();
   await supportingReadings.scrollIntoViewIfNeeded();
   await expect.soft(supportingReadings).toHaveScreenshot("mobile-supporting-grid-readings.png");

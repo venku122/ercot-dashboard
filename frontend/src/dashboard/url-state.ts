@@ -37,8 +37,8 @@ export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
     decodeTimeRange(params, ERCOT_TIME_RANGE_CONFIG, nowMs) ??
     legacyTimeRangeFromUrl(params, nowMs) ??
     createRelativeRange(
-      6 * 60 * 60 * 1000,
-      "past-6-hours",
+      24 * 60 * 60 * 1000,
+      "past-24-hours",
       ERCOT_TIME_RANGE_CONFIG.defaultTimezone,
     );
   const compareParam = params.get("compare") as CompareMode | null;
@@ -60,7 +60,7 @@ export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
         .map((value) => value.trim())
         .filter(Boolean),
     ),
-    legendMode: legendParam && legendModes.has(legendParam) ? legendParam : "expanded",
+    legendMode: legendParam && legendModes.has(legendParam) ? legendParam : "compact",
   };
 }
 
