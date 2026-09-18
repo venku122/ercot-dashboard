@@ -1,6 +1,13 @@
 .homepage-workspace {
   margin: 4px 0 18px;
 }
+.homepage-mobile-price-unit {
+  display: none;
+}
+.homepage-readings .homepage-desktop-price-unit {
+  color: inherit;
+  font-size: inherit;
+}
 .homepage-cursor-strip {
   display: flex;
   align-items: center;
@@ -254,6 +261,12 @@
   min-height: 24px;
 }
 @media (max-width: 767px) {
+  .homepage-readings .homepage-desktop-price-unit {
+    display: none;
+  }
+  .homepage-mobile-price-unit {
+    display: inline;
+  }
   .dashboard-shell:has(.homepage-workspace) .compact-control-bar .time-range-picker__playback {
     display: none;
   }

@@ -121,9 +121,28 @@ function TimeReadings({
                   : "No recent compatible observation"
               }
             >
-              <span>{label}</span>
+              <span>
+                {label}
+                {unit === "$/MWh" ? (
+                  <span className="homepage-mobile-price-unit"> · $/MWh</span>
+                ) : null}
+              </span>
               <strong>
-                {point ? `${formatValue(point.value, unit)}${point.aggregate ? "*" : ""}` : "—"}
+                {point ? (
+                  <>
+                    {unit === "$/MWh" ? (
+                      <>
+                        {formatValue(point.value, unit).split("/")[0]}
+                        <span className="homepage-desktop-price-unit">/MWh</span>
+                      </>
+                    ) : (
+                      formatValue(point.value, unit)
+                    )}
+                    {point.aggregate ? "*" : ""}
+                  </>
+                ) : (
+                  "—"
+                )}
               </strong>
               <small>
                 {point
