@@ -2,6 +2,71 @@ import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
+test("layout screenshot alignment normalizes paint coordinates without a transform layer", async ({
+  page,
+}) => {
+  await page.setContent(
+    '<div id="target" style="position:relative;left:10.75px;top:20.75px;width:100.5px;height:50.5px;backdrop-filter:blur(12px)!important">Evidence</div>',
+  );
+  const target = page.locator("#target");
+  const before = await target.boundingBox();
+  const styles = await target.evaluate((element) => {
+    const style = (element as HTMLElement).style;
+    return ["position", "left", "top", "backdrop-filter"].map((property) => [
+      style.getPropertyValue(property),
+      style.getPropertyPriority(property),
+    ]);
+  });
+  await withCssPixelAlignment(
+    target,
+    async () => {
+      expect(await target.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
+      expect(await target.evaluate((element) => getComputedStyle(element).backdropFilter)).toBe(
+        "blur(12px)",
+      );
+      const box = await target.boundingBox();
+      expect(box?.x).toBe(18);
+      expect(box?.y).toBe(28);
+      expect(box?.width).toBe(before?.width);
+      expect(box?.height).toBe(before?.height);
+    },
+    "floor",
+    "layout",
+  );
+  expect(await target.boundingBox()).toEqual(before);
+  expect(
+    await target.evaluate((element) => {
+      const style = (element as HTMLElement).style;
+      return ["position", "left", "top", "backdrop-filter"].map((property) => [
+        style.getPropertyValue(property),
+        style.getPropertyPriority(property),
+      ]);
+    }),
+  ).toEqual(styles);
+});
+
+test("floor screenshot alignment does not round a viewport-edge target out of view", async ({
+  page,
+}) => {
+  await page.setContent(
+    '<div id="edge" style="position:absolute;left:10.75px;top:20.75px;width:100.5px;height:50.5px">Evidence</div>',
+  );
+  const target = page.locator("#edge");
+  const before = await target.boundingBox();
+  await withCssPixelAlignment(
+    target,
+    async () => {
+      const box = await target.boundingBox();
+      expect(box?.x).toBe(10);
+      expect(box?.y).toBe(20);
+      expect(box?.width).toBe(before?.width);
+      expect(box?.height).toBe(before?.height);
+    },
+    "floor",
+  );
+  expect(await target.boundingBox()).toEqual(before);
+});
+
 test("screenshot alignment preserves fractional layout and restores inline transforms", async ({
   page,
 }) => {
