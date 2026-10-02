@@ -2657,7 +2657,7 @@ main {
   border-top: 1px solid rgba(148, 163, 184, 0.08);
   border-radius: 6px;
   background: transparent;
-  padding: 5px 2px;
+  padding: 5px 10px;
   text-align: left;
   cursor: pointer;
   font-size: 0.7rem;
