@@ -160,7 +160,8 @@
   background: #143348;
 }
 .homepage-price-select {
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   font-size: 12px;
@@ -260,6 +261,13 @@
   padding: 2px 10px;
   min-height: 24px;
 }
+@media (max-width: 1100px) {
+  .homepage-readings > div {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
 @media (max-width: 767px) {
   .homepage-readings .homepage-desktop-price-unit {
     display: none;
@@ -349,6 +357,41 @@
   }
   .homepage-workspace .chart-card-overview:not(.chart-card-inspect) .legend-row {
     min-height: 28px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 44px;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+  }
+  .homepage-workspace .chart-card-overview:not(.chart-card-inspect) .series-legend.legend-compact {
+    display: grid;
+    gap: 0;
+  }
+  .homepage-workspace .legend-latest {
+    white-space: nowrap;
+  }
+  .homepage-workspace .legend-swatch {
+    flex-shrink: 0;
+  }
+  .homepage-ranking td,
+  .homepage-ranking th {
+    padding: 2px 4px;
+  }
+  .homepage-ranking td button {
+    width: 100%;
+    min-height: 44px;
+  }
+  .homepage-ranking select {
+    min-height: 44px;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #0b1422;
+  }
+  .homepage-engineering summary {
+    min-height: 44px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
   }
   .homepage-workspace .chart-card-overview:not(.chart-card-inspect) .legend-toggle {
     min-height: 44px;
@@ -356,5 +399,31 @@
   .homepage-workspace .chart-card-overview:not(.chart-card-inspect) .legend-solo {
     min-height: 44px;
     min-width: 44px;
+  }
+}
+@media (max-width: 420px) {
+  .homepage-readings {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .homepage-readings > div {
+    grid-column: span 2;
+    padding: 6px;
+  }
+  .homepage-readings > div:nth-child(n + 4) {
+    grid-column: span 3;
+    border-top: 1px solid #334155;
+  }
+  .homepage-readings > div:nth-child(3) {
+    border-right: 0;
+  }
+  .homepage-readings strong {
+    font-size: 13px;
+  }
+  .homepage-readings span {
+    font-size: 10px;
+  }
+  .dashboard-shell:has(.homepage-workspace) .status-strip-item {
+    flex-wrap: wrap;
+    gap: 2px 5px;
   }
 }

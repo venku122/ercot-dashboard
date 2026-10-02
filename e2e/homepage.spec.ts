@@ -19,7 +19,8 @@ for (const viewport of [
       return;
     }
     const plot = await page.locator('[data-chart-id="supply-demand"] canvas').boundingBox();
-    expect(plot!.y).toBeLessThanOrEqual(viewport.width === 390 ? 280 : 240);
+    // Two readable rows of phone readings still leave the full first plot above the fold.
+    expect(plot!.y).toBeLessThanOrEqual(viewport.width === 390 ? 320 : 240);
     expect(plot!.height).toBeGreaterThanOrEqual(viewport.width === 390 ? 220 : 280);
     await page.screenshot({ path: `docs/overview-chart-first/after-${viewport.width}.png` });
     await expect(page.locator('[data-chart-id="fuel-mix"]')).toHaveCount(1);

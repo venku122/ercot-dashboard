@@ -533,19 +533,33 @@ export function ChartCard({
             max: dynamic.current.time.end * 1000,
             time: { tooltipFormat: "MMM d, yyyy HH:mm:ss" },
             ticks: {
-              callback: (value) =>
-                new Intl.DateTimeFormat("en-US", {
+              callback: (value) => {
+                if (mobile && dynamic.current.time.rangeSeconds > 86400) {
+                  return [
+                    new Intl.DateTimeFormat("en-US", {
+                      timeZone: "America/Chicago",
+                      month: "short",
+                      day: "numeric",
+                    }).format(Number(value)),
+                    new Intl.DateTimeFormat("en-US", {
+                      timeZone: "America/Chicago",
+                      hour: "numeric",
+                    }).format(Number(value)),
+                  ];
+                }
+                return new Intl.DateTimeFormat("en-US", {
                   timeZone: "America/Chicago",
                   hour: "numeric",
                   minute: "2-digit",
                   ...(dynamic.current.time.rangeSeconds > 86400
                     ? ({ month: "short", day: "numeric" } as const)
                     : {}),
-                }).format(Number(value)),
+                }).format(Number(value));
+              },
               autoSkip: true,
               color: "#aebdd0",
               maxRotation: 0,
-              maxTicksLimit: mobile ? 4 : presentation === "featured" ? 7 : 6,
+              maxTicksLimit: mobile ? 3 : presentation === "featured" ? 7 : 6,
               sampleSize: 8,
             },
             grid: { color: "rgba(148, 163, 184, 0.08)" },

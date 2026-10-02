@@ -38,7 +38,7 @@ The shared interpretation resolver no longer draws historical ratio bands from t
 
 - `before-1440.png` / `after-1440.png` and `before-390.png` / `after-390.png`: same frozen clock, explicit live 24-hour window, compact legend, viewport and original 64-point fixture. This coarse fixture correctly withholds native headroom. A storage-fixture substring bug was separately corrected (charging had matched discharging); first-screen balance samples are unchanged.
 - `performance.json` and `performance-baseline.json`: production builds, five cold runs, browser version, throttling, 200 cursor samples, hover request count. API fixtures are route-fulfilled: this measures frontend work, not production API latency. Two-animation-frame cursor timing is a conservative proxy, not a compositor paint timestamp.
-- Geometry tests require first balance canvas y≤240 desktop / y≤280 phone, height≥280 / ≥220, and no document-level horizontal overflow.
+- Geometry tests require first balance canvas y≤240 desktop / y≤320 phone, height≥280 / ≥220, and no document-level horizontal overflow. Phone readings now use two readable rows below 420px.
 - Live local receiver-backed preview was inspected with populated demand, matched headroom, PRC, generation, storage, frequency and price snapshots. This demonstrates local support, not production deployment health.
 - Exact-head results are recorded in the companion verification summary. Visual baselines are platform-specific: macOS Chromium evidence does not certify Linux or WebKit screenshots.
 

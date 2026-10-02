@@ -3574,6 +3574,10 @@ footer p {
   .chart-card-header {
     gap: 8px;
   }
+  .chart-card-header > div:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 
   .chart-card h3 {
     font-size: 1rem;
@@ -3689,6 +3693,13 @@ footer p {
     font-size: 0.75rem;
     font-weight: 700;
     line-height: 1.05;
+  }
+  .mobile-section-nav button:last-child {
+    position: sticky;
+    right: 0;
+    margin-left: auto;
+    background: #0b1422;
+    box-shadow: -8px 0 12px #070b12;
   }
 
   footer {
