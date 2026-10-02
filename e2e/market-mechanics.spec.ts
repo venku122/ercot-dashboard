@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { installMarketMechanicsApi } from "./market-mechanics-fixtures";
 import { installMobileApi } from "./mobile-fixtures";
@@ -42,8 +43,12 @@ test("market mechanics is lazy, contextual, and selected-history only", async ({
     "market-mechanics-energy.png",
   );
   await expect(profile).toHaveScreenshot("market-mechanics-gap-profile.png");
-  await expect(panel.getByRole("region", { name: "System Lambda exact values" })).toHaveScreenshot(
-    "market-mechanics-history.png",
+  await withCssPixelAlignment(
+    panel.getByRole("region", { name: "System Lambda exact values" }),
+    () =>
+      expect(panel.getByRole("region", { name: "System Lambda exact values" })).toHaveScreenshot(
+        "market-mechanics-history.png",
+      ),
   );
 
   await panel.getByRole("button", { name: /Reg-Up adder/ }).click();

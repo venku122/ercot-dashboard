@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { expectNoHorizontalOverflow, installMobileApi } from "./mobile-fixtures";
 import { installTexasGridApi } from "./texas-grid-fixtures";
@@ -51,7 +52,11 @@ test("Texas Grid has stable mobile evidence @mobile-vri", async ({ page }) => {
   });
   await panel.scrollIntoViewIfNeeded();
   await expect(panel).toHaveScreenshot("texas-grid-mobile.png");
-  await expect(
+  await withCssPixelAlignment(
     panel.getByRole("region", { name: "Wind exact resource capacity trend evidence" }),
-  ).toHaveScreenshot("texas-grid-exact-mobile.png");
+    () =>
+      expect(
+        panel.getByRole("region", { name: "Wind exact resource capacity trend evidence" }),
+      ).toHaveScreenshot("texas-grid-exact-mobile.png"),
+  );
 });

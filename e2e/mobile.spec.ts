@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -671,10 +672,12 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
   const structuredAlert = page.getByLabel("Active grid alerts");
   await structuredAlert.evaluate((element) => element.scrollIntoView({ block: "center" }));
-  await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
-    maxDiffPixels: 1600,
-    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
-  });
+  await withCssPixelAlignment(structuredAlert, () =>
+    expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
+      maxDiffPixels: 1600,
+      stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+    }),
+  );
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect
