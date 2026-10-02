@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { installStorageOperationsApi } from "./storage-operations-fixtures";
 
@@ -31,14 +32,18 @@ test("storage operations reuses the visible chart request and exposes exact trut
   await expect(summary).toContainText("System-wide dashboard aggregate only");
   await expect(summary).toContainText("does not report state of charge");
   await expect(summary).toContainText("context—not attributed causes");
-  await expect(summary).toHaveScreenshot("storage-operations-summary.png");
+  await withCssPixelAlignment(summary, () =>
+    expect(summary).toHaveScreenshot("storage-operations-summary.png"),
+  );
 
   await summary.getByText("Exact coherent observation").click();
   const exact = summary.getByRole("region", { name: "Exact coherent storage observation" });
   await expect(exact).toBeVisible();
   await expect(exact).toHaveAttribute("tabindex", "0");
   await expect(exact.locator("tbody tr")).toHaveCount(1);
-  await expect(exact).toHaveScreenshot("storage-operations-exact.png");
+  await withCssPixelAlignment(exact, () =>
+    expect(exact).toHaveScreenshot("storage-operations-exact.png"),
+  );
   expect(storageQueryIds(requests)).toEqual([
     "storage:charging:current",
     "storage:discharging:current",
