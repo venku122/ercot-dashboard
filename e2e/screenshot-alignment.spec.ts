@@ -2,6 +2,46 @@ import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
+test("layout screenshot alignment normalizes paint coordinates without a transform layer", async ({
+  page,
+}) => {
+  await page.setContent(
+    '<div id="target" style="position:relative;left:10.75px;top:20.75px;width:100.5px;height:50.5px">Evidence</div>',
+  );
+  const target = page.locator("#target");
+  const before = await target.boundingBox();
+  const styles = await target.evaluate((element) => {
+    const style = (element as HTMLElement).style;
+    return ["position", "left", "top"].map((property) => [
+      style.getPropertyValue(property),
+      style.getPropertyPriority(property),
+    ]);
+  });
+  await withCssPixelAlignment(
+    target,
+    async () => {
+      expect(await target.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
+      const box = await target.boundingBox();
+      expect(box?.x).toBe(18);
+      expect(box?.y).toBe(28);
+      expect(box?.width).toBe(before?.width);
+      expect(box?.height).toBe(before?.height);
+    },
+    "floor",
+    "layout",
+  );
+  expect(await target.boundingBox()).toEqual(before);
+  expect(
+    await target.evaluate((element) => {
+      const style = (element as HTMLElement).style;
+      return ["position", "left", "top"].map((property) => [
+        style.getPropertyValue(property),
+        style.getPropertyPriority(property),
+      ]);
+    }),
+  ).toEqual(styles);
+});
+
 test("floor screenshot alignment does not round a viewport-edge target out of view", async ({
   page,
 }) => {

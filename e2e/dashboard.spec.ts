@@ -1174,10 +1174,14 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
     await card.evaluate((element) => element.scrollIntoView({ block: "center" }));
     await expect(card).toHaveAttribute("data-visible", "true");
     await expect(card.locator(".chart-placeholder")).toHaveCount(0);
+    if (scenario === "negative") {
+      await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+      await page.waitForLoadState("networkidle");
+    }
     const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;
     const capture = () =>
       expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`, { maxDiffPixelRatio });
-    if (scenario === "negative") await withCssPixelAlignment(card, capture, "floor");
+    if (scenario === "negative") await withCssPixelAlignment(card, capture, "floor", "layout");
     else await capture();
   });
 }

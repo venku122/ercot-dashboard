@@ -6,8 +6,44 @@ export async function withCssPixelAlignment(
   target: Locator,
   capture: () => Promise<void>,
   alignment: "nearest" | "floor" = "nearest",
+  positioning: "transform" | "layout" = "transform",
 ) {
   await target.scrollIntoViewIfNeeded();
+  if (positioning === "layout") {
+    const original = await target.evaluate((element, mode) => {
+      const node = element as HTMLElement;
+      const computed = getComputedStyle(node);
+      if (computed.position !== "static" && computed.position !== "relative") {
+        throw new Error("Layout screenshot alignment requires a static or relative target");
+      }
+      const previous = ["position", "left", "top"].map((property) => ({
+        property,
+        value: node.style.getPropertyValue(property),
+        priority: node.style.getPropertyPriority(property),
+      }));
+      const box = node.getBoundingClientRect();
+      const left = computed.position === "relative" ? parseFloat(computed.left) || 0 : 0;
+      const top = computed.position === "relative" ? parseFloat(computed.top) || 0 : 0;
+      const align = mode === "floor" ? Math.floor : Math.round;
+      if (computed.position === "static")
+        node.style.setProperty("position", "relative", "important");
+      node.style.setProperty("left", `${left + align(box.x) - box.x}px`, "important");
+      node.style.setProperty("top", `${top + align(box.y) - box.y}px`, "important");
+      return previous;
+    }, alignment);
+    try {
+      await capture();
+    } finally {
+      await target.evaluate((element, previous) => {
+        const style = (element as HTMLElement).style;
+        for (const { property, value, priority } of previous) {
+          if (value) style.setProperty(property, value, priority);
+          else style.removeProperty(property);
+        }
+      }, original);
+    }
+    return;
+  }
   const original = await target.evaluate((element, mode) => {
     const node = element as HTMLElement;
     const previous = {
