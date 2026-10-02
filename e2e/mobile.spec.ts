@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { installMarketGeographyApi } from "./market-geography-fixtures";
 
 import {
   expectNoHorizontalOverflow,
@@ -257,14 +258,19 @@ test("P0 inspect is a safe-area dialog with explicit analysis actions @mobile-co
 
 test("P0 negative price ranking remains accessible in Market @mobile-core", async ({ page }) => {
   await openPopulated(page, "negative");
-  await expect(page.getByLabel("Settlement price summary")).toHaveCount(0);
+  await installMarketGeographyApi(page, []);
   await page.getByRole("button", { name: "Market view" }).click();
-  const ranking = page.getByLabel("Settlement price ranking");
-  await ranking.getByText("Complete hub and load-zone ranking", { exact: true }).click();
-  await expect(ranking.getByRole("table")).toBeVisible();
-  await expect(ranking.getByText(/Hub · HB_NORTH/)).toBeVisible();
-  await expect(ranking.getByText(/-\$42\.16\/MWh/)).toBeVisible();
-  await expect(ranking.getByText(/Hub · HB_SOUTH/)).toBeVisible();
+  const geography = page.getByRole("region", { name: "Where are prices diverging?" });
+  await geography.getByRole("button", { name: "Load price-geography details" }).click();
+  const values = geography.getByRole("region", { name: "Settlement price exact values" });
+  await expect(values.getByRole("table")).toBeVisible();
+  await expect(values.getByRole("row").filter({ hasText: "HB_HOUSTON" })).toContainText(
+    "-$42.16/MWh",
+  );
+  await expect(values.getByRole("row").filter({ hasText: "HB_NORTH" })).toContainText("$18.00/MWh");
+  await expect(values.getByRole("row").filter({ hasText: "HB_SOUTH" })).toContainText("$62.00/MWh");
+  const houston = geography.getByRole("button", { name: "Houston HU, -$42.16/MWh", exact: true });
+  await expect(houston).toHaveAttribute("aria-pressed", "true");
   await expectNoHorizontalOverflow(page);
 });
 
