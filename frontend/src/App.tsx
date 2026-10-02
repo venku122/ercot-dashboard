@@ -830,15 +830,6 @@ export function App() {
     });
   }, []);
 
-  const toggleSeries = useCallback((key: string) => {
-    setState((current) => {
-      const hiddenSeries = new Set(current.hiddenSeries);
-      if (hiddenSeries.has(key)) hiddenSeries.delete(key);
-      else hiddenSeries.add(key);
-      return { ...current, hiddenSeries };
-    });
-  }, []);
-
   const soloSeries = useCallback((chartId: string, key: string) => {
     setState((current) => {
       const chart = chartDefinitions.find((definition) => definition.id === chartId);
@@ -1091,7 +1082,6 @@ export function App() {
         }
         onSetCompare={(compare) => setState((current) => ({ ...current, compare }))}
         onSoloSeries={soloSeries}
-        onToggleSeries={toggleSeries}
         onVisibilityChange={setChartVisible}
         onZoom={onZoom}
         presentation={presentation}

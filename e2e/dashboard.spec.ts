@@ -753,9 +753,10 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
 
   const demandLegend = page.getByRole("button", { name: "Actual demand", exact: true });
   await demandLegend.click();
+  await expect(demandLegend).toHaveAttribute("aria-pressed", "true");
+  await demandLegend.click();
   await expect(demandLegend).toHaveAttribute("aria-pressed", "false");
   await demandLegend.click();
-  await page.getByRole("button", { name: "Solo Actual demand" }).click();
   await expect(page.getByRole("button", { name: "Forecast demand", exact: true })).toHaveAttribute(
     "aria-pressed",
     "false",

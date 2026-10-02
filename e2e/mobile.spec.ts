@@ -187,7 +187,6 @@ test("P0 primary mobile targets meet the 44 point contract @mobile-core", async 
     card.getByRole("button", { name: "Open Supply and demand inspect mode" }),
     card.getByLabel("Supply and demand chart menu"),
     card.getByRole("button", { name: "Actual demand", exact: true }),
-    card.getByRole("button", { name: "Solo Actual demand" }),
     card.locator(".accessible-data summary"),
     page.getByRole("button", { name: "Market view" }),
   ];

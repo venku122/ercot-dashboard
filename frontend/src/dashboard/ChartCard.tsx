@@ -76,7 +76,6 @@ type Props = {
   onResetZoom: () => void;
   onSetCompare: (mode: CompareMode) => void;
   onSoloSeries: (chartId: string, key: string) => void;
-  onToggleSeries: (key: string) => void;
   onVisibilityChange: (chartId: string, visible: boolean) => void;
   onZoom: (start: number, end: number) => void;
   presentation?: "featured" | "standard" | "overview";
@@ -182,7 +181,6 @@ export function ChartCard({
   onResetZoom,
   onSetCompare,
   onSoloSeries,
-  onToggleSeries,
   onVisibilityChange,
   onZoom,
   presentation = "standard",
@@ -1007,12 +1005,24 @@ export function ChartCard({
               minimum: sampledStats.minimum,
             };
             const hidden = hiddenSeries.has(key);
+            const selected =
+              !hidden &&
+              visibleSeries.length > 1 &&
+              visibleSeries.every(
+                (candidate) =>
+                  candidate.id === series.id || hiddenSeries.has(seriesKey(chart.id, candidate.id)),
+              );
             return (
-              <div className={`legend-row ${hidden ? "legend-row-hidden" : ""}`} key={key}>
-                <button
-                  aria-pressed={!hidden}
-                  className="legend-toggle"
-                  onClick={() => onToggleSeries(key)}
+              <button
+                aria-label={series.label}
+                aria-pressed={selected}
+                className={`legend-row ${hidden ? "legend-row-hidden" : ""}`}
+                key={key}
+                onClick={() => onSoloSeries(chart.id, key)}
+                title={selected ? "Restore all series" : `Focus ${series.label}`}
+              >
+                <span
+                  className="legend-label"
                   style={
                     {
                       "--series-color": frequencyColor(chart, stats.latest, series.color),
@@ -1023,7 +1033,7 @@ export function ChartCard({
                     className={`legend-swatch ${series.lineStyle === "dashed" ? "legend-swatch-dashed" : ""}`}
                   />
                   {series.label}
-                </button>
+                </span>
                 {presentation === "overview" ? (
                   <CursorLegendValue
                     loaded={loaded}
@@ -1034,13 +1044,6 @@ export function ChartCard({
                 ) : (
                   <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
                 )}
-                <button
-                  aria-label={`Solo ${series.label}`}
-                  className="legend-solo"
-                  onClick={() => onSoloSeries(chart.id, key)}
-                >
-                  Solo
-                </button>
                 {legendMode === "expanded" ? (
                   <span className="legend-stats">
                     min {formatValue(stats.minimum, chart.unit)} · max{" "}
@@ -1051,7 +1054,7 @@ export function ChartCard({
                       : ""}
                   </span>
                 ) : null}
-              </div>
+              </button>
             );
           })}
         </div>
