@@ -45,7 +45,8 @@ test("storage context replay has stable mobile evidence @mobile-vri", async ({ p
   const batches: string[][] = [];
   const market: string[] = [];
   await installStorageContextReplayApi(page, "normal", batches, market);
-  await page.goto("/?view=generation");
+  // Keep this two-hour replay fixture independent of the homepage's default range.
+  await page.goto("/?view=generation&range=21600");
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.scrollIntoViewIfNeeded();
   const summary = storage.getByRole("region", { name: "Storage fleet operating summary" });
