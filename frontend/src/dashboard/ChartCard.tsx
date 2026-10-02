@@ -222,7 +222,7 @@ export function ChartCard({
   );
 
   useEffect(() => {
-    cursorActive.current = visible && interactionPolicy.cursorPin;
+    cursorActive.current = visible;
     const instance = chartRef.current;
     if (visible && instance) {
       const snapshot = chartCoordinator.snapshot();
@@ -466,12 +466,12 @@ export function ChartCard({
         parsing: false,
         normalized: false,
         maintainAspectRatio: false,
-        ...(presentation === "overview" && !inspect ? { events: [] } : {}),
+        ...(presentation === "overview" && !inspect ? { events: ["mousemove", "mouseout"] } : {}),
         interaction: { intersect: false, mode: "nearest", axis: "x" },
         plugins: {
           legend: { display: false },
           tooltip: {
-            enabled: presentation !== "overview" || inspect,
+            enabled: true,
             callbacks: {
               title: (items) =>
                 items.length && items[0].parsed.x !== null
@@ -640,9 +640,8 @@ export function ChartCard({
     instance.options.events =
       inspect || presentation !== "overview"
         ? ["mousemove", "mouseout", "click", "touchstart", "touchmove"]
-        : [];
-    if (instance.options.plugins?.tooltip)
-      instance.options.plugins.tooltip.enabled = inspect || presentation !== "overview";
+        : ["mousemove", "mouseout"];
+    if (instance.options.plugins?.tooltip) instance.options.plugins.tooltip.enabled = true;
     zoomOptions.pan = {
       ...zoomOptions.pan,
       enabled: interactionPolicy.pan,
@@ -720,9 +719,7 @@ export function ChartCard({
       }`
     : undefined;
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
-  const showStatusRow = Boolean(
-    (loading && hasData) || (sourceHealth && sourceHealth.state !== "healthy") || pinned,
-  );
+  const showStatusRow = Boolean((sourceHealth && sourceHealth.state !== "healthy") || pinned);
   const resetChartZoom = () => {
     suppressZoomCommit.current = true;
     chartRef.current?.resetZoom();
@@ -870,9 +867,6 @@ export function ChartCard({
 
       {showStatusRow ? (
         <div className="chart-status-row" aria-live="polite">
-          {loading && hasData ? (
-            <span className="status-chip status-partial">Updating selected range…</span>
-          ) : null}
           {sourceHealth && sourceHealth.state !== "healthy" ? (
             <span className={`status-chip status-${sourceHealth.state}`}>
               Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}
@@ -950,8 +944,9 @@ export function ChartCard({
             }
           }}
           onMouseLeave={() => chartCoordinator.publish(null)}
-          onMouseMove={(event) => {
-            if (!interactionPolicy.cursorPin) return;
+          onPointerMove={(event) => {
+            // A narrow viewport may still have a mouse; keep touch gestures scroll-only.
+            if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
             const instance = chartRef.current;
             if (!instance) return;
             const bounds = event.currentTarget.getBoundingClientRect();
@@ -966,6 +961,11 @@ export function ChartCard({
         >
           {presentation === "overview" ? (
             <div aria-hidden="true" className="homepage-shared-cursor" ref={cursorLineRef} />
+          ) : null}
+          {loading && hasData ? (
+            <span className="chart-refresh-status status-chip status-partial" role="status">
+              Updating selected range…
+            </span>
           ) : null}
           {updateUnavailable ? (
             <div className="chart-overlay chart-error">

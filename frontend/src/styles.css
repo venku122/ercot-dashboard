@@ -2323,6 +2323,14 @@ main {
   gap: 6px;
 }
 
+.chart-refresh-status {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .storage-operations-summary {
   display: grid;
   width: 100%;
