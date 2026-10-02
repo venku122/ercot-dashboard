@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { fileURLToPath } from "node:url";
 
 import {
   expectNoHorizontalOverflow,
@@ -566,7 +567,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await page.keyboard.press("Escape");
   await supplyDemand.scrollIntoViewIfNeeded();
   await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png", {
-    style: ".mobile-section-nav { visibility: hidden !important; }",
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
   });
   await supplyDemand.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await supplyDemand.locator(".chart-interpretation summary").click();
@@ -607,7 +608,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect(storage.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(storage.getByText("Showing stale data")).toBeVisible();
   await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png", {
-    style: ".mobile-section-nav { visibility: hidden !important; }",
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
   });
   await page.getByRole("button", { name: "Overview view" }).click();
   await sourceSummary.scrollIntoViewIfNeeded();
@@ -645,7 +646,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   const structuredAlert = page.getByLabel("Active grid alerts");
   await structuredAlert.scrollIntoViewIfNeeded();
   await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
-    style: ".mobile-section-nav { visibility: hidden !important; }",
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
   });
 
   await page.unrouteAll({ behavior: "wait" });
