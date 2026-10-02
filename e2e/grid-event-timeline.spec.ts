@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import {
   GRID_EVENT_FROM,
@@ -67,7 +68,9 @@ test("grid event timeline is Reliability-only, strict, shareable, and noncausal"
   await expect(exact.locator("tbody tr")).toHaveCount(5);
   await expect(exact).toContainText("source_snapshot_epoch_not_official_declaration_time");
   await expect(exact).toContainText("eea_transition_v1 v1");
-  await expect(exact).toHaveScreenshot("grid-event-timeline-exact.png");
+  await withCssPixelAlignment(exact, () =>
+    expect(exact).toHaveScreenshot("grid-event-timeline-exact.png"),
+  );
 
   await page.reload();
   await expect(panel.locator('[data-event-focused="true"]')).toContainText(

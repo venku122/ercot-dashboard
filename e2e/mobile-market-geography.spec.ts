@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { installMarketGeographyApi } from "./market-geography-fixtures";
 import { expectNoHorizontalOverflow, installMobileApi } from "./mobile-fixtures";
@@ -67,7 +68,11 @@ test("market geography has stable mobile evidence states @mobile-vri", async ({ 
   await expect(
     panel.getByRole("region", { name: "Coincident binding constraint exact values" }),
   ).toBeVisible();
-  await expect(
+  await withCssPixelAlignment(
     panel.locator("section").filter({ hasText: "Constraints binding in the same SCED as LMP" }),
-  ).toHaveScreenshot("market-geography-constraints-mobile.png");
+    () =>
+      expect(
+        panel.locator("section").filter({ hasText: "Constraints binding in the same SCED as LMP" }),
+      ).toHaveScreenshot("market-geography-constraints-mobile.png"),
+  );
 });

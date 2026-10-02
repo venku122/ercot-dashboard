@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { expectNoHorizontalOverflow } from "./mobile-fixtures";
 import { installStorageContextReplayApi } from "./storage-context-replay-fixtures";
@@ -53,7 +54,11 @@ test("storage context replay has stable mobile evidence @mobile-vri", async ({ p
   });
   await expect(replay).toHaveScreenshot("storage-context-replay-mobile.png");
   await replay.getByText("Exact observations and provenance").click();
-  await expect(
+  await withCssPixelAlignment(
     replay.getByRole("region", { name: "Storage context replay exact observations" }),
-  ).toHaveScreenshot("storage-context-replay-exact-mobile.png");
+    () =>
+      expect(
+        replay.getByRole("region", { name: "Storage context replay exact observations" }),
+      ).toHaveScreenshot("storage-context-replay-exact-mobile.png"),
+  );
 });

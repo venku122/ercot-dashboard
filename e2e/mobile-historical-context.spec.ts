@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { installHistoricalContextApi } from "./historical-context-fixtures";
 import { expectNoHorizontalOverflow, FIXED_NOW_SECONDS, installMobileApi } from "./mobile-fixtures";
@@ -45,7 +46,11 @@ test("historical context has stable mobile evidence @mobile-vri", async ({ page 
   });
   await panel.scrollIntoViewIfNeeded();
   await expect(panel).toHaveScreenshot("historical-context-mobile.png");
-  await expect(
+  await withCssPixelAlignment(
     panel.getByRole("region", { name: "Exact historical demand evidence" }),
-  ).toHaveScreenshot("historical-context-exact-mobile.png");
+    () =>
+      expect(
+        panel.getByRole("region", { name: "Exact historical demand evidence" }),
+      ).toHaveScreenshot("historical-context-exact-mobile.png"),
+  );
 });

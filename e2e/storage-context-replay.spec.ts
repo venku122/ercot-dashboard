@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { installStorageContextReplayApi } from "./storage-context-replay-fixtures";
 
@@ -63,7 +64,9 @@ test("storage context replay is collapsed-lazy, reuses storage, and preserves ex
   await expect(exact).toContainText("source_epoch");
   await expect(exact).toContainText("322123");
   await expect(exact).toContainText("-18.75");
-  await expect(exact).toHaveScreenshot("storage-context-replay-exact.png");
+  await withCssPixelAlignment(exact, () =>
+    expect(exact).toHaveScreenshot("storage-context-replay-exact.png"),
+  );
 });
 
 test("storage context replay labels retained degraded evidence without causal attribution", async ({
