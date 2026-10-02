@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { outlookFixture } from "./mobile-fixtures";
+import { installMarketGeographyApi } from "./market-geography-fixtures";
 
 type Scenario =
   | "empty"
@@ -707,6 +708,7 @@ test("net-load details remain lazy and accessible in Chromium", async ({ page })
 
 test("time, inspect, cursor, legend, compare, events, CSV and URL state", async ({ page }) => {
   await installApi(page);
+  await installMarketGeographyApi(page, []);
   await page.goto("/?range=21600&compare=none&events=1");
   await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
   await page.getByRole("button", { name: "Reliability view" }).click();
@@ -735,12 +737,24 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await expect(operations).toContainText("Showing 2 of 5 events");
   await operations.getByLabel("Filter operations timeline by severity").selectOption("all");
   await page.getByRole("button", { name: "Market view" }).click();
-  await expect(page.getByRole("heading", { name: "Latest settlement point prices" })).toBeVisible();
-  await expect(page.getByLabel("Settlement price summary")).toContainText("Houston Hub");
-  await expect(page.getByLabel("Settlement price summary")).toContainText("15-minute");
-  await page.getByText("Complete hub and load-zone ranking", { exact: true }).click();
-  await expect(page.getByText("West Load Zone", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Load Zone · LZ_WEST/)).toBeVisible();
+  const geography = page.getByRole("region", { name: "Where are prices diverging?" });
+  await geography.getByRole("button", { name: "Load price-geography details" }).click();
+  await expect(
+    geography.getByRole("heading", { name: "15-minute settlement-price matrix" }),
+  ).toBeVisible();
+  await expect(
+    geography.getByRole("button", { name: "Houston HU, -$42.16/MWh", exact: true }),
+  ).toBeVisible();
+  const west = geography.getByRole("button", { name: "West LZ, $225.00/MWh", exact: true });
+  await west.click();
+  await expect(west).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => new URL(page.url()).searchParams.get("marketPoint")).toBe("LZ_WEST--LZ");
+  await expect(
+    geography
+      .getByRole("region", { name: "Settlement price exact values" })
+      .getByRole("row")
+      .filter({ hasText: "LZ_WEST" }),
+  ).toContainText("$225.00/MWh");
 
   await page.getByRole("button", { name: "Overview view" }).click();
 
@@ -896,10 +910,15 @@ test("loading resolves to a first-sample wait without blank chart detail", async
 
 test("empty optional panels collapse to lifecycle or selected-range states", async ({ page }) => {
   await installApi(page, "empty-panels");
+  await installMarketGeographyApi(page, [], { emptySettlement: true });
   await page.goto("/?view=market");
-  const ranking = page.getByRole("region", { name: "Settlement price ranking" });
-  await expect(ranking.getByText("Waiting for first sample…")).toBeVisible();
-  await expect(ranking.getByRole("table")).toHaveCount(0);
+  const geography = page.getByRole("region", { name: "Where are prices diverging?" });
+  await geography.getByRole("button", { name: "Load price-geography details" }).click();
+  await expect(geography.getByText("Waiting for first sample…")).toBeVisible();
+  await expect(geography.getByText("Temporarily unavailable…")).toHaveCount(0);
+  await expect(
+    geography.getByRole("region", { name: "Settlement price exact values" }),
+  ).toHaveCount(0);
 
   await openMoreView(page, "Diagnostics");
   const diagnostics = page.getByRole("region", { name: "System health details" });
