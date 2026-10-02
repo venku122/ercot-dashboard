@@ -967,6 +967,15 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   await session.send("Performance.enable");
   await page.goto("/");
   await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(6);
+  // Measure the settled plot layout, not the shorter first-sample placeholders.
+  await expect(page.locator('[data-chart-id="supply-demand"] canvas')).toHaveAttribute(
+    "data-chart-ready",
+    "true",
+  );
+  await expect(page.locator('[data-chart-id="overview-headroom"] canvas')).toHaveAttribute(
+    "data-chart-ready",
+    "true",
+  );
   const total = await page.locator("[data-chart-id]").count();
   const initiallyMounted = await page.locator('[data-chart-id][data-mounted="true"]').count();
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();

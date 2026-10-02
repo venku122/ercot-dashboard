@@ -9,7 +9,8 @@ test("storage context replay is contained and operable on mobile @mobile-core", 
   const batches: string[][] = [];
   const market: string[] = [];
   await installStorageContextReplayApi(page, "normal", batches, market);
-  await page.goto("/?view=generation");
+  // Keep this two-hour replay interaction fixture independent of the homepage's default range.
+  await page.goto("/?view=generation&range=21600");
   const storage = page.locator('[data-chart-id="storage"]');
   await storage.scrollIntoViewIfNeeded();
   const summary = storage.getByRole("region", { name: "Storage fleet operating summary" });
@@ -33,6 +34,8 @@ test("storage context replay is contained and operable on mobile @mobile-core", 
   await exactToggle.click();
   const exact = replay.getByRole("region", { name: "Storage context replay exact observations" });
   await expect(exact).toHaveAttribute("tabindex", "0");
+  // 120 frequency + 3 × 24 storage + 4 market observations, plus 12 native extrema.
+  await expect(exact.locator("tbody tr")).toHaveCount(208);
   expect(await exact.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
   await expectNoHorizontalOverflow(page);
 });

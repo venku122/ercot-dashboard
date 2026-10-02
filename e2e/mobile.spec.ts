@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { fileURLToPath } from "node:url";
 
 import {
   expectNoHorizontalOverflow,
@@ -567,7 +568,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   const supportingReadings = page.locator(".grid-health-details");
   await supportingReadings.locator("summary").click();
   await supportingReadings.scrollIntoViewIfNeeded();
-  await expect.soft(supportingReadings).toHaveScreenshot("mobile-supporting-grid-readings.png");
+  await expect.soft(supportingReadings).toHaveScreenshot("mobile-supporting-grid-readings.png", {
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+  });
   await supportingReadings.locator("summary").click();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole("button", { name: "Time & compare" }).click();
@@ -576,7 +579,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     .toHaveScreenshot("mobile-controls-sheet.png");
   await page.keyboard.press("Escape");
   await supplyDemand.scrollIntoViewIfNeeded();
-  await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png");
+  await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png", {
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+  });
   await supplyDemand.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await supplyDemand.locator(".chart-interpretation summary").click();
   await expect.soft(supplyDemand).toHaveScreenshot("mobile-chart-interpretation.png");
@@ -584,7 +589,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect(
     page.getByText("Calculated grid insights and formulas", { exact: true }),
   ).toBeVisible();
+  await page.getByText("Calculated grid insights and formulas", { exact: true }).click();
   const derivedMetrics = page.getByLabel("Derived grid metrics");
+  await expect(derivedMetrics).toBeVisible();
   await derivedMetrics.scrollIntoViewIfNeeded();
   const mobileNavigation = page.locator(".mobile-section-nav");
   await mobileNavigation.evaluate((element) => {
@@ -599,7 +606,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   const healthDetails = page.locator(".grid-health-details");
   await healthDetails.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await healthDetails.scrollIntoViewIfNeeded();
-  await expect.soft(healthDetails).toHaveScreenshot("mobile-grid-health-score.png");
+  await expect.soft(healthDetails).toHaveScreenshot("mobile-grid-health-score.png", {
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+  });
   await mobileNavigation.evaluate((element) => {
     element.style.display = "";
   });
@@ -620,7 +629,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await mobileNavigation.evaluate((element) => {
     element.style.display = "none";
   });
-  await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png");
+  await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png", {
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+  });
   await mobileNavigation.evaluate((element) => {
     element.style.display = "";
   });
@@ -662,6 +673,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await structuredAlert.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
     maxDiffPixels: 1600,
+    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
   });
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
