@@ -1,0 +1,4 @@
+.mobile-section-nav,
+.mobile-section-nav * {
+  visibility: hidden !important;
+}
