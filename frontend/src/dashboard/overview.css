@@ -267,6 +267,9 @@
     align-items: flex-start;
     gap: 2px;
   }
+  .homepage-readings > div > strong {
+    margin-top: auto;
+  }
 }
 @media (max-width: 767px) {
   .homepage-readings .homepage-desktop-price-unit {
