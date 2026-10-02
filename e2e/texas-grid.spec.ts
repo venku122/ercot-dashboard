@@ -19,7 +19,13 @@ test("Texas Grid is lazy, selected-only, exact, and URL-restorable", async ({ pa
   await expect(panel).toBeVisible();
   await expect(panel).toContainText("Planning snapshots, not operating capacity");
   await expect(panel).toContainText("Long-term load forecast");
-  await expect(panel).toContainText("Large-load categories and status");
+  const largeLoad = panel.getByRole("article").filter({ hasText: "Large-load project status" });
+  await expect(largeLoad).toContainText(
+    "Individual project categories and status remain unavailable",
+  );
+  await expect(largeLoad).toContainText(
+    "no stable public machine-readable status dataset is verified",
+  );
   await expect(panel).toContainText("Gross retirements");
   await expect(page.getByLabel("Global dashboard controls")).toHaveCount(0);
   expect(requests).toEqual(["/api/v1/texas-grid"]);

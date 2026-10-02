@@ -109,6 +109,7 @@ export async function installMarketGeographyApi(
   page: Page,
   requests: string[],
   options: {
+    emptySettlement?: boolean;
     gapCount?: number;
     historyError?: boolean;
     manifestError?: boolean;
@@ -122,11 +123,13 @@ export async function installMarketGeographyApi(
       return route.fulfill({ status: 503, json: { error: "temporarily_unavailable" } });
     }
     const prices = priceRows();
-    const visible = options.partial
-      ? prices.filter(
-          (row) => !(row.settlement_point === "LZ_WEST" && row.settlement_point_type === "LZ"),
-        )
-      : prices;
+    const visible = options.emptySettlement
+      ? []
+      : options.partial
+        ? prices.filter(
+            (row) => !(row.settlement_point === "LZ_WEST" && row.settlement_point_type === "LZ"),
+          )
+        : prices;
     return route.fulfill({
       json: {
         schema_version: 1,
@@ -137,14 +140,22 @@ export async function installMarketGeographyApi(
         attribution_status: "unavailable_without_shift_factors",
         attribution_policy: "coincident_constraint_not_point_price_attribution",
         settlement_interval: {
-          state: options.partial ? "partial" : "available",
-          target_ts: PRICE_TARGET,
+          state: options.emptySettlement
+            ? "unavailable"
+            : options.partial
+              ? "partial"
+              : "available",
+          target_ts: options.emptySettlement ? null : PRICE_TARGET,
           source: source("NP6-905-CD"),
           rows: visible.filter((row) => !["SH", "AH"].includes(row.settlement_point_type)),
           reference_prices: visible.filter((row) =>
             ["SH", "AH"].includes(row.settlement_point_type),
           ),
-          missing: options.partial ? ["LZ_WEST--LZ"] : [],
+          missing: options.emptySettlement
+            ? POINTS.map(([point, type]) => `${point}--${type}`)
+            : options.partial
+              ? ["LZ_WEST--LZ"]
+              : [],
           coherence: "single_np6_905_publication_interval",
         },
         lmp_snapshot: {
