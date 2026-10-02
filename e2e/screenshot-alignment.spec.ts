@@ -6,13 +6,13 @@ test("layout screenshot alignment normalizes paint coordinates without a transfo
   page,
 }) => {
   await page.setContent(
-    '<div id="target" style="position:relative;left:10.75px;top:20.75px;width:100.5px;height:50.5px">Evidence</div>',
+    '<div id="target" style="position:relative;left:10.75px;top:20.75px;width:100.5px;height:50.5px;backdrop-filter:blur(12px)!important">Evidence</div>',
   );
   const target = page.locator("#target");
   const before = await target.boundingBox();
   const styles = await target.evaluate((element) => {
     const style = (element as HTMLElement).style;
-    return ["position", "left", "top"].map((property) => [
+    return ["position", "left", "top", "backdrop-filter"].map((property) => [
       style.getPropertyValue(property),
       style.getPropertyPriority(property),
     ]);
@@ -21,6 +21,9 @@ test("layout screenshot alignment normalizes paint coordinates without a transfo
     target,
     async () => {
       expect(await target.evaluate((element) => getComputedStyle(element).transform)).toBe("none");
+      expect(await target.evaluate((element) => getComputedStyle(element).backdropFilter)).toBe(
+        "blur(12px)",
+      );
       const box = await target.boundingBox();
       expect(box?.x).toBe(18);
       expect(box?.y).toBe(28);
@@ -34,7 +37,7 @@ test("layout screenshot alignment normalizes paint coordinates without a transfo
   expect(
     await target.evaluate((element) => {
       const style = (element as HTMLElement).style;
-      return ["position", "left", "top"].map((property) => [
+      return ["position", "left", "top", "backdrop-filter"].map((property) => [
         style.getPropertyValue(property),
         style.getPropertyPriority(property),
       ]);
