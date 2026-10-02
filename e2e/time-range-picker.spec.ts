@@ -80,14 +80,17 @@ test("preset, playback, navigation, URL and reload preserve semantic time", asyn
 });
 
 test("invalid and valid drafts are request-silent until Enter", async ({ page }) => {
+  await expect(page.locator('[data-chart-id="supply-demand"] canvas')).toHaveAttribute(
+    "data-chart-ready",
+    "true",
+  );
+  await openPicker(page);
+  // Focus/scroll can finish queued viewport requests; measure draft edits after those settle.
+  await page.waitForLoadState("networkidle");
   const requests: string[] = [];
   page.on("request", (request) => {
     if (isTimeSeriesRequest(request.url())) requests.push(request.url());
   });
-  await page.waitForTimeout(250);
-  requests.length = 0;
-
-  await openPicker(page);
   const beforeInvalidUrl = page.url();
   await editor(page).fill("Sep 1, 2026, 8:00 am - nope");
   await page.waitForTimeout(150);
@@ -98,10 +101,13 @@ test("invalid and valid drafts are request-silent until Enter", async ({ page })
   expect(page.url()).toBe(beforeInvalidUrl);
 
   await editor(page).fill("Sep 1, 2026, 8:00 am - Sep 1, 2026, 10:13 am");
+  await page.waitForTimeout(150);
+  expect(requests).toEqual([]);
+  expect(page.url()).toBe(beforeInvalidUrl);
   await editor(page).press("Enter");
   await expect(editor(page)).toHaveValue("Sep 1, 2026, 8:00 AM – Sep 1, 2026, 10:13 AM");
   await expect.poll(() => new URL(page.url()).searchParams.get("time_origin")).toBe("custom");
-  expect(requests.length).toBeGreaterThan(0);
+  await expect.poll(() => requests.length).toBeGreaterThan(0);
 });
 
 test("keyboard, Escape focus restoration, and DST recovery are accessible", async ({ page }) => {
