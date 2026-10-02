@@ -585,7 +585,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     .toHaveScreenshot("mobile-controls-sheet.png");
   await page.keyboard.press("Escape");
   await supplyDemand.scrollIntoViewIfNeeded();
-  await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png");
+  await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png", {
+    style: ".mobile-section-nav { visibility: hidden !important; }",
+  });
   await supplyDemand.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await supplyDemand.locator(".chart-interpretation summary").click();
   await expect.soft(supplyDemand).toHaveScreenshot("mobile-chart-interpretation.png");
@@ -624,7 +626,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(storage.getByText("Showing stale data")).toBeVisible();
-  await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png");
+  await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png", {
+    style: ".mobile-section-nav { visibility: hidden !important; }",
+  });
   await page.getByRole("button", { name: "Overview view" }).click();
   await sourceSummary.scrollIntoViewIfNeeded();
   await sourceSummary.getByRole("button", { name: "View diagnostics" }).click();
@@ -660,7 +664,9 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
   const structuredAlert = page.getByLabel("Active grid alerts");
   await structuredAlert.scrollIntoViewIfNeeded();
-  await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png");
+  await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
+    style: ".mobile-section-nav { visibility: hidden !important; }",
+  });
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "negative");
