@@ -187,9 +187,6 @@ jobs:
           - name: ercot-receiver
             context: .
             file: ercot-receiver/Dockerfile
-          - name: ercot-collector
-            context: ercot-collector
-            file: ercot-collector/Dockerfile
     steps:
       - uses: actions/checkout@v6
       - uses: docker/setup-qemu-action@v4
@@ -217,6 +214,128 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  collector-platform-build:
+    name: collector-native (${{ matrix.arch }})
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic') }}
+    needs: [static-unit, collector-fixtures, e2e-vri, mobile-webkit-vri, performance]
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify native builder architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          case "$EXPECTED_ARCH:$(uname -m)" in
+            amd64:x86_64|arm64:aarch64) ;;
+            *) echo "Collector runner architecture does not match its target"; exit 1 ;;
+          esac
+      - uses: docker/setup-buildx-action@v4
+      - if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ercot-collector
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ercot-collector
+          file: ercot-collector/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # PRs build and test locally; only main pushes architecture-specific digests.
+          outputs: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=image,name=ghcr.io/{0}/ercot-collector,push-by-digest=true,name-canonical=true,push=true', github.repository_owner) || 'type=cacheonly' }}
+          cache-from: type=gha,scope=ercot-collector-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=ercot-collector-${{ matrix.arch }}
+      - name: Export collector digest
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/collector-digests"
+          printf '%s\n' "$BUILD_DIGEST" > "$RUNNER_TEMP/collector-digests/$BUILD_ARCH.txt"
+      - uses: actions/upload-artifact@v6
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: collector-digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/collector-digests/${{ matrix.arch }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  collector-build:
+    # Preserve the protected check name; skipped/failed platform jobs cannot turn it green.
+    name: docker-build (ercot-collector)
+    if: ${{ always() && (github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'deterministic')) }}
+    needs: [collector-platform-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Require both native collector builds
+        env:
+          BUILD_RESULT: ${{ needs.collector-platform-build.result }}
+        run: python3 scripts/verify_collector_build.py --result "$BUILD_RESULT"
+      - uses: docker/setup-buildx-action@v4
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - uses: docker/login-action@v4
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ercot-collector
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/download-artifact@v8
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          pattern: collector-digest-*
+          path: ${{ runner.temp }}/collector-digests
+          merge-multiple: true
+      - name: Publish verified multi-architecture collector manifest
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          BUILD_RESULT: ${{ needs.collector-platform-build.result }}
+          COLLECTOR_IMAGE: ghcr.io/${{ github.repository_owner }}/ercot-collector
+          META_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          python3 scripts/verify_collector_build.py --result "$BUILD_RESULT" \
+            --digests "$RUNNER_TEMP/collector-digests" --image "$COLLECTOR_IMAGE" \
+            > "$RUNNER_TEMP/collector-manifest-inputs"
+          mapfile -t sources < "$RUNNER_TEMP/collector-manifest-inputs"
+          mapfile -t tags < <(jq -r '.tags[]' <<< "$META_JSON")
+          tag_args=()
+          for tag in "${tags[@]}"; do tag_args+=(--tag "$tag"); done
+          test "${#tag_args[@]}" -gt 0
+          docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
 
   live-source-scheduled:
     name: live-source-scheduled
