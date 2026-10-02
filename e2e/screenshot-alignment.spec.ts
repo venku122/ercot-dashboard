@@ -2,6 +2,28 @@ import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
+test("floor screenshot alignment does not round a viewport-edge target out of view", async ({
+  page,
+}) => {
+  await page.setContent(
+    '<div id="edge" style="position:absolute;left:10.75px;top:20.75px;width:100.5px;height:50.5px">Evidence</div>',
+  );
+  const target = page.locator("#edge");
+  const before = await target.boundingBox();
+  await withCssPixelAlignment(
+    target,
+    async () => {
+      const box = await target.boundingBox();
+      expect(box?.x).toBe(10);
+      expect(box?.y).toBe(20);
+      expect(box?.width).toBe(before?.width);
+      expect(box?.height).toBe(before?.height);
+    },
+    "floor",
+  );
+  expect(await target.boundingBox()).toEqual(before);
+});
+
 test("screenshot alignment preserves fractional layout and restores inline transforms", async ({
   page,
 }) => {

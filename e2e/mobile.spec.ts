@@ -630,9 +630,14 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await mobileNavigation.evaluate((element) => {
     element.style.display = "none";
   });
-  await expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png", {
-    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
-  });
+  await withCssPixelAlignment(
+    storage,
+    () =>
+      expect.soft(storage).toHaveScreenshot("mobile-stale-storage-card.png", {
+        stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+      }),
+    "floor",
+  );
   await mobileNavigation.evaluate((element) => {
     element.style.display = "";
   });

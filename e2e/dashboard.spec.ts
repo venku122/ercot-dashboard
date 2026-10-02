@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { outlookFixture } from "./mobile-fixtures";
 
@@ -1174,7 +1175,10 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
     await expect(card).toHaveAttribute("data-visible", "true");
     await expect(card.locator(".chart-placeholder")).toHaveCount(0);
     const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;
-    await expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`, { maxDiffPixelRatio });
+    const capture = () =>
+      expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`, { maxDiffPixelRatio });
+    if (scenario === "negative") await withCssPixelAlignment(card, capture, "floor");
+    else await capture();
   });
 }
 
