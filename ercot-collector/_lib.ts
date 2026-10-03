@@ -1,6 +1,14 @@
 export * from "./deps.ts";
 import { DatadogApi, fetch as instrumentedFetch, fixedInterval } from "./deps.ts";
 import type { MetricSubmission as DatadogMetricSubmission } from "./deps.ts";
+import type { GridEventIngestEvent, GridEventPublication, GridEventStream } from "./grid_events.ts";
+import {
+  collectorCycleStarted,
+  collectorDeliveryFailed,
+  collectorDeliverySucceeded,
+  collectorUpstreamFailed,
+  collectorUpstreamSucceeded,
+} from "./collector_health.ts";
 
 export type MetricPoint = {
   dedupe_key?: string;
@@ -36,8 +44,11 @@ export type SourceResult = {
   dataTimestamp?: number;
   diagnostics?: Record<string, unknown>;
   events: NormalizedEvent[];
+  gridEvents?: GridEventIngestEvent[];
+  gridEventStream?: Exclude<GridEventStream, "derived_annotations">;
   metrics: NormalizedMetric[];
   payloadHash: string;
+  provenance?: Record<string, unknown>;
   sourceTimestamp: number;
 };
 
@@ -45,6 +56,7 @@ export type SourceAdapter = {
   displayName: string;
   expectedIntervalSeconds: number;
   gather: () => Promise<SourceResult>;
+  allowValidEmpty?: boolean;
   mutableMetricNames?: string[];
   overlapSeconds?: number;
   publicationIntervalSeconds?: number;
@@ -68,8 +80,10 @@ export type SourceCheckpoint =
     });
 
 type SourceAttempt = {
+  availability_status?: "available" | "empty";
   attempted_at: number;
   data_timestamp_ts?: number;
+  diagnostics?: Record<string, unknown>;
   display_name: string;
   error?: string;
   expected_interval_seconds: number;
@@ -77,11 +91,58 @@ type SourceAttempt = {
   payload_hash?: string;
   publication_interval_seconds?: number;
   publication_mode?: "event" | "polling";
+  provenance?: Record<string, unknown>;
   row_count: number;
   source_id: string;
   source_timestamp_ts?: number;
   success: boolean;
 };
+
+const sourceMetadataByteLimit = 8 * 1024;
+const sourceMetadataSecretKey =
+  /(?:authorization|cookie|password|secret|token|subscription.?key|api.?key|email)/i;
+
+function sanitizedMetadataValue(value: unknown, depth: number): unknown {
+  if (depth > 4) return "[depth-limited]";
+  if (value === null || typeof value === "boolean" || typeof value === "number") return value;
+  if (typeof value === "string") return value.slice(0, 512);
+  if (Array.isArray(value)) {
+    return value.slice(0, 32).map((entry) => sanitizedMetadataValue(entry, depth + 1));
+  }
+  if (value && typeof value === "object") {
+    const output: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value).slice(0, 64)) {
+      output[key] = sourceMetadataSecretKey.test(key)
+        ? "[redacted]"
+        : sanitizedMetadataValue(entry, depth + 1);
+    }
+    return output;
+  }
+  return String(value).slice(0, 512);
+}
+
+export function boundedSourceMetadata(
+  value: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!value) return undefined;
+  const sanitized = sanitizedMetadataValue(value, 0) as Record<string, unknown>;
+  const bytes = new TextEncoder().encode(JSON.stringify(sanitized)).length;
+  return bytes <= sourceMetadataByteLimit
+    ? sanitized
+    : { truncated: true, original_sanitized_bytes: bytes };
+}
+
+export function sourceResultAvailability(
+  result: Pick<SourceResult, "events" | "gridEvents" | "metrics">,
+  allowValidEmpty = false,
+): { availability: "available" | "empty"; rowCount: number } {
+  const rowCount =
+    result.metrics.reduce((total, entry) => total + entry.points.length, 0) +
+    result.events.length +
+    (result.gridEvents?.length ?? 0);
+  if (rowCount === 0 && !allowValidEmpty) throw new Error("zero_core_rows");
+  return { availability: rowCount === 0 ? "empty" : "available", rowCount };
+}
 
 const metricsEndpoint = Deno.env.get("METRICS_ENDPOINT");
 const metricsApiKey = Deno.env.get("METRICS_API_KEY");
@@ -115,7 +176,10 @@ export async function fetch(
   }
 
   try {
-    const response = await instrumentedFetch(input, { ...init, signal: controller.signal });
+    const response = await instrumentedFetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
     if (!response.ok) {
       throw new Error(`source_http_${response.status}`);
     }
@@ -168,7 +232,10 @@ export function metricBatches(data: NormalizedMetric[], maximumBytes = 400 * 102
       const pointBytes = encoder.encode(JSON.stringify(point)).byteLength;
       const candidateBytes = baseBytes + 2 + pointsBytes + (points.length ? 1 : 0) + pointBytes;
       if (points.length && candidateBytes > maximumBytes - 2) {
-        split.push({ entry: { ...entry, points }, bytes: baseBytes + 2 + pointsBytes });
+        split.push({
+          entry: { ...entry, points },
+          bytes: baseBytes + 2 + pointsBytes,
+        });
         points = [];
         pointsBytes = 0;
       }
@@ -177,7 +244,9 @@ export function metricBatches(data: NormalizedMetric[], maximumBytes = 400 * 102
     }
     if (points.length) {
       const bytes = baseBytes + 2 + pointsBytes;
-      if (bytes > maximumBytes - 2) throw new Error("metric_point_exceeds_batch_limit");
+      if (bytes > maximumBytes - 2) {
+        throw new Error("metric_point_exceeds_batch_limit");
+      }
       split.push({ entry: { ...entry, points }, bytes });
     }
   }
@@ -215,7 +284,9 @@ export function incrementalMetrics(
   for (const entry of metrics) {
     const identity = seriesIdentity(entry);
     let highWater = highWaterBySeries[identity] ?? 0;
-    for (const point of entry.points) highWater = Math.max(highWater, point.timestamp ?? 0);
+    for (const point of entry.points) {
+      highWater = Math.max(highWater, point.timestamp ?? 0);
+    }
     highWaterBySeries[identity] = highWater;
   }
   const retainedValues: Record<string, number> = {};
@@ -235,14 +306,18 @@ export function incrementalMetrics(
         changed.push(point);
         continue;
       }
-      if (isMutable || timestamp >= cutoff) retainedValues[identity] = point.value;
+      if (isMutable || timestamp >= cutoff) {
+        retainedValues[identity] = point.value;
+      }
       const isCandidate =
         !checkpoint ||
         !hasPriorSeriesWatermark ||
         isMutable ||
         timestamp > previousHighWater ||
         timestamp >= previousHighWater - overlapSeconds;
-      if (isCandidate && priorValues[identity] !== point.value) changed.push(point);
+      if (isCandidate && priorValues[identity] !== point.value) {
+        changed.push(point);
+      }
     }
     if (changed.length) output.push({ ...entry, points: changed });
   }
@@ -263,7 +338,9 @@ function incrementalEvents(
   checkpoint: SourceCheckpoint,
 ): { checkpoint: SourceCheckpoint; events: NormalizedEvent[] } {
   const previous = checkpoint.events ?? {};
-  const next: Record<string, string> = {};
+  const next: Record<string, string> = Object.fromEntries(
+    Object.entries(previous).filter(([key]) => key.startsWith("grid:")),
+  );
   const changed: NormalizedEvent[] = [];
   for (const event of events) {
     const fingerprint = JSON.stringify(stableValue(event));
@@ -273,10 +350,38 @@ function incrementalEvents(
   return { events: changed, checkpoint: { ...checkpoint, events: next } };
 }
 
+export function incrementalGridEvents(
+  stream: GridEventStream,
+  events: GridEventIngestEvent[],
+  checkpoint: SourceCheckpoint,
+): { checkpoint: SourceCheckpoint; events: GridEventIngestEvent[] } {
+  const previous = checkpoint.events ?? {};
+  const prefix = `grid:${stream}:`;
+  const next = Object.fromEntries(
+    Object.entries(previous).filter(([key]) => !key.startsWith(prefix)),
+  );
+  const changed: GridEventIngestEvent[] = [];
+  for (const event of events) {
+    const key = `${prefix}${event.identity}`;
+    const fingerprint = JSON.stringify(
+      stableValue({
+        ...event,
+        observed_at: 0,
+        source_updated_at: 0,
+      }),
+    );
+    next[key] = fingerprint;
+    if (previous[key] !== fingerprint) changed.push(event);
+  }
+  return { checkpoint: { ...checkpoint, events: next }, events: changed };
+}
+
 export async function submitMetrics(data: NormalizedMetric[]) {
   if (!data.length) return;
   if (metricsEndpoint) {
-    for (const batch of metricBatches(data)) await submitJson(metricsEndpoint, batch);
+    for (const batch of metricBatches(data)) {
+      await submitJson(metricsEndpoint, batch);
+    }
     return;
   }
   const submissions = data.flatMap((entry) =>
@@ -311,6 +416,46 @@ async function submitEvents(data: NormalizedEvent[]) {
     bytes += (batch.length > 1 ? 1 : 0) + eventBytes;
   }
   if (batch.length) await submitJson(endpoint, batch);
+}
+
+async function submitGridEvents(publication: GridEventPublication) {
+  if (!publication.events.length) return;
+  const endpoint = receiverEndpoint("/api/grid-events/ingest");
+  if (!endpoint) return;
+  if (jsonBytes(publication) > 400 * 1024) {
+    throw new Error("grid_events_batch_too_large");
+  }
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(metricsApiKey ? { "X-API-Key": metricsApiKey } : {}),
+    },
+    body: JSON.stringify(publication),
+  });
+  const result = (await response.json()) as Record<string, unknown>;
+  const expected = [
+    "content_version",
+    "ignored_older",
+    "inserted",
+    "pruned",
+    "revised",
+    "schema",
+    "status",
+    "stream",
+    "unchanged",
+  ];
+  if (
+    Object.keys(result).sort().join(",") !== expected.sort().join(",") ||
+    result.schema !== 1 ||
+    result.stream !== publication.stream ||
+    result.status !== "accepted" ||
+    !["inserted", "revised", "unchanged", "ignored_older", "pruned"].every(
+      (key) => Number.isInteger(result[key]) && Number(result[key]) >= 0,
+    ) ||
+    typeof result.content_version !== "string"
+  )
+    throw new Error("grid_events_receiver_response");
 }
 
 async function submitSourceAttempt(attempt: SourceAttempt) {
@@ -358,7 +503,9 @@ export function parseErcotTimestamp(value: unknown): number {
     .replace(/^(\d{4}-\d{2}-\d{2}) /, "$1T")
     .replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
   const milliseconds = Date.parse(normalized);
-  if (!Number.isFinite(milliseconds)) throw new Error("invalid_source_timestamp");
+  if (!Number.isFinite(milliseconds)) {
+    throw new Error("invalid_source_timestamp");
+  }
   return Math.floor(milliseconds / 1000);
 }
 
@@ -448,12 +595,13 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
   }
   for await (const dutyCycle of fixedInterval(adapter.expectedIntervalSeconds * 1000)) {
     const attemptedAt = Math.floor(Date.now() / 1000);
+    let phase: "upstream" | "delivery" = "upstream";
+    collectorCycleStarted(adapter.sourceId);
     try {
       const result = await adapter.gather();
-      const rowCount =
-        result.metrics.reduce((total, entry) => total + entry.points.length, 0) +
-        result.events.length;
-      if (rowCount === 0) throw new Error("zero_core_rows");
+      collectorUpstreamSucceeded(adapter.sourceId);
+      phase = "delivery";
+      const { availability, rowCount } = sourceResultAvailability(result, adapter.allowValidEmpty);
       const unchanged = previousHash === result.payloadHash;
       const incremental = incrementalMetrics(
         result.metrics,
@@ -462,8 +610,28 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         adapter.overlapSeconds,
       );
       const incrementalEventResult = incrementalEvents(result.events, incremental.checkpoint);
+      const hasGridEventCheckpoint =
+        result.gridEventStream &&
+        Object.keys(incrementalEventResult.checkpoint.events ?? {}).some((key) =>
+          key.startsWith(`grid:${result.gridEventStream}:`),
+        );
+      const gridEventResult =
+        result.gridEventStream && result.gridEvents && (!unchanged || !hasGridEventCheckpoint)
+          ? incrementalGridEvents(
+              result.gridEventStream,
+              result.gridEvents,
+              incrementalEventResult.checkpoint,
+            )
+          : { checkpoint: incrementalEventResult.checkpoint, events: [] };
       await submitMetrics(incremental.metrics);
       await submitEvents(incrementalEventResult.events);
+      if (result.gridEventStream) {
+        await submitGridEvents({
+          events: gridEventResult.events,
+          schema: 1,
+          stream: result.gridEventStream,
+        });
+      }
       await submitMetrics([
         metric(
           adapter.sourceId,
@@ -481,15 +649,20 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
         attempted_at: attemptedAt,
         success: true,
         source_timestamp_ts: result.sourceTimestamp,
-        data_timestamp_ts: result.dataTimestamp ?? result.sourceTimestamp,
+        data_timestamp_ts:
+          availability === "empty" ? undefined : (result.dataTimestamp ?? result.sourceTimestamp),
+        availability_status: availability,
+        diagnostics: boundedSourceMetadata(result.diagnostics),
+        provenance: boundedSourceMetadata(result.provenance),
         payload_hash: result.payloadHash,
         row_count: rowCount,
-        checkpoint: incrementalEventResult.checkpoint,
+        checkpoint: gridEventResult.checkpoint,
         publication_mode: adapter.publicationMode ?? "polling",
         publication_interval_seconds: adapter.publicationIntervalSeconds,
       });
-      checkpoint = incrementalEventResult.checkpoint;
+      checkpoint = gridEventResult.checkpoint;
       previousHash = result.payloadHash;
+      collectorDeliverySucceeded(adapter.sourceId);
       console.log(
         new Date().toISOString(),
         adapter.sourceId,
@@ -500,6 +673,11 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
           incrementalEventResult.events.length,
       );
     } catch (error) {
+      if (phase === "upstream") collectorUpstreamFailed(adapter.sourceId);
+      else collectorDeliveryFailed(adapter.sourceId);
+      console.error(
+        JSON.stringify({ event: "collector_cycle_failure", runner: adapter.sourceId, phase }),
+      );
       const message = error instanceof Error ? error.message : String(error);
       console.error(new Date().toISOString(), adapter.sourceId, message);
       try {
@@ -515,6 +693,7 @@ export async function runSourceLoop(adapter: SourceAdapter, offsetSeconds = 0) {
           publication_interval_seconds: adapter.publicationIntervalSeconds,
         });
       } catch (healthError) {
+        collectorDeliveryFailed(adapter.sourceId);
         console.error(new Date().toISOString(), adapter.sourceId, "health", healthError);
       }
     }
@@ -528,8 +707,12 @@ export async function runMetricsLoop(
 ) {
   for await (const dutyCycle of fixedInterval(intervalMinutes * 60 * 1000)) {
     const attemptedAt = Math.floor(Date.now() / 1000);
+    let phase: "upstream" | "delivery" = "upstream";
+    collectorCycleStarted(loopName);
     try {
       const data = await gather();
+      collectorUpstreamSucceeded(loopName);
+      phase = "delivery";
       if (!data.length) throw new Error("zero_core_rows");
       const pointTimestamps = data.flatMap((entry) =>
         entry.points.flatMap((point) => (point.timestamp ? [point.timestamp] : [])),
@@ -562,7 +745,11 @@ export async function runMetricsLoop(
         row_count: data.reduce((total, entry) => total + entry.points.length, 0),
         publication_mode: "polling",
       });
+      collectorDeliverySucceeded(loopName);
     } catch (error) {
+      if (phase === "upstream") collectorUpstreamFailed(loopName);
+      else collectorDeliveryFailed(loopName);
+      console.error(JSON.stringify({ event: "collector_cycle_failure", runner: loopName, phase }));
       console.error(new Date().toISOString(), loopName, error);
       try {
         await submitSourceAttempt({
@@ -576,6 +763,7 @@ export async function runMetricsLoop(
           publication_mode: "polling",
         });
       } catch (healthError) {
+        collectorDeliveryFailed(loopName);
         console.error(new Date().toISOString(), loopName, "health", healthError);
       }
     }

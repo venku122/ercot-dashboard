@@ -1,0 +1,20 @@
+digraph planner {
+  graph [bgcolor="transparent", rankdir=LR, pad=0.25, nodesep=0.4, ranksep=0.65];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#334155", fillcolor="#e2e8f0"];
+  edge [fontname="Helvetica", fontsize=9, color="#475569"];
+  window [label="Selected UTC window\n6h, 24h, 7d, 30d, 90d, 1y"];
+  catalog [label="Strict v2 tile catalog\nseries identity + cadence"];
+  planner [label="Production tile planner", fillcolor="#cffafe"];
+  edges [label="Native edge tiles"];
+  interior [label="Canonical 1h / 1d interior tiles"];
+  dedupe [label="URL coalescing\nrepeat callers share promises"];
+  merge [label="Parse + stable timestamp merge"];
+  chart [label="Chart, exact table, CSV", fillcolor="#dcfce7"];
+  window -> planner;
+  catalog -> planner;
+  planner -> edges;
+  planner -> interior;
+  edges -> dedupe;
+  interior -> dedupe;
+  dedupe -> merge -> chart;
+}

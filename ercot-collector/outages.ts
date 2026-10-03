@@ -3,13 +3,13 @@
 import { Sha256 } from "./deps.ts";
 let lastHash = "";
 
-import { runMetricsLoop, MetricSubmission, headers, fetch } from "./_lib.ts";
+import { runMetricsLoop, headers, fetch, type NormalizedMetric } from "./_lib.ts";
 export async function start() {
   await runMetricsLoop(grabUserMetrics, 30, "poweroutages_us");
 }
 if (import.meta.main) start();
 
-async function grabUserMetrics(): Promise<MetricSubmission[]> {
+async function grabUserMetrics(): Promise<NormalizedMetric[]> {
   const key = Deno.env.get("POWEROUTAGE_US_KEY");
   if (!key) {
     console.log(new Date(), "Outages", "missing POWEROUTAGE_US_KEY");

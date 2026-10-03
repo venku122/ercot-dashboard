@@ -1,0 +1,9 @@
+{
+  "properties": {
+    "gridId": "FWD",
+    "gridX": 81,
+    "gridY": 109,
+    "forecastGridData": "https://api.weather.gov/gridpoints/FWD/81,109",
+    "timeZone": "America/Chicago"
+  }
+}

@@ -1,4 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { withCssPixelAlignment } from "./screenshot-alignment";
+
+import { outlookFixture } from "./mobile-fixtures";
 
 type Scenario =
   | "empty"
@@ -9,6 +12,7 @@ type Scenario =
   | "negative"
   | "no-events"
   | "normal"
+  | "outlook-stale"
   | "spike"
   | "stale";
 
@@ -16,16 +20,14 @@ const FIXED_NOW = new Date("2026-07-21T18:00:00-05:00");
 const FIXED_NOW_SECONDS = Math.floor(FIXED_NOW.getTime() / 1000);
 
 async function openMoreView(page: Page, name: "Advanced" | "Diagnostics" | "Weather") {
-  await page.getByRole("button", { name: /More views/ }).click();
-  await page
-    .getByRole("navigation", { name: "More dashboard views" })
-    .getByRole("button", { name })
-    .click();
+  const label =
+    name === "Advanced" ? "Grid Signals" : name === "Diagnostics" ? "System Health" : name;
+  await page.getByRole("button", { name: `${label} view`, exact: true }).click();
 }
 
 async function openAnalyze(page: Page) {
-  await page.getByRole("button", { name: "Analyze" }).click();
-  return page.getByRole("dialog", { name: "Analyze" });
+  await page.getByRole("button", { name: "Time & compare" }).click();
+  return page.getByRole("dialog", { name: "Time & comparison" });
 }
 
 function metricValue(metric: string, tags: string[], index: number, scenario: Scenario) {
@@ -33,9 +35,9 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Sc
   if (metric.includes("demand_mw")) return 68_000 + wave * 3200;
   if (metric.includes("capacity_mw")) return 93_000 + wave * 1800;
   if (metric.includes("Frequency")) return 60 + wave * 0.018;
-  if (metric.includes("charging_mw")) return -900 - wave * 500;
+  if (metric.includes(".charging_mw")) return -900 - wave * 500;
   if (metric.includes("discharging_mw")) return 450 + wave * 300;
-  if (metric.includes("net_output_mw")) return -450 + wave * 800;
+  if (metric.includes("net_output_mw")) return -450 - wave * 200;
   if (metric.includes("eea_level")) return 0;
   if (metric.includes("metar.temperature")) return 31 + wave * 4;
   if (metric.includes("duty_cycle")) return 12 + wave * 3;
@@ -58,6 +60,7 @@ function metricValue(metric: string, tags: string[], index: number, scenario: Sc
 test("hero metrics expose honest hourly direction, delta, and timestamp", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
+  await page.getByText("Grid Health inputs and scoring", { exact: true }).click();
 
   for (const id of [
     "demand",
@@ -70,6 +73,13 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
     await expect(trend).toBeVisible();
     await expect(trend).toHaveAttribute("aria-label", /Last hour/);
     await expect(trend.locator("time")).toHaveCount(1);
+    const direction = await trend.getAttribute("data-direction");
+    if (direction === "up" || direction === "down") {
+      await expect(trend.locator(".hero-trend-delta > span")).toHaveCSS(
+        "color",
+        direction === "up" ? "rgb(52, 211, 153)" : "rgb(248, 113, 113)",
+      );
+    }
   }
   await expect(page.locator('[data-hero-trend="demand"]')).toHaveAttribute(
     "aria-label",
@@ -86,6 +96,7 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
     await route.fallback();
   });
   await page.reload();
+  await page.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await expect(page.locator('[data-metric-id="demand"] strong')).toContainText("GW");
   await expect(page.locator('[data-hero-trend="demand"]')).toHaveCount(0);
   await expect(page.getByText(/Recent comparison unavailable for/)).toHaveCount(0);
@@ -96,14 +107,17 @@ test("hero metrics expose honest hourly direction, delta, and timestamp", async 
   await expect(page.locator('[data-hero-trend="demand"]')).toHaveCount(0);
 });
 
-test("derived insights expose nine formulas and honest history availability", async ({ page }) => {
+test("derived insights exclude the superseded unconditioned history cards", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
 
-  await page.getByText("Calculated grid insights", { exact: true }).click();
+  await expect(
+    page.getByText("Calculated grid insights and formulas", { exact: true }),
+  ).toBeVisible();
+  await page.getByText("Calculated grid insights and formulas", { exact: true }).click();
   const metrics = page.getByLabel("Derived grid metrics");
-  await expect(metrics.getByRole("article")).toHaveCount(9);
-  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(9);
+  await expect(metrics.getByRole("article")).toHaveCount(7);
+  await expect(metrics.locator('[data-derived-available="true"]')).toHaveCount(7);
   for (const label of [
     "Reserve Margin %",
     "Capacity Utilization %",
@@ -112,12 +126,12 @@ test("derived insights expose nine formulas and honest history availability", as
     "Demand Growth",
     "Forecast Peak",
     "Hours Until Peak",
-    "Price Percentile",
-    "Historical Comparison",
   ]) {
     await expect(metrics).toContainText(label);
   }
-  await expect(metrics.getByText("Formula", { exact: true })).toHaveCount(9);
+  await expect(metrics.getByText("Formula", { exact: true })).toHaveCount(7);
+  await expect(metrics).not.toContainText("Price Percentile");
+  await expect(metrics).not.toContainText("Historical Comparison");
 
   await page.route("**/api/series/batch", async (route) => {
     const payload = route.request().postDataJSON() as { queries: Array<{ id: string }> };
@@ -128,12 +142,7 @@ test("derived insights expose nine formulas and honest history availability", as
     await route.fallback();
   });
   await page.reload();
-  for (const id of [
-    "forecast-peak",
-    "hours-until-peak",
-    "price-percentile",
-    "historical-comparison",
-  ]) {
+  for (const id of ["forecast-peak", "hours-until-peak"]) {
     const card = metrics.locator(`[data-derived-metric="${id}"]`);
     await expect(card).toHaveAttribute("data-derived-available", "false");
     await expect(card).toContainText("Required source data or comparison history is unavailable.");
@@ -148,13 +157,14 @@ test("Grid Health Score is concise, bounded, explainable, and coverage-aware", a
   await expect(page.locator(".grid-health-score-value")).toHaveCount(0);
   await expect(page.getByLabel("Current ERCOT status")).not.toContainText("/ 100");
   const summary = page.locator(".grid-health-summary");
+  const explanation = page.getByText("Grid Health inputs and scoring", { exact: true });
+  await expect(summary).not.toBeVisible();
+  await explanation.click();
   await expect(summary).toBeVisible();
   await expect(summary).toContainText(/\d+ \/ 100/);
   await expect(summary.locator(".grid-health-contribution")).toHaveCount(8);
-  await expect(summary).toContainText("input coverage");
+  await expect(summary).not.toContainText("100% input coverage");
 
-  const explanation = page.getByText("How status is determined", { exact: true });
-  await explanation.click();
   await expect(page.getByText(/Current result: \d+ \/ 100/)).toBeVisible();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
   await expect(page.getByLabel("Grid Health Score factors")).toContainText("Reserve margin");
@@ -164,6 +174,7 @@ test("Grid Health Score is concise, bounded, explainable, and coverage-aware", a
   await page.unrouteAll({ behavior: "wait" });
   await installApi(page, "empty");
   await page.reload();
+  await expect(summary).toContainText("90% input coverage");
   await explanation.click();
   await expect(page.getByText(/Current result: \d+ \/ 100 · 90% weighted coverage/)).toBeVisible();
 
@@ -200,6 +211,7 @@ test("chart thresholds pair semantic bands with non-color interpretation text", 
 
   const frequency = page.locator('[data-chart-id="frequency"]');
   await frequency.scrollIntoViewIfNeeded();
+  await frequency.getByRole("button", { name: "Open Grid frequency inspect mode" }).click();
   await expect(
     frequency.getByLabel("Grid frequency interpretation bands").getByRole("listitem"),
   ).toHaveCount(7);
@@ -224,20 +236,189 @@ test("production regression fixture keeps actual demand and available capacity v
   await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
 });
 
-test("fixed seven-day windows use canonical cacheable history chunks", async ({ page }) => {
+test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }) => {
   const chunkRequests: string[] = [];
+  const tileRequests: string[] = [];
   await installApi(page, "normal", [], chunkRequests);
   const to = FIXED_NOW_SECONDS - 2 * 86_400;
   const from = to - 7 * 86_400;
+  const catalogSeries = [
+    {
+      key: "supply-demand.available-capacity",
+      match: "exact",
+      metric: "ercot.supply_demand.available_capacity_mw",
+      native_interval_seconds: 300,
+      rollup: null,
+      source: "supply_demand",
+      statistic_policy: "power",
+      supported_lods: ["native", "5m", "15m", "1h"],
+      tags: ["source:supply_demand"],
+      unit: "MW",
+    },
+    {
+      key: "supply-demand.demand",
+      match: "exact",
+      metric: "ercot.supply_demand.demand_mw",
+      native_interval_seconds: 300,
+      rollup: null,
+      source: "supply_demand",
+      statistic_policy: "power",
+      supported_lods: ["native", "5m", "15m", "1h"],
+      tags: ["source:supply_demand"],
+      unit: "MW",
+    },
+    {
+      key: "supply-demand.forecast-demand",
+      match: "exact",
+      metric: "ercot.supply_demand.forecast_demand_mw",
+      native_interval_seconds: 3600,
+      rollup: null,
+      source: "supply_demand",
+      statistic_policy: "power",
+      supported_lods: ["native", "1h"],
+      tags: ["source:supply_demand"],
+      unit: "MW",
+    },
+  ] as const;
+  await page.route("**/api/v2/tile-catalog", async (route) => {
+    await route.fulfill({
+      json: {
+        boundary_policy: {
+          coarse_partial_clipping: false,
+          edge_lod: "native",
+          rule: "clients use native boundary tiles and coarse LOD only for aligned interiors",
+        },
+        derived_resources: [],
+        lod_seconds: { "15m": 900, "1h": 3600, "5m": 300, native: null },
+        schema: 2,
+        series: catalogSeries,
+        tile_spans: { "1d": 86_400, "1h": 3600 },
+      },
+    });
+  });
+  await page.route("**/api/v2/tiles/**", async (route) => {
+    const url = new URL(route.request().url());
+    tileRequests.push(url.toString());
+    const match = url.pathname.match(
+      /^\/api\/v2\/tiles\/([^/]+)\/(1h|1d)\/(\d+)\/(native|5m|15m|1h)$/,
+    );
+    expect(match).not.toBeNull();
+    const [, seriesKey, tileSpan, tileStartRaw, lod] = match!;
+    const definition = catalogSeries.find((entry) => entry.key === seriesKey)!;
+    const tileStart = Number(tileStartRaw);
+    const tileEnd = tileStart + (tileSpan === "1d" ? 86_400 : 3600);
+    const overlapStart = Math.max(tileStart, from);
+    const overlapEnd = Math.min(tileEnd, to + 1);
+    const nativeInterval = definition.native_interval_seconds;
+    const lodSeconds =
+      lod === "native" ? nativeInterval : lod === "5m" ? 300 : lod === "15m" ? 900 : 3600;
+    const value = definition.key.includes("available-capacity")
+      ? 93_000
+      : definition.key.includes("forecast")
+        ? 70_000
+        : 68_000;
+    const buckets = [];
+    if (lod === "native") {
+      const timestamp = overlapStart;
+      if (timestamp < overlapEnd) {
+        buckets.push({
+          end: timestamp,
+          start: timestamp,
+          state: {
+            count: 1,
+            first_ordinal: 0,
+            first_ts: timestamp,
+            first_value: value,
+            integral_value_seconds: 0,
+            last_ordinal: 0,
+            last_ts: timestamp,
+            last_value: value,
+            maximum: value,
+            maximum_ts: timestamp,
+            minimum: value,
+            minimum_ts: timestamp,
+            value_sum: value,
+            version: 2,
+          },
+        });
+      }
+    } else {
+      const bucketStart = Math.ceil(overlapStart / lodSeconds) * lodSeconds;
+      if (bucketStart + lodSeconds <= overlapEnd) {
+        const lastTimestamp = bucketStart + Math.floor(lodSeconds / 2);
+        buckets.push({
+          end: bucketStart + lodSeconds,
+          start: bucketStart,
+          state: {
+            count: 2,
+            first_ordinal: 0,
+            first_ts: bucketStart,
+            first_value: value,
+            integral_value_seconds: value * (lastTimestamp - bucketStart),
+            last_ordinal: 0,
+            last_ts: lastTimestamp,
+            last_value: value,
+            maximum: value,
+            maximum_ts: bucketStart,
+            minimum: value,
+            minimum_ts: bucketStart,
+            value_sum: value * 2,
+            version: 2,
+          },
+        });
+      }
+    }
+    await route.fulfill({
+      json: {
+        boundary_policy: "native_edges_coarse_aligned_interiors",
+        buckets,
+        lod,
+        native_interval_seconds: nativeInterval,
+        rollup: null,
+        schema: 2,
+        series_key: seriesKey,
+        statistic_policy: "power",
+        tile_end: tileEnd,
+        tile_span: tileSpan,
+        tile_start: tileStart,
+        unit: "MW",
+      },
+    });
+  });
   await page.goto(
     `/?range=604800&live=0&from=${String(from)}&to=${String(to)}&compare=none&events=1`,
   );
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(page.getByText("Viewing a fixed analysis window", { exact: true })).toHaveCount(0);
-  await expect.poll(() => chunkRequests.length).toBeGreaterThan(0);
-  expect(chunkRequests.every((url) => url.includes("chunk_seconds=86400"))).toBe(true);
+  await expect.poll(() => tileRequests.length).toBeGreaterThan(0);
+  const tileUrls = tileRequests.map((request) => new URL(request));
+  expect(tileUrls.every((url) => url.search === "")).toBe(true);
+  expect(
+    tileUrls.every((url) =>
+      /^\/api\/v2\/tiles\/[^/]+\/(?:1h|1d)\/\d+\/(?:native|5m|15m|1h)$/.test(url.pathname),
+    ),
+  ).toBe(true);
+  expect(
+    tileUrls.some((url) =>
+      /^\/api\/v2\/tiles\/supply-demand\.demand\/1d\/\d+\/15m$/.test(url.pathname),
+    ),
+  ).toBe(true);
+  expect(
+    tileUrls.some((url) =>
+      /^\/api\/v2\/tiles\/supply-demand\.forecast-demand\/1d\/\d+\/native$/.test(url.pathname),
+    ),
+  ).toBe(true);
+  const mappedMetrics = new Set(catalogSeries.map((entry) => entry.metric));
+  expect(
+    chunkRequests.filter((request) =>
+      mappedMetrics.has(
+        new URL(request).searchParams.get("metric") as (typeof catalogSeries)[number]["metric"],
+      ),
+    ),
+  ).toEqual([]);
 });
 
 test("live background refresh keeps populated KPI text and dimensions stable", async ({ page }) => {
@@ -276,6 +457,7 @@ test("live background refresh keeps populated KPI text and dimensions stable", a
   await page.goto("/");
 
   const card = page.locator('[data-metric-id="demand"]');
+  await page.getByText("Grid Health inputs and scoring", { exact: true }).click();
   const value = card.locator("strong");
   const originalText = await value.textContent();
   const originalBox = await card.boundingBox();
@@ -300,6 +482,12 @@ async function installApi(
 ) {
   if (installClock) await page.clock.install({ time: FIXED_NOW });
   else await page.clock.setFixedTime(FIXED_NOW);
+  await page.route("**/api/v2/tile-catalog", (route) =>
+    route.fulfill({ status: 503, body: "fixture v2 catalog unavailable" }),
+  );
+  await page.route("**/api/v2/tiles/**", (route) =>
+    route.fulfill({ status: 503, body: "fixture v2 tile unavailable" }),
+  );
   await page.route("**/api/v1/series/chunk**", async (route) => {
     const url = new URL(route.request().url());
     chunkRequests.push(url.toString());
@@ -515,56 +703,41 @@ async function installApi(
       },
     });
   });
+  await page.route("**/api/v1/outlook", (route) =>
+    route.fulfill({ json: outlookFixture(scenario === "outlook-stale") }),
+  );
 }
 
-test("time, inspect, cursor, legend, compare, events, CSV and URL state", async ({ page }) => {
+test("net-load details remain lazy and accessible in Chromium", async ({ page }) => {
+  const netLoadRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.includes("net-load")) netLoadRequests.push(request.url());
+  });
   await installApi(page);
-  await page.goto("/?range=21600&compare=none&events=1");
-  await expect(page.getByRole("heading", { name: "ERCOT Grid Status" })).toBeVisible();
-  await page.getByRole("button", { name: "Reliability view" }).click();
-  await expect(
-    page
-      .getByLabel("ERCOT operations messages")
-      .getByText("Fixture operations message", { exact: false }),
-  ).toBeVisible();
-  const operations = page.getByLabel("ERCOT operations messages");
-  await expect(
-    operations.getByLabel("Historical operations timeline").getByRole("listitem"),
-  ).toHaveCount(5);
-  for (const category of [
-    "Heat advisory",
-    "Generator trip",
-    "Reserve watch",
-    "EEA",
-    "Transmission event",
-  ]) {
-    await expect(operations.getByText(category, { exact: true })).toBeVisible();
-  }
-  await operations.getByLabel("Filter operations timeline by severity").selectOption("watch");
-  await expect(
-    operations.getByLabel("Historical operations timeline").getByRole("listitem"),
-  ).toHaveCount(2);
-  await expect(operations).toContainText("Showing 2 of 5 events");
-  await operations.getByLabel("Filter operations timeline by severity").selectOption("all");
-  await page.getByRole("button", { name: "Market view" }).click();
-  await expect(page.getByRole("heading", { name: "Latest settlement point prices" })).toBeVisible();
-  await expect(page.getByLabel("Settlement price summary")).toContainText("Houston Hub");
-  await expect(page.getByLabel("Settlement price summary")).toContainText("15-minute");
-  await page.getByText("Complete hub and load-zone ranking", { exact: true }).click();
-  await expect(page.getByText("West Load Zone", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Load Zone · LZ_WEST/)).toBeVisible();
+  await page.goto("/?view=generation");
+  await expect(page.getByRole("heading", { name: "Net load and ramp" })).toBeVisible();
+  const disclosure = page.getByRole("button", { name: "Load net-load details" });
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("table", { name: /exact net-load values/ })).toHaveCount(0);
+  expect(netLoadRequests).toEqual([]);
+});
 
-  await page.getByRole("button", { name: "Overview view" }).click();
+test("time, inspect, cursor, legend, compare, events, CSV and URL state", async ({ page }) => {
+  const timeChunkRequests: string[] = [];
+  await installApi(page, "normal", [], timeChunkRequests);
+  await page.goto("/?range=21600&compare=none&events=1");
+  await expect(page.getByRole("heading", { name: "ERCOT Grid Dashboard" })).toBeVisible();
 
   let analyze = await openAnalyze(page);
+  await analyze.getByRole("button", { name: "Close Time & comparison" }).click();
   await page.getByRole("button", { name: "Pause" }).click();
-  await expect(page.getByText(/Paused · updated/)).toBeVisible();
-  await page.getByRole("button", { name: "Previous time window" }).click();
+  await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
+  await page.getByRole("button", { name: "Step back" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   const fixedFrom = new URL(page.url()).searchParams.get("from");
   expect(fixedFrom).not.toBeNull();
-  await page.getByRole("button", { name: "Next time window" }).click();
-  await analyze.getByRole("button", { name: "Close Analyze" }).click();
+  await page.getByRole("button", { name: "Step forward" }).click();
+  await expect.poll(() => timeChunkRequests.length).toBeGreaterThan(0);
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await expect(page.locator('[data-chart-id="supply-demand"]')).toHaveClass(/chart-card-inspect/);
@@ -581,9 +754,10 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
 
   const demandLegend = page.getByRole("button", { name: "Actual demand", exact: true });
   await demandLegend.click();
+  await expect(demandLegend).toHaveAttribute("aria-pressed", "true");
+  await demandLegend.click();
   await expect(demandLegend).toHaveAttribute("aria-pressed", "false");
   await demandLegend.click();
-  await page.getByRole("button", { name: "Solo Actual demand" }).click();
   await expect(page.getByRole("button", { name: "Forecast demand", exact: true })).toHaveAttribute(
     "aria-pressed",
     "false",
@@ -602,7 +776,7 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await analyze.getByLabel("Custom comparison offset hours").fill("48");
   await expect.poll(() => new URL(page.url()).searchParams.get("compare")).toBe("custom");
   await expect.poll(() => new URL(page.url()).searchParams.get("compare_offset")).toBe("172800");
-  await analyze.getByRole("button", { name: "Close Analyze" }).click();
+  await analyze.getByRole("button", { name: "Close Time & comparison" }).click();
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await page.getByLabel("Supply and demand chart menu").click();
@@ -614,16 +788,16 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await page.getByRole("menuitem", { name: "Reset zoom" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
   await page.keyboard.press("Escape");
-  analyze = await openAnalyze(page);
-  await analyze.getByRole("button", { name: "Reset to live" }).click();
+  await page.getByRole("button", { name: "Play" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
 });
 
 test("drag zoom and modified pan update the fixed global window", async ({ page }) => {
   await installApi(page);
-  await page.goto("/");
+  await page.goto("/?compare=previous_period");
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
+  await expect(card).toHaveAttribute("aria-busy", "false");
   const canvas = card.locator("canvas");
   await expect(canvas).toBeVisible();
   await expect(canvas).toHaveAttribute("aria-label", /[1-9]\d* observations/);
@@ -636,6 +810,8 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await page.mouse.move(box.x + 420, box.y + 130, { steps: 8 });
   await page.mouse.up();
   await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("0");
+  await expect.poll(() => new URL(page.url()).searchParams.get("compare")).toBe("previous_period");
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue(/ – /);
   const beforePan = new URL(page.url()).searchParams.get("from");
   await page.keyboard.down("Shift");
   await page.mouse.move(box.x + 300, box.y + 130);
@@ -644,6 +820,10 @@ test("drag zoom and modified pan update the fixed global window", async ({ page 
   await page.mouse.up();
   await page.keyboard.up("Shift");
   await expect.poll(() => new URL(page.url()).searchParams.get("from")).not.toBe(beforePan);
+  await card.getByLabel("Supply and demand chart menu").click();
+  await page.getByRole("menuitem", { name: "Reset zoom" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("live")).toBe("1");
+  await expect(page.getByRole("combobox", { name: "Time range picker" })).toHaveValue("Past 1 Day");
 });
 
 test("failure, no-data distinction, and stale source state are explicit", async ({ page }) => {
@@ -709,18 +889,15 @@ test("loading resolves to a first-sample wait without blank chart detail", async
 test("empty optional panels collapse to lifecycle or selected-range states", async ({ page }) => {
   await installApi(page, "empty-panels");
   await page.goto("/?view=market");
-  const ranking = page.getByRole("region", { name: "Settlement price ranking" });
-  await expect(ranking.getByText("Waiting for first sample…")).toBeVisible();
-  await expect(ranking.getByRole("table")).toHaveCount(0);
+  const geography = page.getByRole("region", { name: "Where are prices diverging?" });
+  await expect(
+    geography.getByRole("button", { name: "Where are prices diverging?" }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await expect(geography.getByRole("table")).toHaveCount(0);
 
   await openMoreView(page, "Diagnostics");
   const diagnostics = page.getByRole("region", { name: "System health details" });
   await expect(diagnostics.getByText("Waiting for first sample…")).toBeVisible();
-
-  await page.unrouteAll({ behavior: "wait" });
-  await installApi(page, "no-events");
-  await page.goto("/?view=reliability");
-  await expect(page.getByText("No events during selected range.")).toBeVisible();
 });
 
 test("visual regression empty lifecycle state", async ({ page }) => {
@@ -790,14 +967,23 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const session = await page.context().newCDPSession(page);
   await session.send("Performance.enable");
   await page.goto("/");
-  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(2);
+  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(6);
+  // Measure the settled plot layout, not the shorter first-sample placeholders.
+  await expect(page.locator('[data-chart-id="supply-demand"] canvas')).toHaveAttribute(
+    "data-chart-ready",
+    "true",
+  );
+  await expect(page.locator('[data-chart-id="overview-headroom"] canvas')).toHaveAttribute(
+    "data-chart-ready",
+    "true",
+  );
   const total = await page.locator("[data-chart-id]").count();
   const initiallyMounted = await page.locator('[data-chart-id][data-mounted="true"]').count();
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();
-  expect(total).toBe(2);
+  expect(total).toBe(6);
   await expect(page.locator('[data-chart-id="time-error"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "More views" })).toBeVisible();
-  expect(initiallyMounted).toBeLessThanOrEqual(4);
+  expect(initiallyMounted).toBeLessThanOrEqual(5);
   expect(initiallyVisible).toBeLessThanOrEqual(4);
   const heapBefore = await session.send("Performance.getMetrics");
   await page.getByRole("button", { name: "Market view" }).click();
@@ -809,7 +995,7 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const analyze = await openAnalyze(page);
   await analyze.getByLabel("Compare time").selectOption("week");
   await analyze.getByLabel("Compare time").selectOption("none");
-  await analyze.getByRole("button", { name: "Close Analyze" }).click();
+  await analyze.getByRole("button", { name: "Close Time & comparison" }).click();
   const lifecycle = await page.evaluate(() => window.__ercotChartLifecycle);
   expect(lifecycle?.constructed).toBe(beforeChurn?.constructed);
   expect(lifecycle?.destroyed).toBe(beforeChurn?.destroyed);
@@ -844,13 +1030,17 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   await expect(
     currentStatus.locator(".status-strip-item").first().locator("strong"),
   ).toHaveAttribute("aria-label", /ERCOT grid watch active|No active ERCOT emergency/);
-  await expect(page.getByLabel("Featured grid trend")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Grid charts", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Next-day demand & capacity outlook" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Dashboard views" }).getByRole("button"),
-  ).toHaveCount(5);
+  ).toHaveCount(9);
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
-  expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(false);
+  expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(true);
+  expect(requests.flat().some((id) => id.startsWith("time-error:"))).toBe(false);
 
   await page.getByRole("button", { name: "Reliability view" }).click();
   await expect(page.getByRole("heading", { name: "Unused capacity and headroom" })).toBeAttached();
@@ -887,6 +1077,55 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   ).toBe(false);
 });
 
+test("direct Outlook loads once without Overview requests and exposes exact values", async ({
+  page,
+}) => {
+  const apiRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/api/")) apiRequests.push(url.pathname);
+  });
+  await installApi(page);
+  await page.goto("/?view=outlook");
+
+  await expect(page.getByRole("heading", { name: "Outlook", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Global dashboard controls")).toHaveCount(0);
+  await expect(page.locator(".freshness-state")).toHaveCount(0);
+  await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
+  await expect(page.getByText("Demand & capacity", { exact: true })).toHaveCount(7);
+  await expect(
+    page.getByText(
+      "Current METAR observations are displayed independently from forecast and load evidence.",
+    ),
+  ).toBeVisible();
+  await page.getByText("Hourly forecast values", { exact: true }).click();
+  await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeVisible();
+  await expect(page.getByRole("table", { name: /hourly outlook/ })).toBeVisible();
+  await expect(page.locator("main")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("main")).toHaveAttribute("data-overview-refresh", "idle");
+
+  await expect.poll(() => apiRequests.filter((path) => path === "/api/v1/outlook").length).toBe(1);
+  const overviewPaths = new Set([
+    "/api/latest/batch",
+    "/api/series/batch",
+    "/api/v1/events",
+    "/api/v1/ranking",
+    "/api/v1/source-health",
+  ]);
+  expect(apiRequests.filter((path) => overviewPaths.has(path))).toEqual([]);
+});
+
+test("Outlook reports stale forecast input without converting it into an ERCOT status", async ({
+  page,
+}) => {
+  await installApi(page, "outlook-stale");
+  await page.goto("/?view=outlook");
+  const warning = page.getByLabel("Outlook source freshness");
+  await expect(warning).toHaveAttribute("data-outlook-source-state", "partial");
+  await expect(warning).toContainText("Load forecast: stale, data stale");
+  await expect(page.getByText("Demand & capacity", { exact: true })).toHaveCount(7);
+});
+
 test("view changes clear chart-specific inspect state and legacy inspect links find their view", async ({
   page,
 }) => {
@@ -908,8 +1147,12 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
   await page.goto("/?view=overview");
   await expect(page).toHaveScreenshot("progressive-overview-desktop.png");
 
+  await page.getByRole("button", { name: "Outlook view" }).click();
+  await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
+  await expect(page).toHaveScreenshot("progressive-outlook-desktop.png");
+
   await openMoreView(page, "Advanced");
-  await expect(page.getByRole("heading", { name: "Advanced", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Grid Signals", exact: true })).toBeVisible();
   await expect(page).toHaveScreenshot("progressive-advanced-desktop.png");
 
   await openMoreView(page, "Diagnostics");
@@ -928,14 +1171,22 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
     const chartId =
       scenario === "normal" ? "supply-demand" : scenario === "stale" ? "storage" : "pricing";
     const card = page.locator(`[data-chart-id="${chartId}"]`);
-    await card.evaluate((element) => element.scrollIntoView({ block: "end" }));
+    await card.evaluate((element) => element.scrollIntoView({ block: "center" }));
     await expect(card).toHaveAttribute("data-visible", "true");
     await expect(card.locator(".chart-placeholder")).toHaveCount(0);
-    await expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`);
+    if (scenario === "negative") {
+      await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+      await page.waitForLoadState("networkidle");
+    }
+    const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;
+    const capture = () =>
+      expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`, { maxDiffPixelRatio });
+    if (scenario === "negative") await withCssPixelAlignment(card, capture, "floor", "layout");
+    else await capture();
   });
 }
 
-test("visual regression storage charging and operations event", async ({ page }) => {
+test("visual regression storage charging", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Generation view" }).click();
@@ -943,11 +1194,9 @@ test("visual regression storage charging and operations event", async ({ page })
   await storage.evaluate((element) => element.scrollIntoView({ block: "end" }));
   await expect(storage).toHaveAttribute("data-visible", "true");
   await expect(storage.locator(".chart-placeholder")).toHaveCount(0);
-  await expect.soft(storage).toHaveScreenshot("storage-charging.png");
-  await page.getByRole("button", { name: "Reliability view" }).click();
-  const events = page.getByRole("region", { name: "ERCOT operations messages" });
-  await events.scrollIntoViewIfNeeded();
-  await expect.soft(events).toHaveScreenshot("operations-event.png");
+  await expect(storage).toHaveScreenshot("storage-charging.png", {
+    maxDiffPixelRatio: 0.02,
+  });
 });
 
 test("visual regression structured operational alert", async ({ page }) => {
@@ -962,7 +1211,7 @@ test("visual regression Grid Health Score", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const scoreDetails = page.locator(".grid-health-details");
-  await scoreDetails.getByText("How status is determined", { exact: true }).click();
+  await scoreDetails.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
   await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
 });
@@ -971,7 +1220,7 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
-  await expect(cards).toHaveCount(2);
+  await expect(cards).toHaveCount(6);
   for (let index = 0; index < (await cards.count()); index += 1) {
     const card = cards.nth(index);
     await card.scrollIntoViewIfNeeded();

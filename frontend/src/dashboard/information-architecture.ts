@@ -3,10 +3,13 @@ export type InformationLevel = "advanced" | "critical" | "operational";
 export type DashboardViewId =
   | "advanced"
   | "diagnostics"
+  | "external-context"
   | "generation"
   | "market"
   | "overview"
+  | "outlook"
   | "reliability"
+  | "texas-grid"
   | "weather";
 
 export type CriticalMetricId =
@@ -120,6 +123,12 @@ export const dashboardViewDefinitions = [
     groups: ["Grid conditions"],
   },
   {
+    id: "outlook",
+    label: "Outlook",
+    description: "Published demand and system-adequacy outlooks for the next day and week.",
+    groups: [],
+  },
+  {
     id: "generation",
     label: "Generation",
     description: "Fuel mix, renewable output, and storage behavior.",
@@ -128,14 +137,29 @@ export const dashboardViewDefinitions = [
   {
     id: "reliability",
     label: "Reliability",
-    description: "Capacity headroom, outages, emergency conditions, and ERCOT notices.",
+    description:
+      "Capacity headroom, outages, and a provenance-labeled grid and weather event timeline.",
     groups: ["Reliability"],
   },
   {
     id: "market",
     label: "Market",
-    description: "Real-time prices, settlement-point ranking, and market context.",
+    description: "Coherent settlement-price geography, coincident constraints, and SCED context.",
     groups: ["Market"],
+  },
+  {
+    id: "texas-grid",
+    label: "Texas Grid",
+    description:
+      "Official long-horizon planning snapshots with operational, planned, and studied capacity kept distinct.",
+    groups: [],
+  },
+  {
+    id: "external-context",
+    label: "External Context",
+    description:
+      "Delayed EIA context and retrospective EPA methodology, kept separate from ERCOT operational authority.",
+    groups: [],
   },
   {
     id: "weather",
@@ -145,13 +169,13 @@ export const dashboardViewDefinitions = [
   },
   {
     id: "advanced",
-    label: "Advanced",
-    description: "Engineering signals and ancillary products.",
+    label: "Grid Signals",
+    description: "Operating reserves, time error, inertia, DC ties, and ancillary products.",
     groups: ["Advanced grid", "Ancillary services"],
   },
   {
     id: "diagnostics",
-    label: "Diagnostics",
+    label: "System Health",
     description: "Collection health, source freshness, timestamps, and failure detail.",
     groups: ["Diagnostics"],
   },
@@ -164,15 +188,18 @@ export const dashboardViewDefinitions = [
 
 export const primaryDashboardViewIds: ReadonlyArray<DashboardViewId> = [
   "overview",
+  "outlook",
   "generation",
   "reliability",
   "market",
-];
-
-export const moreDashboardViewIds: ReadonlyArray<DashboardViewId> = [
   "weather",
   "advanced",
   "diagnostics",
+];
+
+export const moreDashboardViewIds: ReadonlyArray<DashboardViewId> = [
+  "texas-grid",
+  "external-context",
 ];
 
 const groupByName = new Map<string, (typeof chartGroupDefinitions)[number]>(
@@ -203,6 +230,13 @@ export function chartGroupDefinition(name: string) {
   const definition = groupByName.get(name);
   if (!definition) throw new Error(`unknown_chart_group:${name}`);
   return definition;
+}
+
+export function chartGroupDisplayLabel(name: string): string {
+  if (name === "Advanced grid") return "Core operating signals";
+  if (name === "Ancillary services") return "Reserve products";
+  if (name === "Diagnostics") return "System health";
+  return name;
 }
 
 export function initiallyCollapsedGroups(mobile: boolean): Set<string> {

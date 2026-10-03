@@ -21,14 +21,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { seriesKey } from "./chart-config";
 import {
+  alignedGeneration,
+  displayPoints,
+  marketTime,
+  precedingObservation,
+} from "./homepage-model";
+import {
   formatInterpretationRange,
   interpretationAriaDescription,
+  frequencyColor,
   resolveInterpretationBands,
 } from "./chart-interpretation";
 import { chartCoordinator } from "./chart-coordinator";
+import { chartGroupDisplayLabel } from "./information-architecture";
 import { chartInteractionPolicy } from "./interaction-policy";
 import { resolveDataLifecycleState } from "./data-lifecycle";
 import { seriesStats } from "./stats";
+import { StorageOperationsSummary } from "./StorageOperationsSummary";
 import type {
   ChartDefinition,
   CompareMode,
@@ -67,10 +76,9 @@ type Props = {
   onResetZoom: () => void;
   onSetCompare: (mode: CompareMode) => void;
   onSoloSeries: (chartId: string, key: string) => void;
-  onToggleSeries: (key: string) => void;
   onVisibilityChange: (chartId: string, visible: boolean) => void;
   onZoom: (start: number, end: number) => void;
-  presentation?: "featured" | "standard";
+  presentation?: "featured" | "standard" | "overview";
   requestError: string | null;
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
@@ -78,6 +86,55 @@ type Props = {
 };
 
 const cursorByChart = new WeakMap<ChartJs<"line">, number | null>();
+function CursorLegendValue({
+  loaded,
+  latest,
+  unit,
+  visible,
+}: {
+  loaded: LoadedSeries | undefined;
+  latest: number | null;
+  unit: string;
+  visible: boolean;
+}) {
+  const [cursor, setCursor] = useState(chartCoordinator.snapshot().timestamp);
+  useEffect(() => {
+    if (!visible) return;
+    setCursor(chartCoordinator.snapshot().timestamp);
+    const unsubscribe = chartCoordinator.subscribe((timestamp) => setCursor(timestamp));
+    return () => {
+      unsubscribe();
+    };
+  }, [visible]);
+  const sample =
+    cursor === null
+      ? null
+      : precedingObservation(
+          loaded,
+          cursor,
+          Math.max(
+            unit === "Hz" ? 60 : unit === "$/MWh" ? 1800 : 600,
+            (loaded?.meta.bucket_seconds ?? 0) * 2,
+          ),
+          unit === "Hz" ? 1 : 300,
+        );
+  return (
+    <span
+      className="legend-latest"
+      data-value-scope={cursor === null ? "window-latest" : "cursor"}
+      title={
+        cursor === null
+          ? "Latest value in selected window"
+          : sample
+            ? `${marketTime(sample.ts)} · ${Math.round(cursor - sample.ts)}s before cursor · ${sample.aggregate ? "aggregate bucket" : "source observation"}`
+            : "No recent preceding observation"
+      }
+    >
+      {formatValue(cursor === null ? latest : (sample?.value ?? null), unit)}
+      {sample?.aggregate ? "*" : ""}
+    </span>
+  );
+}
 const pinnedByChart = new WeakMap<ChartJs<"line">, boolean>();
 const interpretationFill = {
   critical: "rgba(248, 113, 113, 0.1)",
@@ -124,7 +181,6 @@ export function ChartCard({
   onResetZoom,
   onSetCompare,
   onSoloSeries,
-  onToggleSeries,
   onVisibilityChange,
   onZoom,
   presentation = "standard",
@@ -134,6 +190,7 @@ export function ChartCard({
   time,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cursorLineRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartJs<"line"> | null>(null);
   const accessibleDataRef = useRef<HTMLDetailsElement>(null);
   const inspectTriggerRef = useRef<HTMLButtonElement>(null);
@@ -163,7 +220,7 @@ export function ChartCard({
   );
 
   useEffect(() => {
-    cursorActive.current = visible && interactionPolicy.cursorPin;
+    cursorActive.current = visible;
     const instance = chartRef.current;
     if (visible && instance) {
       const snapshot = chartCoordinator.snapshot();
@@ -190,52 +247,101 @@ export function ChartCard({
 
   const datasets = useMemo<Array<ChartDataset<"line", ScatterDataPoint[]>>>(() => {
     const output: Array<ChartDataset<"line", ScatterDataPoint[]>> = [];
+    const stacked = chart.id === "fuel-mix" && presentation === "overview";
+    const aligned = stacked
+      ? alignedGeneration(
+          visibleSeries.map(
+            (series) =>
+              seriesData.get(seriesKey(chart.id, series.id)) ?? {
+                points: [],
+                compare: [],
+                meta: {},
+                error: null,
+              },
+          ),
+        )
+      : [];
     for (const series of visibleSeries) {
       const key = seriesKey(chart.id, series.id);
       const loaded = seriesData.get(key);
       const hidden = hiddenSeries.has(key);
       output.push({
         label: series.label,
-        data: (loaded?.points ?? []).map(([timestamp, value]) => ({
-          x: timestamp * 1000,
-          y: value,
-        })),
+        data: stacked
+          ? aligned[visibleSeries.indexOf(series)]
+          : displayPoints(
+              loaded?.points ?? [],
+              Math.max(chart.id === "frequency" ? 60 : 600, (loaded?.meta.bucket_seconds ?? 0) * 2),
+            ),
         borderColor: series.color,
-        backgroundColor: series.color,
+        backgroundColor: stacked ? `${series.color}a0` : series.color,
+        ...(stacked ? { fill: true, stack: "generation" } : {}),
+        ...(chart.id === "storage" && presentation === "overview" && series.id !== "net-output"
+          ? { fill: "origin", backgroundColor: `${series.color}50` }
+          : {}),
+        ...(chart.id === "frequency"
+          ? {
+              segment: {
+                borderColor: (context) => frequencyColor(chart, context.p1.parsed.y, series.color),
+              },
+            }
+          : {}),
         ...(series.lineStyle === "dashed" ? { borderDash: [5, 4] } : {}),
         borderWidth: 1.6,
         pointRadius: 0,
         pointHitRadius: 12,
         tension: 0,
+        ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
         spanGaps: false,
         hidden,
       });
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
           label: `${series.label} · ${compare.replace("_", " ")}`,
-          data: loaded.compare.map(([timestamp, value]) => ({ x: timestamp * 1000, y: value })),
+          data: displayPoints(loaded.compare, Math.max(600, (loaded.meta.bucket_seconds ?? 0) * 2)),
+          stack: `comparison-${series.id}`,
+          fill: false,
           borderColor: `${series.color}70`,
           backgroundColor: `${series.color}70`,
           borderWidth: 1.2,
           borderDash: [6, 5],
           pointRadius: 0,
           tension: 0,
+          ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
           hidden,
         });
       }
     }
     return output;
-  }, [chart, compare, hiddenSeries, seriesData, visibleSeries]);
+  }, [chart, compare, hiddenSeries, seriesData, visibleSeries, presentation]);
   const hasData = visibleSeries.some(
     (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
   );
 
   const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time });
+  const suppressZoomCommit = useRef(false);
   dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time };
 
   useEffect(() => {
     if (!hasData || !mounted || !canvasRef.current) return;
     const canvas = canvasRef.current;
+    const paintCursor = (
+      instance: ChartJs<"line">,
+      timestamp: number | null,
+      isPinned: boolean,
+    ) => {
+      const line = cursorLineRef.current;
+      if (!line) return;
+      const area = instance.chartArea;
+      const x =
+        timestamp === null ? Number.NaN : instance.scales["x"].getPixelForValue(timestamp * 1000);
+      line.style.display =
+        Number.isFinite(x) && x >= area.left && x <= area.right ? "block" : "none";
+      line.style.left = `${x}px`;
+      line.style.top = `${area.top}px`;
+      line.style.height = `${area.height}px`;
+      line.style.background = isPinned ? "#fbbf24" : "#cbd5e1";
+    };
     const handlePointerDown = (event: PointerEvent) => {
       if (!dynamic.current.interactionPolicy.cursorPin) return;
       pointerDown.current = { x: event.clientX, y: event.clientY };
@@ -258,7 +364,12 @@ export function ChartCard({
     const overlayPlugin: Plugin<"line"> = {
       id: `ercot-overlay-${chart.id}`,
       beforeDatasetsDraw(instance) {
-        if (!chart.interpretation) return;
+        if (
+          !chart.interpretation ||
+          chart.interpretation.mode === "reference-ratio" ||
+          presentation === "overview"
+        )
+          return;
         const area = instance.chartArea;
         const context = instance.ctx;
         const yScale = instance.scales["y"];
@@ -281,8 +392,21 @@ export function ChartCard({
       afterDatasetsDraw(instance) {
         const area = instance.chartArea;
         const context = instance.ctx;
+        if (chart.id === "frequency" || chart.zeroCentered) {
+          const y = instance.scales["y"].getPixelForValue(chart.id === "frequency" ? 60 : 0);
+          context.save();
+          context.strokeStyle = "#aebdd0";
+          context.setLineDash([4, 4]);
+          context.beginPath();
+          context.moveTo(area.left, y);
+          context.lineTo(area.right, y);
+          context.stroke();
+          context.restore();
+        }
         const cursor = cursorByChart.get(instance);
-        if (cursor !== null && cursor !== undefined) {
+        if (presentation === "overview")
+          paintCursor(instance, cursor ?? null, pinnedByChart.get(instance) ?? false);
+        if (presentation !== "overview" && cursor !== null && cursor !== undefined) {
           const x = instance.scales["x"].getPixelForValue(cursor * 1000);
           if (x >= area.left && x <= area.right) {
             context.save();
@@ -338,13 +462,19 @@ export function ChartCard({
       options: {
         animation: false,
         parsing: false,
-        normalized: true,
+        normalized: false,
         maintainAspectRatio: false,
-        interaction: { intersect: false, mode: "index" },
+        ...(presentation === "overview" && !inspect ? { events: ["mousemove", "mouseout"] } : {}),
+        interaction: { intersect: false, mode: "nearest", axis: "x" },
         plugins: {
           legend: { display: false },
           tooltip: {
+            enabled: true,
             callbacks: {
+              title: (items) =>
+                items.length && items[0].parsed.x !== null
+                  ? marketTime(items[0].parsed.x / 1000)
+                  : "",
               label(context) {
                 const value = context.parsed.y;
                 return `${context.dataset.label ?? "Series"}: ${formatValue(value, chart.unit)}`;
@@ -352,7 +482,7 @@ export function ChartCard({
             },
           },
           decimation: {
-            enabled: true,
+            enabled: false,
             algorithm: chart.spikeCritical ? "min-max" : "lttb",
             samples: 900,
           },
@@ -363,6 +493,7 @@ export function ChartCard({
               mode: "x",
               modifierKey: dynamic.current.interactionPolicy.panModifier,
               onPanComplete({ chart: panned }) {
+                if (suppressZoomCommit.current) return;
                 const minimum = panned.scales["x"].min;
                 const maximum = panned.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
@@ -383,6 +514,7 @@ export function ChartCard({
                 speed: 0.08,
               },
               onZoomComplete({ chart: zoomed }) {
+                if (suppressZoomCommit.current) return;
                 const minimum = zoomed.scales["x"].min;
                 const maximum = zoomed.scales["x"].max;
                 if (Number.isFinite(minimum) && Number.isFinite(maximum)) {
@@ -398,24 +530,61 @@ export function ChartCard({
             min: dynamic.current.time.start * 1000,
             max: dynamic.current.time.end * 1000,
             time: { tooltipFormat: "MMM d, yyyy HH:mm:ss" },
-            ticks: { color: "#94a3b8", maxRotation: 0, sampleSize: 8 },
+            ticks: {
+              callback: (value) => {
+                if (mobile && dynamic.current.time.rangeSeconds > 86400) {
+                  return [
+                    new Intl.DateTimeFormat("en-US", {
+                      timeZone: "America/Chicago",
+                      month: "short",
+                      day: "numeric",
+                    }).format(Number(value)),
+                    new Intl.DateTimeFormat("en-US", {
+                      timeZone: "America/Chicago",
+                      hour: "numeric",
+                    }).format(Number(value)),
+                  ];
+                }
+                return new Intl.DateTimeFormat("en-US", {
+                  timeZone: "America/Chicago",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  ...(dynamic.current.time.rangeSeconds > 86400
+                    ? ({ month: "short", day: "numeric" } as const)
+                    : {}),
+                }).format(Number(value));
+              },
+              autoSkip: true,
+              color: "#aebdd0",
+              maxRotation: 0,
+              maxTicksLimit: mobile ? 3 : presentation === "featured" ? 7 : 6,
+              sampleSize: 8,
+            },
             grid: { color: "rgba(148, 163, 184, 0.08)" },
           },
           y: {
+            ...(chart.id === "frequency" ? { suggestedMin: 59.95, suggestedMax: 60.05 } : {}),
+            ...(chart.id === "fuel-mix" && presentation === "overview"
+              ? { stacked: true, beginAtZero: true }
+              : {}),
             ...(chart.zeroCentered
               ? {
                   suggestedMin:
                     -Math.max(
                       0,
                       ...datasets.flatMap((dataset) =>
-                        dataset.data.map((point) => Math.abs(point.y ?? 0)),
+                        dataset.data
+                          .filter((point) => Number.isFinite(point.y))
+                          .map((point) => Math.abs(point.y ?? 0)),
                       ),
                     ) || -1,
                   suggestedMax:
                     Math.max(
                       0,
                       ...datasets.flatMap((dataset) =>
-                        dataset.data.map((point) => Math.abs(point.y ?? 0)),
+                        dataset.data
+                          .filter((point) => Number.isFinite(point.y))
+                          .map((point) => Math.abs(point.y ?? 0)),
                       ),
                     ) || 1,
                 }
@@ -446,7 +615,8 @@ export function ChartCard({
       cursorByChart.set(instance, timestamp);
       pinnedByChart.set(instance, isPinned);
       setPinned(isPinned);
-      instance.draw();
+      if (presentation === "overview") paintCursor(instance, timestamp, isPinned);
+      else instance.draw();
     });
     return () => {
       unsubscribe();
@@ -465,6 +635,11 @@ export function ChartCard({
     const instance = chartRef.current;
     const zoomOptions = instance?.options.plugins?.zoom;
     if (!instance || !zoomOptions) return;
+    instance.options.events =
+      inspect || presentation !== "overview"
+        ? ["mousemove", "mouseout", "click", "touchstart", "touchmove"]
+        : ["mousemove", "mouseout"];
+    if (instance.options.plugins?.tooltip) instance.options.plugins.tooltip.enabled = true;
     zoomOptions.pan = {
       ...zoomOptions.pan,
       enabled: interactionPolicy.pan,
@@ -486,7 +661,7 @@ export function ChartCard({
       },
     };
     instance.update("none");
-  }, [interactionPolicy]);
+  }, [interactionPolicy, inspect, presentation]);
 
   useEffect(() => {
     const instance = chartRef.current;
@@ -497,13 +672,26 @@ export function ChartCard({
       xScale.min = time.start * 1000;
       xScale.max = time.end * 1000;
     }
+    const yScale = instance.options.scales?.["y"];
+    if (chart.zeroCentered && yScale) {
+      const maximum = Math.max(
+        1,
+        ...datasets.flatMap((dataset) =>
+          dataset.data
+            .filter((point) => Number.isFinite(point.y))
+            .map((point) => Math.abs(point.y ?? 0)),
+        ),
+      );
+      yScale.suggestedMin = -maximum;
+      yScale.suggestedMax = maximum;
+    }
     instance.update("none");
     instance.canvas.dataset["chartReady"] = datasets.some((dataset) => dataset.data.length)
       ? "true"
       : "false";
     window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
     window.__ercotChartLifecycle.updated += 1;
-  }, [datasets, events, seriesData, time.end, time.start]);
+  }, [datasets, events, seriesData, time.end, time.start, chart.zeroCentered]);
 
   const allPoints = visibleSeries.flatMap(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.points ?? [],
@@ -528,15 +716,12 @@ export function ChartCard({
           : ` · last valid observation ${formatAge(sourceHealth?.data_age_seconds ?? null)}.`
       }`
     : undefined;
-  const partial = visibleSeries.some(
-    (series) => seriesData.get(seriesKey(chart.id, series.id))?.meta.partial_current_bucket,
-  );
   const stale = sourceHealth?.state === "stale" || sourceHealth?.state === "failed";
-  const showStatusRow = Boolean(
-    (sourceHealth && sourceHealth.state !== "healthy") || (partial && hasData) || pinned,
-  );
+  const showStatusRow = Boolean((sourceHealth && sourceHealth.state !== "healthy") || pinned);
   const resetChartZoom = () => {
+    suppressZoomCommit.current = true;
     chartRef.current?.resetZoom();
+    suppressZoomCommit.current = false;
     onResetZoom();
   };
   const showDataTable = () => {
@@ -548,8 +733,10 @@ export function ChartCard({
   return (
     <article
       aria-label={inspect ? "Inspect " + chart.title : undefined}
+      aria-busy={loading}
       aria-modal={inspect ? "true" : undefined}
-      className={`chart-card ${presentation === "featured" ? "chart-card-featured" : ""} ${inspect ? "chart-card-inspect" : ""}`}
+      className={`chart-card chart-card-${presentation} ${inspect ? "chart-card-inspect" : ""}`}
+      data-placement-id={`${presentation}:${chart.id}`}
       data-chart-id={chart.id}
       data-interaction-policy={interactionPolicy.policyName}
       data-lifecycle-state={lifecycleState}
@@ -585,9 +772,13 @@ export function ChartCard({
     >
       <header className="chart-card-header">
         <div>
-          <p className="eyebrow">{chart.group}</p>
+          {chart.id !== "frequency" && presentation !== "overview" ? (
+            <p className="eyebrow">{chartGroupDisplayLabel(chart.group)}</p>
+          ) : null}
           <h3>{chart.title}</h3>
-          <p className="chart-description">{chart.description}</p>
+          {chart.id !== "frequency" && (presentation !== "overview" || inspect) ? (
+            <p className="chart-description">{chart.description}</p>
+          ) : null}
         </div>
         <div className="chart-actions">
           <button
@@ -609,13 +800,7 @@ export function ChartCard({
               >
                 {compare === "none" ? "Enable comparison" : "Disable comparison"}
               </button>
-              <button
-                onClick={() => {
-                  chartRef.current?.resetZoom();
-                  onResetZoom();
-                }}
-                role="menuitem"
-              >
+              <button onClick={resetChartZoom} role="menuitem">
                 Reset zoom
               </button>
               <button
@@ -685,11 +870,12 @@ export function ChartCard({
               Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}
             </span>
           ) : null}
-          {partial && hasData ? (
-            <span className="status-chip status-partial">partial bucket</span>
-          ) : null}
           {pinned ? <span className="status-chip status-pinned">cursor pinned</span> : null}
         </div>
+      ) : null}
+
+      {chart.id === "storage" && (presentation !== "overview" || inspect) ? (
+        <StorageOperationsSummary seriesData={seriesData} sourceHealth={sourceHealth} time={time} />
       ) : null}
 
       {inspect && mobile ? (
@@ -698,7 +884,10 @@ export function ChartCard({
         </p>
       ) : null}
 
-      {interpretation && hasData && (presentation === "standard" || inspect) ? (
+      {interpretation &&
+      (chart.id !== "supply-demand" || inspect) &&
+      hasData &&
+      (presentation === "standard" || inspect) ? (
         <details
           className="chart-interpretation"
           onToggle={(event) => setInterpretationOpen(event.currentTarget.open)}
@@ -710,7 +899,8 @@ export function ChartCard({
           <p>{interpretation.basis}.</p>
           {interpretation.mode === "reference-ratio" && !resolvedInterpretation.length ? (
             <p className="interpretation-reference-unavailable">
-              Waiting for {interpretation.referenceLabel} to draw the canvas bands.
+              Historical bands are not drawn from the latest capacity; the ratio guide is
+              explanatory only.
             </p>
           ) : null}
           <ul aria-label={`${chart.title} interpretation bands`}>
@@ -731,10 +921,30 @@ export function ChartCard({
           data-lifecycle-state={lifecycleState}
           onKeyDown={(event) => {
             if (event.key === "Escape") chartCoordinator.clearPin();
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+              event.preventDefault();
+              const current = chartCoordinator.snapshot().timestamp ?? time.end;
+              const next = Math.max(
+                time.start,
+                Math.min(
+                  time.end,
+                  current +
+                    (event.key === "ArrowLeft" ? -1 : 1) * (chart.id === "frequency" ? 1 : 300),
+                ),
+              );
+              if (chartCoordinator.snapshot().pinned) chartCoordinator.clearPin();
+              cursorTimestamp.current = next;
+              chartCoordinator.publish(next);
+            }
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              chartCoordinator.togglePin(cursorTimestamp.current ?? time.end);
+            }
           }}
           onMouseLeave={() => chartCoordinator.publish(null)}
-          onMouseMove={(event) => {
-            if (!interactionPolicy.cursorPin) return;
+          onPointerMove={(event) => {
+            // A narrow viewport may still have a mouse; keep touch gestures scroll-only.
+            if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
             const instance = chartRef.current;
             if (!instance) return;
             const bounds = event.currentTarget.getBoundingClientRect();
@@ -747,6 +957,14 @@ export function ChartCard({
           }}
           role="presentation"
         >
+          {presentation === "overview" ? (
+            <div aria-hidden="true" className="homepage-shared-cursor" ref={cursorLineRef} />
+          ) : null}
+          {loading && hasData ? (
+            <span className="chart-refresh-status status-chip status-partial" role="status">
+              Updating selected range…
+            </span>
+          ) : null}
           {updateUnavailable ? (
             <div className="chart-overlay chart-error">
               Temporarily unavailable… Existing observations remain visible.
@@ -754,7 +972,8 @@ export function ChartCard({
           ) : null}
           {stale ? <div className="chart-overlay chart-stale">Showing stale data</div> : null}
           <canvas
-            aria-label={`${chart.title}. ${allPoints.length} observations. ${interpretationDescription} Use the legend or CSV menu for exact values.`}
+            tabIndex={0}
+            aria-label={`${chart.title}. ${allPoints.length} observations. ${interpretationDescription} Arrow keys move the shared cursor. Enter pins; Escape clears. Use the legend or CSV menu for exact values.`}
             ref={canvasRef}
             role="img"
           />
@@ -772,9 +991,7 @@ export function ChartCard({
       )}
 
       {hasData ? (
-        <div
-          className={`series-legend legend-${presentation === "featured" && !inspect ? "compact" : legendMode}`}
-        >
+        <div className={`series-legend legend-${legendMode}`}>
           {visibleSeries.map((series) => {
             const key = seriesKey(chart.id, series.id);
             const loaded = seriesData.get(key);
@@ -788,28 +1005,46 @@ export function ChartCard({
               minimum: sampledStats.minimum,
             };
             const hidden = hiddenSeries.has(key);
+            const selected =
+              !hidden &&
+              visibleSeries.length > 1 &&
+              visibleSeries.every(
+                (candidate) =>
+                  candidate.id === series.id || hiddenSeries.has(seriesKey(chart.id, candidate.id)),
+              );
             return (
-              <div className={`legend-row ${hidden ? "legend-row-hidden" : ""}`} key={key}>
-                <button
-                  aria-pressed={!hidden}
-                  className="legend-toggle"
-                  onClick={() => onToggleSeries(key)}
-                  style={{ "--series-color": series.color } as React.CSSProperties}
+              <button
+                aria-label={series.label}
+                aria-pressed={selected}
+                className={`legend-row ${hidden ? "legend-row-hidden" : ""}`}
+                key={key}
+                onClick={() => onSoloSeries(chart.id, key)}
+                title={selected ? "Restore all series" : `Focus ${series.label}`}
+              >
+                <span
+                  className="legend-label"
+                  style={
+                    {
+                      "--series-color": frequencyColor(chart, stats.latest, series.color),
+                    } as React.CSSProperties
+                  }
                 >
                   <span
                     className={`legend-swatch ${series.lineStyle === "dashed" ? "legend-swatch-dashed" : ""}`}
                   />
                   {series.label}
-                </button>
-                <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
-                <button
-                  aria-label={`Solo ${series.label}`}
-                  className="legend-solo"
-                  onClick={() => onSoloSeries(chart.id, key)}
-                >
-                  Solo
-                </button>
-                {(presentation === "standard" || inspect) && legendMode === "expanded" ? (
+                </span>
+                {presentation === "overview" ? (
+                  <CursorLegendValue
+                    loaded={loaded}
+                    latest={stats.latest}
+                    unit={chart.unit}
+                    visible={visible}
+                  />
+                ) : (
+                  <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
+                )}
+                {legendMode === "expanded" ? (
                   <span className="legend-stats">
                     min {formatValue(stats.minimum, chart.unit)} · max{" "}
                     {formatValue(stats.maximum, chart.unit)} · avg{" "}
@@ -819,12 +1054,20 @@ export function ChartCard({
                       : ""}
                   </span>
                 ) : null}
-              </div>
+              </button>
             );
           })}
         </div>
       ) : null}
 
+      {presentation === "overview" ? (
+        <p className="homepage-chart-note">
+          {chart.id === "overview-headroom" &&
+          !seriesData.get("overview-headroom:headroom")?.points.length
+            ? "Headroom unavailable at this resolution: native matched observations required. PRC is independently reported."
+            : chart.description}
+        </p>
+      ) : null}
       {hasData ? (
         <details className="accessible-data" ref={accessibleDataRef}>
           <summary>Accessible data table</summary>

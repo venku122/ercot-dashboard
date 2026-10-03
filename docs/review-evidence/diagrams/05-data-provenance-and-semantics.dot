@@ -1,0 +1,14 @@
+digraph provenance {
+  graph [bgcolor="transparent", rankdir=TB, pad=0.25, nodesep=0.4, ranksep=0.6];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#334155", fillcolor="#e2e8f0"];
+  edge [fontname="Helvetica", fontsize=9, color="#475569"];
+  official [label="Official event / publication\nERCOT or NWS", fillcolor="#bae6fd"];
+  observation [label="Source observation\nexact source epoch or documented capture time", fillcolor="#cffafe"];
+  derived [label="Dashboard-derived annotation\nmethod + version + input identities", fillcolor="#fef3c7"];
+  display [label="Shared UTC display window\nno interpolation, borrowing, or causal join"];
+  ui [label="Visible provenance class, cadence, source time, health", fillcolor="#dcfce7"];
+  official -> display;
+  observation -> display;
+  derived -> display;
+  display -> ui;
+}

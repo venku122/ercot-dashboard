@@ -1,0 +1,12 @@
+{
+  "current_condition": {
+    "condition_note": "There is enough power for current demand.",
+    "datetime": 1787218726,
+    "eea_level": 0,
+    "energy_level_value": 20,
+    "index": 1672,
+    "prc_value": "13,820",
+    "state": "normal",
+    "title": "Normal Conditions"
+  }
+}

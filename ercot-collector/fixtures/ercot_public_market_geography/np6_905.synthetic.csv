@@ -1,0 +1,3 @@
+DeliveryDate,DeliveryHour,DeliveryInterval,SettlementPointName,SettlementPointType,SettlementPointPrice,DSTFlag
+11/02/2025,2,1,LZ_HOUSTON,LZ,30.5,N
+11/02/2025,2,1,LZ_HOUSTON,LZEW,31.25,N

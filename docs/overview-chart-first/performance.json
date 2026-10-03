@@ -1,0 +1,13 @@
+{
+  "browser": "149.0.7827.55",
+  "viewport": "1440x900",
+  "dpr": 1,
+  "build": "production vite preview",
+  "coldConditions": "4x CPU, 1.6 Mb/s, 150ms network latency; API route-fulfilled deterministic native-cadence fixture",
+  "coldMs": [2958.61225, 2943.11675, 2956.674166, 2935.508750000001, 2948.1456660000003],
+  "coldMedianMs": 2948.1456660000003,
+  "pointerConditions": "unthrottled, event through two animation frames (conservative proxy; not a paint timestamp)",
+  "pointerSamples": 200,
+  "pointerP95Ms": 35,
+  "hoverHistoryRequests": 0
+}

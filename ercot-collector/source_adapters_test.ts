@@ -1,9 +1,15 @@
-import { incrementalMetrics, metricBatches, payloadHash } from "./_lib.ts";
+import {
+  boundedSourceMetadata,
+  incrementalMetrics,
+  metricBatches,
+  payloadHash,
+  sourceResultAvailability,
+} from "./_lib.ts";
 import { parseFuelMix } from "./fuel_mix.ts";
 import { parseGenerationOutages } from "./generation_outages.ts";
 import { parseMetar } from "./metar.ts";
 import { parseOperationsMessages, parseOperationsTimestamp } from "./operations_messages.ts";
-import { parseStorage } from "./storage.ts";
+import { adapter as storageAdapter, parseStorage } from "./storage.ts";
 import { parseSupplyDemand } from "./supply_demand.ts";
 import { adapter as windSolarAdapter, parseWindSolar } from "./wind_solar.ts";
 
@@ -27,6 +33,34 @@ async function assertRejects(callback: () => Promise<unknown>, expected: string)
   }
   throw new Error(`expected rejection containing ${expected}`);
 }
+
+Deno.test("source health metadata is bounded, redacted, and supports valid empty availability", () => {
+  const metadata = boundedSourceMetadata({
+    provider: "ERCOT",
+    access_token: "must-not-leak",
+    nested: { subscriptionKey: "must-not-leak", fields: ["one", "two"] },
+  });
+  assert(metadata?.provider === "ERCOT", "safe provenance preserved");
+  assert(metadata?.access_token === "[redacted]", "token redacted");
+  const nested = metadata?.nested as Record<string, unknown> | undefined;
+  assert(nested?.subscriptionKey === "[redacted]", "nested key redacted");
+
+  const empty = { events: [], metrics: [] };
+  assert(sourceResultAvailability(empty, true).availability === "empty", "valid empty accepted");
+  try {
+    sourceResultAvailability(empty);
+    throw new Error("expected zero_core_rows");
+  } catch (error) {
+    assert(
+      error instanceof Error && error.message === "zero_core_rows",
+      "empty rejected by default",
+    );
+  }
+
+  const oversized = boundedSourceMetadata({ value: "x".repeat(20_000) });
+  assert(oversized?.truncated !== true, "per-value limit keeps metadata bounded");
+  assert(JSON.stringify(oversized).length < 8_192, "metadata byte bound");
+});
 
 Deno.test("fuel mix success fixture normalizes generation and seasonal capacity", async () => {
   const result = await parseFuelMix(await jsonFixture("fuel_mix.success.json"));
@@ -65,7 +99,14 @@ Deno.test("METAR current schema preserves observations and optional wind fields"
     Math.abs((gust[0]?.points[0]?.value ?? 0) - 29.92028) < 0.001,
     "gust converts knots to mph",
   );
-  const variable = parseMetar([{ icaoId: "KVRB", obsTime: 1_786_690_000, wdir: "VRB", wspd: 7 }]);
+  const variable = parseMetar([
+    {
+      icaoId: "KVRB",
+      obsTime: 1_786_690_000,
+      wdir: "VRB",
+      wspd: 7,
+    },
+  ]);
   assert(
     !variable.some((entry) => entry.metric_name === "metar.winds.direction_degrees"),
     "variable direction is not fabricated",
@@ -75,10 +116,39 @@ Deno.test("METAR current schema preserves observations and optional wind fields"
 Deno.test("storage success and repeated DST hour retain distinct epochs", async () => {
   const result = await parseStorage(await jsonFixture("storage.success.json"));
   assert(result.metrics.length === 3, "three storage metrics");
+  assert(storageAdapter.overlapSeconds === 50 * 3_600, "full two-day correction overlap");
+  assert(result.dataTimestamp === 1_784_610_300, "freshness follows newest storage observation");
   const dst = await parseStorage(await jsonFixture("storage.dst.json"));
   const timestamps = dst.metrics[2].points.map((point) => point.timestamp);
   assert(timestamps.length === 2, "two DST points");
   assert(timestamps[1]! - timestamps[0]! === 3600, "repeated hour is distinct");
+});
+
+Deno.test("storage fails closed on partial, duplicate, or inconsistent source rows", async () => {
+  const base = (await jsonFixture("storage.success.json")) as {
+    currentDay: { data: Array<Record<string, unknown>> };
+    lastUpdated: string;
+    previousDay: { data: Array<Record<string, unknown>> };
+  };
+  const partial = structuredClone(base);
+  delete partial.currentDay.data[0]!["netOutput"];
+  const duplicate = structuredClone(base);
+  duplicate.currentDay.data.push(structuredClone(duplicate.currentDay.data[0]!));
+  const mismatched = structuredClone(base);
+  mismatched.currentDay.data[0]!["epoch"] = Number(mismatched.currentDay.data[0]!["epoch"]) + 1_000;
+  const missingTimestamp = structuredClone(base);
+  delete missingTimestamp.currentDay.data[0]!["timestamp"];
+  const wrongSign = structuredClone(base);
+  wrongSign.currentDay.data[0]!["totalCharging"] = 1;
+  for (const payload of [partial, duplicate, mismatched, missingTimestamp, wrongSign]) {
+    let rejected = false;
+    try {
+      await parseStorage(payload);
+    } catch {
+      rejected = true;
+    }
+    assert(rejected, "invalid storage row rejected");
+  }
 });
 
 Deno.test("supply and demand fixture includes actual and forecast series", async () => {
@@ -158,16 +228,27 @@ Deno.test("wind and solar live schema remains useful", async () => {
   assert(windSolarAdapter.publicationIntervalSeconds === 3600, "hourly publication");
 });
 
+Deno.test("blank operations status is explicit and accepted by both event contracts", async () => {
+  const html = `<table><tr><td class="datetime">Sep 12, 2026 6:00:00 PM</td><td class="summary">Operating notice</td><td class="type">Operational Information</td><td class="priority"> </td></tr></table>`;
+  const result = await parseOperationsMessages(html);
+  assert(result.events[0].status === "Unknown", "legacy status is explicit");
+  assert(result.gridEvents?.[0].status === "Unknown", "grid event status is nonempty");
+});
+
 Deno.test("operations message HTML becomes stable structured events", async () => {
   const html = await Deno.readTextFile(fixture("operations_messages.success.html"));
   const first = await parseOperationsMessages(html);
   const second = await parseOperationsMessages(html);
   assert(first.events.length === 2, "two events");
+  assert(first.gridEvents?.length === 2, "two strict grid events");
   assert(first.events[0].dedupe_key === second.events[0].dedupe_key, "stable dedupe key");
   assert(first.events[1].status === "Cancelled", "status");
   const dstHtml = await Deno.readTextFile(fixture("operations_messages.dst.html"));
   const dst = await parseOperationsMessages(dstHtml);
-  assert(dst.events[1]!.starts_at - dst.events[0]!.starts_at === 7200, "fall transition offsets");
+  assert(dst.events.length === 1, "ambiguous fall row excluded from legacy exact-time events");
+  assert(dst.gridEvents?.length === 2, "ambiguous fall row retained in strict grid events");
+  assert(dst.gridEvents[0]?.starts_at === null, "fall transition stays ambiguous");
+  assert(dst.gridEvents[0]?.starts_at_candidates.length === 2, "both fall candidates retained");
   assert(
     parseOperationsTimestamp("Mar 8, 2026 1:30:00 AM") ===
       Date.parse("Mar 8, 2026 1:30:00 AM GMT-0600") / 1000,
@@ -187,7 +268,15 @@ Deno.test("invalid, zero-core, and unchanged payload behavior is deterministic",
   );
   const zero = await jsonFixture("zero.json");
   await assertRejects(() => parseFuelMix(zero), "fuel_mix");
-  await assertRejects(() => parseStorage(zero), "zero_core");
+  await assertRejects(
+    () =>
+      parseStorage({
+        currentDay: { data: [], dayDate: "2026-01-02 03:00:00-0600" },
+        lastUpdated: "2026-01-02 03:00:00-0600",
+        previousDay: { data: [], dayDate: "2026-01-01 03:00:00-0600" },
+      }),
+    "zero_core",
+  );
   await assertRejects(() => parseSupplyDemand(zero), "zero_core");
   await assertRejects(() => parseGenerationOutages(zero), "zero_core");
   await assertRejects(() => parseWindSolar(zero), "zero_core");
@@ -242,7 +331,11 @@ Deno.test("rolling ingestion resumes from a persisted checkpoint and submits onl
 
   const restartedCheckpoint = JSON.parse(JSON.stringify(first.checkpoint));
   const revised = structuredClone(initial);
-  revised[0]!.points.push({ timestamp: 300, value: 25, dedupe_key: "actual:300" });
+  revised[0]!.points.push({
+    timestamp: 300,
+    value: 25,
+    dedupe_key: "actual:300",
+  });
   revised[1]!.points[0]!.value = 31;
   const second = incrementalMetrics(revised, restartedCheckpoint, ["ercot.forecast"], 120);
   const submitted = second.metrics.flatMap((entry) => entry.points);
@@ -279,7 +372,13 @@ Deno.test("legacy global checkpoint replays suppressed actuals during v2 migrati
       },
       {
         metric_name: "ercot.forecast",
-        points: [{ timestamp: 20_000, value: 40, dedupe_key: "forecast:20000" }],
+        points: [
+          {
+            timestamp: 20_000,
+            value: 40,
+            dedupe_key: "forecast:20000",
+          },
+        ],
       },
     ],
     legacy,

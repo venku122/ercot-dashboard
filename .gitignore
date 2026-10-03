@@ -5,7 +5,13 @@
 
 # local files
 .DS_Store
+.env
+.env.*
+stack.env
+!*.env.example
 node_modules/
+.pnpm-store/
+*.tsbuildinfo
 frontend/node_modules/
 ercot-receiver/web/assets/
 ercot-receiver/__pycache__/

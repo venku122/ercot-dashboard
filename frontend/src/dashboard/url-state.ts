@@ -1,4 +1,9 @@
-import { createTimeState, setCustomRange } from "./time-state";
+import { createRelativeRange, decodeTimeRange, encodeTimeRange } from "../time-range";
+import {
+  ERCOT_TIME_RANGE_CONFIG,
+  legacyTimeRangeFromUrl,
+  writeLegacyTimeRangeProjection,
+} from "./time-range-adapter";
 import type { CompareMode, DashboardState, LegendMode } from "./types";
 import { dashboardViewDefinitions, type DashboardViewId } from "./information-architecture";
 
@@ -20,21 +25,22 @@ export function dashboardViewFromUrl(url: URL): DashboardViewId {
 export function dashboardViewToUrl(view: DashboardViewId, base: URL): URL {
   const url = new URL(base);
   url.searchParams.set("view", view);
+  if (view !== "texas-grid") url.searchParams.delete("grid_resource");
+  if (view !== "external-context") url.searchParams.delete("context_source");
   return url;
 }
 
 export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
   const params = url.searchParams;
-  const range = finiteNumber(params.get("range")) ?? 6 * 60 * 60;
-  let time = createTimeState(now, range);
-  const from = finiteNumber(params.get("from"));
-  const to = finiteNumber(params.get("to"));
-  if (params.get("live") === "0" && from !== null && to !== null && from < to) {
-    time = setCustomRange(from, to);
-  }
-  if (time.mode === "live" && params.get("paused") === "1") {
-    time = { ...time, paused: true };
-  }
+  const nowMs = now * 1000;
+  const time =
+    decodeTimeRange(params, ERCOT_TIME_RANGE_CONFIG, nowMs) ??
+    legacyTimeRangeFromUrl(params, nowMs) ??
+    createRelativeRange(
+      24 * 60 * 60 * 1000,
+      "past-24-hours",
+      ERCOT_TIME_RANGE_CONFIG.defaultTimezone,
+    );
   const compareParam = params.get("compare") as CompareMode | null;
   const legendParam = params.get("legend") as LegendMode | null;
   const customCompareSeconds = Math.max(
@@ -46,6 +52,7 @@ export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
     compare: compareParam && compareModes.has(compareParam) ? compareParam : "none",
     customCompareSeconds,
     events: params.get("events") !== "0",
+    history: params.get("history") === "1",
     expandedChart: params.get("inspect"),
     hiddenSeries: new Set(
       (params.get("hidden") ?? "")
@@ -53,34 +60,30 @@ export function dashboardStateFromUrl(url: URL, now: number): DashboardState {
         .map((value) => value.trim())
         .filter(Boolean),
     ),
-    legendMode: legendParam && legendModes.has(legendParam) ? legendParam : "expanded",
+    legendMode: legendParam && legendModes.has(legendParam) ? legendParam : "compact",
   };
 }
 
-export function dashboardStateToUrl(state: DashboardState, base: URL): URL {
+export function dashboardStateToUrl(
+  state: DashboardState,
+  base: URL,
+  now = Date.now() / 1000,
+): URL {
   const url = new URL(base);
-  const params = url.searchParams;
-  params.set("range", String(state.time.rangeSeconds));
-  params.set("live", state.time.mode === "live" ? "1" : "0");
-  if (state.time.mode === "fixed") {
-    params.set("from", String(Math.round(state.time.start)));
-    params.set("to", String(Math.round(state.time.end)));
-    params.delete("paused");
-  } else {
-    params.delete("from");
-    params.delete("to");
-    if (state.time.paused) params.set("paused", "1");
-    else params.delete("paused");
-  }
+  const semanticParams = encodeTimeRange(state.time, url.searchParams);
+  const params = writeLegacyTimeRangeProjection(state.time, semanticParams, now * 1000);
   params.set("compare", state.compare);
   if (state.compare === "custom") params.set("compare_offset", String(state.customCompareSeconds));
   else params.delete("compare_offset");
   params.set("events", state.events ? "1" : "0");
+  if (state.history) params.set("history", "1");
+  else params.set("history", "0");
   params.set("legend", state.legendMode);
   if (state.expandedChart) params.set("inspect", state.expandedChart);
   else params.delete("inspect");
   const hidden = [...state.hiddenSeries].sort();
   if (hidden.length) params.set("hidden", hidden.join(","));
   else params.delete("hidden");
+  url.search = params.toString();
   return url;
 }

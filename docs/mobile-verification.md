@@ -34,6 +34,11 @@ After evidence:
 - [Inspect portrait](../e2e/mobile.spec.ts-snapshots/mobile-inspect-portrait-iphone-pro-max-webkit-linux.png)
 - [Inspect landscape](../e2e/mobile.spec.ts-snapshots/mobile-inspect-landscape-iphone-landscape-webkit-linux.png)
 - [WebKit interaction trace](evidence/mobile-interaction-webkit-trace.zip)
+- [Grid Outlook mobile](../e2e/mobile.spec.ts-snapshots/progressive-outlook-mobile-iphone-pro-max-webkit-darwin.png)
+  keeps published load/system-adequacy inputs distinct from the dashboard interpretation, and
+  labels METAR values as current observations only rather than forecast drivers.
+- [Grid Outlook mobile on pinned Ubuntu 24.04](../e2e/mobile.spec.ts-snapshots/progressive-outlook-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png)
+  is the reviewed CI-specific WebKit baseline generated in the pinned Noble image.
 
 Strict Ubuntu 24.04 variants of every new WebKit image are committed for CI. Baselines were
 generated in the pinned mcr.microsoft.com/playwright:v1.61.1-noble image and reviewed. Every image
@@ -41,7 +46,29 @@ remains zero-diff except the canvas-heavy portrait Inspect capture, which has an
 ceiling of eight raster pixels after a pinned CI run differed by four pixels from an immediately
 preceding green run. Desktop CI baselines were also reviewed and migrated once into that same
 pinned image so inherited host-font differences cannot make otherwise identical chart states
-fail. The original desktop layout is preserved.
+fail. The original desktop layout is preserved. PR10 Grid Outlook snapshots were generated and
+reviewed both on local WebKit and in the pinned Linux/Ubuntu Noble image used by CI.
+
+## PR10 Grid Outlook local evidence
+
+The 2026-08-18 focused acceptance run added the fifth primary Outlook view without changing the
+meaning of the shared time controls: those controls and the unrelated live-freshness label are not
+shown on Outlook. A direct Outlook URL made one `GET /api/v1/outlook` request and zero Overview
+latest, series, source-health, ranking, or events requests. Stale forecast source health remained a
+visible partial-input warning rather than becoming an ERCOT operating status.
+
+- Static checks: `pnpm run check`.
+- Desktop Chromium: the direct-load and stale-input tests passed 2/2.
+- Pixel mobile: the complete `@mobile-core` project passed 19/19, including Outlook exact tables,
+  44 point targets, and no horizontal overflow.
+- iPhone WebKit: the focused Outlook mobile acceptance and the progressive-disclosure VRI each
+  passed 1/1.
+- VRI: reviewed mobile and desktop `progressive-outlook` snapshots on Darwin and in the pinned
+  Linux/Ubuntu Noble image used by CI.
+- Full local matrix: 78/78 Playwright cases passed across desktop Chromium, Pixel, compact mobile,
+  iPhone WebKit portrait and landscape, and iPad portrait and landscape.
+- Pinned CI parity: the exact Outlook desktop Chromium and iPhone WebKit VRI cases passed 2/2 in
+  `mcr.microsoft.com/playwright:v1.61.1-noble` with `CI=true`.
 
 ## Objective mobile budgets
 
@@ -86,3 +113,4 @@ for the reviewer before the draft PR is marked ready:
 | Software keyboard with custom Chicago range                 | Pending physical device |
 | Long source error, negative price, and active notice        | Pending physical device |
 | Increased Safari text size and back/forward URL state       | Pending physical device |
+| Grid Outlook day cards, exact tables, and horizontal strip  | Pending physical device |

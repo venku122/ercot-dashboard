@@ -1,0 +1,2 @@
+SCEDTimeStamp,RepeatedHourFlag,ConstraintID,ConstraintName,ContingencyName,ShadowPrice,MaxShadowPrice,Limit,Value,ViolatedMW,FromStation,ToStation,FromStationkV,ToStationkV,CCTStatus
+11/02/2025 01:30:18,N,42,MONITORED_A,CONTINGENCY_A,100.25,3500,500,501.5,1.5,FROM_A,TO_A,138,138,NONCOMP

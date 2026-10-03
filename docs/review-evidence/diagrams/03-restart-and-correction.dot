@@ -1,0 +1,19 @@
+digraph restart_correction {
+  graph [bgcolor="transparent", rankdir=LR, pad=0.25, nodesep=0.45, ranksep=0.7];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#334155", fillcolor="#e2e8f0"];
+  edge [fontname="Helvetica", fontsize=9, color="#475569"];
+  old [label="Receiver process A\nLRU contains tile"];
+  stop [label="Process restart\nLRU is empty", fillcolor="#fef3c7"];
+  sqlite [label="Same SQLite metrics DB", fillcolor="#bae6fd"];
+  new [label="Receiver process B\nregenerates on first request"];
+  same [label="Same canonical bytes + ETag", fillcolor="#dcfce7"];
+  correction [label="Metric correction\naffected timestamp only", fillcolor="#fee2e2"];
+  invalidation [label="Range dependency invalidation"];
+  changed [label="Affected tile changes\nUnrelated tile remains HIT", fillcolor="#dcfce7"];
+  old -> stop -> new;
+  sqlite -> new;
+  new -> same;
+  correction -> sqlite;
+  correction -> invalidation -> changed;
+  sqlite -> changed;
+}

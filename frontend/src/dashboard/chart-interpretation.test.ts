@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { chartDefinitions } from "./chart-config";
 import {
   formatInterpretationRange,
+  frequencyColor,
   interpretationAriaDescription,
   interpretationPolicyIssues,
   resolveInterpretationBands,
@@ -23,6 +24,22 @@ function loaded(points: Array<[number, number]>): LoadedSeries {
 }
 
 describe("chart interpretation policy", () => {
+  it("matches frequency line colors to the interpretation boundaries", () => {
+    const chart = chartDefinitions.find((chart) => chart.id === "frequency")!;
+    for (const [value, color] of [
+      [59.79, "#f87171"],
+      [59.8, "#fb923c"],
+      [59.9, "#fbbf24"],
+      [59.95, "#34d399"],
+      [60, "#34d399"],
+      [60.05, "#fbbf24"],
+      [60.1, "#fb923c"],
+      [60.2, "#f87171"],
+    ] as const) {
+      expect(frequencyColor(chart, value, "gray")).toBe(color);
+    }
+    expect(frequencyColor(chart, null, "gray")).toBe("gray");
+  });
   it("centralizes complete, contiguous policies for the directive charts", () => {
     for (const id of interpretedChartIds) {
       const chart = chartDefinitions.find((candidate) => candidate.id === id);
@@ -31,7 +48,7 @@ describe("chart interpretation policy", () => {
     }
   });
 
-  it("resolves demand and outage ratios from the latest finite capacity", () => {
+  it("DATA-02 never classifies historical demand using the last capacity", () => {
     const chart = chartDefinitions.find((candidate) => candidate.id === "supply-demand")!;
     const interpretation = chart.interpretation!;
     const data = new Map([
@@ -46,12 +63,9 @@ describe("chart interpretation policy", () => {
     ]);
     const bands = resolveInterpretationBands(interpretation, data);
 
-    expect(bands.map(({ lowerValue, upperValue }) => [lowerValue, upperValue])).toEqual([
-      [undefined, 80_000],
-      [80_000, 90_000],
-      [90_000, 100_000],
-      [100_000, undefined],
-    ]);
+    expect(bands).toEqual([]);
+    data.set("supply-demand:available-capacity", loaded([[100, 200_000]]));
+    expect(resolveInterpretationBands(interpretation, data)).toEqual([]);
     expect(formatInterpretationRange(interpretation, interpretation.bands[1]!, chart.unit)).toBe(
       "80.0%–90.0%",
     );

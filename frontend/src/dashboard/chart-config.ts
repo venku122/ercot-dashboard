@@ -32,8 +32,7 @@ export const chartDefinitions: ChartDefinition[] = [
       subjectSeriesId: "demand",
       referenceLabel: "latest available capacity",
       referenceSeriesKey: "supply-demand:available-capacity",
-      basis:
-        "Demand share of the latest available capacity; this dashboard guide is not an ERCOT alert declaration",
+      basis: "Demand share of the latest available capacity",
       bands: [
         { id: "comfortable", label: "Comfortable", tone: "normal", upper: 0.8 },
         { id: "watch", label: "Watch", tone: "watch", lower: 0.8, upper: 0.9 },

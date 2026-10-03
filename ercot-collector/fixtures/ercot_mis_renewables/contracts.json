@@ -1,0 +1,50 @@
+{
+  "sanitized": true,
+  "observed_at": "2026-08-18",
+  "products": {
+    "NP4-732-CD": {
+      "report_type_id": 13028,
+      "headers": [
+        "DELIVERY_DATE",
+        "HOUR_ENDING",
+        "SYSTEM_WIDE_GEN",
+        "COP_HSL_SYSTEM_WIDE",
+        "STWPF_SYSTEM_WIDE",
+        "WGRPP_SYSTEM_WIDE",
+        "GEN_LZ_SOUTH_HOUSTON",
+        "COP_HSL_LZ_SOUTH_HOUSTON",
+        "STWPF_LZ_SOUTH_HOUSTON",
+        "WGRPP_LZ_SOUTH_HOUSTON",
+        "GEN_LZ_WEST",
+        "COP_HSL_LZ_WEST",
+        "STWPF_LZ_WEST",
+        "WGRPP_LZ_WEST",
+        "GEN_LZ_NORTH",
+        "COP_HSL_LZ_NORTH",
+        "STWPF_LZ_NORTH",
+        "WGRPP_LZ_NORTH",
+        "SYSTEM_WIDE_HSL",
+        "DSTFlag"
+      ]
+    },
+    "NP4-737-CD": {
+      "report_type_id": 13483,
+      "headers": [
+        "DELIVERY_DATE",
+        "HOUR_ENDING",
+        "SYSTEM_WIDE_GEN",
+        "COP_HSL_SYSTEM_WIDE",
+        "STPPF_SYSTEM_WIDE",
+        "PVGRPP_SYSTEM_WIDE",
+        "SYSTEM_WIDE_HSL",
+        "DSTFlag"
+      ]
+    }
+  },
+  "live_shape_evidence": {
+    "rows_per_current_hourly_artifact": 216,
+    "historical_rows_with_actuals": 48,
+    "future_rows_with_blank_actuals": 168
+  },
+  "note": "Headers and shape counts are live contract evidence. No response rows or credentials are retained. Tests create synthetic values."
+}

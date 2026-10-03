@@ -1,0 +1,28 @@
+{
+  "fields": [
+    {
+      "name": "AGCExecTime",
+      "dataType": "datetime"
+    },
+    {
+      "name": "DSTFlag",
+      "dataType": "boolean"
+    },
+    {
+      "name": "AGCExecTimeUTC",
+      "dataType": "datetime"
+    },
+    {
+      "name": "systemDemand",
+      "dataType": "number"
+    },
+    {
+      "name": "ESRChargingMW",
+      "dataType": "number"
+    }
+  ],
+  "data": [],
+  "_meta": {
+    "totalRecords": 0
+  }
+}

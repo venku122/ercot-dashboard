@@ -47,12 +47,15 @@ describe("dashboard information architecture", () => {
     for (const chart of chartDefinitions) expect(chartGroupDefinition(chart.group)).toBeTruthy();
   });
 
-  it("assigns every chart group to exactly one of the seven progressive-disclosure views", () => {
+  it("assigns every chart group to exactly one progressive-disclosure view", () => {
     expect(dashboardViewDefinitions.map((view) => view.id)).toEqual([
       "overview",
+      "outlook",
       "generation",
       "reliability",
       "market",
+      "texas-grid",
+      "external-context",
       "weather",
       "advanced",
       "diagnostics",

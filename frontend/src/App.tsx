@@ -8,7 +8,7 @@ import {
   useState,
   type Dispatch,
   type CSSProperties,
-  type FormEvent,
+  type ReactNode,
   type RefObject,
   type SetStateAction,
 } from "react";
@@ -17,9 +17,12 @@ import { MobileDialog } from "./components/MobileDialog";
 import { DataLifecycleMessage } from "./components/DataLifecycleMessage";
 import { Button } from "./components/ui/button";
 import { loadSeries } from "./dashboard/api";
+import { shouldCommitRequest } from "./dashboard/request-generation";
 import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
+import { OverviewCharts } from "./dashboard/OverviewCharts";
+import { homepageSeries, overviewChartIds, engineeringChartIds } from "./dashboard/homepage-model";
 import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
 import {
   dataLifecycleCopy,
@@ -31,14 +34,13 @@ import { buildDerivedMetrics } from "./dashboard/derived-metrics";
 import { useOverviewData } from "./dashboard/data-hooks";
 import {
   chartGroupDefinition,
+  chartGroupDisplayLabel,
   criticalMetricDefinitions,
   dashboardViewDefinition,
   dashboardViewDefinitions,
   dashboardViewForGroup,
   initiallyCollapsedGroups,
   moreDashboardViewIds,
-  mobilePrimaryCriticalMetricIds,
-  mobileSupportingCriticalMetricIds,
   primaryDashboardViewIds,
   reserveMarginPercent,
   type CriticalMetricId,
@@ -46,25 +48,21 @@ import {
 } from "./dashboard/information-architecture";
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
+import { historicalContextAsOf } from "./dashboard/historical-context";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
-import { settlementFreshness, settlementPointMetadata } from "./dashboard/settlement-points";
-import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import {
-  navigateWindow,
-  resetLive,
-  setCustomRange,
-  setRange,
-  tickLive,
-  togglePause,
-  zoomTo,
-} from "./dashboard/time-state";
+  ERCOT_CALENDAR_PRESETS,
+  ERCOT_DURATION_PRESETS,
+  ERCOT_TIME_RANGE_CONFIG,
+  toErcotTimeState,
+} from "./dashboard/time-range-adapter";
+import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import type {
   CompareMode,
   DashboardState,
   LegendMode,
   LoadedSeries,
   SourceHealth,
-  TimeState,
 } from "./dashboard/types";
 import {
   dashboardStateFromUrl,
@@ -74,10 +72,54 @@ import {
 } from "./dashboard/url-state";
 import { mediaQueryMatches, MOBILE_MEDIA_QUERY, useMediaQuery } from "./dashboard/use-media-query";
 import { formatAge, formatValue } from "./dashboard/units";
-import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./dashboard/zoned-time";
+import {
+  commitFixedTimeRange,
+  pauseTimeRange,
+  resetTimeRange,
+  TimeRangePicker,
+} from "./time-range";
 
 const ChartCard = lazy(() =>
   import("./dashboard/ChartCard").then((module) => ({ default: module.ChartCard })),
+);
+const OutlookView = lazy(() =>
+  import("./dashboard/OutlookView").then((module) => ({ default: module.OutlookView })),
+);
+const HistoricalContextPanel = lazy(() =>
+  import("./dashboard/HistoricalContextPanel").then((module) => ({
+    default: module.HistoricalContextPanel,
+  })),
+);
+const NetLoadPanel = lazy(() =>
+  import("./dashboard/NetLoadPanel").then((module) => ({ default: module.NetLoadPanel })),
+);
+const RegionalGeographyPanel = lazy(() =>
+  import("./dashboard/RegionalGeographyPanel").then((module) => ({
+    default: module.RegionalGeographyPanel,
+  })),
+);
+const MarketMechanicsPanel = lazy(() =>
+  import("./dashboard/MarketMechanicsPanel").then((module) => ({
+    default: module.MarketMechanicsPanel,
+  })),
+);
+const MarketGeographyPanel = lazy(() =>
+  import("./dashboard/MarketGeographyPanel").then((module) => ({
+    default: module.MarketGeographyPanel,
+  })),
+);
+const GridEventTimeline = lazy(() =>
+  import("./dashboard/GridEventTimeline").then((module) => ({
+    default: module.GridEventTimeline,
+  })),
+);
+const TexasGridView = lazy(() =>
+  import("./dashboard/TexasGridView").then((module) => ({ default: module.TexasGridView })),
+);
+const ExternalContextView = lazy(() =>
+  import("./dashboard/ExternalContextView").then((module) => ({
+    default: module.ExternalContextView,
+  })),
 );
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -131,154 +173,17 @@ function WeatherConditions({
   );
 }
 
-const rangeOptions = [
-  [3600, "1 hour"],
-  [21600, "6 hours"],
-  [43200, "12 hours"],
-  [86400, "24 hours"],
-  [259200, "3 days"],
-  [604800, "7 days"],
-  [2592000, "30 days"],
-  [31536000, "12 months"],
-] as const;
-
 type MobileDialogName = "controls" | "events" | "more" | "sources" | null;
 
 type ControlProps = {
-  onError: (message: string) => void;
   onExplicitLegend: () => void;
-  onResetOrigin: () => void;
   setState: Dispatch<SetStateAction<DashboardState>>;
   state: DashboardState;
-  surface: "desktop" | "sheet";
 };
 
-function TimeRangeSelect({ state, setState }: Pick<ControlProps, "setState" | "state">) {
-  return (
-    <label>
-      <span>Time range</span>
-      <select
-        aria-label="Time range"
-        onChange={(event) => {
-          const range = Number(event.target.value);
-          setState((current) => ({
-            ...current,
-            time: setRange(current.time, range, nowSeconds()),
-          }));
-        }}
-        value={state.time.rangeSeconds}
-      >
-        {rangeOptions.map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function CustomRangeForm({
-  onError,
-  setState,
-  state,
-}: Pick<ControlProps, "onError" | "setState" | "state">) {
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      const start = parseChicagoDateTime(String(form.get("start")));
-      const end = parseChicagoDateTime(String(form.get("end")));
-      setState((current) => ({ ...current, time: setCustomRange(start, end) }));
-    } catch {
-      onError("invalid_time_range");
-    }
-  };
-  return (
-    <form className="custom-range-form" onSubmit={submit}>
-      <label>
-        <span>From</span>
-        <input
-          defaultValue={formatChicagoDateTimeInput(state.time.start)}
-          name="start"
-          type="datetime-local"
-        />
-      </label>
-      <label>
-        <span>To</span>
-        <input
-          defaultValue={formatChicagoDateTimeInput(state.time.end)}
-          name="end"
-          type="datetime-local"
-        />
-      </label>
-      <Button type="submit">Apply custom range</Button>
-    </form>
-  );
-}
-
-function DashboardControls({
-  onError,
-  onExplicitLegend,
-  onResetOrigin,
-  setState,
-  state,
-  surface,
-}: ControlProps) {
-  const customRange = <CustomRangeForm onError={onError} setState={setState} state={state} />;
+function DashboardControls({ onExplicitLegend, setState, state }: ControlProps) {
   return (
     <>
-      <TimeRangeSelect setState={setState} state={state} />
-      <div className="button-cluster" aria-label="Window navigation">
-        <Button
-          aria-label="Previous time window"
-          onClick={() =>
-            setState((current) => ({ ...current, time: navigateWindow(current.time, -1) }))
-          }
-        >
-          ← Window
-        </Button>
-        <Button
-          aria-label="Next time window"
-          onClick={() =>
-            setState((current) => ({ ...current, time: navigateWindow(current.time, 1) }))
-          }
-        >
-          Window →
-        </Button>
-      </div>
-      <Button
-        onClick={() =>
-          setState((current) => ({
-            ...current,
-            time: togglePause(current.time, nowSeconds()),
-          }))
-        }
-      >
-        {state.time.mode === "fixed" ? "Resume live" : state.time.paused ? "Resume" : "Pause"}
-      </Button>
-      <Button
-        onClick={() => {
-          onResetOrigin();
-          setState((current) => ({
-            ...current,
-            time: resetLive(current.time, nowSeconds()),
-          }));
-        }}
-      >
-        Reset to live
-      </Button>
-      {surface === "desktop" ? (
-        <details className="custom-range">
-          <summary>Custom range</summary>
-          {customRange}
-        </details>
-      ) : (
-        <fieldset className="sheet-fieldset">
-          <legend>Custom range</legend>
-          {customRange}
-        </fieldset>
-      )}
       <label>
         <span>Compare</span>
         <select
@@ -420,7 +325,10 @@ function MetricOverviewCard({
       className="overview-card"
       data-metric-id={item.id}
     >
-      <span>{item.label}</span>
+      <span className="overview-card-label">
+        <MetricIcon id={item.id} />
+        {item.label}
+      </span>
       <strong>{valueLabel}</strong>
       {trendUnavailable ? (
         <div aria-hidden="true" className="hero-trend hero-trend-empty" />
@@ -428,6 +336,22 @@ function MetricOverviewCard({
         <HeroTrendDetail id={item.id} label={item.label} loading={loading} trend={item.trend} />
       )}
     </article>
+  );
+}
+
+function MetricIcon({ id }: { id: CriticalMetricId }) {
+  const paths: Record<CriticalMetricId, ReactNode> = {
+    "available-capacity": <path d="M4 15h16M6 15V9m4 6V5m4 10V8m4 7V3" />,
+    demand: <path d="m13 2-7 11h6l-1 9 7-12h-6l1-8Z" />,
+    frequency: <path d="M3 12h3l2-6 4 12 3-9 2 3h4" />,
+    "grid-status": <path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Zm-3 9 2 2 4-5" />,
+    "real-time-price": <path d="M12 2v20m4-16H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7" />,
+    "reserve-margin": <path d="M4 18 9 12l4 3 7-9M15 6h5v5" />,
+  };
+  return (
+    <svg aria-hidden="true" className="metric-icon" fill="none" viewBox="0 0 24 24">
+      {paths[id]}
+    </svg>
   );
 }
 
@@ -449,6 +373,17 @@ function GridHealthSummary({
       return `${factor.label}: ${String(Math.round(factor.weight - factor.penalty))} of ${String(factor.weight)} points retained`;
     })
     .join(". ");
+  const availableFactors = gridHealth.factors.filter((factor) => factor.available).length;
+  const scoreBand =
+    gridHealth.score === null
+      ? "Unavailable"
+      : gridHealth.score >= 85
+        ? "Normal · 85–100"
+        : gridHealth.score >= 70
+          ? "Watch · 70–84"
+          : gridHealth.score >= 50
+            ? "Strained · 50–69"
+            : "Critical · below 50";
   return (
     <section
       aria-label={`Grid Health: ${gridHealth.label}. ${gridHealth.score === null ? "Not enough fresh inputs to calculate the score." : `${String(gridHealth.score)} of 100 with ${String(gridHealth.coveragePercent)} percent input coverage.`} ${accessibleFactors}`}
@@ -468,7 +403,9 @@ function GridHealthSummary({
               {String(gridHealth.score)} <span>/ 100</span>
             </strong>
           )}
-          <small>{String(gridHealth.coveragePercent)}% input coverage</small>
+          {gridHealth.coveragePercent < 100 ? (
+            <small>{String(gridHealth.coveragePercent)}% input coverage</small>
+          ) : null}
         </div>
       </div>
       <div aria-hidden="true" className="grid-health-contribution-bar">
@@ -489,13 +426,22 @@ function GridHealthSummary({
           );
         })}
       </div>
-      <p>
-        {gridHealth.score === null
-          ? "Fresh demand, capacity, frequency, and sufficient weighted coverage are required."
-          : pressures.length
-            ? `Main pressure: ${pressures.join(", ")}.`
-            : "No material pressure is present in the available inputs."}
-      </p>
+      <dl className="grid-health-context">
+        <div>
+          <dt>Score band</dt>
+          <dd>{scoreBand}</dd>
+        </div>
+        <div>
+          <dt>Inputs reporting</dt>
+          <dd>
+            {String(availableFactors)} of {String(gridHealth.factors.length)}
+          </dd>
+        </div>
+        <div>
+          <dt>Main pressure</dt>
+          <dd>{pressures.length ? pressures.join(", ") : "None in available inputs"}</dd>
+        </div>
+      </dl>
     </section>
   );
 }
@@ -607,8 +553,22 @@ export function App() {
       : parsed;
   });
   const [seriesData, setSeriesData] = useState<Map<string, LoadedSeries>>(new Map());
+  const overviewSeriesData = useMemo(() => homepageSeries(seriesData), [seriesData]);
   const seriesDataRef = useRef(seriesData);
-  const zoomOriginRef = useRef<TimeState | null>(null);
+  const requestGenerationRef = useRef(0);
+  const historyControllers = useRef(new Set<AbortController>());
+  const [historyQueueRevision, setHistoryQueueRevision] = useState(0);
+  useEffect(
+    () => () => {
+      for (const controller of historyControllers.current) controller.abort();
+      historyControllers.current.clear();
+      loadedChartIdsRef.current.clear();
+      loadedChartContextRef.current = "";
+      requestGenerationRef.current += 1;
+    },
+    [],
+  );
+  const [clockMs, setClockMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestRevision, setRequestRevision] = useState(0);
@@ -620,6 +580,8 @@ export function App() {
     return collapsed;
   });
   const [activeChartIds, setActiveChartIds] = useState<Set<string>>(new Set());
+  const loadedChartContextRef = useRef("");
+  const loadedChartIdsRef = useRef<Set<string>>(new Set());
   const [mobileDialog, setMobileDialog] = useState<MobileDialogName>(null);
   const [selectedView, setSelectedView] = useState<DashboardViewId>(initialView);
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
@@ -629,6 +591,24 @@ export function App() {
   const eventsTriggerRef = useRef<HTMLButtonElement>(null);
   const dashboardTitleRef = useRef<HTMLHeadingElement>(null);
   const viewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const resolvedTime = useMemo(() => toErcotTimeState(state.time, clockMs), [clockMs, state.time]);
+  const [seriesTime, setSeriesTime] = useState(resolvedTime);
+  useEffect(() => {
+    const unsubscribe = chartCoordinator.subscribe((_timestamp, pinned) => {
+      if (pinned)
+        setState((current) =>
+          current.time.playback.kind === "running"
+            ? {
+                ...current,
+                time: pauseTimeRange(current.time, seriesTime.end * 1000, ERCOT_TIME_RANGE_CONFIG),
+              }
+            : current,
+        );
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [seriesTime.end]);
   const {
     derivedContext,
     error: overviewError,
@@ -637,12 +617,16 @@ export function App() {
     isValidating: overviewValidating,
     latest,
     observedAt: overviewAsOf,
-    priceRanking,
     retry: retryOverview,
     sourceHealth,
     statusEvents,
     trendBaselines,
-  } = useOverviewData({ eventsEnabled: state.events, overviewQueries, time: state.time });
+  } = useOverviewData({
+    enabled: !["outlook", "texas-grid", "external-context"].includes(selectedView),
+    eventsEnabled: state.events,
+    overviewQueries,
+    time: resolvedTime,
+  });
   const effectiveRequestError = overviewError ?? requestError;
 
   useEffect(() => {
@@ -653,13 +637,13 @@ export function App() {
     if (explicitLegendRef.current) return;
     setState((current) => ({
       ...current,
-      legendMode: isMobile ? "compact" : "expanded",
+      legendMode: "compact",
     }));
   }, [isMobile]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setState((current) => ({ ...current, time: tickLive(current.time, nowSeconds()) }));
+      setClockMs(Date.now());
     }, 30_000);
     return () => window.clearInterval(interval);
   }, []);
@@ -688,42 +672,99 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const requestedCharts = chartDefinitions.filter(
-      (chart) =>
-        dashboardViewForGroup(chart.group) === selectedView &&
-        activeChartIds.has(chart.id) &&
-        !collapsedGroups.has(chart.group),
-    );
-    if (!requestedCharts.length) return () => controller.abort();
+    const loadKey = (chart: (typeof chartDefinitions)[number]) =>
+      selectedView === "overview" && chart.id === "capacity-headroom"
+        ? "capacity-headroom:prc-only"
+        : chart.id;
+    const loadContext = JSON.stringify([
+      resolvedTime.start,
+      resolvedTime.end,
+      state.compare,
+      state.customCompareSeconds,
+      requestRevision,
+    ]);
+    const priorSeriesData = seriesDataRef.current;
+    if (loadedChartContextRef.current !== loadContext) {
+      for (const pending of historyControllers.current) pending.abort();
+      historyControllers.current.clear();
+      requestGenerationRef.current += 1;
+      loadedChartContextRef.current = loadContext;
+      loadedChartIdsRef.current.clear();
+    }
+    const requestGeneration = requestGenerationRef.current;
+    // Serialize visibility batches. New placements reuse completed data and wait
+    // for the current batch instead of aborting and duplicating its requests.
+    if (historyControllers.current.size) return;
+    const requestedCharts = chartDefinitions
+      .filter(
+        (chart) =>
+          (selectedView === "overview"
+            ? overviewChartIds.has(chart.id) || engineeringChartIds.has(chart.id)
+            : dashboardViewForGroup(chart.group) === selectedView) &&
+          (activeChartIds.has(chart.id) ||
+            (selectedView === "overview" &&
+              ["supply-demand", "capacity-headroom", "pricing", "frequency"].includes(chart.id)) ||
+            (selectedView === "overview" &&
+              chart.id === "capacity-headroom" &&
+              activeChartIds.has("overview-headroom"))) &&
+          (selectedView === "overview" || !collapsedGroups.has(chart.group)) &&
+          !loadedChartIdsRef.current.has(loadKey(chart)),
+      )
+      .map((chart) =>
+        selectedView === "overview" && chart.id === "capacity-headroom"
+          ? { ...chart, series: chart.series.filter((series) => series.id === "prc") }
+          : chart,
+      );
+    if (!requestedCharts.length) {
+      setLoading(false);
+      return;
+    }
+    for (const chart of requestedCharts) loadedChartIdsRef.current.add(loadKey(chart));
+    historyControllers.current.add(controller);
     setLoading(true);
     setRequestError(null);
     void loadSeries(
       requestedCharts,
-      state.time,
+      resolvedTime,
       state.compare,
       state.customCompareSeconds,
       controller.signal,
-      seriesDataRef.current,
+      priorSeriesData,
     )
       .then((nextSeries) => {
+        if (
+          !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+        )
+          return;
         setSeriesData((current) => new Map([...current, ...nextSeries]));
+        setSeriesTime(resolvedTime);
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setRequestError(error instanceof Error ? error.message : String(error));
-        }
+        if (
+          !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+        )
+          return;
+        // Keep failed keys attempted for this generation. Explicit retry or a
+        // new window invalidates them; the visibility queue must not hot-loop.
+        setRequestError(error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        historyControllers.current.delete(controller);
+        if (
+          shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+        ) {
+          setLoading(false);
+          setHistoryQueueRevision((value) => value + 1);
+        }
       });
-    return () => controller.abort();
   }, [
+    historyQueueRevision,
     activeChartIds,
     collapsedGroups,
     state.compare,
     state.customCompareSeconds,
-    state.time.end,
-    state.time.start,
+    resolvedTime.end,
+    resolvedTime.start,
     requestRevision,
     selectedView,
   ]);
@@ -769,10 +810,15 @@ export function App() {
   );
 
   const onZoom = useCallback((start: number, end: number) => {
-    setState((current) => {
-      zoomOriginRef.current ??= current.time;
-      return { ...current, time: zoomTo(current.time, start, end) };
-    });
+    setState((current) => ({
+      ...current,
+      time: commitFixedTimeRange(
+        current.time,
+        Math.round(start * 1000),
+        Math.round(end * 1000),
+        "zoom",
+      ),
+    }));
   }, []);
 
   const setChartVisible = useCallback((chartId: string, visible: boolean) => {
@@ -781,15 +827,6 @@ export function App() {
       if (visible) next.add(chartId);
       else next.delete(chartId);
       return next;
-    });
-  }, []);
-
-  const toggleSeries = useCallback((key: string) => {
-    setState((current) => {
-      const hiddenSeries = new Set(current.hiddenSeries);
-      if (hiddenSeries.has(key)) hiddenSeries.delete(key);
-      else hiddenSeries.add(key);
-      return { ...current, hiddenSeries };
     });
   }, []);
 
@@ -917,13 +954,6 @@ export function App() {
       trend: heroTrends[definition.id],
       value: criticalValues[definition.id],
     }));
-  const mobilePrimaryOverview = overview.filter((item) =>
-    mobilePrimaryCriticalMetricIds.includes(item.id),
-  );
-  const mobileSupportingOverview = overview.filter((item) =>
-    mobileSupportingCriticalMetricIds.includes(item.id),
-  );
-  const visibleOverview = isMobile ? mobilePrimaryOverview : overview;
   const operatingSummary = useMemo(
     () =>
       buildOperatingSummary({
@@ -954,9 +984,9 @@ export function App() {
     ? formatAge(Math.max(0, nowSeconds() - operatingSummary.coreObservedAt)).replace(" old", " ago")
     : null;
   const freshnessLabel =
-    state.time.mode === "fixed"
+    resolvedTime.mode === "fixed"
       ? "Viewing a fixed analysis window"
-      : state.time.paused
+      : resolvedTime.paused
         ? updatedAge
           ? `Paused · updated ${updatedAge}`
           : "Paused"
@@ -980,24 +1010,6 @@ export function App() {
     loading: overviewLoading,
     unavailable: Boolean(effectiveRequestError),
   });
-  const priceLifecycleState = resolveDataLifecycleState({
-    hasData: priceRanking.length > 0,
-    loading: overviewLoading,
-    unavailable: Boolean(effectiveRequestError),
-  });
-  const settlementRows = priceRanking.map((row) => ({
-    ...row,
-    metadata: settlementPointMetadata(row.tag),
-  }));
-  const houstonSettlement = settlementRows.find((row) => row.metadata.code === "HB_HOUSTON");
-  const settlementValues = settlementRows.map((row) => row.value);
-  const settlementSpread = settlementValues.length
-    ? Math.max(...settlementValues) - Math.min(...settlementValues)
-    : null;
-  const settlementObservedAt = Math.max(...settlementRows.map((row) => row.ts), 0);
-  const settlementAge = settlementObservedAt
-    ? Math.max(0, nowSeconds() - settlementObservedAt)
-    : null;
   const sourceHeadline =
     sourceLifecycleState === "ready"
       ? diagnostics.headline
@@ -1014,17 +1026,13 @@ export function App() {
   );
   const activeView = dashboardViewDefinition(selectedView);
   const activeChartGroups = chartGroups.filter(
-    (group) => dashboardViewForGroup(group) === selectedView,
+    (group) => selectedView !== "overview" && dashboardViewForGroup(group) === selectedView,
   );
   const featuredChart = chartDefinitions.find((chart) => chart.id === "supply-demand")!;
 
   const controls = {
-    onError: setRequestError,
     onExplicitLegend: () => {
       explicitLegendRef.current = true;
-    },
-    onResetOrigin: () => {
-      zoomOriginRef.current = null;
     },
     setState,
     state,
@@ -1042,7 +1050,7 @@ export function App() {
 
   const renderChart = (
     chart: (typeof chartDefinitions)[number],
-    presentation: "featured" | "standard" = "standard",
+    presentation: "featured" | "standard" | "overview" = "standard",
   ) => (
     <Suspense
       fallback={<article className="chart-card chart-card-lazy">Loading chart workspace…</article>}
@@ -1064,22 +1072,23 @@ export function App() {
           }))
         }
         onResetZoom={() =>
-          setState((current) => {
-            const origin = zoomOriginRef.current;
-            zoomOriginRef.current = null;
-            return { ...current, time: origin ?? current.time };
-          })
+          setState((current) => ({
+            ...current,
+            time:
+              current.time.selection.kind === "fixed" && current.time.selection.origin === "zoom"
+                ? resetTimeRange(current.time, ERCOT_TIME_RANGE_CONFIG)
+                : current.time,
+          }))
         }
         onSetCompare={(compare) => setState((current) => ({ ...current, compare }))}
         onSoloSeries={soloSeries}
-        onToggleSeries={toggleSeries}
         onVisibilityChange={setChartVisible}
         onZoom={onZoom}
         presentation={presentation}
         requestError={effectiveRequestError}
-        seriesData={seriesData}
+        seriesData={selectedView === "overview" ? overviewSeriesData : seriesData}
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
-        time={state.time}
+        time={seriesTime}
       />
     </Suspense>
   );
@@ -1087,26 +1096,53 @@ export function App() {
   return (
     <div className="dashboard-shell">
       <header className="dashboard-header">
-        <div>
-          <h1 ref={dashboardTitleRef} tabIndex={-1}>
-            ERCOT Grid Status
-          </h1>
+        <div className="dashboard-brand">
+          <span aria-hidden="true" className="dashboard-brand-mark">
+            <svg fill="none" viewBox="0 0 32 32">
+              <path d="M5 22 11 9l5 8 4-6 7 11" />
+              <path d="M5 25h22M8 19h16" />
+            </svg>
+          </span>
+          <div>
+            <h1 ref={dashboardTitleRef} tabIndex={-1}>
+              ERCOT Grid Dashboard
+            </h1>
+          </div>
         </div>
-        {state.time.mode === "fixed" ? null : (
-          <p className="freshness-state" data-mode={state.time.mode}>
+        {resolvedTime.mode === "fixed" ||
+        selectedView === "outlook" ||
+        selectedView === "texas-grid" ||
+        selectedView === "external-context" ? null : (
+          <p className="freshness-state" data-mode={resolvedTime.mode}>
             {freshnessLabel}
           </p>
         )}
-        <section aria-label="Global dashboard controls" className="control-bar compact-control-bar">
-          <TimeRangeSelect setState={setState} state={state} />
-          <Button
-            aria-haspopup="dialog"
-            onClick={() => setMobileDialog("controls")}
-            ref={controlsTriggerRef}
+        {selectedView === "outlook" ||
+        selectedView === "texas-grid" ||
+        selectedView === "external-context" ? null : (
+          <section
+            aria-label="Global dashboard controls"
+            className="control-bar compact-control-bar"
           >
-            Analyze
-          </Button>
-        </section>
+            <TimeRangePicker
+              calendarPresets={ERCOT_CALENDAR_PRESETS}
+              config={ERCOT_TIME_RANGE_CONFIG}
+              nowMs={clockMs}
+              onCommit={(time) => setState((current) => ({ ...current, time }))}
+              presentation={isMobile ? "mobile" : "desktop"}
+              presets={ERCOT_DURATION_PRESETS}
+              timezoneOptions={["America/Chicago", "UTC", "America/New_York"]}
+              value={state.time}
+            />
+            <Button
+              aria-haspopup="dialog"
+              onClick={() => setMobileDialog("controls")}
+              ref={controlsTriggerRef}
+            >
+              Time &amp; compare
+            </Button>
+          </section>
+        )}
       </header>
 
       {!isMobile ? (
@@ -1127,7 +1163,6 @@ export function App() {
       >
         {selectedView !== "overview" ? (
           <section className="dashboard-view-heading">
-            <p className="eyebrow">Dashboard view</p>
             <h2 ref={viewHeadingRef} tabIndex={-1}>
               {activeView.label}
             </h2>
@@ -1137,39 +1172,6 @@ export function App() {
 
         {selectedView === "overview" ? (
           <>
-            <section
-              aria-label="Grid overview"
-              className="overview-grid overview-readings"
-              data-mobile-tier="primary"
-            >
-              {visibleOverview.map((item) => (
-                <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
-              ))}
-            </section>
-            <section aria-label="Featured grid trend" className="featured-chart-section">
-              {renderChart(featuredChart, "featured")}
-            </section>
-
-            <GridHealthSummary gridHealth={gridHealth} />
-
-            {isMobile ? (
-              <details className="mobile-supporting-metrics">
-                <summary>
-                  <span>Supporting grid readings</span>
-                  <small>Available capacity and frequency</small>
-                  <span aria-hidden="true" className="mobile-supporting-indicator">
-                    <span className="mobile-supporting-indicator-closed">+</span>
-                    <span className="mobile-supporting-indicator-open">−</span>
-                  </span>
-                </summary>
-                <section aria-label="Supporting grid readings" className="overview-grid">
-                  {mobileSupportingOverview.map((item) => (
-                    <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
-                  ))}
-                </section>
-              </details>
-            ) : null}
-
             <section
               aria-label="Current ERCOT status"
               className="status-strip"
@@ -1203,6 +1205,23 @@ export function App() {
                   Diagnostics
                 </Button>
               ) : null}
+            </section>
+
+            <OverviewCharts
+              renderChart={renderChart}
+              seriesData={overviewSeriesData}
+              time={seriesTime}
+            />
+            <section className="homepage-events" aria-label="Operations context">
+              <Button ref={eventsTriggerRef} onClick={() => setMobileDialog("events")}>
+                Operations messages · {events.length} in window
+              </Button>
+              <Button onClick={() => navigateToView("outlook")}>
+                Next-day demand &amp; capacity outlook
+              </Button>
+              <small>
+                Messages retain source timestamps. Temporal overlap does not establish cause.
+              </small>
             </section>
 
             {publicAlerts.length ? (
@@ -1254,8 +1273,17 @@ export function App() {
             ) : null}
 
             <details className="grid-health-details">
-              <summary>How status is determined</summary>
+              <summary>Grid Health inputs and scoring</summary>
               <div>
+                <GridHealthSummary gridHealth={gridHealth} />
+                <section
+                  aria-label="Current source readings"
+                  className="overview-grid overview-readings"
+                >
+                  {overview.map((item) => (
+                    <MetricOverviewCard item={item} key={item.id} loading={overviewLoading} />
+                  ))}
+                </section>
                 <h3>Analytical Grid Health Score</h3>
                 <p>
                   Eight weighted factors contribute 100 possible points. Threshold penalties are
@@ -1296,8 +1324,19 @@ export function App() {
         ) : null}
 
         {selectedView === "overview" ? (
+          <Suspense fallback={state.history ? <DataLifecycleMessage state="loading" /> : null}>
+            <HistoricalContextPanel
+              asOf={historicalContextAsOf(resolvedTime.end)}
+              enabled={selectedView === "overview"}
+              expanded={state.history}
+              onExpandedChange={(history) => setState((current) => ({ ...current, history }))}
+            />
+          </Suspense>
+        ) : null}
+
+        {selectedView === "overview" ? (
           <details className="derived-insights-section" data-information-level="operational">
-            <summary>Calculated grid insights</summary>
+            <summary>Calculated grid insights and formulas</summary>
             <div>
               <p>Transparent calculations from current readings and bounded comparison windows.</p>
               <div aria-label="Derived grid metrics" className="derived-insights-grid">
@@ -1327,117 +1366,43 @@ export function App() {
           </details>
         ) : null}
 
-        {selectedView === "reliability" ? (
-          <section aria-label="ERCOT operations messages" className="events-panel">
-            <div>
-              <p className="eyebrow">History</p>
-              <h2>Operations timeline</h2>
-              <p>ERCOT notices in the selected time window, classified for faster review.</p>
-            </div>
-            {state.events ? (
-              <OperationsTimeline
-                events={events}
-                loading={eventsLoading}
-                unavailable={eventsUnavailable}
-              />
-            ) : (
-              <div className="view-empty-note">
-                <p>Operations annotations are off for the shared dashboard window.</p>
-                <Button aria-haspopup="dialog" onClick={() => setMobileDialog("controls")}>
-                  Review controls
-                </Button>
-              </div>
-            )}
-          </section>
+        {selectedView === "outlook" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <OutlookView enabled={selectedView === "outlook"} />
+          </Suspense>
+        ) : null}
+
+        {selectedView === "texas-grid" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <TexasGridView enabled={selectedView === "texas-grid"} />
+          </Suspense>
+        ) : null}
+
+        {selectedView === "external-context" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <ExternalContextView enabled={selectedView === "external-context"} />
+          </Suspense>
         ) : null}
 
         {selectedView === "market" ? (
-          <section aria-label="Settlement price ranking" className="events-panel ranking-panel">
-            <div>
-              <p className="eyebrow">Market ranking</p>
-              <h2>Latest settlement point prices</h2>
-            </div>
-            {priceLifecycleState === "ready" ? (
-              <div className="market-price-context">
-                <div aria-label="Settlement price summary" className="market-summary-grid">
-                  <article>
-                    <span>Houston Hub</span>
-                    <strong>
-                      {houstonSettlement
-                        ? formatValue(houstonSettlement.value, "$/MWh")
-                        : "Not reported"}
-                    </strong>
-                  </article>
-                  <article>
-                    <span>High–low spread</span>
-                    <strong>
-                      {settlementSpread === null
-                        ? "Not reported"
-                        : formatValue(settlementSpread, "$/MWh")}
-                    </strong>
-                  </article>
-                  <article>
-                    <span>Regional context</span>
-                    <strong>
-                      {settlementSpread !== null && settlementSpread >= 100
-                        ? "Material divergence"
-                        : "Broadly aligned"}
-                    </strong>
-                  </article>
-                  <article>
-                    <span>Publication</span>
-                    <strong>
-                      {settlementAge === null ? "Not reported" : formatAge(settlementAge)}
-                    </strong>
-                    {settlementAge === null ? null : (
-                      <small>{settlementFreshness(settlementAge)}</small>
-                    )}
-                  </article>
-                </div>
-                <details className="market-ranking-details">
-                  <summary>Complete hub and load-zone ranking</summary>
-                  <div className="table-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Settlement point</th>
-                          <th>Price</th>
-                          <th>Observed</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {settlementRows.map((row) => (
-                          <tr key={row.tag}>
-                            <td>
-                              <strong>{row.metadata.label}</strong>
-                              <small>
-                                {row.metadata.type} · {row.metadata.code}
-                              </small>
-                            </td>
-                            <td>{formatValue(row.value, "$/MWh")}</td>
-                            <td>{new Date(row.ts * 1000).toLocaleString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              </div>
-            ) : (
-              <DataLifecycleMessage
-                className="panel-lifecycle-message"
-                detail={
-                  priceLifecycleState === "waiting"
-                    ? "No settlement-price sample has been reported yet."
-                    : undefined
-                }
-                state={priceLifecycleState}
-              />
-            )}
-          </section>
+          <>
+            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+              <MarketGeographyPanel enabled={selectedView === "market"} />
+            </Suspense>
+            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+              <MarketMechanicsPanel enabled={selectedView === "market"} />
+            </Suspense>
+          </>
         ) : null}
 
         {selectedView === "weather" ? <WeatherConditions latest={latest} /> : null}
+
+        {selectedView === "generation" ? (
+          <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+            <NetLoadPanel enabled={selectedView === "generation"} />
+            <RegionalGeographyPanel enabled={selectedView === "generation"} />
+          </Suspense>
+        ) : null}
 
         {activeChartGroups.map((group) => {
           const showGroupHeading = activeView.groups.length > 1;
@@ -1453,7 +1418,9 @@ export function App() {
               {showGroupHeading ? (
                 <button
                   aria-expanded={!collapsed}
-                  aria-label={group + " " + (collapsed ? "Expand" : "Collapse")}
+                  aria-label={
+                    chartGroupDisplayLabel(group) + " " + (collapsed ? "Expand" : "Collapse")
+                  }
                   className="group-heading"
                   onClick={() =>
                     setCollapsedGroups((current) => {
@@ -1465,7 +1432,7 @@ export function App() {
                   }
                 >
                   <span>
-                    {group}
+                    {chartGroupDisplayLabel(group)}
                     <small>{groupInformation.description}</small>
                   </span>
                   <span>{collapsed ? "Expand" : "Collapse"}</span>
@@ -1486,6 +1453,23 @@ export function App() {
           );
         })}
 
+        {selectedView === "reliability" ? (
+          state.events ? (
+            <Suspense fallback={<DataLifecycleMessage state="loading" />}>
+              <GridEventTimeline enabled time={resolvedTime} />
+            </Suspense>
+          ) : (
+            <section aria-label="Unified grid event timeline" className="events-panel">
+              <div className="view-empty-note">
+                <p>Grid-event annotations are off for the shared dashboard window.</p>
+                <Button aria-haspopup="dialog" onClick={() => setMobileDialog("controls")}>
+                  Review controls
+                </Button>
+              </div>
+            </section>
+          )
+        ) : null}
+
         {selectedView === "diagnostics" ? (
           <>
             <section
@@ -1495,7 +1479,7 @@ export function App() {
               data-information-level="diagnostics"
             >
               <div>
-                <p className="eyebrow">Diagnostics</p>
+                <p className="eyebrow">Collection status</p>
                 <h2>System health</h2>
               </div>
               <div className="diagnostics-summary-content">
@@ -1525,14 +1509,14 @@ export function App() {
       ) : null}
 
       <MobileDialog
-        description="Change the shared analytical time window, comparison, legend, and event settings."
+        description="Set the comparison, legend, and event settings used across charts."
         onClose={() => setMobileDialog(null)}
         open={mobileDialog === "controls"}
         returnFocusRef={controlsTriggerRef}
-        title="Analyze"
+        title="Time & comparison"
       >
         <div className="sheet-controls">
-          <DashboardControls {...controls} surface="sheet" />
+          <DashboardControls {...controls} />
         </div>
       </MobileDialog>
 

@@ -4,15 +4,6 @@ import { canonicalChunkUrl, liveQuerySince, mergePoints } from "./api";
 import { alignComparison, alignComparisonForMode, compareOffset, compareWindow } from "./compare";
 import { freshnessState } from "./freshness";
 import { seriesStats } from "./stats";
-import {
-  createTimeState,
-  navigateWindow,
-  resetLive,
-  setCustomRange,
-  tickLive,
-  togglePause,
-  zoomTo,
-} from "./time-state";
 import { formatChicagoDateTimeInput, parseChicagoDateTime } from "./zoned-time";
 import {
   dashboardStateFromUrl,
@@ -22,59 +13,43 @@ import {
 } from "./url-state";
 import { formatAge, formatValue } from "./units";
 
-describe("global time state", () => {
-  it("defaults live, pauses without moving, and resumes on the current clock", () => {
-    const initial = createTimeState(10_000, 3600);
-    expect(initial).toMatchObject({ mode: "live", start: 6400, end: 10_000 });
-    const paused = togglePause(initial, 10_100);
-    expect(paused.paused).toBe(true);
-    expect(tickLive(paused, 20_000)).toEqual(paused);
-    const resumed = togglePause(paused, 20_000);
-    expect(resumed.paused).toBe(false);
-    expect(tickLive(resumed, 20_030)).toMatchObject({ start: 16_430, end: 20_030 });
-  });
-
-  it("moves exactly one window and zoom transitions to fixed mode", () => {
-    const initial = createTimeState(10_000, 1000);
-    expect(navigateWindow(initial, -1)).toMatchObject({ start: 8000, end: 9000, mode: "fixed" });
-    expect(zoomTo(initial, 9200, 9700)).toMatchObject({
-      start: 9200,
-      end: 9700,
-      rangeSeconds: 500,
-      mode: "fixed",
-    });
-    expect(resetLive(setCustomRange(1, 101), 500)).toMatchObject({
-      start: 400,
-      end: 500,
-      mode: "live",
-    });
-  });
-});
-
 describe("shareable URL state", () => {
   it("normalizes and serializes the active progressive-disclosure view", () => {
     expect(dashboardViewFromUrl(new URL("https://example.test/?view=weather"))).toBe("weather");
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=outlook"))).toBe("outlook");
+    expect(dashboardViewFromUrl(new URL("https://example.test/?view=external-context"))).toBe(
+      "external-context",
+    );
     expect(dashboardViewFromUrl(new URL("https://example.test/?view=unknown"))).toBe("overview");
     const output = dashboardViewToUrl("diagnostics", new URL("https://example.test/?range=3600"));
     expect(output.searchParams.get("view")).toBe("diagnostics");
     expect(output.searchParams.get("range")).toBe("3600");
+    const external = dashboardViewToUrl(
+      "external-context",
+      new URL("https://example.test/?grid_resource=gis&context_source=epa_egrid"),
+    );
+    expect(external.searchParams.get("grid_resource")).toBeNull();
+    expect(external.searchParams.get("context_source")).toBe("epa_egrid");
+    expect(dashboardViewToUrl("overview", external).searchParams.get("context_source")).toBeNull();
   });
 
   it("round trips fixed time, comparison, events, inspect, legend and hidden series", () => {
     const parsed = dashboardStateFromUrl(
       new URL(
-        "https://example.test/?live=0&from=100&to=700&range=600&compare=day&events=0&inspect=storage&legend=compact&hidden=storage:charging",
+        "https://example.test/?live=0&from=100&to=700&range=600&compare=day&events=0&history=1&inspect=storage&legend=compact&hidden=storage:charging",
       ),
       1000,
     );
-    expect(parsed.time.mode).toBe("fixed");
+    expect(parsed.time.selection.kind).toBe("fixed");
     expect(parsed.compare).toBe("day");
     expect(parsed.events).toBe(false);
+    expect(parsed.history).toBe(true);
     expect(parsed.expandedChart).toBe("storage");
     expect(parsed.hiddenSeries.has("storage:charging")).toBe(true);
     const output = dashboardStateToUrl(parsed, new URL("https://example.test/"));
     expect(output.searchParams.get("from")).toBe("100");
     expect(output.searchParams.get("hidden")).toBe("storage:charging");
+    expect(output.searchParams.get("history")).toBe("1");
   });
 });
 
@@ -170,6 +145,12 @@ describe("live request planning", () => {
     ];
 
     expect(liveQuerySince(time, previous)).toBe(301);
+    expect(
+      liveQuerySince(time, [
+        [-10_000, 1],
+        [-9_000, 2],
+      ]),
+    ).toBe(100);
     expect(
       mergePoints(
         previous,

@@ -9,6 +9,7 @@ export type MobileScenario =
   | "fuel-mix"
   | "negative"
   | "normal"
+  | "outlook-stale"
   | "quiet"
   | "spike"
   | "storage"
@@ -19,14 +20,128 @@ export const FIXED_NOW_SECONDS = Math.floor(FIXED_NOW.getTime() / 1000);
 export const LONG_SOURCE_ERROR =
   "Upstream settlement archive rejected the collector checkpoint after a gateway timeout; retry is scheduled and stale historical data remains available for review.";
 
+export function outlookFixture(stale = false) {
+  const forecastSource = "ercot_public_np3_565_weather_zone_forecast";
+  const adequacySource = "ercot_public_np3_763_system_adequacy";
+  const publication = (
+    sourceId: typeof forecastSource | typeof adequacySource,
+    productId: "NP3-565-CD" | "NP3-763-CD",
+  ) => ({
+    declared_unit: "MW",
+    issued_at: FIXED_NOW_SECONDS - 3_600,
+    product_id: productId,
+    retrieved_at: FIXED_NOW_SECONDS - 1_800,
+    source_id: sourceId,
+    vintage_key: `v1-${(productId === "NP3-565-CD" ? "a" : "b").repeat(64)}`,
+  });
+  const health = (sourceId: string, displayName: string, sourceStale = false) => ({
+    availability_status: "available",
+    consecutive_failures: sourceStale ? 2 : 0,
+    data_timestamp_ts: FIXED_NOW_SECONDS - (sourceStale ? 10_800 : 1_800),
+    display_name: displayName,
+    freshness_state: sourceStale ? "stale" : "fresh",
+    last_success_ts: FIXED_NOW_SECONDS - (sourceStale ? 10_800 : 1_800),
+    source_id: sourceId,
+    source_timestamp_ts: FIXED_NOW_SECONDS - (sourceStale ? 10_800 : 3_600),
+    state: sourceStale ? "stale" : "healthy",
+  });
+  const days = [
+    "2026-07-22",
+    "2026-07-23",
+    "2026-07-24",
+    "2026-07-25",
+    "2026-07-26",
+    "2026-07-27",
+    "2026-07-28",
+  ];
+  const forecastRows = days.flatMap((deliveryDate, dayIndex) =>
+    [1, 2].map((hourOffset) => ({
+      delivery_date: deliveryDate,
+      demand_mw: 68_000 + dayIndex * 850 + hourOffset * 1_200,
+      dst_flag: false,
+      hour_ending: `${String(13 + hourOffset).padStart(2, "0")}:00`,
+      model: "A3",
+      revision_mw: dayIndex * 75 - 150,
+      target_ts: FIXED_NOW_SECONDS + dayIndex * 86_400 + hourOffset * 3_600,
+    })),
+  );
+  const adequacyRows = forecastRows.map((row, index) => ({
+    available_generation_mw: 90_000 - index * 100,
+    delivery_date: row.delivery_date,
+    hour_ending: row.hour_ending,
+    projected_headroom_mw: 16_000 - index * 325,
+    repeat_hour_flag: false,
+    target_ts: row.target_ts,
+  }));
+  return {
+    adequacy: {
+      headroom_definition: "AvailCapGen minus forecasted Demand for each hour",
+      headroom_field: "availCapRes",
+      publication: publication(adequacySource, "NP3-763-CD"),
+      rows: adequacyRows,
+      source_health: health(adequacySource, "ERCOT NP3-763 System Adequacy"),
+    },
+    forecast: {
+      publication: publication(forecastSource, "NP3-565-CD"),
+      revision_policy: "latest_issued_at_least_24h_before_current",
+      revision_reference: {
+        ...publication(forecastSource, "NP3-565-CD"),
+        issued_at: FIXED_NOW_SECONDS - 90_000,
+        retrieved_at: FIXED_NOW_SECONDS - 88_200,
+        vintage_key: `v1-${"c".repeat(64)}`,
+      },
+      rows: forecastRows,
+      selection_policy: "in_use_flag_true",
+      source_health: health(forecastSource, "ERCOT NP3-565 Load Forecast", stale),
+    },
+    interpretation: {
+      kind: "dashboard_outlook",
+      official_ercot_status: false,
+      status: null,
+    },
+    schema: 1,
+    weather_context: {
+      driver: null,
+      forecast_driver_available: false,
+      observations: [
+        {
+          label: "Dallas–Fort Worth",
+          observed_at: FIXED_NOW_SECONDS - 1_800,
+          station_code: "KDFW",
+          temperature_c: 36,
+        },
+        {
+          label: "Houston",
+          observed_at: FIXED_NOW_SECONDS - 1_800,
+          station_code: "KHOU",
+          temperature_c: 34,
+        },
+      ],
+      source: {
+        availability_status: "available",
+        consecutive_failures: 0,
+        data_timestamp_ts: FIXED_NOW_SECONDS - 1_800,
+        display_name: "Aviation Weather METAR",
+        expected_interval_seconds: 3_600,
+        freshness_state: "fresh",
+        last_success_ts: FIXED_NOW_SECONDS - 1_500,
+        source_id: "metar",
+        source_timestamp_ts: FIXED_NOW_SECONDS - 1_800,
+        state: "healthy",
+      },
+      state: "current_observations_only",
+    },
+  };
+}
+
 function metricValue(metric: string, tags: string[], index: number, scenario: MobileScenario) {
   const wave = Math.sin(index / 5);
   if (metric.includes("demand_mw")) return 68_200 + wave * 3200;
   if (metric.includes("capacity_mw")) return 88_500 + wave * 1800;
   if (metric.includes("Frequency")) return 60.001 + wave * 0.018;
-  if (metric.includes("charging_mw")) return -900 - wave * 500;
+  if (metric.includes(".charging_mw")) return -900 - wave * 500;
   if (metric.includes("discharging_mw")) return 450 + wave * 300;
-  if (metric.includes("net_output_mw")) return -450 + wave * 800;
+  if (metric.includes("net_output_mw")) return -450 - wave * 200;
   if (metric.includes("eea_level")) return 0;
   if (metric.includes("metar.temperature")) return 31 + wave * 4;
   if (metric.includes("metar.winds.speed")) return 12 + wave * 4;
@@ -201,6 +316,7 @@ export async function installMobileApi(
   page: Page,
   scenario: MobileScenario = "normal",
   requests: string[][] = [],
+  options: { nativeCadence?: boolean } = {},
 ) {
   await page.clock.setFixedTime(FIXED_NOW);
   await page.route("**/api/series/batch", async (route) => {
@@ -213,7 +329,11 @@ export async function installMobileApi(
     };
     requests.push(payload.queries.map((query) => query.id));
     const series = payload.queries.map((query) => {
-      const count = query.id.includes("compare") ? 42 : 64;
+      const count = options.nativeCadence
+        ? Math.min(1200, Math.floor((query.until - query.since) / 300) + 1)
+        : query.id.includes("compare")
+          ? 42
+          : 64;
       const step = Math.max(60, Math.floor((query.until - query.since) / (count - 1)));
       const points =
         scenario === "empty"
@@ -286,6 +406,9 @@ export async function installMobileApi(
   );
   await page.route("**/api/v1/events**", (route) =>
     route.fulfill({ json: { events: eventFixture(scenario) } }),
+  );
+  await page.route("**/api/v1/outlook", (route) =>
+    route.fulfill({ json: outlookFixture(scenario === "outlook-stale") }),
   );
 }
 

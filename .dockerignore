@@ -8,4 +8,4 @@
 !frontend/**
 !ercot-receiver/
 ercot-receiver/*
-!ercot-receiver/server.py
+!ercot-receiver/*.py

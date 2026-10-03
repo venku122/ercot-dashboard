@@ -1,15 +1,31 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import useSWR, { type SWRConfiguration } from "swr";
 
 import {
   loadDerivedContext,
   loadEvents,
+  loadExternalContextManifest,
+  loadExternalContextResource,
+  loadForecastQualityManifest,
+  loadForecastQualityResource,
+  loadGridEventTimeline,
+  loadHistoricalContext,
   loadLatest,
-  loadPriceRanking,
+  loadNetLoadDailyResource,
+  loadNetLoadManifest,
+  loadNetLoadResource,
+  loadOutlook,
+  loadPredictiveWeather,
   loadSourceHealth,
+  loadTexasGridManifest,
+  loadTexasGridResource,
   loadTrendBaselines,
   type LatestQuery,
 } from "./api";
+import type { ForecastQualityManifest } from "./forecast-quality";
+import type { ExternalContextSelected, ExternalContextStream } from "./external-context";
+import type { NetLoadDailyLink, NetLoadResourceLink } from "./net-load";
+import type { TexasGridSelectedResource } from "./texas-grid-long-horizon";
 import { derivedLatestQueries } from "./derived-metrics";
 import { healthLatestQueries } from "./grid-health-score";
 import type { EventRecord, TimeState } from "./types";
@@ -34,6 +50,203 @@ const swrPolicy: SWRConfiguration = {
 
 const fastQueryIds = new Set(["frequency", "health-eea"]);
 
+export function useOutlookData(enabled: boolean) {
+  const controller = useRef<AbortController | null>(null);
+  const fetchOutlook = useCallback(() => {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loadOutlook(next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, []);
+  useEffect(() => {
+    if (!enabled) controller.current?.abort();
+    return () => {
+      if (enabled) controller.current?.abort();
+    };
+  }, [enabled]);
+  return useSWR(enabled ? ["outlook", "current"] : null, fetchOutlook, {
+    ...swrPolicy,
+    refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
+  });
+}
+
+export function usePredictiveWeather(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadPredictiveWeather(signal), []);
+  return useAbortableResource(enabled, ["predictive-weather", "current"], loader);
+}
+
+export function useGridEventTimeline(enabled: boolean, from: number, to: number) {
+  const loader = useCallback(
+    (signal: AbortSignal) => loadGridEventTimeline(from, to, signal),
+    [from, to],
+  );
+  return useAbortableResource(enabled, ["grid-events", from, to], loader);
+}
+
+export function useHistoricalContext(enabled: boolean, asOf: number) {
+  const loader = useCallback((signal: AbortSignal) => loadHistoricalContext(asOf, signal), [asOf]);
+  return useAbortableResource(enabled, ["historical-context", asOf], loader);
+}
+
+export function useTexasGridManifest(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadTexasGridManifest(signal), []);
+  return useAbortableResource(enabled, ["texas-grid", "manifest"], loader);
+}
+
+export function useTexasGridResource(enabled: boolean, resource: TexasGridSelectedResource | null) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!resource) return Promise.reject(new Error("missing_texas_grid_resource"));
+      return loadTexasGridResource(resource, signal);
+    },
+    [resource],
+  );
+  return useAbortableResource(
+    enabled && resource !== null,
+    ["texas-grid", "resource", resource?.url],
+    loader,
+  );
+}
+
+export function useExternalContextManifest(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadExternalContextManifest(signal), []);
+  return useAbortableResource(enabled, ["external-context", "manifest"], loader);
+}
+
+export function useExternalContextResource(
+  enabled: boolean,
+  stream: ExternalContextStream | null,
+  selected: ExternalContextSelected | null,
+) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!stream || !selected)
+        return Promise.reject(new Error("missing_external_context_resource"));
+      return loadExternalContextResource(stream, selected, signal);
+    },
+    [selected, stream],
+  );
+  return useAbortableResource(
+    enabled && stream !== null && selected !== null,
+    ["external-context", "resource", stream, selected?.url],
+    loader,
+  );
+}
+
+export function useForecastQuality(enabled: boolean) {
+  const controller = useRef<AbortController | null>(null);
+  const fetchManifest = useCallback(() => {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loadForecastQualityManifest(next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, []);
+  useEffect(() => {
+    if (!enabled) controller.current?.abort();
+    return () => {
+      if (enabled) controller.current?.abort();
+    };
+  }, [enabled]);
+  return useSWR(enabled ? ["forecast-quality", "manifest"] : null, fetchManifest, {
+    ...swrPolicy,
+    refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
+  });
+}
+
+export function useForecastQualityResource(
+  enabled: boolean,
+  resource: ForecastQualityManifest["resources"][number] | null,
+) {
+  const controller = useRef<AbortController | null>(null);
+  const fetchResource = useCallback(() => {
+    if (resource === null) throw new Error("missing_forecast_quality_resource");
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loadForecastQualityResource(resource, next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, [resource]);
+  useEffect(() => {
+    if (!enabled) controller.current?.abort();
+    return () => {
+      if (enabled) controller.current?.abort();
+    };
+  }, [enabled]);
+  return useSWR(enabled && resource ? ["forecast-quality", resource.url] : null, fetchResource, {
+    ...swrPolicy,
+    keepPreviousData: false,
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+}
+
+function useAbortableResource<T>(
+  enabled: boolean,
+  key: readonly unknown[],
+  loader: (signal: AbortSignal) => Promise<T>,
+) {
+  const controller = useRef<AbortController | null>(null);
+  const fetcher = useCallback(() => {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    return loader(next.signal).finally(() => {
+      if (controller.current === next) controller.current = null;
+    });
+  }, [loader]);
+  useEffect(() => {
+    if (!enabled) {
+      controller.current?.abort();
+      return;
+    }
+    return () => controller.current?.abort();
+  }, [enabled]);
+  return useSWR(enabled ? key : null, fetcher, {
+    ...swrPolicy,
+    keepPreviousData: false,
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+  });
+}
+
+export function useNetLoadManifest(enabled: boolean) {
+  const loader = useCallback((signal: AbortSignal) => loadNetLoadManifest(signal), []);
+  return useAbortableResource(enabled, ["net-load", "manifest"], loader);
+}
+
+export function useNetLoadResource(enabled: boolean, resource: NetLoadResourceLink | null) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!resource) return Promise.reject(new Error("missing_net_load_resource"));
+      return loadNetLoadResource(resource, signal);
+    },
+    [resource],
+  );
+  return useAbortableResource(enabled && resource !== null, ["net-load", resource?.url], loader);
+}
+
+export function useNetLoadDailyResource(enabled: boolean, resource: NetLoadDailyLink | null) {
+  const loader = useCallback(
+    (signal: AbortSignal) => {
+      if (!resource) return Promise.reject(new Error("missing_net_load_daily_resource"));
+      return loadNetLoadDailyResource(resource, signal);
+    },
+    [resource],
+  );
+  return useAbortableResource(
+    enabled && resource !== null,
+    ["net-load", "daily", resource?.url],
+    loader,
+  );
+}
+
 export function canonicalLatestKey(queries: readonly LatestQuery[]): string {
   return queries
     .map((query) => `${query.id}:${query.metric}:${[...(query.tags ?? [])].sort().join(",")}`)
@@ -53,10 +266,12 @@ function errorMessage(errors: unknown[]): string | null {
 }
 
 export function useOverviewData({
+  enabled,
   eventsEnabled,
   overviewQueries,
   time,
 }: {
+  enabled: boolean;
   eventsEnabled: boolean;
   overviewQueries: readonly LatestQuery[];
   time: TimeState;
@@ -79,48 +294,43 @@ export function useOverviewData({
     [allLatestQueries],
   );
   const latestFast = useSWR(
-    ["latest", "fast", canonicalLatestKey(fastQueries)],
+    enabled ? ["latest", "fast", canonicalLatestKey(fastQueries)] : null,
     () => loadLatest(fastQueries),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.fastTelemetry },
   );
   const latestStandard = useSWR(
-    ["latest", "five-minute", canonicalLatestKey(standardQueries)],
+    enabled ? ["latest", "five-minute", canonicalLatestKey(standardQueries)] : null,
     () => loadLatest(standardQueries),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute },
   );
-  const health = useSWR(["source-health"], () => loadSourceHealth(), {
+  const health = useSWR(enabled ? ["source-health"] : null, () => loadSourceHealth(), {
     ...swrPolicy,
     refreshInterval: REFRESH_CADENCE_MS.sourceHealth,
   });
   const baselines = useSWR(
-    ["trend-baselines", canonicalLatestKey(overviewQueries)],
+    enabled ? ["trend-baselines", canonicalLatestKey(overviewQueries)] : null,
     () => loadTrendBaselines([...overviewQueries], Math.floor(Date.now() / 1000)),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute },
   );
   const context = useSWR(
-    ["derived-context"],
+    enabled ? ["derived-context"] : null,
     () => loadDerivedContext(Math.floor(Date.now() / 1000)),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute },
   );
-  const ranking = useSWR(["price-ranking"], () => loadPriceRanking(), {
-    ...swrPolicy,
-    refreshInterval: REFRESH_CADENCE_MS.marketAndFiveMinute,
-  });
-
   const statusWindow = normalizeEventWindow(
     { ...time, mode: "live", paused: false, rangeSeconds: 86_400 },
     REFRESH_CADENCE_MS.events / 1_000,
   );
   const selectedWindow = normalizeEventWindow(time, REFRESH_CADENCE_MS.events / 1_000);
   const statusEvents = useSWR(
-    ["events", statusWindow.start, statusWindow.end],
+    enabled ? ["events", statusWindow.start, statusWindow.end] : null,
     () => loadEvents(statusWindow),
     { ...swrPolicy, refreshInterval: REFRESH_CADENCE_MS.events },
   );
   const selectedMatchesStatus =
     selectedWindow.start === statusWindow.start && selectedWindow.end === statusWindow.end;
   const selectedEvents = useSWR(
-    eventsEnabled && !selectedMatchesStatus
+    enabled && eventsEnabled && !selectedMatchesStatus
       ? ["events", selectedWindow.start, selectedWindow.end]
       : null,
     () => loadEvents(selectedWindow),
@@ -136,7 +346,6 @@ export function useOverviewData({
     health,
     baselines,
     context,
-    ranking,
     statusEvents,
     selectedEvents,
   ];
@@ -165,7 +374,6 @@ export function useOverviewData({
     observedAt: observedTimestamps.length
       ? Math.max(...observedTimestamps)
       : Math.floor(Date.now() / 1000),
-    priceRanking: ranking.data ?? [],
     retry,
     sourceHealth: health.data ?? [],
     statusEvents: statusEvents.data ?? [],

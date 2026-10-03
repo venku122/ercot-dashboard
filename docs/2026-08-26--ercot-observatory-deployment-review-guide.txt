@@ -1,0 +1,304 @@
+ERCOT GRID OBSERVATORY — HUMAN-APPROVED DEPLOYMENT REVIEW GUIDE
+Prepared: 2026-08-26 America/Los_Angeles
+Status: DOCUMENTATION ONLY — NO DEPLOYMENT AUTHORIZED OR PERFORMED
+
+This guide begins only after the human reviewer approves the stacked merge,
+production migration, deployment, Cloudflare change, and each source activation.
+It is not approval to execute any stage.
+
+GLOBAL RULES
+
+- Merge PRs #33–#55 sequentially; do not squash the campaign into an unreviewed
+  mega-PR unless the human reviewer explicitly changes the plan.
+- Re-run deterministic validation at the resulting main SHA.
+- Build receiver and collector from the same pinned revision and record both
+  immutable image digests.
+- Export the existing Portainer stack and COMPLETE Env array before changes.
+- Use PullImage=true and Prune=false for every Portainer stack update.
+- Never print or store secret values in logs, URLs, reports, Git, screenshots,
+  Compose output, or API bodies.
+- Stop the collector before receiver rollback or database restoration.
+- Never restore only a live SQLite main file while ignoring active WAL/SHM.
+- Enable only one source family per separately reviewed stack update.
+- A valid-empty source, a failed source, a missing credential, and a stale
+  last-good publication are different states and must remain different.
+
+STAGE 0 — CAPTURE THE ROLLBACK ENVELOPE
+
+Preconditions:
+- Human approval for read-only production inventory.
+- No deployment or migration yet.
+
+Actions:
+- Record current main SHA, deployed receiver/collector image tags and digests,
+  container IDs, restart counts, health, published ports, network, and volumes.
+- Export Portainer stack ID, endpoint ID, stack file, COMPLETE Env array, and
+  current update parameters.
+- Record production DB path, main/WAL/SHM presence and sizes, free space, and
+  receiver source-health timestamps.
+- Read the complete Cloudflare ruleset, existing v1 rule ID/order, and current
+  public-origin behavior without modifying it.
+
+Expected evidence:
+- Sanitized rollback manifest containing immutable image digests and non-secret
+  configuration names/counts.
+
+Stop conditions:
+- Missing previous image digest, incomplete Env array, unknown DB/WAL state,
+  unhealthy production, or inability to restore the current Cloudflare order.
+
+Rollback:
+- None; this stage is read-only.
+
+STAGE 1 — NORMALIZED-SERIES READINESS
+
+Preconditions:
+- Exact merged main revision validated.
+- Production receiver remains on the previous known-good build.
+
+Actions:
+- Use the read-only migration status command and /api/status readiness fields.
+- Record metric rows, assigned/unassigned series IDs, series/tag counts, DB and
+  WAL size, integrity/foreign-key checks, and expected index availability.
+- Calculate bounded batch count and free-space margin from observed production.
+
+Expected evidence:
+- A production-specific migration plan with explicit batch size, duration
+  estimate, disk/WAL margin, stop threshold, and compatibility-read plan.
+
+Stop conditions:
+- Integrity/FK failure, unexpected identity collision, insufficient disk, missing
+  coherent backup path, or unbounded required downtime.
+
+Rollback:
+- No mutation has occurred; retain old receiver/image and database.
+
+STAGE 2 — OPERATOR-REVIEWED DATABASE BACKUP
+
+Preconditions:
+- Approved maintenance window and verified restore destination.
+
+Actions:
+- Stop receiver writes or use the reviewed SQLite backup API.
+- Capture one coherent database backup; include WAL/SHM only as required by the
+  chosen coherent method.
+- Hash and test-open the backup; run integrity_check and foreign_key_check.
+
+Expected evidence:
+- Timestamped backup identity, bytes, hash, integrity result, and restore command.
+
+Stop conditions:
+- Receiver cannot be quiesced, backup is inconsistent, restore test fails, or
+  hash/integrity evidence is absent.
+
+Rollback:
+- Restart the unchanged prior receiver against the unchanged production DB.
+
+STAGE 3 — BOUNDED NORMALIZED-SERIES MIGRATION
+
+Preconditions:
+- Stage 2 complete and human approval for mutation.
+- Previous images and coherent backup immediately available.
+
+Actions:
+- Run the reviewed bounded migration command with explicit batch limits.
+- Observe rows completed, remaining NULL IDs, WAL/disk growth, elapsed time,
+  integrity, identity mappings, legacy parity, and covering-index plan.
+- Resume only from the tool's checkpoint. Do not improvise SQL.
+
+Expected evidence:
+- Zero unexpected NULL series IDs, integrity/FK PASS, canonical mapping PASS,
+  legacy row/value parity PASS, idempotent rerun PASS, readiness visible.
+
+Stop conditions:
+- Identity collision, integrity/FK/parity failure, abnormal WAL/free-space growth,
+  unexpected lock duration, or inability to resume deterministically.
+
+Rollback:
+- Stop receiver/collector. Restore the coherent backup only under the reviewed
+  rollback decision. Otherwise retain additive tables if the prior receiver
+  safely ignores them. Never delete tables ad hoc.
+
+STAGE 4 — DEPLOY MATCHING RECEIVER AND COLLECTOR, ALL NEW SOURCES OFF
+
+Preconditions:
+- Sequential merge and final-main CI green.
+- Matching receiver/collector images built from the exact same revision.
+- Complete Env array and previous image digests saved.
+
+Actions:
+- Update receiver first using the exact saved stack plus pinned receiver digest,
+  PullImage=true, Prune=false. Preserve ports, volumes, network, and all unknown
+  environment entries.
+- Keep every new *_INGEST_ENABLED value false.
+- Verify receiver health/migrations, legacy v1 APIs, v2 catalog/logical/version
+  resources, 401 behavior, and source-health compatibility.
+- Update collector to the matching digest with PullImage=true, Prune=false.
+- Verify loopback-only /healthz inside the container: supervisor alive, 19 fixed
+  runners, expected enabled/disabled rows, cadence, upstream versus receiver
+  failures, and stable restart count. Confirm no host 9091 publication.
+
+Expected evidence:
+- Both immutable digests, health, no restart loop, unchanged legacy freshness,
+  browser loads real API bodies, and all new source request counts remain zero.
+
+Stop conditions:
+- Receiver migration/start failure, API incompatibility, collector restart loop,
+  incorrect registry, auth/network delivery failure, new-source request while
+  disabled, or DB growth inconsistent with disabled state.
+
+Rollback:
+- Stop collector first. Restore both previous pinned image digests and COMPLETE
+  saved Env array with Prune=false. Restore DB only from the coherent backup if
+  required by the reviewed migration rollback.
+
+STAGE 5 — ORIGIN COMPATIBILITY SMOKE
+
+Preconditions:
+- Stage 4 stable; no Cloudflare rule change.
+
+Actions:
+- Through the actual origin, verify /api/status, legacy v1, tile catalog, logical
+  v2 tile, exact content version, ETag/304, malformed/query path rejection, and
+  frontend API body loading on desktop and mobile WebKit.
+- Correct one local/test historical row only if a separately authorized
+  non-production proof is needed; do not alter production evidence for a demo.
+
+Expected evidence:
+- Origin MISS/generation then receiver-LRU HIT; strong ETag; exact version bytes;
+  no legacy regression; browser data rather than HTML-shell-only success.
+
+Stop conditions:
+- Any schema, auth, cache, correction, or browser regression.
+
+Rollback:
+- Execute Stage 4 rollback.
+
+STAGE 6 — NARROW CLOUDFLARE V2 TILE RULE
+
+Preconditions:
+- Separate human approval for Cloudflare mutation.
+- Complete current ruleset and exact rollback rule ID/order saved.
+- Origin Stage 5 green.
+
+Actions:
+- Insert only the reviewed /api/v2/tiles/* rule in the intended order.
+- Preserve origin Cache-Control/ETag semantics; do not cache errors, ingest,
+  manifests, malformed paths, query aliases, or authentication surfaces.
+- At the same PoP, verify first MISS, second HIT, increasing Age, strong ETag,
+  If-None-Match/304, and zero receiver SQLite generation on the edge hit.
+- Verify a corrected tile revalidates to changed bytes/ETag B while an
+  unrelated canonical tile remains byte/ETag stable. Do not expect a generic
+  persistent exact-version A route; canonical tile bodies are memory-only.
+
+Expected evidence:
+- Saved request/response headers with credentials absent, rule ID/order, PoP,
+  MISS/HIT/Age, 304, origin generation counters, and correction A→B proof.
+
+Stop conditions:
+- Wrong rule order, unexpected caching, missing HIT/Age, weak/changed ETag,
+  cache of malformed paths, or stale logical pointer after correction.
+
+Rollback:
+- Remove/disable only the saved new rule ID, restore exact previous order, purge
+  only reviewed affected cache keys if necessary, and re-verify prior behavior.
+
+STAGES 7–10 — ONE SOURCE FAMILY AT A TIME
+
+For every source below, perform one complete Env-preserving Portainer update with
+PullImage=true and Prune=false. Before enabling the next source, verify its local
+cycle, upstream status, receiver delivery, source health/publication, public API,
+UI, DB growth, request cadence, corrections, restarts, and narrow rollback.
+
+Recommended order:
+1. forecast vintages
+2. renewable forecasts
+3. regional renewable forecasts
+4. market mechanics
+5. market geography
+6. NWS predictive weather with reviewed stable identifying User-Agent
+7. Texas Grid/LTLF
+8. credential-free external-context EPA eGRID
+9. EIA-930 and Henry Hub only after DEFERRED_CREDENTIAL is replaced by a
+   credential-backed local PASS on the exact deployed parser
+
+Preconditions per source:
+- Exact source contract and cadence reviewed; required credentials available;
+  disabled-cycle baseline known; receiver route/retention available.
+
+Stop conditions per source:
+- Schema drift, partial publication represented as complete, false valid-empty,
+  checkpoint starvation, delivery/auth failure, unexplained DB/request growth,
+  stale timestamps labeled fresh, secret exposure, or restart increase.
+
+Rollback per source:
+- Disable only that source in a COMPLETE Env-preserving update; confirm requests
+  stop and other sources/last-good evidence remain intact.
+
+Never enable in this campaign state:
+- current or historical four-second ESR (BLOCKED_EXTERNAL)
+- EPA CAMD (coverage/unit methodology unavailable)
+- unverified TXANS history
+- large-load status or gross-retirement synthesis
+- causal constraint-price, weather-load, storage-response, or emissions claims
+
+STAGE 11 — OBSERVATION WINDOW
+
+Preconditions:
+- Each enabled source passed its individual gate.
+
+Actions:
+- Observe source freshness, materialization health, DB/WAL growth, corrections,
+  logical/version cache behavior, edge hit ratio, receiver/collector restarts,
+  API error/latency, browser state, and request rate over a reviewed window.
+- Compare data timestamps to retrieval timestamps; do not let successful polling
+  mask stale source observations.
+
+Expected evidence:
+- Bounded growth/cadence, truthful partial/stale/error states, stable revisions,
+  no secret-bearing telemetry, and a tested narrow per-source rollback.
+
+Stop conditions:
+- Any invariant, freshness, retention, cost, or reliability threshold breach.
+
+Rollback:
+- Disable the affected source first; if platform-wide, collector first, then
+  restore both previous images and complete Env. Use DB restore only under the
+  coherent-backup decision.
+
+STAGE 12 — ACCEPT OR HOLD
+
+Preconditions:
+- Observation evidence reviewed by a human.
+
+Actions:
+- Record accepted image digests, main SHA, Env schema, DB migration state,
+  Cloudflare rule ID/order, enabled source set, remaining deferred gates, and
+  rollback manifest location.
+
+Expected evidence:
+- One sanitized deployment record and explicit owner for every deferred gate.
+
+Stop condition:
+- Any missing identity, rollback input, or unresolved non-deferred failure.
+
+Rollback:
+- Use the exact stage-specific rollback above; never improvise destructive DB,
+  cache, or Portainer cleanup.
+
+FINAL OPERATOR CHECKLIST
+
+[ ] Human approved sequential merge
+[ ] Final main SHA and all required checks recorded
+[ ] Matching receiver/collector immutable digests recorded
+[ ] Complete Portainer Env array and current stack exported
+[ ] Coherent SQLite backup tested
+[ ] Production migration explicitly approved
+[ ] All new collectors false at first deployment
+[ ] Origin API bodies and desktop/mobile browser paths verified
+[ ] Cloudflare change separately approved and rollback rule ID saved
+[ ] Each source enabled in its own reviewed update
+[ ] EIA credential-backed local smoke PASS before EIA enablement
+[ ] Four-second ESR remains disabled
+[ ] PullImage=true and Prune=false used for every Portainer update
+[ ] Final observation window accepted

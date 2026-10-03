@@ -6,9 +6,7 @@ export type DerivedMetricId =
   | "capacity-utilization"
   | "demand-growth"
   | "forecast-peak"
-  | "historical-comparison"
   | "hours-until-peak"
-  | "price-percentile"
   | "renewable-share"
   | "reserve-margin"
   | "storage-state";
@@ -75,24 +73,6 @@ export function freshLatestPoint(
     return null;
   }
   return point;
-}
-
-function nearestPoint(points: Point[], target: number, maxDistance: number): Point | null {
-  const nearest = points
-    .filter(([timestamp, value]) => Number.isFinite(timestamp) && Number.isFinite(value))
-    .reduce<Point | null>((best, candidate) => {
-      if (!best) return candidate;
-      return Math.abs(candidate[0] - target) < Math.abs(best[0] - target) ? candidate : best;
-    }, null);
-  return nearest && Math.abs(nearest[0] - target) <= maxDistance ? nearest : null;
-}
-
-function ordinal(value: number): string {
-  const rounded = Math.round(value);
-  const mod100 = rounded % 100;
-  const suffix =
-    mod100 >= 11 && mod100 <= 13 ? "th" : (["th", "st", "nd", "rd"][rounded % 10] ?? "th");
-  return `${rounded}${suffix} percentile`;
 }
 
 function percentChange(current: number, baseline: number): number | null {
@@ -238,59 +218,5 @@ export function buildDerivedMetrics({
       }
     : unavailable("hours-until-peak", "Hours Until Peak", hoursFormula);
 
-  const price = freshLatestPoint(latest.get("price"), now);
-  const priceHistory = (context.get("derived:price-history") ?? []).filter(
-    ([timestamp, value]) =>
-      timestamp >= now - 24 * 3600 && timestamp <= now && Number.isFinite(value),
-  );
-  const priceFormula = "percent of Houston prices in the past 24 hours at or below current price";
-  const percentile =
-    price && priceHistory.length
-      ? (priceHistory.filter(([, value]) => value <= price.value).length / priceHistory.length) *
-        100
-      : null;
-  const pricePercentile =
-    price && percentile !== null
-      ? {
-          available: true,
-          detail: `${priceHistory.length} Houston observations in the comparison window.`,
-          formula: priceFormula,
-          id: "price-percentile" as const,
-          label: "Price Percentile",
-          observedAt: price.ts,
-          valueLabel: ordinal(percentile),
-        }
-      : unavailable("price-percentile", "Price Percentile", priceFormula);
-
-  const yesterday = nearestPoint(
-    context.get("derived:demand-yesterday") ?? [],
-    now - 24 * 3600,
-    MAX_COMPARISON_DISTANCE_SECONDS,
-  );
-  const historicalValue = demand && yesterday ? percentChange(demand.value, yesterday[1]) : null;
-  const historicalFormula = "(current demand − demand 24 hours ago) ÷ demand 24 hours ago × 100";
-  const historical =
-    demand && yesterday && historicalValue !== null
-      ? {
-          available: true,
-          detail: `Demand was ${formatValue(yesterday[1], "MW")} at this time yesterday.`,
-          formula: historicalFormula,
-          id: "historical-comparison" as const,
-          label: "Historical Comparison",
-          observedAt: demand.ts,
-          valueLabel: formatSignedValue(historicalValue, "%"),
-        }
-      : unavailable("historical-comparison", "Historical Comparison", historicalFormula);
-
-  return [
-    reserve,
-    utilization,
-    renewable,
-    storageState,
-    demandGrowth,
-    peakMetric,
-    hoursMetric,
-    pricePercentile,
-    historical,
-  ];
+  return [reserve, utilization, renewable, storageState, demandGrowth, peakMetric, hoursMetric];
 }

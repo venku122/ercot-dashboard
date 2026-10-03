@@ -1,0 +1,5 @@
+/* Card-only evidence excludes fixed navigation; viewport screenshots still include it. */
+.mobile-section-nav,
+.mobile-section-nav * {
+  visibility: hidden !important;
+}

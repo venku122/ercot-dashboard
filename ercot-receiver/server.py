@@ -4,15 +4,120 @@ import hashlib
 import math
 import mimetypes
 import os
+import re
 import sqlite3
+import sys
 import threading
 import time
 from collections import Counter, OrderedDict, defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 from typing import cast
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+from tile_aggregates import (
+    aggregate_points,
+    deserialize_aggregate,
+    merge_aggregates,
+    serialize_aggregate,
+)
+from forecast_vintages import (
+    PRODUCT_NP3_565,
+    PRODUCT_NP3_763,
+    PRODUCT_NP6_345,
+    comparison_rows,
+    ingest_forecast_publication,
+    init_forecast_schema,
+    list_publications,
+    outlook_snapshot,
+    publication_rows,
+    resolve_publication,
+)
+from forecast_quality import (
+    METHODOLOGY_VERSION as FORECAST_QUALITY_METHODOLOGY_VERSION,
+    affected_utc_days_for_forecast_vintage,
+    affected_utc_days_for_renewable_vintage,
+    forecast_quality_manifest,
+    forecast_quality_resource,
+    ingest_renewable_publication,
+    init_forecast_quality_schema,
+    recompute_forecast_quality,
+    renewable_series_for_vintage,
+)
+from net_load import (
+    ACTUAL_SERIES_KEY as NET_LOAD_ACTUAL_SERIES_KEY,
+    FORECAST_SEMANTIC_KEYS as NET_LOAD_FORECAST_KEYS,
+    REALTIME_METRICS as NET_LOAD_REALTIME_METRICS,
+    init_net_load_schema,
+    net_load_daily_resource,
+    net_load_manifest,
+    net_load_resource,
+    record_net_load_materialization_health,
+    recompute_net_load,
+)
+from regional_geography import (
+    ingest_regional_renewable_publication,
+    init_regional_geography_schema,
+    materialize_load_day,
+    record_regional_materialization_health,
+    regional_geography_manifest,
+    regional_geography_resource,
+    prune_regional_publications,
+)
+from market_mechanics import (
+    ingest_market_mechanics_publication,
+    init_market_mechanics_schema,
+    market_mechanics_manifest,
+    market_mechanics_resource,
+    prune_market_mechanics,
+)
+from market_geography import (
+    ingest_market_geography_publication,
+    init_market_geography_schema,
+    market_geography_manifest,
+    market_geography_resource,
+)
+from predictive_weather import (
+    ingest_predictive_weather,
+    init_predictive_weather_schema,
+    predictive_weather_manifest,
+    record_predictive_weather_failure,
+)
+from grid_events import (
+    MAX_PAGE_SIZE as MAX_GRID_EVENT_PAGE_SIZE,
+    grid_events_page,
+    ingest_grid_events,
+    ingest_nws_alert_events,
+    init_grid_events_schema,
+)
+from historical_context import (
+    METHODOLOGY as HISTORICAL_CONTEXT_METHODOLOGY,
+    POLICY as HISTORICAL_CONTEXT_POLICY,
+    SERIES_KEY as HISTORICAL_CONTEXT_SERIES_KEY,
+    historical_context_resource,
+    historical_context_as_of_bounds,
+    init_historical_context_schema,
+    mark_demand_history_changes,
+    resolve_historical_context,
+)
+from texas_grid import (
+    ingest_texas_grid,
+    init_texas_grid_schema,
+    record_texas_grid_failure,
+    texas_grid_manifest,
+    texas_grid_resource,
+)
+from external_context import (
+    external_context_manifest,
+    external_context_resource,
+    ingest_external_context,
+    init_external_context_schema,
+    record_external_context_failure,
+)
+REALTIME_NET_LOAD_METRICS = frozenset(NET_LOAD_REALTIME_METRICS.values())
+
 DB_PATH = os.path.join(BASE_DIR, "data", "metrics.db")
 WEB_DIR = os.path.join(BASE_DIR, "web")
 API_KEY = os.environ.get("METRICS_API_KEY")
@@ -23,11 +128,29 @@ SEALED_HISTORY_AGE_SECONDS = int(os.environ.get("SEALED_HISTORY_AGE_SECONDS", "8
 SEALED_CACHE_TTL_SECONDS = int(os.environ.get("SEALED_CACHE_TTL_SECONDS", "86400"))
 RECENT_CACHE_TTL_SECONDS = int(os.environ.get("RECENT_CACHE_TTL_SECONDS", "300"))
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(512 * 1024)))
+MAX_FORECAST_BODY_BYTES = 1024 * 1024
+MAX_MARKET_GEOGRAPHY_BODY_BYTES = 8 * 1024 * 1024
+MAX_PREDICTIVE_WEATHER_BODY_BYTES = 8 * 1024 * 1024
+MAX_GRID_EVENTS_BODY_BYTES = 2 * 1024 * 1024
+MAX_TEXAS_GRID_BODY_BYTES = 2 * 1024 * 1024
+MAX_EXTERNAL_CONTEXT_BODY_BYTES = 2 * 1024 * 1024
 MAX_BATCH_QUERIES = int(os.environ.get("MAX_BATCH_QUERIES", "100"))
 MAX_POINTS_HARD = int(os.environ.get("MAX_POINTS_HARD", "5000"))
 MAX_TAGS = int(os.environ.get("MAX_TAGS", "20"))
+SERIES_BACKFILL_BATCH_SIZE = max(
+    1, int(os.environ.get("SERIES_BACKFILL_BATCH_SIZE", "1000"))
+)
+SERIES_BACKFILL_MAX_BATCHES = max(
+    0, int(os.environ.get("SERIES_BACKFILL_MAX_BATCHES", "10"))
+)
 MAX_RAW_SPAN_SECONDS = int(os.environ.get("MAX_RAW_SPAN_SECONDS", str(31 * 86400)))
 MAX_EVENTS = int(os.environ.get("MAX_EVENTS", "1000"))
+MAX_SOURCE_METADATA_BYTES = int(
+    os.environ.get("MAX_SOURCE_METADATA_BYTES", str(16 * 1024))
+)
+MAX_SOURCE_METADATA_DEPTH = 5
+MAX_SOURCE_METADATA_ITEMS = 50
+MAX_SOURCE_METADATA_STRING = 500
 CORS_ORIGINS_EXTRA = os.environ.get("CORS_ORIGINS_EXTRA", "")
 TRUST_PROXY = os.environ.get("TRUST_PROXY", "0") in ("1", "true", "TRUE", "yes", "YES")
 RATE_LIMIT_INGEST_RPM = int(os.environ.get("RATE_LIMIT_INGEST_RPM", "600"))
@@ -46,8 +169,724 @@ if CORS_ORIGINS_EXTRA:
             ALLOWED_ORIGINS.add(origin)
 DB_LOCAL = threading.local()
 
+TILE_SCHEMA_VERSION = 2
+TILE_SPANS = {"1h": 3600, "1d": 86400}
+TILE_LOD_SECONDS = {"native": None, "5m": 300, "15m": 900, "1h": 3600}
+TILE_OBSERVABILITY_KEYS = frozenset(
+    {
+        "tile_cache_election_hits_total",
+        "tile_cache_store_skipped_race_total",
+        "tile_cache_store_stored_total",
+        "tile_errors_backfill_total",
+        "tile_errors_generation_total",
+        "tile_generation_latency_seconds_count",
+        "tile_generation_latency_seconds_max",
+        "tile_generation_latency_seconds_sum",
+        "tile_invalidated_entries_total",
+        "tile_invalidation_calls_total",
+        "tile_invalidation_empty_total",
+        "tile_invalidation_nonempty_total",
+        "tile_origin_requests_cache_class_live_total",
+        "tile_origin_requests_cache_class_recent_total",
+        "tile_origin_requests_cache_class_sealed_total",
+        "tile_origin_requests_total",
+        "tile_receiver_lru_hits_total",
+        "tile_receiver_lru_misses_total",
+        "tile_responses_200_total",
+        "tile_responses_304_total",
+        "tile_responses_400_total",
+        "tile_responses_404_total",
+        "tile_responses_429_total",
+        "tile_responses_500_total",
+        "tile_responses_503_total",
+        "tile_singleflight_leaders_total",
+        "tile_singleflight_results_error_total",
+        "tile_singleflight_results_success_total",
+        "tile_singleflight_waits_total",
+        "tile_sqlite_generation_attempts_total",
+        "tile_sqlite_generations_total",
+    }
+)
+LEGACY_CACHE_METRIC_KEYS = frozenset(
+    {
+        "historical_chunk_hits",
+        "historical_chunk_misses",
+        "query_executions",
+        "query_seconds",
+        "tile_generation_seconds",
+        "tile_generation_store_races",
+        "tile_generations",
+        "tile_lru_hits",
+        "tile_lru_misses",
+        "tile_lru_race_hits",
+        "tile_singleflight_waits",
+    }
+)
+INTERNAL_CACHE_METRIC_KEYS = TILE_OBSERVABILITY_KEYS | LEGACY_CACHE_METRIC_KEYS
+TILE_METRICS_INIT_LOCK = threading.Lock()
+TILE_CACHE_CLASS_METRICS = {
+    "live": "tile_origin_requests_cache_class_live_total",
+    "recent": "tile_origin_requests_cache_class_recent_total",
+    "sealed": "tile_origin_requests_cache_class_sealed_total",
+}
+
+
+def record_cache_metric(app, key, amount=1.0, *, maximum=False):
+    if key not in INTERNAL_CACHE_METRIC_KEYS:
+        raise ValueError("unbounded_cache_metric_key")
+    metrics = getattr(app, "cache_metrics", None)
+    if metrics is None:
+        return
+    lock = getattr(app, "cache_metrics_lock", None)
+    if lock is None:
+        with TILE_METRICS_INIT_LOCK:
+            lock = getattr(app, "cache_metrics_lock", None)
+            if lock is None:
+                lock = threading.Lock()
+                app.cache_metrics_lock = lock
+    with lock:
+        if maximum:
+            metrics[key] = max(float(metrics[key]), float(amount))
+        else:
+            metrics[key] += float(amount)
+
+
+def record_tile_metric(app, key, amount=1.0, *, maximum=False):
+    if key not in TILE_OBSERVABILITY_KEYS:
+        raise ValueError("unbounded_tile_metric_key")
+    record_cache_metric(app, key, amount, maximum=maximum)
+
+
+def tile_metrics_snapshot(app):
+    metrics = getattr(app, "cache_metrics", {})
+    lock = getattr(app, "cache_metrics_lock", None)
+    if lock is None:
+        current = dict(metrics)
+    else:
+        with lock:
+            current = dict(metrics)
+    for key in TILE_OBSERVABILITY_KEYS:
+        current.setdefault(key, 0.0)
+    return current
+TILE_SERIES_CATALOG = (
+    {
+        "key": "supply-demand.demand",
+        "metric": "ercot.supply_demand.demand_mw",
+        "tags": ["source:supply_demand"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "5m", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "supply_demand",
+        "match": "exact",
+    },
+    {
+        "key": "supply-demand.available-capacity",
+        "metric": "ercot.supply_demand.available_capacity_mw",
+        "tags": ["source:supply_demand"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "5m", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "supply_demand",
+        "match": "exact",
+    },
+    {
+        "key": "storage.net-output",
+        "metric": "ercot.storage.net_output_mw",
+        "tags": ["source:energy_storage"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "5m", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "energy_storage",
+        "match": "exact",
+    },
+    {
+        "key": "fuel-mix.wind",
+        "metric": "ercot.fuel_mix.generation_mw",
+        "tags": ["fuel:wind", "source:fuel_mix"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "fuel_mix",
+        "match": "exact",
+    },
+    {
+        "key": "fuel-mix.solar",
+        "metric": "ercot.fuel_mix.generation_mw",
+        "tags": ["fuel:solar", "source:fuel_mix"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "15m", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "fuel_mix",
+        "match": "exact",
+    },
+    {
+        "key": "fuel-mix.total",
+        "metric": "ercot.fuel_mix.generation_mw",
+        "tags": ["source:fuel_mix"],
+        "native_interval_seconds": 300,
+        "supported_lods": ["native", "15m", "1h"],
+        "rollup": "sum",
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "fuel_mix",
+        "match": "selector",
+    },
+    {
+        "key": "renewables.wind-actual",
+        "metric": "ercot.renewables.actual_mw",
+        "tags": ["resource:wind", "source:wind_solar"],
+        "native_interval_seconds": 3600,
+        "supported_lods": ["native", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "wind_solar",
+        "match": "exact",
+    },
+    {
+        "key": "renewables.solar-actual",
+        "metric": "ercot.renewables.actual_mw",
+        "tags": ["resource:solar", "source:wind_solar"],
+        "native_interval_seconds": 3600,
+        "supported_lods": ["native", "1h"],
+        "rollup": None,
+        "unit": "MW",
+        "statistic_policy": "power",
+        "source": "wind_solar",
+        "match": "exact",
+    },
+)
+
+TILE_SERIES_CATALOG += tuple(
+    {
+        "key": key,
+        "metric": metric,
+        "tags": tags,
+        "native_interval_seconds": native_interval,
+        "supported_lods": lods,
+        "rollup": None,
+        "unit": unit,
+        "statistic_policy": policy,
+        "source": source,
+        "match": "exact",
+    }
+    for key, metric, tags, native_interval, lods, unit, policy, source in (
+        (
+            "supply-demand.forecast-demand",
+            "ercot.supply_demand.forecast_demand_mw",
+            ["source:supply_demand"],
+            3600,
+            ["native", "1h"],
+            "MW",
+            "power",
+            "supply_demand",
+        ),
+        (
+            "frequency.system",
+            "ercot.Frequency.Current_Frequency",
+            [],
+            60,
+            ["native", "5m", "15m", "1h"],
+            "Hz",
+            "gauge",
+            "ercot_realtime",
+        ),
+        *(
+            (
+                f"storage.{name}",
+                f"ercot.storage.{metric_suffix}_mw",
+                ["source:energy_storage"],
+                300,
+                ["native", "5m", "15m", "1h"],
+                "MW",
+                "power",
+                "energy_storage",
+            )
+            for name, metric_suffix in (
+                ("charging", "charging"),
+                ("discharging", "discharging"),
+            )
+        ),
+        *(
+            (
+                f"fuel-mix.{name}",
+                "ercot.fuel_mix.generation_mw",
+                [f"fuel:{tag}", "source:fuel_mix"],
+                300,
+                ["native", "15m", "1h"],
+                "MW",
+                "power",
+                "fuel_mix",
+            )
+            for name, tag in (
+                ("natural-gas", "natural_gas"),
+                ("coal-and-lignite", "coal_and_lignite"),
+                ("nuclear", "nuclear"),
+                ("power-storage", "power_storage"),
+            )
+        ),
+        *(
+            (
+                f"renewables.{resource}-{kind}",
+                f"ercot.renewables.{metric_suffix}_mw",
+                [f"resource:{resource}", "source:wind_solar"],
+                3600,
+                ["native", "1h"],
+                "MW",
+                "power",
+                "wind_solar",
+            )
+            for resource, kind, metric_suffix in (
+                ("wind", "forecast", "forecast"),
+                ("wind", "hsl", "hsl"),
+                ("solar", "forecast", "forecast"),
+            )
+        ),
+        (
+            "generation-outages.total",
+            "ercot.generation_outages.total_mw",
+            ["source:generation_outages"],
+            300,
+            ["native", "5m", "15m", "1h"],
+            "MW",
+            "power",
+            "generation_outages",
+        ),
+        *(
+            (
+                f"generation-outages.{category}-{outage_type}",
+                "ercot.generation_outages.mw",
+                [
+                    f"category:{category}",
+                    f"outage_type:{outage_type}",
+                    "source:generation_outages",
+                ],
+                300,
+                ["native", "5m", "15m", "1h"],
+                "MW",
+                "power",
+                "generation_outages",
+            )
+            for category, outage_type in (
+                ("dispatchable", "unplanned"),
+                ("dispatchable", "planned"),
+                ("renewable", "unplanned"),
+                ("renewable", "planned"),
+            )
+        ),
+        *(
+            (
+                f"pricing.{name}",
+                "ercot.pricing",
+                [f"ercot_region:{tag}"],
+                900,
+                ["native", "15m", "1h"],
+                "$/MWh",
+                "gauge",
+                "ercot_pricing",
+            )
+            for name, tag in (
+                ("houston", "HB_HOUSTON"),
+                ("north", "HB_NORTH"),
+                ("west", "HB_WEST"),
+            )
+        ),
+    )
+)
+
+
+def validate_tile_series_catalog(entries):
+    validated = {}
+    for raw in entries:
+        entry = dict(raw)
+        key = entry.get("key")
+        if not isinstance(key, str) or not re.fullmatch(
+            r"[a-z0-9]+(?:[.-][a-z0-9]+)*", key
+        ):
+            raise ValueError("invalid_tile_series_key")
+        if key in validated:
+            raise ValueError("duplicate_tile_series_key")
+        metric = entry.get("metric")
+        if not isinstance(metric, str) or not metric.strip():
+            raise ValueError("invalid_tile_series_metric")
+        tags = entry.get("tags")
+        normalized_tags = (
+            sorted(set(str(tag)[:200] for tag in tags[:MAX_TAGS]))
+            if isinstance(tags, list)
+            else None
+        )
+        if not isinstance(tags, list) or tags != normalized_tags:
+            raise ValueError("invalid_tile_series_tags")
+        native_interval = entry.get("native_interval_seconds")
+        if not isinstance(native_interval, int) or native_interval <= 0:
+            raise ValueError("invalid_tile_native_interval")
+        lods = entry.get("supported_lods")
+        if (
+            not isinstance(lods, list)
+            or not lods
+            or "native" not in lods
+            or len(lods) != len(set(lods))
+            or any(lod not in TILE_LOD_SECONDS for lod in lods)
+        ):
+            raise ValueError("invalid_tile_supported_lods")
+        for lod in lods:
+            seconds = native_interval if lod == "native" else TILE_LOD_SECONDS[lod]
+            if seconds < native_interval or any(
+                span % seconds != 0 for span in TILE_SPANS.values()
+            ):
+                raise ValueError("invalid_tile_lod_cadence")
+        if entry.get("match") not in ("exact", "selector"):
+            raise ValueError("invalid_tile_match")
+        if entry.get("rollup") not in (None, "sum"):
+            raise ValueError("invalid_tile_rollup")
+        if entry["match"] == "selector" and entry.get("rollup") != "sum":
+            raise ValueError("tile_selector_requires_rollup")
+        if entry["match"] == "exact" and entry.get("rollup") is not None:
+            raise ValueError("tile_exact_disallows_rollup")
+        if entry["match"] == "selector" and not tags:
+            raise ValueError("tile_selector_requires_tags")
+        if entry.get("statistic_policy") not in ("power", "gauge"):
+            raise ValueError("invalid_tile_statistic_policy")
+        for field in ("unit", "statistic_policy", "source"):
+            if not isinstance(entry.get(field), str) or not entry[field]:
+                raise ValueError(f"invalid_tile_{field}")
+        validated[key] = entry
+    return validated
+
+
+TILE_CATALOG_BY_KEY = validate_tile_series_catalog(TILE_SERIES_CATALOG)
+
+
+def series_identity_dependency(metric, tags):
+    _tags_json, identity_hash = canonical_series_identity(metric, tags)
+    return f"series-identity:{identity_hash}"
+
+
+def selector_dependency(metric, tags):
+    identity = json.dumps(
+        ["selector", metric, normalize_tags(tags)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return f"series-selector:{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+
+
+def matching_selector_dependencies(metric, tags):
+    normalized_tags = set(normalize_tags(tags))
+    return {
+        selector_dependency(definition["metric"], definition["tags"])
+        for definition in TILE_CATALOG_BY_KEY.values()
+        if definition["match"] == "selector"
+        and definition["metric"] == metric
+        and set(definition["tags"]).issubset(normalized_tags)
+    }
+
+
+def tile_catalog_payload():
+    return {
+        "schema": TILE_SCHEMA_VERSION,
+        "tile_spans": dict(TILE_SPANS),
+        "lod_seconds": dict(TILE_LOD_SECONDS),
+        "boundary_policy": {
+            "coarse_partial_clipping": False,
+            "edge_lod": "native",
+            "rule": "clients use native boundary tiles and coarse LOD only for aligned interiors",
+        },
+        "series": [dict(TILE_CATALOG_BY_KEY[key]) for key in sorted(TILE_CATALOG_BY_KEY)],
+        "derived_resources": [
+            {
+                "series_key": "net-load.actual",
+                "route_template": "/api/v2/net-load/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                "alignment": "utc_day",
+                "native_interval_seconds": 300,
+                "supported_lods": ["native"],
+                "formula": "demand_mw - wind_mw - solar_mw",
+                "storage_policy": "context_only_not_in_formula",
+                "official_ercot_net_load": False,
+            },
+            *[
+                {
+                    "series_key": key,
+                    "route_template": "/api/v2/net-load/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                    "alignment": "utc_day",
+                    "native_interval_seconds": 3600,
+                    "supported_lods": ["native"],
+                    "selection_policy": "coherent_whole_curve_latest_capped_before_utc_day",
+                    "snapshot_lead_seconds": {"1h": 3600, "6h": 21600, "24h": 86400}[horizon],
+                    "formula": "demand_mw - wind_mw - solar_mw",
+                    "official_ercot_net_load": False,
+                }
+                for horizon, key in NET_LOAD_FORECAST_KEYS.items()
+            ],
+            *[
+                {
+                    "series_key": f"regional.load.weather-zone.{region}.{kind}",
+                    "route_template": "/api/v2/regional/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                    "alignment": "utc_day", "native_interval_seconds": 3600,
+                    "supported_lods": ["native"], "taxonomy": "load_weather_zone",
+                    "selection_policy": (
+                        "latest_actual_per_target" if kind == "actual"
+                        else "latest-capped-1h-before-utc-day"
+                    ),
+                    "diagnostic_error_formula": "actual_minus_forecast" if kind == "forecast" else None,
+                }
+                for region in (
+                    "coast", "east", "far-west", "north", "north-central",
+                    "south-central", "southern", "west",
+                )
+                for kind in ("actual", "forecast")
+            ],
+            *[
+                {
+                    "series_key": f"regional.{resource}.{region}.hourly",
+                    "route_template": "/api/v2/regional/{series_key}/v1/{content_version}/1d/{utc_day_start}/native",
+                    "alignment": "utc_day", "native_interval_seconds": 3600,
+                    "supported_lods": ["native"], "taxonomy": f"{resource}_region",
+                    "current_measure": "GEN", "forecast_measure": forecast,
+                    "forecast_basis": "HSL_potential",
+                    "forecast_error_available": False,
+                }
+                for resource, forecast, regions in (
+                    ("wind", "STWPF", ("panhandle", "coastal", "south", "west", "north")),
+                    ("solar", "STPPF", ("center-west", "north-west", "far-west", "far-east", "south-east", "center-east")),
+                )
+                for region in regions
+            ],
+        ],
+    }
+
+
+def historical_cache_policy(end):
+    current = now_ts()
+    if end <= current - SEALED_HISTORY_AGE_SECONDS:
+        return (
+            "sealed",
+            min(SEALED_CACHE_TTL_SECONDS, 300),
+            "public, max-age=60, s-maxage=300, must-revalidate",
+        )
+    if end <= current - 300:
+        return (
+            "recent",
+            RECENT_CACHE_TTL_SECONDS,
+            "public, max-age=60, s-maxage=300, stale-while-revalidate=60",
+        )
+    return (
+        "live",
+        CACHE_TTL_SECONDS,
+        "public, max-age=5, s-maxage=15, stale-while-revalidate=30",
+    )
+
+
+def canonical_json_bytes(value) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def canonical_series_tags(tags) -> str:
+    return json.dumps(
+        normalize_tags(tags),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def canonical_series_identity(metric_name, tags) -> tuple[str, str]:
+    normalized_metric = metric_name.strip()[:240]
+    tags_json = canonical_series_tags(tags)
+    identity = json.dumps(
+        [normalized_metric, json.loads(tags_json)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return tags_json, hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def resolve_series_id(conn, metric_name, tags) -> int:
+    tags_json, identity_hash = canonical_series_identity(metric_name, tags)
+    normalized_metric = metric_name.strip()[:240]
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO series (metric_name, tags_json, identity_hash)
+        VALUES (?, ?, ?)
+        """,
+        (normalized_metric, tags_json, identity_hash),
+    )
+    row = conn.execute(
+        "SELECT id, identity_hash FROM series WHERE metric_name = ? AND tags_json = ?",
+        (normalized_metric, tags_json),
+    ).fetchone()
+    if row is None or row[1] != identity_hash:
+        raise sqlite3.IntegrityError("series identity hash collision")
+    series_id = int(row[0])
+    normalized_tags = json.loads(tags_json)
+    if normalized_tags:
+        conn.executemany(
+            "INSERT OR IGNORE INTO series_tags (series_id, tag) VALUES (?, ?)",
+            [(series_id, tag) for tag in normalized_tags],
+        )
+    return series_id
+
+
+def backfill_metric_series(
+    conn: sqlite3.Connection,
+    *,
+    batch_size: int = 1_000,
+    commit_each_batch: bool = False,
+    max_batches: int | None = None,
+) -> int:
+    """Associate legacy samples incrementally; safe to stop and resume."""
+    if batch_size < 1:
+        raise ValueError("batch_size must be positive")
+    updated = 0
+    batches = 0
+    last_metric_id = 0
+    while max_batches is None or batches < max_batches:
+        rows = conn.execute(
+            """
+            SELECT id, metric_name, tags
+            FROM metrics
+            WHERE series_id IS NULL AND id > ?
+            ORDER BY id
+            LIMIT ?
+            """,
+            (last_metric_id, batch_size),
+        ).fetchall()
+        if not rows:
+            break
+        metric_ids = [int(row[0]) for row in rows]
+        placeholders = ",".join("?" for _ in metric_ids)
+        tags_by_metric = defaultdict(list)
+        for metric_id, tag in conn.execute(
+            f"""
+            SELECT metric_id, tag FROM metric_tags
+            WHERE metric_id IN ({placeholders})
+            ORDER BY metric_id, tag
+            """,
+            metric_ids,
+        ):
+            tags_by_metric[int(metric_id)].append(tag)
+        for metric_id, metric_name, raw_tags in rows:
+            tags = tags_by_metric.get(int(metric_id))
+            if not tags:
+                try:
+                    decoded_tags = json.loads(raw_tags or "[]")
+                    tags = decoded_tags if isinstance(decoded_tags, list) else []
+                except (json.JSONDecodeError, TypeError):
+                    tags = []
+            series_id = resolve_series_id(conn, metric_name, tags)
+            conn.execute(
+                "UPDATE metrics SET series_id = ? WHERE id = ? AND series_id IS NULL",
+                (series_id, metric_id),
+            )
+            updated += 1
+        last_metric_id = metric_ids[-1]
+        batches += 1
+        if commit_each_batch:
+            conn.commit()
+    return updated
+
+
+def backfill_series_tags(conn: sqlite3.Connection) -> int:
+    inserted = 0
+    for series_id, tags_json in conn.execute(
+        "SELECT id, tags_json FROM series ORDER BY id"
+    ).fetchall():
+        for tag in normalize_tags(json.loads(tags_json)):
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO series_tags (series_id, tag) VALUES (?, ?)",
+                (series_id, tag),
+            )
+            inserted += cursor.rowcount
+    return inserted
+
+
+def audit_metric_tag_drift(conn: sqlite3.Connection, *, limit: int = 100):
+    if limit < 1:
+        raise ValueError("limit must be positive")
+    rows = conn.execute(
+        "SELECT id, tags FROM metrics ORDER BY id LIMIT ?", (limit,)
+    ).fetchall()
+    if not rows:
+        return []
+    metric_ids = [int(row[0]) for row in rows]
+    placeholders = ",".join("?" for _ in metric_ids)
+    tags_by_metric = defaultdict(list)
+    for metric_id, tag in conn.execute(
+        f"""
+        SELECT metric_id, tag FROM metric_tags
+        WHERE metric_id IN ({placeholders})
+        ORDER BY metric_id, tag
+        """,
+        metric_ids,
+    ):
+        tags_by_metric[int(metric_id)].append(tag)
+    drift = []
+    for metric_id, raw_tags in rows:
+        try:
+            decoded = json.loads(raw_tags or "[]")
+            compatibility_tags = normalize_tags(decoded if isinstance(decoded, list) else [])
+        except (json.JSONDecodeError, TypeError):
+            compatibility_tags = []
+        lookup_tags = normalize_tags(tags_by_metric.get(int(metric_id), []))
+        if compatibility_tags != lookup_tags:
+            drift.append(
+                {
+                    "metric_id": int(metric_id),
+                    "metric_tags": lookup_tags,
+                    "tags_json": compatibility_tags,
+                }
+            )
+    return drift
+
+
+def normalized_series_readiness(conn: sqlite3.Connection):
+    """Return bounded public-safe readiness without exposing internal IDs."""
+    unassigned = int(
+        conn.execute(
+            "SELECT COUNT(*) FROM metrics WHERE series_id IS NULL"
+        ).fetchone()[0]
+    )
+    blocked = []
+    payload_builder = globals().get("tile_catalog_payload")
+    if callable(payload_builder):
+        required_metrics = sorted(
+            {
+                selector["metric"]
+                for entry in payload_builder().get("series", [])
+                if isinstance(entry, dict)
+                and isinstance((selector := entry.get("selector")), dict)
+                and isinstance(selector.get("metric"), str)
+            }
+        )
+        for metric in required_metrics:
+            count = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM metrics "
+                    "WHERE metric_name=? AND series_id IS NULL",
+                    (metric,),
+                ).fetchone()[0]
+            )
+            if count:
+                blocked.append({"metric": metric, "unassigned_rows": count})
+    return {
+        "ready": unassigned == 0 and not blocked,
+        "unassigned_rows": unassigned,
+        "blocked_tile_series": blocked,
+    }
+
 
 def init_db(conn: sqlite3.Connection) -> None:
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS metrics (
@@ -57,7 +896,8 @@ def init_db(conn: sqlite3.Connection) -> None:
             value REAL NOT NULL,
             interval INTEGER,
             metric_type TEXT,
-            tags TEXT
+            tags TEXT,
+            series_id INTEGER
         )
         """
     )
@@ -92,10 +932,73 @@ def init_db(conn: sqlite3.Connection) -> None:
     metric_columns = {row[1] for row in conn.execute("PRAGMA table_info(metrics)")}
     if "dedupe_key" not in metric_columns:
         conn.execute("ALTER TABLE metrics ADD COLUMN dedupe_key TEXT")
+    if "series_id" not in metric_columns:
+        conn.execute("ALTER TABLE metrics ADD COLUMN series_id INTEGER")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS series (
+            id INTEGER PRIMARY KEY,
+            metric_name TEXT NOT NULL,
+            tags_json TEXT NOT NULL,
+            identity_hash TEXT NOT NULL UNIQUE,
+            UNIQUE(metric_name, tags_json)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS series_tags (
+            series_id INTEGER NOT NULL,
+            tag TEXT NOT NULL,
+            PRIMARY KEY (series_id, tag),
+            FOREIGN KEY(series_id) REFERENCES series(id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_series_tags_tag_series
+        ON series_tags(tag, series_id)
+        """
+    )
+    conn.commit()
+    backfill_metric_series(
+        conn,
+        batch_size=SERIES_BACKFILL_BATCH_SIZE,
+        commit_each_batch=True,
+        max_batches=SERIES_BACKFILL_MAX_BATCHES,
+    )
+    # Build these once, after the bounded startup pass, so each partial index
+    # contains only the rows needed by its corresponding read path.
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_metrics_series_ts_id_value
+        ON metrics(series_id, ts, id, value) WHERE series_id IS NOT NULL
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_metrics_unbackfilled_name
+        ON metrics(metric_name) WHERE series_id IS NULL
+        """
+    )
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_dedupe_key
         ON metrics(dedupe_key) WHERE dedupe_key IS NOT NULL
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS metric_correction_age (
+            source_id TEXT NOT NULL,
+            metric_name TEXT NOT NULL,
+            series_tags TEXT NOT NULL,
+            age_bucket TEXT NOT NULL,
+            correction_count INTEGER NOT NULL,
+            last_observed_at INTEGER NOT NULL,
+            PRIMARY KEY (source_id, metric_name, series_tags, age_bucket)
+        )
         """
     )
     conn.execute(
@@ -115,6 +1018,9 @@ def init_db(conn: sqlite3.Connection) -> None:
             publication_mode TEXT NOT NULL DEFAULT 'polling',
             publication_interval_seconds INTEGER,
             checkpoint_json TEXT,
+            diagnostics_json TEXT,
+            provenance_json TEXT,
+            availability_status TEXT,
             updated_at INTEGER NOT NULL
         )
         """
@@ -134,6 +1040,12 @@ def init_db(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE collector_sources ADD COLUMN checkpoint_json TEXT")
     if "data_timestamp_ts" not in source_columns:
         conn.execute("ALTER TABLE collector_sources ADD COLUMN data_timestamp_ts INTEGER")
+    if "diagnostics_json" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN diagnostics_json TEXT")
+    if "provenance_json" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN provenance_json TEXT")
+    if "availability_status" not in source_columns:
+        conn.execute("ALTER TABLE collector_sources ADD COLUMN availability_status TEXT")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS events (
@@ -159,21 +1071,89 @@ def init_db(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_events_type_status ON events(event_type, status)"
     )
     conn.commit()
+    init_forecast_schema(conn)
+    init_forecast_quality_schema(conn)
+    init_net_load_schema(conn)
+    init_regional_geography_schema(conn)
+    init_market_mechanics_schema(conn)
+    init_market_geography_schema(conn)
+    init_predictive_weather_schema(conn)
+    init_grid_events_schema(conn)
+    init_historical_context_schema(conn)
+    init_texas_grid_schema(conn)
+    init_external_context_schema(conn)
 
 
 def get_db() -> sqlite3.Connection:
     conn = getattr(DB_LOCAL, "conn", None)
     if conn is None:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA busy_timeout=5000")
         DB_LOCAL.conn = conn
     return conn
 
 
 def now_ts() -> int:
     return int(time.time())
+
+
+def canonical_unsigned_decimal(value) -> bool:
+    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
+        return False
+    try:
+        return str(int(value)) == value
+    except ValueError:
+        return False
+
+
+def recompute_bounded_forecast_net_load(conn, day_starts, current):
+    lower = (current // 86_400) * 86_400 - 90 * 86_400
+    upper = (current // 86_400) * 86_400 + 9 * 86_400
+    bounded = sorted(
+        {day for day in day_starts if isinstance(day, int) and lower <= day < upper}
+    )[:32]
+    results = []
+    for day_start in bounded:
+        results.extend(
+            recompute_net_load(
+                conn, "net-load.forecast", day_start,
+                current_ts=current, dataset_cutoff=current,
+                horizons=["1h", "6h", "24h"],
+            )
+        )
+    return results
+
+
+def recompute_bounded_actual_net_load(conn, changes, current):
+    completed = (current // 86_400) * 86_400
+    previous = completed - 86_400
+    prior_pointer = conn.execute(
+        """SELECT 1 FROM net_load_current
+           WHERE series_key=? AND methodology_version='v1'
+             AND horizon='actual' AND day_start=?""",
+        (NET_LOAD_ACTUAL_SERIES_KEY,previous),
+    ).fetchone()
+    affected = set() if prior_pointer else {previous}
+    for metric_name, intervals in changes.items():
+        if metric_name not in REALTIME_NET_LOAD_METRICS and metric_name != "ercot.storage.net_output_mw":
+            continue
+        offsets = (0,) if metric_name == "ercot.storage.net_output_mw" else (0, 3_600, 10_800)
+        for start, end in intervals:
+            for timestamp in (start, end):
+                for offset in offsets:
+                    affected.add(((int(timestamp) + offset) // 86_400) * 86_400)
+    lower = completed - 90 * 86_400
+    results = []
+    for day_start in sorted(day for day in affected if lower <= day < completed)[:16]:
+        results.extend(
+            recompute_net_load(
+                conn, NET_LOAD_ACTUAL_SERIES_KEY, day_start,
+                current_ts=current, dataset_cutoff=current, horizons=["actual"],
+            )
+        )
+    return results
 
 
 def parse_timestamp(value):
@@ -202,6 +1182,108 @@ def parse_positive_int(value):
     if parsed is None or parsed <= 0:
         return None
     return parsed
+
+
+SENSITIVE_SOURCE_METADATA_KEYS = {
+    "accesstoken",
+    "apikey",
+    "authorization",
+    "bearertoken",
+    "clientsecret",
+    "cookie",
+    "credentials",
+    "idtoken",
+    "password",
+    "primarykey",
+    "refreshtoken",
+    "secondarykey",
+    "secret",
+    "subscriptionkey",
+}
+
+
+def sanitize_source_metadata_string(value):
+    sanitized = re.sub(r"(?i)bearer\s+[^\s,;]+", "Bearer [redacted]", str(value))
+    sanitized = re.sub(
+        r"(?i)(subscription-key|api[_-]?key|access[_-]?token|bearer[_-]?token|"
+        r"client[_-]?secret|id[_-]?token|password|primary[_-]?key|"
+        r"refresh[_-]?token|secondary[_-]?key|subscription[_-]?key)=[^&\s]+",
+        r"\1=[redacted]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+        "[redacted-email]",
+        sanitized,
+    )
+    if len(sanitized) > MAX_SOURCE_METADATA_STRING:
+        return sanitized[:MAX_SOURCE_METADATA_STRING] + "...[truncated]"
+    return sanitized
+
+
+def sanitize_source_metadata(value, depth=0):
+    if depth >= MAX_SOURCE_METADATA_DEPTH:
+        return "[truncated]"
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, str):
+        return sanitize_source_metadata_string(value)
+    if isinstance(value, dict):
+        output = {}
+        items = list(value.items())
+        for raw_key, item in items[:MAX_SOURCE_METADATA_ITEMS]:
+            key = str(raw_key)[:120]
+            normalized_key = re.sub(r"[^a-z0-9]", "", key.lower())
+            if normalized_key in SENSITIVE_SOURCE_METADATA_KEYS:
+                output[key] = "[redacted]"
+            else:
+                output[key] = sanitize_source_metadata(item, depth + 1)
+        if len(items) > MAX_SOURCE_METADATA_ITEMS:
+            output["_truncated_entries"] = len(items) - MAX_SOURCE_METADATA_ITEMS
+        return output
+    if isinstance(value, (list, tuple)):
+        output = [
+            sanitize_source_metadata(item, depth + 1)
+            for item in value[:MAX_SOURCE_METADATA_ITEMS]
+        ]
+        if len(value) > MAX_SOURCE_METADATA_ITEMS:
+            output.append(
+                {"_truncated_entries": len(value) - MAX_SOURCE_METADATA_ITEMS}
+            )
+        return output
+    return sanitize_source_metadata_string(value)
+
+
+def bounded_source_metadata_json(value, field):
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"invalid_{field}")
+    sanitized = sanitize_source_metadata(value)
+    encoded = json.dumps(sanitized, sort_keys=True, separators=(",", ":"))
+    encoded_bytes = len(encoded.encode("utf-8"))
+    if encoded_bytes <= MAX_SOURCE_METADATA_BYTES:
+        return encoded
+    return json.dumps(
+        {
+            "_original_sanitized_bytes": encoded_bytes,
+            "_truncated": True,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def parse_source_metadata_json(value):
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def normalize_tags(tags):
@@ -251,6 +1333,68 @@ def normalize_query_window(
     return bounded_since, end_ts
 
 
+CORRECTION_AGE_BUCKETS = (
+    "future",
+    "under_5m",
+    "5m_to_1h",
+    "1h_to_24h",
+    "1d_to_7d",
+    "7d_to_30d",
+    "over_30d",
+)
+
+
+def correction_age_bucket(observed_at, data_timestamp):
+    age = int(observed_at) - int(data_timestamp)
+    if age < 0:
+        return "future"
+    if age < 300:
+        return "under_5m"
+    if age < 3600:
+        return "5m_to_1h"
+    if age < 86400:
+        return "1h_to_24h"
+    if age < 7 * 86400:
+        return "1d_to_7d"
+    if age < 30 * 86400:
+        return "7d_to_30d"
+    return "over_30d"
+
+
+def correction_source_id(tags):
+    sources = sorted(
+        {
+            tag.split(":", 1)[1]
+            for tag in tags
+            if tag.startswith("source:") and tag.split(":", 1)[1]
+        }
+    )
+    if len(sources) == 1:
+        return sources[0][:120]
+    return "multiple" if sources else "unknown"
+
+
+def list_metric_correction_age(conn):
+    return [
+        {
+            "source_id": row[0],
+            "metric_name": row[1],
+            "tags": json.loads(row[2]),
+            "age_bucket": row[3],
+            "correction_count": row[4],
+            "last_observed_at": row[5],
+        }
+        for row in conn.execute(
+            """
+            SELECT source_id, metric_name, series_tags, age_bucket,
+                   correction_count, last_observed_at
+            FROM metric_correction_age
+            ORDER BY source_id, metric_name, series_tags, age_bucket
+            """
+        ).fetchall()
+    ]
+
+
 def ingest_metrics(conn, payload, current_ts=None):
     inserted = 0
     updated = 0
@@ -258,6 +1402,8 @@ def ingest_metrics(conn, payload, current_ts=None):
     invalid = 0
     dependencies = set()
     changes = defaultdict(list)
+    correction_age_buckets = {bucket: 0 for bucket in CORRECTION_AGE_BUCKETS}
+    historical_demand_timestamps = []
     ts_now = current_ts if current_ts is not None else now_ts()
     conn.execute("BEGIN")
     try:
@@ -285,10 +1431,14 @@ def ingest_metrics(conn, payload, current_ts=None):
                 if isinstance(point, dict):
                     value = point.get("value")
                     ts = parse_timestamp(point.get("timestamp"))
+                    timestamp_was_provided = ts is not None
                     point_dedupe = point.get("dedupe_key")
                 elif isinstance(point, (list, tuple)) and len(point) >= 2:
                     ts = parse_timestamp(point[0])
+                    timestamp_was_provided = ts is not None
                     value = point[1]
+                else:
+                    timestamp_was_provided = False
                 if ts is None:
                     ts = ts_now
                 try:
@@ -305,11 +1455,13 @@ def ingest_metrics(conn, payload, current_ts=None):
                 if dedupe_key is not None:
                     dedupe_key = str(dedupe_key)[:500]
                 tags_json = json.dumps(tags)
+                series_id = resolve_series_id(conn, metric_name, tags)
                 existing = None
                 if dedupe_key is not None:
                     existing = conn.execute(
                         """
-                        SELECT id, metric_name, ts, value, interval, metric_type, tags
+                        SELECT id, metric_name, ts, value, interval, metric_type, tags,
+                               series_id
                         FROM metrics WHERE dedupe_key = ?
                         """,
                         (dedupe_key,),
@@ -322,35 +1474,80 @@ def ingest_metrics(conn, payload, current_ts=None):
                     metric_type,
                     tags_json,
                 )
+                old_tags = []
                 if existing is not None:
                     metric_id = existing[0]
-                    if tuple(existing[1:]) == values:
+                    if tuple(existing[1:7]) == values and existing[7] == series_id:
                         unchanged += 1
                         continue
                     conn.execute(
                         """
                         UPDATE metrics
                         SET metric_name = ?, ts = ?, value = ?, interval = ?,
-                            metric_type = ?, tags = ?
+                            metric_type = ?, tags = ?, series_id = ?
                         WHERE id = ?
                         """,
-                        (*values, metric_id),
+                        (*values, series_id, metric_id),
                     )
                     conn.execute("DELETE FROM metric_tags WHERE metric_id = ?", (metric_id,))
                     updated += 1
+                    correction_timestamp = ts if timestamp_was_provided else existing[2]
+                    age_bucket = correction_age_bucket(ts_now, correction_timestamp)
+                    correction_age_buckets[age_bucket] += 1
+                    source_id = correction_source_id(tags)
+                    conn.execute(
+                        """
+                        INSERT INTO metric_correction_age (
+                            source_id, metric_name, series_tags, age_bucket,
+                            correction_count, last_observed_at
+                        ) VALUES (?, ?, ?, ?, 1, ?)
+                        ON CONFLICT(source_id, metric_name, series_tags, age_bucket) DO UPDATE SET
+                            correction_count = metric_correction_age.correction_count + 1,
+                            last_observed_at = excluded.last_observed_at
+                        """,
+                        (source_id, metric_name, tags_json, age_bucket, ts_now),
+                    )
                     dependencies.add(existing[1])
                     changes[existing[1]].append((int(existing[2]), int(existing[2])))
+                    try:
+                        old_tags = json.loads(existing[6] or "[]")
+                    except (json.JSONDecodeError, TypeError):
+                        old_tags = []
+                    old_internal_dependencies = {
+                        series_identity_dependency(existing[1], old_tags),
+                        *matching_selector_dependencies(existing[1], old_tags),
+                    }
+                    for dependency in old_internal_dependencies:
+                        changes[dependency].append(
+                            (int(existing[2]), int(existing[2]))
+                        )
+                    if existing[7] is not None:
+                        changes[f"series:{int(existing[7])}"].append(
+                            (int(existing[2]), int(existing[2]))
+                        )
                 else:
                     cur = conn.execute(
                         """
                         INSERT INTO metrics
-                        (metric_name, ts, value, interval, metric_type, tags, dedupe_key)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (metric_name, ts, value, interval, metric_type, tags, dedupe_key,
+                         series_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (*values, dedupe_key),
+                        (*values, dedupe_key, series_id),
                     )
                     metric_id = cur.lastrowid
                     inserted += 1
+                if (
+                    metric_name == "ercot.supply_demand.demand_mw"
+                    and tags == ["source:supply_demand"]
+                ):
+                    historical_demand_timestamps.append(int(ts))
+                if (
+                    existing is not None
+                    and existing[1] == "ercot.supply_demand.demand_mw"
+                    and old_tags == ["source:supply_demand"]
+                ):
+                    historical_demand_timestamps.append(int(existing[2]))
                 if tags:
                     conn.executemany(
                         "INSERT INTO metric_tags (metric_id, tag) VALUES (?, ?)",
@@ -358,6 +1555,14 @@ def ingest_metrics(conn, payload, current_ts=None):
                     )
                 dependencies.add(metric_name)
                 changes[metric_name].append((int(ts), int(ts)))
+                new_internal_dependencies = {
+                    series_identity_dependency(metric_name, tags),
+                    *matching_selector_dependencies(metric_name, tags),
+                }
+                for dependency in new_internal_dependencies:
+                    changes[dependency].append((int(ts), int(ts)))
+                changes[f"series:{series_id}"].append((int(ts), int(ts)))
+        mark_demand_history_changes(conn, historical_demand_timestamps)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -367,6 +1572,7 @@ def ingest_metrics(conn, payload, current_ts=None):
         "updated": updated,
         "unchanged": unchanged,
         "invalid": invalid,
+        "correction_age_buckets": correction_age_buckets,
         "dependencies": dependencies,
         "changes": dict(changes),
     }
@@ -377,7 +1583,7 @@ def ingest_events(conn, payload, current_ts=None):
     updated = 0
     invalid = 0
     ingested_at = current_ts if current_ts is not None else now_ts()
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     try:
         for event in payload:
             if not isinstance(event, dict):
@@ -451,7 +1657,7 @@ def ingest_events(conn, payload, current_ts=None):
     return {"inserted": inserted, "updated": updated, "invalid": invalid}
 
 
-def update_source_health(conn, attempt, current_ts=None):
+def update_source_health(conn, attempt, current_ts=None, commit=True):
     source_id = attempt.get("source_id") if isinstance(attempt, dict) else None
     display_name = attempt.get("display_name") if isinstance(attempt, dict) else None
     interval = parse_positive_int(
@@ -475,6 +1681,19 @@ def update_source_health(conn, attempt, current_ts=None):
         checkpoint_json = json.dumps(checkpoint, sort_keys=True, separators=(",", ":"))
         if len(checkpoint_json.encode("utf-8")) > MAX_BODY_BYTES:
             raise ValueError("checkpoint_too_large")
+    diagnostics_json = bounded_source_metadata_json(
+        attempt.get("diagnostics"), "source_diagnostics"
+    )
+    provenance_json = bounded_source_metadata_json(
+        attempt.get("provenance"), "source_provenance"
+    )
+    availability_status = attempt.get("availability_status")
+    if availability_status is not None:
+        availability_status = str(availability_status)
+        if availability_status not in ("available", "empty"):
+            raise ValueError("invalid_availability_status")
+    if not success:
+        availability_status = None
     previous = conn.execute(
         "SELECT consecutive_failures, last_success_ts FROM collector_sources WHERE source_id = ?",
         (str(source_id),),
@@ -488,8 +1707,8 @@ def update_source_health(conn, attempt, current_ts=None):
             last_success_ts, source_timestamp_ts, last_payload_hash,
             last_row_count, consecutive_failures, last_error, updated_at
             , publication_mode, publication_interval_seconds, checkpoint_json,
-            data_timestamp_ts
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            data_timestamp_ts, diagnostics_json, provenance_json, availability_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_id) DO UPDATE SET
             display_name = excluded.display_name,
             expected_interval_seconds = excluded.expected_interval_seconds,
@@ -516,9 +1735,26 @@ def update_source_health(conn, attempt, current_ts=None):
                 ELSE excluded.checkpoint_json
             END,
             data_timestamp_ts = CASE
+                WHEN excluded.availability_status = 'empty'
+                THEN NULL
                 WHEN excluded.data_timestamp_ts IS NULL
                 THEN collector_sources.data_timestamp_ts
                 ELSE excluded.data_timestamp_ts
+            END,
+            diagnostics_json = CASE
+                WHEN excluded.diagnostics_json IS NULL
+                THEN collector_sources.diagnostics_json
+                ELSE excluded.diagnostics_json
+            END,
+            provenance_json = CASE
+                WHEN excluded.provenance_json IS NULL
+                THEN collector_sources.provenance_json
+                ELSE excluded.provenance_json
+            END,
+            availability_status = CASE
+                WHEN excluded.availability_status IS NULL
+                THEN collector_sources.availability_status
+                ELSE excluded.availability_status
             END,
             updated_at = excluded.updated_at
         """,
@@ -540,9 +1776,13 @@ def update_source_health(conn, attempt, current_ts=None):
             publication_interval,
             checkpoint_json,
             parse_timestamp(attempt.get("data_timestamp_ts")),
+            diagnostics_json,
+            provenance_json,
+            availability_status,
         ),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def source_state(row, current_ts=None):
@@ -550,7 +1790,10 @@ def source_state(row, current_ts=None):
     interval = max(1, int(row[2]))
     last_success = row[4]
     source_ts = row[5]
-    data_ts = row[14] if row[14] is not None else source_ts
+    availability_status = row[17] if len(row) > 17 else None
+    data_ts = row[14]
+    if data_ts is None and availability_status != "empty":
+        data_ts = source_ts
     failures = int(row[8] or 0)
     publication_mode = row[11] or "polling"
     publication_interval = row[12] or interval
@@ -596,7 +1839,8 @@ def list_source_health(conn, current_ts=None):
                last_payload_hash, last_row_count, consecutive_failures,
                last_error, updated_at, publication_mode,
                publication_interval_seconds, checkpoint_json,
-               data_timestamp_ts
+               data_timestamp_ts, diagnostics_json, provenance_json,
+               availability_status
         FROM collector_sources ORDER BY display_name
         """
     ).fetchall()
@@ -628,6 +1872,9 @@ def list_source_health(conn, current_ts=None):
                 "collection_age_seconds": states["collection_age_seconds"],
                 "source_age_seconds": states["source_age_seconds"],
                 "data_age_seconds": states["data_age_seconds"],
+                "diagnostics": parse_source_metadata_json(row[15]),
+                "provenance": parse_source_metadata_json(row[16]),
+                "availability_status": row[17],
             }
         )
     return output
@@ -641,7 +1888,7 @@ def tags_filter_clause(tags):
     return clause, tags
 
 
-def series_filter_sql(tags):
+def legacy_series_filter_sql(tags):
     if len(tags) == 1:
         return (
             "metrics m JOIN metric_tags mt ON mt.metric_id = m.id",
@@ -649,6 +1896,50 @@ def series_filter_sql(tags):
             lambda metric: [metric, tags[0]],
         )
     return "metrics m", ["m.metric_name = ?"], lambda metric: [metric]
+
+
+def normalized_series_selector_sql(metric, tags):
+    normalized_tags = normalize_tags(tags)
+    if not normalized_tags:
+        return "SELECT id FROM series WHERE metric_name = ?", [metric]
+    placeholders = ",".join("?" for _ in normalized_tags)
+    return (
+        f"""
+        SELECT s.id
+        FROM series s
+        JOIN series_tags st ON st.series_id = s.id
+        WHERE s.metric_name = ? AND st.tag IN ({placeholders})
+        GROUP BY s.id
+        HAVING COUNT(DISTINCT st.tag) = ?
+        """,
+        [metric, *normalized_tags, len(normalized_tags)],
+    )
+
+
+def normalized_series_ids(conn, metric, tags):
+    selector_sql, params = normalized_series_selector_sql(metric, tags)
+    return [int(row[0]) for row in conn.execute(selector_sql, params).fetchall()]
+
+
+def series_filter_sql(conn, metric, tags):
+    has_legacy_rows = conn.execute(
+        """
+        SELECT 1 FROM metrics
+        WHERE metric_name = ? AND series_id IS NULL
+        LIMIT 1
+        """,
+        (metric,),
+    ).fetchone()
+    if has_legacy_rows:
+        source, clauses, params_for_metric = legacy_series_filter_sql(tags)
+        return source, clauses, params_for_metric(metric), len(tags) > 1
+    selector_sql, params = normalized_series_selector_sql(metric, tags)
+    return (
+        "metrics m",
+        [f"m.series_id IN ({selector_sql})"],
+        params,
+        False,
+    )
 
 
 def downsample_minmax(points, max_points):
@@ -806,6 +2097,7 @@ class Cache:
         self.lock = threading.Lock()
         self.hits = 0
         self.misses = 0
+        self.generation = 0
 
     def get(self, key):
         now = time.time()
@@ -845,11 +2137,42 @@ class Cache:
             while len(self.data) > self.max_entries:
                 self.data.popitem(last=False)
 
+    def snapshot_generation(self):
+        with self.lock:
+            return self.generation
+
+    def set_if_generation(
+        self,
+        key,
+        value,
+        expected_generation,
+        dependencies=None,
+        ranges=None,
+        ttl_seconds=None,
+        category="generic",
+    ):
+        expires_at = time.time() + (ttl_seconds if ttl_seconds is not None else self.ttl)
+        with self.lock:
+            if self.generation != expected_generation:
+                return False
+            self.data[key] = (
+                expires_at,
+                value,
+                frozenset(dependencies or []),
+                dict(ranges or {}),
+                category,
+            )
+            self.data.move_to_end(key)
+            while len(self.data) > self.max_entries:
+                self.data.popitem(last=False)
+            return True
+
     def invalidate(self, dependencies):
         targets = set(dependencies)
         if not targets:
             return
         with self.lock:
+            self.generation += 1
             keys = [
                 key
                 for key, (_expires, _value, entry_dependencies, _ranges, _category) in self.data.items()
@@ -860,9 +2183,11 @@ class Cache:
 
     def invalidate_changes(self, changes):
         if not changes:
-            return
+            return {"entries": 0, "tile_entries": 0}
         with self.lock:
+            self.generation += 1
             keys = []
+            tile_keys = []
             for key, (_expires, _value, dependencies, ranges, _category) in self.data.items():
                 invalidate = False
                 for metric, changed_ranges in changes.items():
@@ -881,8 +2206,11 @@ class Cache:
                         break
                 if invalidate:
                     keys.append(key)
+                    if _category.startswith("tile:"):
+                        tile_keys.append(key)
             for key in keys:
                 del self.data[key]
+            return {"entries": len(keys), "tile_entries": len(tile_keys)}
 
     def stats(self):
         with self.lock:
@@ -894,7 +2222,53 @@ class Cache:
                 "misses": self.misses,
                 "hit_ratio": self.hits / total if total else 0.0,
                 "categories": dict(Counter(entry[4] for entry in self.data.values())),
+                "generation": self.generation,
             }
+
+
+class SingleFlight:
+    class Flight:
+        def __init__(self):
+            self.event = threading.Event()
+            self.result = None
+            self.error = None
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.flights = {}
+
+    def do(self, key, generate, role_callback=None):
+        with self.lock:
+            flight = self.flights.get(key)
+            if flight is None:
+                flight = self.Flight()
+                self.flights[key] = flight
+                leader = True
+            else:
+                leader = False
+        if role_callback is not None:
+            role_callback("leader" if leader else "wait")
+        if not leader:
+            flight.event.wait()
+            if flight.error is not None:
+                raise flight.error
+            return flight.result, True
+        try:
+            flight.result = generate()
+        except Exception as error:
+            flight.error = error
+        finally:
+            with self.lock:
+                if self.flights.get(key) is flight:
+                    del self.flights[key]
+            flight.event.set()
+        if flight.error is not None:
+            raise flight.error
+        return flight.result, False
+
+    def pending(self):
+        with self.lock:
+            return len(self.flights)
 
 
 class RateLimiter:
@@ -921,15 +2295,19 @@ class RequestTooLarge(ValueError):
     pass
 
 
+class TileBackfillIncomplete(RuntimeError):
+    pass
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "ERCOTReceiver/0.2"
 
     def _app_server(self) -> "Server":
         return cast("Server", self.server)
 
-    def _send_json(self, status, payload, cache_control=None, etag=False, extra_headers=None):
+    def _send_json(self, status, payload, cache_control=None, etag=False, extra_headers=None, etag_value=None):
         body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        resolved_etag = f'"{hashlib.sha256(body).hexdigest()}"' if etag else None
+        resolved_etag = f'"{etag_value}"' if etag_value else (f'"{hashlib.sha256(body).hexdigest()}"' if etag else None)
         not_modified = bool(
             resolved_etag and self.headers.get("If-None-Match") == resolved_etag
         )
@@ -944,13 +2322,14 @@ class Handler(BaseHTTPRequestHandler):
             if cache_control:
                 self.send_header("Cache-Control", cache_control)
             self.end_headers()
-            return
+            return True
         self.send_header("Content-Type", "application/json")
         if cache_control:
             self.send_header("Cache-Control", cache_control)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+        return False
 
     def _send_text(
         self, status, body, content_type="text/plain; charset=utf-8", cache_control=None
@@ -992,23 +2371,23 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
-    def _read_json(self):
+    def _read_json(self, max_bytes=MAX_BODY_BYTES):
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError as exc:
             raise ValueError("invalid_content_length") from exc
         if length < 0:
             raise ValueError("invalid_content_length")
-        if length > MAX_BODY_BYTES:
+        if length > max_bytes:
             raise RequestTooLarge("body_too_large")
         raw = self.rfile.read(length) if length else b""
         if not raw:
             return None
         return json.loads(raw.decode("utf-8"))
 
-    def _read_json_or_error(self):
+    def _read_json_or_error(self, max_bytes=MAX_BODY_BYTES):
         try:
-            return self._read_json()
+            return self._read_json(max_bytes)
         except RequestTooLarge:
             self._send_json(413, {"error": "body_too_large"}, cache_control="no-store")
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -1038,9 +2417,12 @@ class Handler(BaseHTTPRequestHandler):
         aggregation="average",
         rollup=None,
     ):
-        source, clauses, params_for_metric = series_filter_sql(tags)
+        source, clauses, params, needs_multi_tag_filter = series_filter_sql(
+            conn, metric, tags
+        )
+        if source is None:
+            return []
         clauses = list(clauses)
-        params = params_for_metric(metric)
         if since is not None:
             clauses.append("m.ts >= ?")
             params.append(int(since))
@@ -1049,7 +2431,7 @@ class Handler(BaseHTTPRequestHandler):
             params.append(int(until))
         tag_clause = ""
         tag_params = []
-        if len(tags) > 1:
+        if needs_multi_tag_filter:
             tag_clause, tag_params = tags_filter_clause(tags)
 
         if rollup == "sum":
@@ -1078,14 +2460,17 @@ class Handler(BaseHTTPRequestHandler):
             if aggregation == "minmax":
                 query = (
                     "SELECT ts, value FROM ("
-                    "SELECT m.ts AS ts, m.value AS value, "
-                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) ORDER BY m.value ASC, m.ts ASC) AS min_rank, "
-                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) ORDER BY m.value DESC, m.ts ASC) AS max_rank "
+                    "SELECT m.ts AS ts, m.value AS value, m.id AS metric_id, "
+                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) "
+                    "ORDER BY m.value ASC, m.ts ASC, m.id ASC) AS min_rank, "
+                    "ROW_NUMBER() OVER (PARTITION BY (m.ts / ?) "
+                    "ORDER BY m.value DESC, m.ts ASC, m.id ASC) AS max_rank "
                     f"FROM {source} WHERE "
                     + " AND ".join(clauses)
                     + " "
                     + tag_clause
-                    + ") WHERE min_rank = 1 OR max_rank = 1 ORDER BY ts"
+                    + ") WHERE min_rank = 1 OR max_rank = 1 "
+                    "ORDER BY ts, metric_id"
                 )
                 rows = conn.execute(
                     query, [bucket_seconds, bucket_seconds, *params, *tag_params]
@@ -1104,12 +2489,15 @@ class Handler(BaseHTTPRequestHandler):
             ).fetchall()
             return [[r[0], r[1]] for r in rows]
 
+        # Stable sample ordering is timestamp then insertion identity. The hot
+        # index uses the same prefix so equal-timestamp results do not change
+        # when a metric moves from the legacy tag path to normalized series.
         query = (
             f"SELECT m.ts, m.value FROM {source} WHERE "
             + " AND ".join(clauses)
             + " "
             + tag_clause
-            + " ORDER BY m.ts"
+            + " ORDER BY m.ts, m.id"
         )
         rows = conn.execute(query, params + tag_params).fetchall()
         return [[r[0], r[1]] for r in rows]
@@ -1153,11 +2541,14 @@ class Handler(BaseHTTPRequestHandler):
         return bucket_seconds, seasonal_period
 
     def _latest_query(self, conn, metric, tags):
-        source, clauses, params_for_metric = series_filter_sql(tags)
-        params = params_for_metric(metric)
+        source, clauses, params, needs_multi_tag_filter = series_filter_sql(
+            conn, metric, tags
+        )
+        if source is None:
+            return None
         tag_clause = ""
         tag_params = []
-        if len(tags) > 1:
+        if needs_multi_tag_filter:
             tag_clause, tag_params = tags_filter_clause(tags)
         row = conn.execute(
             "SELECT m.ts, m.value, m.tags FROM "
@@ -1166,7 +2557,7 @@ class Handler(BaseHTTPRequestHandler):
             + " AND ".join(clauses)
             + " "
             + tag_clause
-            + " ORDER BY m.ts DESC LIMIT 1",
+            + " ORDER BY m.ts DESC, m.id DESC LIMIT 1",
             [*params, *tag_params],
         ).fetchone()
         if not row:
@@ -1194,7 +2585,718 @@ class Handler(BaseHTTPRequestHandler):
     def _cache_key(self, label, payload):
         return label + ":" + json.dumps(payload, sort_keys=True)
 
+    def _tile_storage_points(self, conn, definition, start, end):
+        metric = definition["metric"]
+        if conn.execute(
+            """
+            SELECT 1 FROM metrics
+            WHERE metric_name = ? AND series_id IS NULL
+            LIMIT 1
+            """,
+            (metric,),
+        ).fetchone():
+            raise TileBackfillIncomplete("tile_series_backfill_incomplete")
+        if definition["match"] == "exact":
+            tags_json = canonical_series_tags(definition["tags"])
+            row = conn.execute(
+                "SELECT id FROM series WHERE metric_name = ? AND tags_json = ?",
+                (metric, tags_json),
+            ).fetchone()
+            if row is None:
+                return [], []
+            series_ids = [int(row[0])]
+            rows = conn.execute(
+                """
+                SELECT ts, value FROM metrics
+                WHERE series_id = ? AND ts >= ? AND ts < ?
+                ORDER BY ts, id
+                """,
+                (series_ids[0], start, end),
+            ).fetchall()
+            next_ordinal = defaultdict(int)
+            points = []
+            for timestamp, value in rows:
+                points.append([timestamp, value, next_ordinal[timestamp]])
+                next_ordinal[timestamp] += 1
+            return points, series_ids
+        series_ids = normalized_series_ids(conn, metric, definition["tags"])
+        points = self._series_query(
+            conn,
+            metric,
+            start,
+            end - 1,
+            definition["tags"],
+            rollup=definition["rollup"],
+        )
+        points = [[point[0], point[1], 0] for point in points]
+        return points, series_ids
+
+    def _generate_tile(self, definition, tile_span, tile_start, lod):
+        tile_seconds = TILE_SPANS[tile_span]
+        tile_end = tile_start + tile_seconds
+        points, series_ids = self._tile_storage_points(
+            get_db(), definition, tile_start, tile_end
+        )
+        buckets = []
+        if lod == "native":
+            for point in points:
+                state = aggregate_points([point])
+                buckets.append(
+                    {
+                        "start": point[0],
+                        "end": point[0],
+                        "state": json.loads(serialize_aggregate(state)),
+                    }
+                )
+        else:
+            lod_seconds = TILE_LOD_SECONDS[lod]
+            grouped = defaultdict(list)
+            for point in points:
+                bucket_start = (int(point[0]) // lod_seconds) * lod_seconds
+                grouped[bucket_start].append(point)
+            for bucket_start in sorted(grouped):
+                state = aggregate_points(grouped[bucket_start])
+                buckets.append(
+                    {
+                        "start": bucket_start,
+                        "end": bucket_start + lod_seconds,
+                        "state": json.loads(serialize_aggregate(state)),
+                    }
+                )
+        payload = {
+            "schema": TILE_SCHEMA_VERSION,
+            "series_key": definition["key"],
+            "tile_span": tile_span,
+            "tile_start": tile_start,
+            "tile_end": tile_end,
+            "lod": lod,
+            "native_interval_seconds": definition["native_interval_seconds"],
+            "unit": definition["unit"],
+            "statistic_policy": definition["statistic_policy"],
+            "rollup": definition["rollup"],
+            "boundary_policy": "native_edges_coarse_aligned_interiors",
+            "buckets": buckets,
+        }
+        dependencies = {f"series:{series_id}" for series_id in series_ids}
+        if definition["match"] == "exact":
+            dependencies.add(
+                series_identity_dependency(definition["metric"], definition["tags"])
+            )
+        else:
+            dependencies.add(
+                selector_dependency(definition["metric"], definition["tags"])
+            )
+        ranges = {
+            dependency: (tile_start, tile_end - 1) for dependency in dependencies
+        }
+        return payload, dependencies, ranges
+
+    def _generate_outlook(self):
+        conn = get_db()
+        payload = outlook_snapshot(conn)
+        source_health = {
+            source["source_id"]: source for source in list_source_health(conn)
+        }
+
+        def outlook_source_health(source_id):
+            source = source_health.get(source_id)
+            if source is None:
+                return None
+            return {
+                "source_id": source_id,
+                "display_name": source["display_name"],
+                "availability_status": source["availability_status"],
+                "state": source["state"],
+                "freshness_state": source["freshness_state"],
+                "consecutive_failures": source["consecutive_failures"],
+                "last_success_ts": source["last_success_ts"],
+                "source_timestamp_ts": source["source_timestamp_ts"],
+                "data_timestamp_ts": source["data_timestamp_ts"],
+            }
+
+        payload["forecast"]["source_health"] = outlook_source_health(
+            "ercot_public_np3_565_weather_zone_forecast"
+        )
+        payload["adequacy"]["source_health"] = outlook_source_health(
+            "ercot_public_np3_763_system_adequacy"
+        )
+        stations = (
+            ("KDFW", "Dallas/Fort Worth"),
+            ("KAUS", "Austin"),
+            ("KHOU", "Houston"),
+            ("KSAT", "San Antonio"),
+        )
+        observations = []
+        for code, label in stations:
+            point = self._latest_query(
+                conn, "metar.temperature", [f"metar_code:{code}"]
+            )
+            observations.append(
+                {
+                    "station_code": code,
+                    "label": label,
+                    "observed_at": None if point is None else point["ts"],
+                    "temperature_c": None if point is None else point["value"],
+                }
+            )
+        metar_health = source_health.get("metar")
+        payload["weather_context"] = {
+            "state": "current_observations_only",
+            "forecast_driver_available": False,
+            "driver": None,
+            "source": None
+            if metar_health is None
+            else {
+                "source_id": "metar",
+                "display_name": metar_health["display_name"],
+                "expected_interval_seconds": metar_health[
+                    "expected_interval_seconds"
+                ],
+                "availability_status": metar_health["availability_status"],
+                "state": metar_health["state"],
+                "freshness_state": metar_health["freshness_state"],
+                "consecutive_failures": metar_health["consecutive_failures"],
+                "last_success_ts": metar_health["last_success_ts"],
+                "source_timestamp_ts": metar_health["source_timestamp_ts"],
+                "data_timestamp_ts": metar_health["data_timestamp_ts"],
+            },
+            "observations": observations,
+        }
+        return payload
+
     def do_POST(self):
+        if self.path == "/api/external-context/source-attempt":
+            if not self._rate_limit("external_context_attempt", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(16 * 1024)
+            if (
+                not isinstance(payload, dict)
+                or set(payload) != {"schema", "kind", "stream", "attempted_at", "status", "reason"}
+                or payload.get("schema") != 1
+                or payload.get("kind") != "external_context"
+                or payload.get("stream") not in ("eia930_demand", "henry_hub_daily", "epa_egrid")
+                or payload.get("status") != "failed"
+                or isinstance(payload.get("attempted_at"), bool)
+                or not isinstance(payload.get("attempted_at"), int)
+                or not 1 <= payload["attempted_at"] <= now_ts() + 300
+                or not isinstance(payload.get("reason"), str)
+                or not 1 <= len(payload["reason"]) <= 200
+            ):
+                self._send_json(400, {"error": "invalid_external_context_source_attempt"}, cache_control="no-store")
+                return
+            status = record_external_context_failure(get_db(), payload["stream"], payload["reason"], payload["attempted_at"])
+            self._app_server().cache.invalidate({"external-context"})
+            self._send_json(200, {"schema": 1, "stream": payload["stream"], "status": status}, cache_control="no-store")
+            return
+
+        if self.path == "/api/external-context/ingest":
+            if not self._rate_limit("external_context_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_EXTERNAL_CONTEXT_BODY_BYTES)
+            if payload is None:
+                return
+            stream = payload.get("stream") if isinstance(payload, dict) else None
+            try:
+                result = ingest_external_context(get_db(), payload, now_ts())
+            except ValueError as exc:
+                get_db().rollback()
+                if stream in ("eia930_demand", "henry_hub_daily", "epa_egrid"):
+                    record_external_context_failure(get_db(), stream, exc, now_ts())
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                get_db().rollback()
+                if stream in ("eia930_demand", "henry_hub_daily", "epa_egrid"):
+                    record_external_context_failure(get_db(), stream, "external_context_ingest_failed", now_ts())
+                self._send_json(500, {"error": "external_context_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"external-context"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/texas-grid/source-attempt":
+            if not self._rate_limit("texas_grid_attempt", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(16 * 1024)
+            if payload is None:
+                return
+            if (
+                not isinstance(payload, dict)
+                or set(payload)
+                != {"schema", "stream", "status", "attempted_at", "error"}
+                or payload.get("schema") != 1
+                or payload.get("stream")
+                not in ("gis", "resource_capacity_trend", "long_term_load_forecast")
+                or payload.get("status") != "failed"
+                or isinstance(payload.get("attempted_at"), bool)
+                or not isinstance(payload.get("attempted_at"), int)
+                or not 1 <= payload["attempted_at"] <= now_ts() + 300
+                or payload.get("error") != "official_source_fetch_or_parse_failed"
+            ):
+                self._send_json(
+                    400,
+                    {"error": "invalid_texas_grid_source_attempt"},
+                    cache_control="no-store",
+                )
+                return
+            attempt_status = record_texas_grid_failure(
+                get_db(), payload["stream"], payload["error"], payload["attempted_at"]
+            )
+            self._app_server().cache.invalidate({"texas-grid"})
+            self._send_json(
+                200,
+                {"schema": 1, "stream": payload["stream"], "status": attempt_status},
+                cache_control="no-store",
+            )
+            return
+
+        if self.path == "/api/texas-grid/ingest":
+            if not self._rate_limit("texas_grid_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_TEXAS_GRID_BODY_BYTES)
+            if payload is None:
+                return
+            stream = payload.get("stream") if isinstance(payload, dict) else None
+            try:
+                result = ingest_texas_grid(get_db(), payload, current_ts=now_ts())
+            except ValueError as exc:
+                get_db().rollback()
+                record_texas_grid_failure(get_db(), stream, exc, now_ts())
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception as exc:
+                get_db().rollback()
+                record_texas_grid_failure(get_db(), stream, exc, now_ts(), materialization=True)
+                self._send_json(500, {"error": "texas_grid_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"texas-grid"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/grid-events/ingest":
+            if not self._rate_limit("grid_events_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_GRID_EVENTS_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_grid_events(get_db(), payload, current_ts=now_ts())
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "grid_event_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"grid-events"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/predictive-weather/ingest":
+            if not self._rate_limit("predictive_weather_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_PREDICTIVE_WEATHER_BODY_BYTES)
+            if payload is None:
+                return
+            conn = get_db()
+            stream = payload.get("stream") if isinstance(payload, dict) else None
+            try:
+                result = ingest_predictive_weather(conn, payload, current_ts=now_ts())
+            except ValueError as exc:
+                record_predictive_weather_failure(conn, stream, str(exc), now_ts())
+                self._app_server().cache.invalidate({"predictive-weather-manifest"})
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                record_predictive_weather_failure(
+                    conn, stream, "predictive_weather_constraint_conflict", now_ts()
+                )
+                self._app_server().cache.invalidate({"predictive-weather-manifest"})
+                self._send_json(
+                    400,
+                    {"error": "predictive_weather_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                record_predictive_weather_failure(
+                    conn, stream, "predictive_weather_ingest_failed", now_ts()
+                )
+                self._app_server().cache.invalidate({"predictive-weather-manifest"})
+                self._send_json(
+                    500,
+                    {"error": "predictive_weather_ingest_failed"},
+                    cache_control="no-store",
+                )
+                return
+            if isinstance(payload, dict) and payload.get("stream") == "alerts":
+                try:
+                    ingest_nws_alert_events(conn, payload, current_ts=now_ts())
+                except ValueError as exc:
+                    self._app_server().cache.invalidate(
+                        {"predictive-weather-manifest", "grid-events"}
+                    )
+                    self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                    return
+                except Exception:
+                    self._app_server().cache.invalidate(
+                        {"predictive-weather-manifest", "grid-events"}
+                    )
+                    self._send_json(
+                        500, {"error": "grid_event_materialization_failed"}, cache_control="no-store"
+                    )
+                    return
+            self._app_server().cache.invalidate({"predictive-weather-manifest"})
+            if isinstance(payload, dict) and payload.get("stream") == "alerts":
+                self._app_server().cache.invalidate({"grid-events"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/market-geography-publications/ingest":
+            if not self._rate_limit("market_geography_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_MARKET_GEOGRAPHY_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_market_geography_publication(
+                    get_db(), payload, current_ts=now_ts()
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400,
+                    {"error": "market_geography_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "market_geography_ingest_failed"},
+                    cache_control="no-store",
+                )
+                return
+            self._app_server().cache.invalidate({"market-geography-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/market-mechanics-publications/ingest":
+            if not self._rate_limit("market_mechanics_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_market_mechanics_publication(
+                    get_db(), payload, current_ts=now_ts()
+                )
+                result["pruned"] = prune_market_mechanics(
+                    get_db(), now=now_ts(), batch_size=500
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(400, {"error": "market_mechanics_constraint_conflict"}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "market_mechanics_ingest_failed"}, cache_control="no-store")
+                return
+            self._app_server().cache.invalidate({"market-mechanics-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/regional-renewable-publications/ingest":
+            if not self._rate_limit("regional_renewable_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                result = ingest_regional_renewable_publication(
+                    get_db(), payload, current_ts=now_ts()
+                )
+                result["pruned"] = prune_regional_publications(
+                    get_db(), now=now_ts(), batch_size=100
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400, {"error": "regional_constraint_conflict"}, cache_control="no-store"
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500, {"error": "regional_ingest_failed"}, cache_control="no-store"
+                )
+                return
+            self._app_server().cache.invalidate({"regional-geography-manifest"})
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/net-load/recompute":
+            if not self._rate_limit("net_load_recompute", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error()
+            if payload is None:
+                return
+            try:
+                if not isinstance(payload, dict) or set(payload) - {
+                    "series_key", "day_start", "dataset_cutoff"
+                }:
+                    raise ValueError("invalid_net_load_recompute")
+                public_key = payload.get("series_key")
+                if public_key == NET_LOAD_ACTUAL_SERIES_KEY:
+                    internal_key, horizons = NET_LOAD_ACTUAL_SERIES_KEY, ["actual"]
+                    pipeline = "actual"
+                else:
+                    matches = [
+                        (horizon, key)
+                        for horizon, key in NET_LOAD_FORECAST_KEYS.items()
+                        if key == public_key
+                    ]
+                    if len(matches) != 1:
+                        raise ValueError("invalid_net_load_series")
+                    internal_key, horizons = "net-load.forecast", [matches[0][0]]
+                    pipeline = "forecast"
+                current = now_ts()
+                results = recompute_net_load(
+                    get_db(), internal_key, payload.get("day_start"),
+                    current_ts=current,
+                    dataset_cutoff=payload.get("dataset_cutoff", current),
+                    horizons=horizons,
+                )
+                record_net_load_materialization_health(
+                    get_db(),
+                    pipeline,
+                    True,
+                    current,
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                try:
+                    record_net_load_materialization_health(
+                        get_db(), locals().get("pipeline", "actual"), False, now_ts(),
+                        "admin_recompute_failed"
+                    )
+                except Exception:
+                    pass
+                self._send_json(
+                    500, {"error": "net_load_recompute_failed"}, cache_control="no-store"
+                )
+                return
+            self._app_server().cache.invalidate({"net-load-manifest"})
+            self._send_json(200, {"resources": results}, cache_control="no-store")
+            return
+
+        if self.path == "/api/renewable-publications/ingest":
+            if not self._rate_limit("renewable_vintages_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            current = now_ts()
+            try:
+                conn = get_db()
+                result = ingest_renewable_publication(conn, payload, current_ts=current)
+                series_key = renewable_series_for_vintage(conn, result["vintage_key"])
+                days = affected_utc_days_for_renewable_vintage(
+                    conn, result["vintage_key"]
+                )
+                if series_key is None:
+                    raise ValueError("renewable_publication_identity_unavailable")
+                for day_start in days:
+                    recompute_forecast_quality(
+                        conn,
+                        series_key,
+                        day_start,
+                        current_ts=current,
+                        dataset_cutoff=current,
+                    )
+                if result["status"] == "inserted":
+                    try:
+                        recompute_bounded_forecast_net_load(conn, days, current)
+                        record_net_load_materialization_health(
+                            conn, "forecast", True, current
+                        )
+                        result["net_load_materialization"] = "updated"
+                    except Exception:
+                        record_net_load_materialization_health(
+                            conn, "forecast", False, current,
+                            "renewable_materialization_failed",
+                        )
+                        result["net_load_materialization"] = "failed"
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400,
+                    {"error": "renewable_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "renewable_quality_materialization_failed"},
+                    cache_control="no-store",
+                )
+                return
+            self._app_server().cache.invalidate(
+                {"forecast-quality-manifest", "net-load-manifest", "regional-geography-manifest"}
+            )
+            self._send_json(200, result, cache_control="no-store")
+            return
+
+        if self.path == "/api/forecast-quality/recompute":
+            if not self._rate_limit("forecast_quality_recompute", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error()
+            if payload is None:
+                return
+            try:
+                if not isinstance(payload, dict) or not set(payload).issubset(
+                    {"series_key", "day_start", "horizons", "dataset_cutoff"}
+                ):
+                    raise ValueError("invalid_forecast_quality_recompute")
+                if "series_key" not in payload or "day_start" not in payload:
+                    raise ValueError("invalid_forecast_quality_recompute")
+                horizons = payload.get("horizons")
+                if horizons is not None and (
+                    not isinstance(horizons, list)
+                    or not 1 <= len(horizons) <= 3
+                    or any(not isinstance(item, str) for item in horizons)
+                    or len(set(horizons)) != len(horizons)
+                ):
+                    raise ValueError("invalid_forecast_quality_horizons")
+                cutoff = payload.get("dataset_cutoff", now_ts())
+                results = recompute_forecast_quality(
+                    get_db(),
+                    payload["series_key"],
+                    payload["day_start"],
+                    current_ts=now_ts(),
+                    dataset_cutoff=cutoff,
+                    horizons=horizons,
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "forecast_quality_recompute_failed"},
+                    cache_control="no-store",
+                )
+                return
+            self._app_server().cache.invalidate(
+                {"forecast-quality-manifest", "net-load-manifest"}
+            )
+            self._send_json(200, {"resources": results}, cache_control="no-store")
+            return
+
+        if self.path == "/api/forecast-publications/ingest":
+            if not self._rate_limit("forecast_vintages_ingest", RATE_LIMIT_INGEST_RPM):
+                return
+            if not self._require_api_key():
+                return
+            payload = self._read_json_or_error(MAX_FORECAST_BODY_BYTES)
+            if payload is None:
+                return
+            try:
+                conn = get_db()
+                result = ingest_forecast_publication(conn, payload)
+                current = now_ts()
+                regional_days = affected_utc_days_for_forecast_vintage(
+                    conn, result["vintage_key"]
+                )
+                for day_start in regional_days:
+                    recompute_forecast_quality(
+                        conn,
+                        "load.system",
+                        day_start,
+                        current_ts=current,
+                        dataset_cutoff=current,
+                    )
+                if result["status"] == "inserted":
+                    try:
+                        recompute_bounded_forecast_net_load(
+                            conn, regional_days, current,
+                        )
+                        record_net_load_materialization_health(
+                            conn, "forecast", True, current
+                        )
+                        result["net_load_materialization"] = "updated"
+                    except Exception:
+                        record_net_load_materialization_health(
+                            conn, "forecast", False, current,
+                            "load_materialization_failed",
+                        )
+                        result["net_load_materialization"] = "failed"
+                try:
+                    result["regional_load_resources"] = sum(
+                        (materialize_load_day(conn, day, current) for day in regional_days),
+                        [],
+                    )
+                    result["regional_pruned"] = prune_regional_publications(
+                        conn, now=current, batch_size=100
+                    )
+                    record_regional_materialization_health(conn, True, current)
+                    result["regional_load_materialization"] = "updated"
+                except Exception:
+                    conn.rollback()
+                    record_regional_materialization_health(
+                        conn, False, current, "load_materialization_failed"
+                    )
+                    result["regional_load_materialization"] = "failed"
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                return
+            except sqlite3.IntegrityError:
+                self._send_json(
+                    400,
+                    {"error": "forecast_constraint_conflict"},
+                    cache_control="no-store",
+                )
+                return
+            if result["status"] == "inserted":
+                self._app_server().cache.invalidate({"forecast-outlook"})
+            self._app_server().cache.invalidate(
+                {"forecast-quality-manifest", "net-load-manifest", "regional-geography-manifest"}
+            )
+            self._send_json(200, result, cache_control="no-store")
+            return
+
         if self.path == "/api/ingest":
             if not self._rate_limit("ingest", RATE_LIMIT_INGEST_RPM):
                 return
@@ -1212,7 +3314,40 @@ class Handler(BaseHTTPRequestHandler):
             result = ingest_metrics(conn, payload)
             dependencies = result.pop("dependencies")
             changes = result.pop("changes")
-            self._app_server().cache.invalidate_changes(changes)
+            app = self._app_server()
+            invalidated = app.cache.invalidate_changes(changes)
+            if "ercot.supply_demand.demand_mw" in dependencies:
+                app.cache.invalidate({"historical-context"})
+            record_tile_metric(app, "tile_invalidation_calls_total")
+            record_tile_metric(
+                app,
+                "tile_invalidated_entries_total",
+                invalidated["tile_entries"],
+            )
+            record_tile_metric(
+                app,
+                "tile_invalidation_nonempty_total"
+                if invalidated["tile_entries"]
+                else "tile_invalidation_empty_total",
+            )
+            if result["updated"]:
+                app.cache.invalidate({"correction-age"})
+            if dependencies.intersection(
+                {*REALTIME_NET_LOAD_METRICS, "ercot.storage.net_output_mw"}
+            ):
+                try:
+                    recompute_bounded_actual_net_load(conn, changes, now_ts())
+                    result["net_load_materialization"] = "updated"
+                    record_net_load_materialization_health(
+                        conn, "actual", True, now_ts()
+                    )
+                except Exception:
+                    result["net_load_materialization"] = "failed"
+                    record_net_load_materialization_health(
+                        conn, "actual", False, now_ts(),
+                        "actual_materialization_failed",
+                    )
+                app.cache.invalidate({"net-load-manifest"})
             self._send_json(200, result, cache_control="no-store")
             return
 
@@ -1245,12 +3380,36 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "too_many_attempts"}, cache_control="no-store")
                 return
             try:
+                conn = get_db()
+                conn.execute("BEGIN IMMEDIATE")
                 for attempt in attempts:
-                    update_source_health(get_db(), attempt)
+                    update_source_health(conn, attempt, commit=False)
+                conn.commit()
             except ValueError as exc:
+                if "conn" in locals():
+                    conn.rollback()
                 self._send_json(400, {"error": str(exc)}, cache_control="no-store")
                 return
-            self._app_server().cache.invalidate({"source-health", "overview"})
+            except Exception:
+                if "conn" in locals():
+                    conn.rollback()
+                self._send_json(
+                    500, {"error": "source_health_update_failed"}, cache_control="no-store"
+                )
+                return
+            dependencies = {"source-health", "overview"}
+            if any(
+                isinstance(attempt, dict)
+                and isinstance(attempt.get("source_id"), str)
+                and (
+                    attempt["source_id"] == "nws_alerts_tx"
+                    or attempt["source_id"].startswith("nws_point_")
+                    or attempt["source_id"].startswith("nws_grid_")
+                )
+                for attempt in attempts
+            ):
+                dependencies.add("predictive-weather-manifest")
+            self._app_server().cache.invalidate(dependencies)
             self._send_json(200, {"updated": len(attempts)}, cache_control="no-store")
             return
 
@@ -1451,6 +3610,1403 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/external-context":
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_external_context_request"}, cache_control="no-store")
+                return
+            if not self._rate_limit("external_context", RATE_LIMIT_STATUS_RPM):
+                return
+            app = self._app_server()
+            key = "external-context:v1"
+            payload = app.cache.get(key)
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+                def generate_external_context():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = external_context_manifest(get_db(), now_ts())
+                    app.cache.set_if_generation(key, value, generation, {"external-context"}, ttl_seconds=15, category="external-context:resolver")
+                    return value
+                try:
+                    payload, _shared = app.singleflight.do((key, generation), generate_external_context)
+                except Exception:
+                    self._send_json(500, {"error": "external_context_generation_failed"}, cache_control="no-store")
+                    return
+            self._send_json(200, payload, cache_control="public, max-age=0, s-maxage=15, must-revalidate", etag=True)
+            return
+        external_context_match = re.fullmatch(r"/api/v2/external-context/(eia930_demand|henry_hub_daily|epa_egrid)/v1/(xc1-[0-9a-f]{64})", parsed.path)
+        if external_context_match:
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_external_context_resource"}, cache_control="no-store")
+                return
+            stream, version = external_context_match.groups()
+            payload = external_context_resource(get_db(), stream, version)
+            if payload is None:
+                self._send_json(404, {"error": "unknown_external_context_resource"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="public, max-age=31536000, immutable", etag_value=version)
+            return
+        if parsed.path.startswith("/api/v2/external-context/"):
+            self._send_json(400, {"error": "invalid_external_context_resource"}, cache_control="no-store")
+            return
+        if parsed.path == "/api/v1/texas-grid":
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_texas_grid_request"}, cache_control="no-store")
+                return
+            if not self._rate_limit("texas_grid", RATE_LIMIT_STATUS_RPM):
+                return
+            app = self._app_server()
+            key = "texas-grid:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                state = "MISS"
+                generation = app.cache.snapshot_generation()
+
+                def generate_texas_grid():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = texas_grid_manifest(get_db(), now_ts())
+                    app.cache.set_if_generation(
+                        key, value, generation, {"texas-grid"}, ttl_seconds=15,
+                        category="texas-grid:resolver",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do((key, generation), generate_texas_grid)
+                except Exception:
+                    self._send_json(500, {"error": "texas_grid_generation_failed"}, cache_control="no-store")
+                    return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=0, s-maxage=15, must-revalidate",
+                etag=True, extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        texas_grid_match = re.fullmatch(
+            r"/api/v2/texas-grid/(gis|resource_capacity_trend|long_term_load_forecast)/v1/(tg1-[0-9a-f]{64})",
+            parsed.path,
+        )
+        if texas_grid_match:
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_texas_grid_resource"}, cache_control="no-store")
+                return
+            payload = texas_grid_resource(get_db(), *texas_grid_match.groups())
+            if payload is None:
+                self._send_json(404, {"error": "unknown_texas_grid_resource"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="public, max-age=31536000, immutable", etag=True)
+            return
+        if parsed.path.startswith("/api/v2/texas-grid/"):
+            self._send_json(400, {"error": "invalid_texas_grid_resource"}, cache_control="no-store")
+            return
+        if parsed.path.startswith("/api/v2/tiles/"):
+            record_tile_metric(self._app_server(), "tile_origin_requests_total")
+        if parsed.path == "/api/v2/tile-catalog":
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_tile_catalog_request"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200,
+                tile_catalog_payload(),
+                cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
+                etag=True,
+            )
+            return
+        if parsed.path == "/api/v1/historical-context":
+            if not self._rate_limit("historical_context", RATE_LIMIT_STATUS_RPM):
+                return
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            if (
+                set(params) != {"series_key", "as_of"}
+                or any(len(values) != 1 for values in params.values())
+                or params["series_key"][0] != HISTORICAL_CONTEXT_SERIES_KEY
+                or not canonical_unsigned_decimal(params["as_of"][0])
+            ):
+                self._send_json(
+                    400, {"error": "invalid_historical_context_query"},
+                    cache_control="no-store",
+                )
+                return
+            as_of = int(params["as_of"][0])
+            canonical_query = (
+                f"series_key={HISTORICAL_CONTEXT_SERIES_KEY}&as_of={as_of}"
+            )
+            lower_as_of, upper_as_of = historical_context_as_of_bounds(
+                get_db(), now_ts()
+            )
+            if (
+                parsed.query != canonical_query
+                or as_of % 3600
+                or not lower_as_of <= as_of <= upper_as_of
+            ):
+                self._send_json(
+                    400, {"error": "invalid_historical_context_as_of"},
+                    cache_control="no-store",
+                )
+                return
+            app = self._app_server()
+            key = f"historical-context:v1:{as_of}"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                state = "MISS"
+                generation = app.cache.snapshot_generation()
+
+                def generate_historical_context():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = resolve_historical_context(get_db(), as_of)
+                    app.cache.set_if_generation(
+                        key, value, generation,
+                        {"historical-context"}, ttl_seconds=15,
+                        category="historical-context:resolver",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_historical_context
+                    )
+                except Exception:
+                    self._send_json(
+                        500, {"error": "historical_context_generation_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=0, s-maxage=15, must-revalidate",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        historical_match = re.fullmatch(
+            r"/api/v2/historical-context/supply-demand\.demand/v1/(hc1-[0-9a-f]{64})/([0-9]+)",
+            parsed.path,
+        )
+        if historical_match:
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_historical_context_resource"},
+                    cache_control="no-store",
+                )
+                return
+            content_version, as_of_raw = historical_match.groups()
+            if (
+                not canonical_unsigned_decimal(as_of_raw)
+                or int(as_of_raw) % 3600
+            ):
+                self._send_json(
+                    400, {"error": "invalid_historical_context_resource"},
+                    cache_control="no-store",
+                )
+                return
+            payload = historical_context_resource(
+                get_db(), content_version, int(as_of_raw)
+            )
+            if payload is None:
+                self._send_json(
+                    404, {"error": "unknown_historical_context_resource"},
+                    cache_control="no-store",
+                )
+                return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=3600, s-maxage=31536000, immutable",
+                etag=True,
+            )
+            return
+        if parsed.path.startswith("/api/v2/historical-context/"):
+            self._send_json(
+                400, {"error": "invalid_historical_context_resource"},
+                cache_control="no-store",
+            )
+            return
+        if parsed.path == "/api/v1/grid-events":
+            if not self._rate_limit("grid_events", RATE_LIMIT_STATUS_RPM):
+                return
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            if (
+                not set(params).issubset({"from", "to", "limit", "cursor"})
+                or set(params) < {"from", "to"}
+                or any(len(values) != 1 for values in params.values())
+                or not canonical_unsigned_decimal(params["from"][0])
+                or not canonical_unsigned_decimal(params["to"][0])
+                or (
+                    "limit" in params
+                    and not canonical_unsigned_decimal(params["limit"][0])
+                )
+                or ("cursor" in params and not params["cursor"][0])
+            ):
+                self._send_json(
+                    400, {"error": "invalid_grid_event_query"}, cache_control="no-store"
+                )
+                return
+            start = int(params["from"][0])
+            end = int(params["to"][0])
+            limit = int(params.get("limit", ["250"])[0])
+            cursor = params.get("cursor", [None])[0]
+            if limit > MAX_GRID_EVENT_PAGE_SIZE:
+                self._send_json(
+                    400, {"error": "invalid_grid_event_limit"}, cache_control="no-store"
+                )
+                return
+            key_material = json.dumps(
+                [start, end, limit, cursor], separators=(",", ":"), ensure_ascii=True
+            )
+            key = "grid-events:v1:" + hashlib.sha256(key_material.encode()).hexdigest()
+            app = self._app_server()
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_grid_events_page():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = grid_events_page(
+                        get_db(), start, end, limit, cursor, current_ts=now_ts()
+                    )
+                    app.cache.set_if_generation(
+                        key,
+                        value,
+                        generation,
+                        {"grid-events"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="grid-events:page",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_grid_events_page
+                    )
+                except ValueError as exc:
+                    self._send_json(400, {"error": str(exc)}, cache_control="no-store")
+                    return
+                except Exception:
+                    self._send_json(
+                        500, {"error": "grid_event_query_failed"}, cache_control="no-store"
+                    )
+                    return
+                state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        if parsed.path == "/api/v1/predictive-weather":
+            if not self._rate_limit("predictive_weather_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_predictive_weather_query"},
+                    cache_control="no-store",
+                )
+                return
+            app = self._app_server()
+            key = "predictive-weather-manifest:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_predictive_weather_manifest():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = predictive_weather_manifest(get_db(), current_ts=now_ts())
+                    app.cache.set_if_generation(
+                        key,
+                        value,
+                        generation,
+                        {"predictive-weather-manifest"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="predictive-weather:manifest",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_predictive_weather_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "predictive_weather_manifest_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        if parsed.path == "/api/v1/market-geography":
+            if not self._rate_limit("market_geography_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_market_geography_query"},
+                    cache_control="no-store",
+                )
+                return
+            app = self._app_server()
+            key = "market-geography-manifest:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_market_geography_manifest():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = market_geography_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(
+                        key,
+                        value,
+                        generation,
+                        {"market-geography-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="market-geography:manifest",
+                    )
+                    return value
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), generate_market_geography_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "market_geography_manifest_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        geography_match = re.fullmatch(
+            r"/api/v2/market-geography/([^/]+)/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        if geography_match:
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_market_geography_resource"},
+                    cache_control="no-store",
+                )
+                return
+            try:
+                kind, identity, methodology, version, day_raw, lod = (
+                    geography_match.groups()
+                )
+                day = int(day_raw)
+                if str(day) != day_raw:
+                    raise ValueError("invalid_market_geography_day")
+                app = self._app_server()
+                key = self._cache_key(
+                    "market-geography:v2",
+                    {
+                        "kind": kind,
+                        "identity": identity,
+                        "methodology": methodology,
+                        "content_version": version,
+                        "day_start": day,
+                        "lod": lod,
+                    },
+                )
+                payload = app.cache.get(key)
+                state = "HIT"
+                if payload is None:
+                    generation = app.cache.snapshot_generation()
+
+                    def load_market_geography_resource():
+                        cached = app.cache.get(key)
+                        if cached is not None:
+                            return cached
+                        value = market_geography_resource(
+                            get_db(),
+                            kind,
+                            identity,
+                            methodology,
+                            version,
+                            day,
+                            lod,
+                        )
+                        if value is not None:
+                            app.cache.set_if_generation(
+                                key,
+                                value,
+                                generation,
+                                ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                                category="market-geography:immutable",
+                            )
+                        return value
+
+                    payload, _shared = app.singleflight.do(
+                        (key, generation), load_market_geography_resource
+                    )
+                    state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(
+                    400,
+                    {"error": "invalid_market_geography_resource"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "market_geography_resource_failed"},
+                    cache_control="no-store",
+                )
+                return
+            if payload is None:
+                self._send_json(
+                    404,
+                    {"error": "market_geography_resource_not_found"},
+                    cache_control="no-store",
+                )
+                return
+            self._send_json(
+                200,
+                payload,
+                cache_control="public, max-age=3024000, immutable",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": state},
+            )
+            return
+        if parsed.path == "/api/v1/market-mechanics":
+            if not self._rate_limit("market_mechanics_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_market_mechanics_query"}, cache_control="no-store")
+                return
+            app = self._app_server()
+            key = "market-mechanics-manifest:v1"
+            payload = app.cache.get(key)
+            state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+                def generate_market_manifest():
+                    cached = app.cache.get(key)
+                    if cached is not None:
+                        return cached
+                    value = market_mechanics_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(key, value, generation, {"market-mechanics-manifest", "source-health"}, ttl_seconds=RECENT_CACHE_TTL_SECONDS, category="market:manifest")
+                    return value
+                try:
+                    payload, _ = app.singleflight.do((key, generation), generate_market_manifest)
+                except Exception:
+                    self._send_json(500, {"error": "market_mechanics_manifest_failed"}, cache_control="no-store")
+                    return
+                state = "MISS"
+            self._send_json(200, payload, cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}, s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate", etag=True, extra_headers={"X-ERCOT-Cache": state})
+            return
+        market_match = re.fullmatch(r"/api/v2/market-mechanics/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)", parsed.path)
+        if market_match:
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_market_resource"}, cache_control="no-store")
+                return
+            try:
+                series_key, methodology, version, day_raw, lod = market_match.groups()
+                day = int(day_raw)
+                if str(day) != day_raw:
+                    raise ValueError("invalid_market_day")
+                app = self._app_server()
+                key = self._cache_key("market:v2", {"series_key": series_key, "methodology": methodology, "content_version": version, "day_start": day, "lod": lod})
+                payload = app.cache.get(key)
+                state = "HIT"
+                if payload is None:
+                    generation = app.cache.snapshot_generation()
+                    def load_market_resource():
+                        cached = app.cache.get(key)
+                        if cached is not None:
+                            return cached
+                        value = market_mechanics_resource(get_db(), series_key, methodology, version, day, lod)
+                        if value is not None:
+                            app.cache.set_if_generation(key, value, generation, ttl_seconds=SEALED_CACHE_TTL_SECONDS, category="market:immutable")
+                        return value
+                    payload, _ = app.singleflight.do((key, generation), load_market_resource)
+                    state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": "invalid_market_resource"}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "market_resource_failed"}, cache_control="no-store")
+                return
+            if payload is None:
+                self._send_json(404, {"error": "market_resource_not_found"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="public, max-age=3024000, immutable", etag=True, extra_headers={"X-ERCOT-Cache": state})
+            return
+        if parsed.path == "/api/v1/regional-geography":
+            if not self._rate_limit("regional_geography_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_regional_geography_query"}, cache_control="no-store")
+                return
+            app = self._app_server()
+            cache_key = "regional-geography-manifest:v1"
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                generation = app.cache.snapshot_generation()
+
+                def generate_regional_manifest():
+                    cached = app.cache.get(cache_key)
+                    if cached is not None:
+                        return cached
+                    generated = regional_geography_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(
+                        cache_key, generated, generation,
+                        {"regional-geography-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="regional:manifest",
+                    )
+                    return generated
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, generation), generate_regional_manifest
+                    )
+                except Exception:
+                    self._send_json(500, {"error": "regional_manifest_failed"}, cache_control="no-store")
+                    return
+                cache_state = "MISS"
+            self._send_json(
+                200, payload,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}, s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate",
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        regional_match = re.fullmatch(
+            r"/api/v2/regional/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        if regional_match:
+            if not self._rate_limit("regional_geography_resource", RATE_LIMIT_SERIES_RPM):
+                return
+            if parsed.query:
+                self._send_json(400, {"error": "invalid_regional_resource"}, cache_control="no-store")
+                return
+            try:
+                series_key, methodology, version, day_raw, lod = regional_match.groups()
+                day_start = int(day_raw)
+                if str(day_start) != day_raw:
+                    raise ValueError("invalid_regional_day_start")
+                app = self._app_server()
+                identity = {"series_key": series_key, "methodology": methodology, "content_version": version, "day_start": day_start, "lod": lod}
+                cache_key = self._cache_key("regional:v2", identity)
+                payload = app.cache.get(cache_key)
+                cache_state = "HIT"
+                if payload is None:
+                    generation = app.cache.snapshot_generation()
+
+                    def load_regional_resource():
+                        cached = app.cache.get(cache_key)
+                        if cached is not None:
+                            return cached
+                        loaded = regional_geography_resource(get_db(), series_key, methodology, version, day_start, lod)
+                        if loaded is not None:
+                            app.cache.set_if_generation(
+                                cache_key, loaded, generation,
+                                ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                                category="regional:immutable",
+                            )
+                        return loaded
+
+                    payload, _shared = app.singleflight.do((cache_key, generation), load_regional_resource)
+                    cache_state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": "invalid_regional_resource"}, cache_control="no-store")
+                return
+            except Exception:
+                self._send_json(500, {"error": "regional_resource_failed"}, cache_control="no-store")
+                return
+            if payload is None:
+                self._send_json(404, {"error": "regional_resource_not_found"}, cache_control="no-store")
+                return
+            self._send_json(
+                200, payload, cache_control="public, max-age=3024000, immutable",
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        if parsed.path == "/api/v1/net-load":
+            if not self._rate_limit("net_load_manifest", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_net_load_query"}, cache_control="no-store"
+                )
+                return
+            app = self._app_server()
+            cache_key = "net-load-manifest:v1"
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                request_generation = app.cache.snapshot_generation()
+
+                def generate_net_load_manifest():
+                    cached_after_election = app.cache.get(cache_key)
+                    if cached_after_election is not None:
+                        return cached_after_election
+                    generated = net_load_manifest(get_db(), now=now_ts())
+                    app.cache.set_if_generation(
+                        cache_key, generated, request_generation,
+                        {"net-load-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="net-load:manifest",
+                    )
+                    return generated
+
+                try:
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, request_generation), generate_net_load_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500, {"error": "net_load_manifest_failed"}, cache_control="no-store"
+                    )
+                    return
+                cache_state = "MISS"
+            self._send_json(
+                200, payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        net_load_match = re.fullmatch(
+            r"/api/v2/net-load/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        daily_net_load_match = re.fullmatch(
+            r"/api/v2/net-load-daily/([^/]+)/([^/]+)/([^/]+)/([^/]+)",
+            parsed.path,
+        )
+        if net_load_match or daily_net_load_match:
+            if not self._rate_limit("net_load_resource", RATE_LIMIT_SERIES_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_net_load_resource"}, cache_control="no-store"
+                )
+                return
+            try:
+                app = self._app_server()
+                if net_load_match:
+                    series_key, methodology, content_version, day_raw, lod = net_load_match.groups()
+                    day_start = int(day_raw)
+                    if str(day_start) != day_raw:
+                        raise ValueError("invalid_net_load_day_start")
+                    identity = {
+                        "kind": "tile", "series_key": series_key,
+                        "methodology": methodology, "content_version": content_version,
+                        "day_start": day_start, "lod": lod,
+                    }
+                    loader = lambda: net_load_resource(
+                        get_db(), series_key, methodology, content_version, day_start, lod
+                    )
+                else:
+                    series_key, methodology, content_version, delivery_date = daily_net_load_match.groups()
+                    identity = {
+                        "kind": "daily", "series_key": series_key,
+                        "methodology": methodology, "content_version": content_version,
+                        "delivery_date": delivery_date,
+                    }
+                    loader = lambda: net_load_daily_resource(
+                        get_db(), series_key, methodology, content_version, delivery_date
+                    )
+                cache_key = self._cache_key("net-load:v2", identity)
+                payload = app.cache.get(cache_key)
+                cache_state = "HIT"
+                if payload is None:
+                    request_generation = app.cache.snapshot_generation()
+
+                    def load_net_load_resource():
+                        cached_after_election = app.cache.get(cache_key)
+                        if cached_after_election is not None:
+                            return cached_after_election
+                        loaded = loader()
+                        if loaded is not None:
+                            app.cache.set_if_generation(
+                                cache_key, loaded, request_generation,
+                                ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                                category="net-load:immutable",
+                            )
+                        return loaded
+
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, request_generation), load_net_load_resource
+                    )
+                    cache_state = "MISS"
+            except (TypeError, ValueError):
+                self._send_json(
+                    400, {"error": "invalid_net_load_resource"}, cache_control="no-store"
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500, {"error": "net_load_resource_failed"}, cache_control="no-store"
+                )
+                return
+            if payload is None:
+                self._send_json(
+                    404, {"error": "net_load_resource_not_found"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200, payload,
+                cache_control="public, max-age=31536000, immutable",
+                etag=True, extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        if parsed.path.startswith("/api/v2/net-load"):
+            self._send_json(
+                400, {"error": "invalid_net_load_resource"}, cache_control="no-store"
+            )
+            return
+        if parsed.path == "/api/v1/forecast-quality":
+            if not self._rate_limit("forecast_quality", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_forecast_quality_query"},
+                    cache_control="no-store",
+                )
+                return
+            cache_key = "forecast-quality-manifest:v1"
+            app = self._app_server()
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                request_generation = app.cache.snapshot_generation()
+
+                def generate_manifest():
+                    cached_after_election = app.cache.get(cache_key)
+                    if cached_after_election is not None:
+                        return cached_after_election, True
+                    generated = forecast_quality_manifest(get_db(), now=now_ts())
+                    stored = app.cache.set_if_generation(
+                        cache_key,
+                        generated,
+                        request_generation,
+                        {"forecast-quality-manifest", "source-health"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="forecast-quality:manifest",
+                    )
+                    return generated, stored
+
+                try:
+                    (payload, _stored), _shared = app.singleflight.do(
+                        (cache_key, request_generation), generate_manifest
+                    )
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "forecast_quality_manifest_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                cache_state = "MISS"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        quality_match = re.fullmatch(
+            r"/api/v2/forecast-quality/([^/]+)/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)",
+            parsed.path,
+        )
+        if quality_match:
+            if not self._rate_limit("forecast_quality_resource", RATE_LIMIT_SERIES_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400,
+                    {"error": "invalid_forecast_quality_resource"},
+                    cache_control="no-store",
+                )
+                return
+            series_key, methodology, content_version, horizon, day_raw = (
+                quality_match.groups()
+            )
+            try:
+                day_start = int(day_raw)
+                if str(day_start) != day_raw:
+                    raise ValueError("invalid_forecast_quality_day")
+                cache_key = self._cache_key(
+                    "forecast-quality:v2",
+                    {
+                        "series_key": series_key,
+                        "methodology": methodology,
+                        "content_version": content_version,
+                        "horizon": horizon,
+                        "day_start": day_start,
+                    },
+                )
+                app = self._app_server()
+                payload = app.cache.get(cache_key)
+                cache_state = "HIT"
+                if payload is None:
+                    request_generation = app.cache.snapshot_generation()
+
+                    def load_resource():
+                        cached_after_election = app.cache.get(cache_key)
+                        if cached_after_election is not None:
+                            return cached_after_election
+                        loaded = forecast_quality_resource(
+                            get_db(),
+                            series_key,
+                            methodology,
+                            content_version,
+                            horizon,
+                            day_start,
+                        )
+                        if loaded is None:
+                            return None
+                        app.cache.set_if_generation(
+                            cache_key,
+                            loaded,
+                            request_generation,
+                            ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                            category="forecast-quality:immutable",
+                        )
+                        return loaded
+
+                    payload, _shared = app.singleflight.do(
+                        (cache_key, request_generation), load_resource
+                    )
+                    cache_state = "MISS"
+            except ValueError:
+                self._send_json(
+                    400,
+                    {"error": "invalid_forecast_quality_resource"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                self._send_json(
+                    500,
+                    {"error": "forecast_quality_resource_failed"},
+                    cache_control="no-store",
+                )
+                return
+            if payload is None:
+                self._send_json(
+                    404,
+                    {"error": "forecast_quality_resource_not_found"},
+                    cache_control="no-store",
+                )
+                return
+            self._send_json(
+                200,
+                payload,
+                cache_control="public, max-age=31536000, immutable",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        if parsed.path.startswith("/api/v2/forecast-quality/"):
+            self._send_json(
+                400,
+                {"error": "invalid_forecast_quality_resource"},
+                cache_control="no-store",
+            )
+            return
+        if parsed.path == "/api/v1/forecast-publications":
+            if not self._rate_limit("forecast_vintages_query", RATE_LIMIT_SERIES_RPM):
+                return
+            params = parse_qs(parsed.query)
+            try:
+                source_id = (params.get("source_id") or [None])[0]
+                product_id = (params.get("product_id") or [None])[0]
+                limit = int((params.get("limit") or ["100"])[0])
+                issued_raw = (params.get("issued_lte") or [None])[0]
+                issued_lte = None if issued_raw is None else int(issued_raw)
+                rows = list_publications(
+                    get_db(), source_id, product_id, limit, issued_lte
+                )
+            except (TypeError, ValueError):
+                self._send_json(
+                    400, {"error": "invalid_forecast_query"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200,
+                {
+                    "source_id": source_id,
+                    "product_id": product_id,
+                    "publications": rows,
+                    "count": len(rows),
+                    "cache_semantics": "bounded_diagnostic_no_store",
+                },
+                cache_control="no-store",
+            )
+            return
+        if parsed.path == "/api/v1/outlook":
+            if not self._rate_limit("forecast_outlook", RATE_LIMIT_STATUS_RPM):
+                return
+            if parsed.query:
+                self._send_json(
+                    400, {"error": "invalid_outlook_query"}, cache_control="no-store"
+                )
+                return
+            cache_key = "forecast-outlook:v1"
+            app = self._app_server()
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            singleflight_state = "NONE"
+            store_state = "EXISTING"
+            if payload is None:
+                request_generation = app.cache.snapshot_generation()
+
+                def generate():
+                    cached_after_election = app.cache.get(cache_key)
+                    if cached_after_election is not None:
+                        return cached_after_election, True, False
+                    generated_payload = self._generate_outlook()
+                    stored = app.cache.set_if_generation(
+                        cache_key,
+                        generated_payload,
+                        request_generation,
+                        {"forecast-outlook", "source-health", "metar.temperature"},
+                        ttl_seconds=RECENT_CACHE_TTL_SECONDS,
+                        category="forecast-outlook:current",
+                    )
+                    return generated_payload, stored, True
+
+                try:
+                    (payload, stored, generated), shared = app.singleflight.do(
+                        (cache_key, request_generation), generate
+                    )
+                except ValueError:
+                    self._send_json(
+                        503,
+                        {"error": "forecast_outlook_unavailable"},
+                        cache_control="no-store",
+                    )
+                    return
+                except Exception:
+                    self._send_json(
+                        500,
+                        {"error": "forecast_outlook_generation_failed"},
+                        cache_control="no-store",
+                    )
+                    return
+                cache_state = "MISS" if generated else "HIT"
+                singleflight_state = "SHARED" if shared else "LEADER"
+                store_state = "STORED" if stored else "SKIPPED_RACE"
+            self._send_json(
+                200,
+                payload,
+                cache_control=(
+                    f"public, max-age={CACHE_CONTROL_MAX_AGE}, "
+                    f"s-maxage={RECENT_CACHE_TTL_SECONDS}, must-revalidate"
+                ),
+                etag=True,
+                extra_headers={
+                    "X-ERCOT-Cache": cache_state,
+                    "X-ERCOT-Singleflight": singleflight_state,
+                    "X-ERCOT-Cache-Store": store_state,
+                },
+            )
+            return
+        if parsed.path == "/api/v1/forecast-comparison":
+            if not self._rate_limit("forecast_comparison", RATE_LIMIT_SERIES_RPM):
+                return
+            params = parse_qs(parsed.query)
+            try:
+                if (params.get("forecast_product_id") or [None])[0] != PRODUCT_NP3_565:
+                    raise ValueError("invalid_forecast_product")
+                if (params.get("actual_product_id") or [None])[0] != PRODUCT_NP6_345:
+                    raise ValueError("invalid_actual_product")
+                in_use_flag_raw = (params.get("in_use_flag") or [None])[0]
+                if in_use_flag_raw not in ("true", "false"):
+                    raise ValueError("invalid_in_use_flag")
+                forecast_publication, actual_publications, rows = comparison_rows(
+                    get_db(),
+                    (params.get("forecast_source_id") or [None])[0],
+                    (params.get("actual_source_id") or [None])[0],
+                    int((params.get("as_of") or [None])[0]),
+                    int((params.get("target_start") or [None])[0]),
+                    int((params.get("target_end") or [None])[0]),
+                    (params.get("model") or [None])[0],
+                    in_use_flag_raw == "true",
+                    (params.get("forecast_measure") or [None])[0],
+                )
+            except (TypeError, ValueError):
+                self._send_json(
+                    400, {"error": "invalid_forecast_query"}, cache_control="no-store"
+                )
+                return
+            self._send_json(
+                200,
+                {
+                    "as_of": int((params.get("as_of") or [None])[0]),
+                    "as_of_semantics": "forecast_publication_known_at_or_before",
+                    "comparison_semantics": "known_at_nonnegative_horizon_diagnostic",
+                    "selected_forecast_vintage": None
+                    if forecast_publication is None
+                    else forecast_publication[3],
+                    "selected_issued_at": None
+                    if forecast_publication is None
+                    else forecast_publication[4],
+                    "actual_publications": actual_publications,
+                    "rows": rows,
+                    "count": len(rows),
+                    "cache_semantics": "bounded_diagnostic_no_store",
+                },
+                cache_control="no-store",
+            )
+            return
+        forecast_tile_match = re.fullmatch(
+            r"/api/v2/forecast-publications/([^/]+)/([^/]+)/([^/]+)/1d/([^/]+)",
+            parsed.path,
+        )
+        if forecast_tile_match:
+            source_raw, product_raw, vintage_raw, tile_start_raw = (
+                forecast_tile_match.groups()
+            )
+            source_id, product_id, vintage_key = map(
+                unquote, (source_raw, product_raw, vintage_raw)
+            )
+            try:
+                tile_start = int(tile_start_raw)
+                if (
+                    parsed.query
+                    or tile_start < 0
+                    or str(tile_start) != tile_start_raw
+                    or tile_start % 86_400 != 0
+                    or len(source_id) > 120
+                    or len(product_id) > 40
+                    or len(vintage_key) > 300
+                    or any("/" in value for value in (source_id, product_id, vintage_key))
+                    or quote(source_id, safe="") != source_raw
+                    or quote(product_id, safe="") != product_raw
+                    or quote(vintage_key, safe="") != vintage_raw
+                ):
+                    raise ValueError("invalid_canonical_forecast_tile")
+            except ValueError:
+                self._send_json(
+                    400,
+                    {"error": "invalid_canonical_forecast_tile"},
+                    cache_control="no-store",
+                )
+                return
+            publication = resolve_publication(
+                get_db(), source_id, product_id, vintage_key
+            )
+            if publication is None:
+                self._send_json(
+                    404, {"error": "unknown_forecast_publication"}, cache_control="no-store"
+                )
+                return
+            identity = {
+                "schema": 1,
+                "source_id": source_id,
+                "product_id": product_id,
+                "vintage_key": vintage_key,
+                "tile_span": "1d",
+                "tile_start": tile_start,
+            }
+            cache_key = self._cache_key("forecast-publication:v2", identity)
+            app = self._app_server()
+            payload = app.cache.get(cache_key)
+            cache_state = "HIT"
+            if payload is None:
+                cache_state = "MISS"
+                payload = {
+                    **identity,
+                    "tile_end": tile_start + 86_400,
+                    "publication": {
+                        "issued_at": publication[4],
+                        "published_at": publication[5],
+                        "raw_posted_datetime": publication[6],
+                        "parser_schema_version": publication[10],
+                        "schema_fingerprint": publication[11],
+                        "declared_unit": publication[12],
+                        "content_hash": publication[13],
+                        "row_count": publication[14],
+                        "publication_key_kind": publication[16],
+                        "publication_key": publication[17],
+                    },
+                    "rows": publication_rows(
+                        get_db(), publication, tile_start, tile_start + 86_400
+                    ),
+                }
+                app.cache.set(
+                    cache_key,
+                    payload,
+                    {f"forecast-publication:{source_id}:{product_id}:{vintage_key}"},
+                    ttl_seconds=SEALED_CACHE_TTL_SECONDS,
+                    category="forecast-publication:immutable",
+                )
+            self._send_json(
+                200,
+                payload,
+                cache_control="public, max-age=3600, s-maxage=86400, immutable",
+                etag=True,
+                extra_headers={"X-ERCOT-Cache": cache_state},
+            )
+            return
+        if parsed.path.startswith("/api/v2/forecast-publications/"):
+            self._send_json(
+                400,
+                {"error": "invalid_canonical_forecast_tile"},
+                cache_control="no-store",
+            )
+            return
+        tile_match = re.fullmatch(
+            r"/api/v2/tiles/([^/]+)/([^/]+)/([^/]+)/([^/]+)", parsed.path
+        )
+        if tile_match:
+            if not self._rate_limit("series_tile_v2", RATE_LIMIT_SERIES_RPM):
+                record_tile_metric(
+                    self._app_server(), "tile_responses_429_total"
+                )
+                return
+            series_key, tile_span, tile_start_raw, lod = tile_match.groups()
+            definition = TILE_CATALOG_BY_KEY.get(series_key)
+            if definition is None:
+                record_tile_metric(
+                    self._app_server(), "tile_responses_404_total"
+                )
+                self._send_json(
+                    404, {"error": "unknown_tile_series"}, cache_control="no-store"
+                )
+                return
+            try:
+                tile_start = int(tile_start_raw)
+            except ValueError:
+                tile_start = -1
+            tile_seconds = TILE_SPANS.get(tile_span)
+            if (
+                parsed.query
+                or tile_seconds is None
+                or tile_start < 0
+                or str(tile_start) != tile_start_raw
+                or tile_start % tile_seconds != 0
+                or lod not in definition["supported_lods"]
+            ):
+                record_tile_metric(
+                    self._app_server(), "tile_responses_400_total"
+                )
+                self._send_json(
+                    400, {"error": "invalid_canonical_tile"}, cache_control="no-store"
+                )
+                return
+            identity = {
+                "schema": TILE_SCHEMA_VERSION,
+                "series_key": series_key,
+                "tile_span": tile_span,
+                "tile_start": tile_start,
+                "lod": lod,
+            }
+            cache_key = self._cache_key("tile:v2", identity)
+            tile_end = tile_start + tile_seconds
+            category, ttl_seconds, cache_control = historical_cache_policy(tile_end)
+            app = self._app_server()
+            record_tile_metric(app, TILE_CACHE_CLASS_METRICS[category])
+            cached = app.cache.get(cache_key)
+            if cached is not None:
+                extra_headers = {
+                    "X-ERCOT-Cache": "HIT",
+                    "X-ERCOT-Cache-Class": category,
+                }
+                record_tile_metric(app, "tile_receiver_lru_hits_total")
+                record_cache_metric(app, "tile_lru_hits")
+                not_modified = self._send_json(
+                    200,
+                    cached,
+                    cache_control=cache_control,
+                    etag=True,
+                    extra_headers=extra_headers,
+                )
+                record_tile_metric(
+                    app,
+                    "tile_responses_304_total"
+                    if not_modified
+                    else "tile_responses_200_total",
+                )
+                return
+
+            record_tile_metric(app, "tile_receiver_lru_misses_total")
+            request_generation = app.cache.snapshot_generation()
+
+            def generate():
+                cached_after_election = app.cache.get(cache_key)
+                if cached_after_election is not None:
+                    record_tile_metric(app, "tile_cache_election_hits_total")
+                    return cached_after_election, True, False
+                started = time.perf_counter()
+                record_tile_metric(app, "tile_sqlite_generation_attempts_total")
+                try:
+                    try:
+                        payload_out, dependencies, ranges = self._generate_tile(
+                            definition, tile_span, tile_start, lod
+                        )
+                    except TileBackfillIncomplete:
+                        record_tile_metric(app, "tile_errors_backfill_total")
+                        raise
+                    except Exception:
+                        record_tile_metric(app, "tile_errors_generation_total")
+                        raise
+                finally:
+                    elapsed = time.perf_counter() - started
+                    record_tile_metric(
+                        app, "tile_generation_latency_seconds_count"
+                    )
+                    record_tile_metric(
+                        app, "tile_generation_latency_seconds_sum", elapsed
+                    )
+                    record_tile_metric(
+                        app,
+                        "tile_generation_latency_seconds_max",
+                        elapsed,
+                        maximum=True,
+                    )
+                stored = app.cache.set_if_generation(
+                    cache_key,
+                    payload_out,
+                    request_generation,
+                    dependencies,
+                    ranges=ranges,
+                    ttl_seconds=ttl_seconds,
+                    category=f"tile:{category}",
+                )
+                record_cache_metric(app, "tile_generations")
+                record_cache_metric(app, "tile_generation_seconds", elapsed)
+                if not stored:
+                    record_cache_metric(app, "tile_generation_store_races")
+                record_tile_metric(app, "tile_sqlite_generations_total")
+                record_tile_metric(
+                    app,
+                    "tile_cache_store_stored_total"
+                    if stored
+                    else "tile_cache_store_skipped_race_total",
+                )
+                return payload_out, stored, True
+
+            def record_singleflight_role(role):
+                record_tile_metric(
+                    app,
+                    "tile_singleflight_leaders_total"
+                    if role == "leader"
+                    else "tile_singleflight_waits_total",
+                )
+
+            try:
+                (payload_out, stored, generated), shared = app.singleflight.do(
+                    (cache_key, request_generation), generate, record_singleflight_role
+                )
+            except TileBackfillIncomplete:
+                record_tile_metric(app, "tile_singleflight_results_error_total")
+                record_tile_metric(app, "tile_responses_503_total")
+                self._send_json(
+                    503,
+                    {"error": "tile_series_backfill_incomplete"},
+                    cache_control="no-store",
+                )
+                return
+            except Exception:
+                record_tile_metric(app, "tile_singleflight_results_error_total")
+                record_tile_metric(app, "tile_responses_500_total")
+                self._send_json(
+                    500, {"error": "tile_generation_failed"}, cache_control="no-store"
+                )
+                return
+            record_tile_metric(app, "tile_singleflight_results_success_total")
+            record_cache_metric(app, "tile_lru_misses")
+            if shared:
+                record_cache_metric(app, "tile_singleflight_waits")
+            if not generated:
+                record_cache_metric(app, "tile_lru_race_hits")
+            extra_headers = {
+                "X-ERCOT-Cache": "MISS" if generated else "HIT",
+                "X-ERCOT-Cache-Class": category,
+                "X-ERCOT-Singleflight": "SHARED" if shared else "LEADER",
+                "X-ERCOT-Cache-Store": "STORED" if stored else "SKIPPED_RACE",
+            }
+            not_modified = self._send_json(
+                200,
+                payload_out,
+                cache_control=cache_control,
+                etag=True,
+                extra_headers=extra_headers,
+            )
+            record_tile_metric(
+                app,
+                "tile_responses_304_total"
+                if not_modified
+                else "tile_responses_200_total",
+            )
+            return
+        if parsed.path.startswith("/api/v2/tiles/"):
+            record_tile_metric(self._app_server(), "tile_responses_400_total")
+            self._send_json(
+                400, {"error": "invalid_canonical_tile"}, cache_control="no-store"
+            )
+            return
+        if parsed.path == "/api/v1/correction-age":
+            if not self._rate_limit("correction_age", RATE_LIMIT_LATEST_RPM):
+                return
+            cache_key = "correction-age"
+            cached = self._app_server().cache.get(cache_key)
+            if cached is None:
+                cached = {"corrections": list_metric_correction_age(get_db())}
+                self._app_server().cache.set(cache_key, cached, {"correction-age"})
+            self._send_json(
+                200,
+                cached,
+                cache_control=f"public, max-age={CACHE_CONTROL_MAX_AGE}",
+            )
+            return
         if parsed.path == "/api/v1/series/chunk":
             if not self._rate_limit("series_chunk", RATE_LIMIT_SERIES_RPM):
                 return
@@ -1495,8 +5051,8 @@ class Handler(BaseHTTPRequestHandler):
             current = now_ts()
             if end <= current - SEALED_HISTORY_AGE_SECONDS:
                 category = "sealed"
-                ttl_seconds = SEALED_CACHE_TTL_SECONDS
-                cache_control = "public, max-age=3600, s-maxage=86400, immutable"
+                ttl_seconds = min(SEALED_CACHE_TTL_SECONDS, 300)
+                cache_control = "public, max-age=60, s-maxage=300, must-revalidate"
             elif end <= current - 300:
                 category = "recent"
                 ttl_seconds = RECENT_CACHE_TTL_SECONDS
@@ -1506,9 +5062,7 @@ class Handler(BaseHTTPRequestHandler):
                 ttl_seconds = CACHE_TTL_SECONDS
                 cache_control = "public, max-age=5, s-maxage=15, stale-while-revalidate=30"
             if cached is not None:
-                metrics = getattr(self._app_server(), "cache_metrics", None)
-                if metrics is not None:
-                    metrics["historical_chunk_hits"] += 1
+                record_cache_metric(self._app_server(), "historical_chunk_hits")
                 self._send_json(
                     200,
                     cached,
@@ -1537,11 +5091,11 @@ class Handler(BaseHTTPRequestHandler):
                 ttl_seconds=ttl_seconds,
                 category=category,
             )
-            metrics = getattr(self._app_server(), "cache_metrics", None)
-            if metrics is not None:
-                metrics["historical_chunk_misses"] += 1
-                metrics["query_executions"] += 1
-                metrics["query_seconds"] += time.perf_counter() - started
+            record_cache_metric(self._app_server(), "historical_chunk_misses")
+            record_cache_metric(self._app_server(), "query_executions")
+            record_cache_metric(
+                self._app_server(), "query_seconds", time.perf_counter() - started
+            )
             self._send_json(
                 200,
                 payload_out,
@@ -1741,10 +5295,9 @@ class Handler(BaseHTTPRequestHandler):
                 200,
                 {
                     "rows": total,
+                    "normalized_series": normalized_series_readiness(conn),
                     "cache": self._app_server().cache.stats(),
-                    "cache_metrics": dict(
-                        getattr(self._app_server(), "cache_metrics", {})
-                    ),
+                    "cache_metrics": tile_metrics_snapshot(self._app_server()),
                 },
                 cache_control="no-store",
             )
@@ -1954,7 +5507,9 @@ class Server(ThreadingHTTPServer):
         conn.close()
         self.cache = Cache(CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
         self.cache_metrics = defaultdict(float)
+        self.cache_metrics_lock = threading.Lock()
         self.limiter = RateLimiter()
+        self.singleflight = SingleFlight()
 
 
 if __name__ == "__main__":

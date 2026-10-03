@@ -11,17 +11,24 @@ export type ResolvedInterpretationBand = InterpretationBand & {
   upperValue: number | undefined;
 };
 
-function latestFiniteValue(loaded: LoadedSeries | undefined) {
-  for (let index = (loaded?.points.length ?? 0) - 1; index >= 0; index -= 1) {
-    const value = loaded?.points[index]?.[1];
-    if (value !== undefined && Number.isFinite(value)) return value;
-  }
-  return null;
+export function frequencyColor(
+  chart: ChartDefinition,
+  value: number | null | undefined,
+  fallback: string,
+) {
+  if (chart.id !== "frequency" || value == null || !Number.isFinite(value)) return fallback;
+  const band = chart.interpretation?.bands.find(
+    (band) =>
+      (band.lower === undefined || value >= band.lower) &&
+      (band.upper === undefined || value < band.upper),
+  );
+  const colors = { normal: "#34d399", watch: "#fbbf24", strained: "#fb923c", critical: "#f87171" };
+  return band && band.tone in colors ? colors[band.tone as keyof typeof colors] : fallback;
 }
 
 export function resolveInterpretationBands(
   interpretation: ChartInterpretation,
-  seriesData: Map<string, LoadedSeries>,
+  _seriesData: Map<string, LoadedSeries>,
 ): ResolvedInterpretationBand[] {
   if (interpretation.mode === "absolute") {
     return interpretation.bands.map((band) => ({
@@ -31,13 +38,9 @@ export function resolveInterpretationBands(
     }));
   }
 
-  const reference = latestFiniteValue(seriesData.get(interpretation.referenceSeriesKey));
-  if (reference === null || reference <= 0) return [];
-  return interpretation.bands.map((band) => ({
-    ...band,
-    lowerValue: band.lower === undefined ? undefined : band.lower * reference,
-    upperValue: band.upper === undefined ? undefined : band.upper * reference,
-  }));
+  // A last-observation capacity must never classify the entire historical window.
+  // Retain the textual ratio guide, but draw no static historical ratio bands.
+  return [];
 }
 
 export function formatInterpretationRange(
