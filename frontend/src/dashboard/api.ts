@@ -898,7 +898,9 @@ export async function loadSeries(
   const forecast = async (window: Pick<TimeState, "start" | "end">): Promise<LoadedSeries> => {
     const params = new URLSearchParams({
       start: String(Math.round(window.start)),
-      end: String(Math.round(window.end) + 1),
+      // Keep the actual hour-ending epoch for a delivery interval crossing the
+      // selected right edge. Issuance remains bounded by the selected-time clock.
+      end: String(Math.ceil(window.end / 3600) * 3600 + 1),
       as_of: String(Math.round(window.end)),
       policy: "issued_before_delivery",
     });
@@ -915,6 +917,7 @@ export async function loadSeries(
         rows: Array<{
           target_ts: number;
           interval_start: number;
+          interval_end: number;
           issued_at: number;
           value: number;
           unit: string;
@@ -937,19 +940,27 @@ export async function loadSeries(
           ].every((value) => Number.isSafeInteger(value) && value >= 0))
       )
         throw new Error("Invalid historical forecast coverage");
-      const points: Point[] = payload.rows
-        .filter(
-          (row) =>
-            Number.isFinite(row.value) &&
-            row.unit === "MW" &&
-            row.target_ts >= window.start &&
-            row.target_ts <= window.end &&
-            row.issued_at <= row.interval_start &&
-            row.issued_at <= window.end,
-        )
-        .map((row) => [row.target_ts, row.value]);
-      if (coverage && coverage.available_value_count !== points.length)
+      if (payload.rows.length > 8785) throw new Error("Historical forecast row bound exceeded");
+      const eligible = payload.rows.filter(
+        (row) =>
+          Number.isFinite(row.value) &&
+          row.unit === "MW" &&
+          [row.target_ts, row.interval_start, row.interval_end, row.issued_at].every(
+            Number.isSafeInteger,
+          ) &&
+          row.interval_end === row.target_ts &&
+          row.interval_end - row.interval_start === 3600 &&
+          row.issued_at <= row.interval_start &&
+          row.issued_at <= window.end,
+      );
+      if (coverage && coverage.available_value_count !== eligible.length)
         throw new Error("Historical forecast value coverage mismatch");
+      const rows = eligible.filter(
+        (row) => row.interval_end > window.start && row.interval_start < window.end,
+      );
+      if (new Set(rows.map((row) => row.target_ts)).size !== rows.length)
+        throw new Error("Ambiguous historical forecast delivery interval");
+      const points: Point[] = rows.map((row) => [row.target_ts, row.value]);
       return {
         points,
         compare: [],
@@ -957,8 +968,13 @@ export async function loadSeries(
           bucket_seconds: 3600,
           since: window.start,
           until: window.end,
+          intervals: rows.map((row) => ({
+            timestamp: row.target_ts,
+            start: row.interval_start,
+            end: row.interval_end,
+          })),
           coverage: coverage
-            ? coverage.missing_value_count === 0
+            ? rows.length === Math.ceil(window.end / 3600) - Math.floor(window.start / 3600)
               ? "complete"
               : "partial"
             : "unknown",
@@ -984,6 +1000,24 @@ export async function loadSeries(
     return {
       ...current,
       compare: alignComparisonForMode(prior?.points ?? [], compare, comparison.offset),
+      meta: {
+        ...current.meta,
+        comparison_intervals: (prior?.meta.intervals ?? []).map((interval) => {
+          const aligned = alignComparisonForMode(
+            [[interval.timestamp, 0]],
+            compare,
+            comparison.offset,
+          );
+          const ending = aligned[0]![0];
+          // Calendar alignment changes the displayed ending epoch, never the
+          // source's proven one-hour duration across a repeated Chicago hour.
+          return {
+            timestamp: ending,
+            start: ending - (interval.end - interval.start),
+            end: ending,
+          };
+        }),
+      },
       error:
         current.error ??
         (prior?.error ? `Historical forecast comparison unavailable: ${prior.error}` : null),

@@ -113,7 +113,16 @@ function CursorLegendValue({
         cursor === null
           ? "Latest value in selected window"
           : sample
-            ? `${marketTime(sample.ts)} · ${Math.round(cursor - sample.ts)}s before cursor · ${sample.resolution === "native" ? "source observation" : `${sample.resolution} resolution · ${sample.coverage} coverage`}`
+            ? policy?.cursor.mode === "interval"
+              ? (() => {
+                  const interval = loaded?.meta.intervals?.find(
+                    (item) => item.timestamp === sample.ts,
+                  );
+                  return interval
+                    ? `Delivery interval [${marketTime(interval.start)}, ${marketTime(interval.end)}) · hour ending ${marketTime(sample.ts)}`
+                    : "Delivery interval bounds unavailable";
+                })()
+              : `${marketTime(sample.ts)} · ${Math.round(cursor - sample.ts)}s before cursor · ${sample.resolution === "native" ? "source observation" : `${sample.resolution} resolution · ${sample.coverage} coverage`}`
             : "No recent preceding observation"
       }
     >

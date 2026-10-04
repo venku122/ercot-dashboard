@@ -96,6 +96,7 @@ export type SeriesMeta = {
   comparison_observed_envelope_support?: Array<{ start: number; end: number }>;
   coverage?: "complete" | "partial" | "unknown";
   intervals?: Array<{ timestamp: number; start: number; end: number }>;
+  comparison_intervals?: Array<{ timestamp: number; start: number; end: number }>;
   bucket_seconds?: number | null;
   max_points?: number | null;
   partial_current_bucket?: boolean;

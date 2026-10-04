@@ -15,6 +15,7 @@ it("retrospective demand uses archived issued-before-delivery values and never l
                   {
                     target_ts: 7200,
                     interval_start: 3600,
+                    interval_end: 7200,
                     issued_at: 3500,
                     retrieved_at: 7300,
                     first_seen_at: 7300,
@@ -66,6 +67,7 @@ it("historical comparison selects its own allowed window and aligns calendar tar
             {
               target_ts: target,
               interval_start: target - 3600,
+              interval_end: target,
               issued_at: target - 7200,
               value: requests.length === 1 ? 42 : 24,
               unit: "MW",

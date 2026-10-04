@@ -25,6 +25,7 @@ for (const width of [390, 1440]) {
             return {
               target_ts: target,
               interval_start: target - 3600,
+              interval_end: target,
               issued_at: start - 7200,
               retrieved_at: target + 10,
               first_seen_at: target + 10,
