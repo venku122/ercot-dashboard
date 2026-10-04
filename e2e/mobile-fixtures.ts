@@ -1,5 +1,10 @@
 import type { Page } from "@playwright/test";
-import { installObservedTiles, nativeFixtureIndex } from "./paired-headroom-fixtures";
+import {
+  installObservedTiles,
+  installPhysicalChunks,
+  nativeFixtureIndex,
+  physicalFixtureSource,
+} from "./paired-headroom-fixtures";
 
 export type MobileScenario =
   | "active-event"
@@ -321,8 +326,9 @@ export function projectNativeFixture(
   until: number,
   maxPoints: number,
   aggregation = "average",
+  nativeCadence = 300,
 ) {
-  if (!maxPoints || points.length <= maxPoints) return { points, bucketSeconds: 300 };
+  if (!maxPoints || points.length <= maxPoints) return { points, bucketSeconds: nativeCadence };
   const target = aggregation === "minmax" ? Math.max(1, Math.floor(maxPoints / 2)) : maxPoints;
   const bucketSeconds = Math.max(1, Math.floor((until - since) / target) + 1);
   const buckets = new Map<number, number[][]>();
@@ -374,9 +380,18 @@ export async function installMobileApi(
   await installObservedTiles(
     page,
     FIXED_NOW_SECONDS,
-    (metric, index) => metricValue(metric, ["source:supply_demand"], index, scenario),
+    (metric, index, tags = ["source:supply_demand"]) => metricValue(metric, tags, index, scenario),
     scenario === "empty",
     scenario === "error",
+    options.nativeCadence === true,
+  );
+  await installPhysicalChunks(
+    page,
+    FIXED_NOW_SECONDS,
+    (metric, index, tags = []) => metricValue(metric, tags, index, scenario),
+    scenario === "empty",
+    scenario === "error",
+    [],
     options.nativeCadence === true,
   );
   await page.route("**/api/series/batch", async (route) => {
@@ -393,21 +408,33 @@ export async function installMobileApi(
         until: number;
         max_points?: number;
         aggregation?: "minmax" | "average";
+        rollup?: "sum";
       }>;
     };
     requests.push(payload.queries.map((query) => query.id));
     const series = payload.queries.map((query) => {
+      const source = physicalFixtureSource(query.metric, query.tags, query.rollup ?? null);
+      const cadence = source?.cadence ?? 300;
+      const nativeEnd = Math.min(
+        query.until,
+        source?.forecast ? FIXED_NOW_SECONDS + 7 * 86400 : FIXED_NOW_SECONDS,
+      );
       const count = options.nativeCadence
-        ? Math.max(0, Math.floor((query.until - Math.ceil(query.since / 300) * 300) / 300) + 1)
+        ? Math.max(
+            0,
+            Math.floor((nativeEnd - Math.ceil(query.since / cadence) * cadence) / cadence) + 1,
+          )
         : query.id.includes("compare")
           ? 42
           : 64;
       // Native mode is one epoch-anchored raw source, inclusive v1 bounds.
       // The unchanged 64/42-point mode is a legacy aggregate screenshot fixture.
       const step = options.nativeCadence
-        ? 300
+        ? cadence
         : Math.max(60, Math.floor((query.until - query.since) / (count - 1)));
-      const first = options.nativeCadence ? Math.ceil(query.since / 300) * 300 : query.since;
+      const first = options.nativeCadence
+        ? Math.ceil(query.since / cadence) * cadence
+        : query.since;
       const points =
         scenario === "empty"
           ? []
@@ -417,7 +444,7 @@ export async function installMobileApi(
                 ? metricValue(
                     query.metric,
                     query.tags,
-                    nativeFixtureIndex(first + index * step, FIXED_NOW_SECONDS),
+                    nativeFixtureIndex(first + index * step, FIXED_NOW_SECONDS, cadence),
                     scenario,
                   )
                 : query.id.startsWith("hero:")
@@ -431,6 +458,7 @@ export async function installMobileApi(
             query.until,
             query.max_points ?? 1200,
             query.aggregation,
+            cadence,
           )
         : { points, bucketSeconds: step };
       return {
@@ -443,7 +471,10 @@ export async function installMobileApi(
           max_points: query.max_points ?? 1200,
           bucket_seconds: projection.bucketSeconds,
           ...(options.nativeCadence
-            ? { aggregation: query.aggregation ?? "average", native_interval_seconds: 300 }
+            ? {
+                aggregation: query.aggregation ?? "average",
+                native_interval_seconds: source?.declaredCadence ?? null,
+              }
             : {}),
           partial_current_bucket: !query.id.includes("compare"),
           stats: {
@@ -451,7 +482,25 @@ export async function installMobileApi(
               ? points.reduce((sum, point) => sum + Number(point[1]), 0) / points.length
               : null,
             count: points.length,
-            energy_mwh: query.metric.endsWith("_mw") && points.length ? 412.5 : null,
+            ...(options.nativeCadence
+              ? source?.unit === "MW" && source.statisticPolicy === "power"
+                ? {
+                    energy_mwh:
+                      points.length > 1
+                        ? points
+                            .slice(1)
+                            .reduce(
+                              (sum, point, index) =>
+                                sum +
+                                (((Number(points[index]![1]) + Number(point[1])) / 2) *
+                                  (Number(point[0]) - Number(points[index]![0]))) /
+                                  3600,
+                              0,
+                            )
+                        : null,
+                  }
+                : {}
+              : { energy_mwh: query.metric.endsWith("_mw") && points.length ? 412.5 : null }),
             latest: points.length ? Number(points.at(-1)?.[1]) : null,
             maximum: points.length ? Math.max(...points.map((point) => Number(point[1]))) : null,
             minimum: points.length ? Math.min(...points.map((point) => Number(point[1]))) : null,

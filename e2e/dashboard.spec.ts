@@ -4,6 +4,7 @@ import { withCssPixelAlignment } from "./screenshot-alignment";
 import { outlookFixture } from "./mobile-fixtures";
 import {
   installObservedTiles,
+  installPhysicalChunks,
   observedTileFixture,
   pairedCatalogEntry,
 } from "./paired-headroom-fixtures";
@@ -504,29 +505,18 @@ async function installApi(
   await installObservedTiles(
     page,
     FIXED_NOW_SECONDS,
-    (metric, index) => metricValue(metric, ["source:supply_demand"], index, scenario),
+    (metric, index, tags = ["source:supply_demand"]) => metricValue(metric, tags, index, scenario),
     scenario === "empty",
     scenario === "error",
   );
-  await page.route("**/api/v1/series/chunk**", async (route) => {
-    const url = new URL(route.request().url());
-    chunkRequests.push(url.toString());
-    const metric = url.searchParams.get("metric") ?? "fixture";
-    const tags = url.searchParams.getAll("tag");
-    const start = Number(url.searchParams.get("start"));
-    const end = Number(url.searchParams.get("end"));
-    const resolution = Number(url.searchParams.get("resolution"));
-    const points: Array<[number, number]> = [];
-    for (let timestamp = start; timestamp < end; timestamp += resolution) {
-      points.push([
-        timestamp,
-        metricValue(metric, tags, Math.round((timestamp - start) / resolution), scenario),
-      ]);
-    }
-    await route.fulfill({
-      json: { aggregation: "average", end, metric, points, resolution, start, tags },
-    });
-  });
+  await installPhysicalChunks(
+    page,
+    FIXED_NOW_SECONDS,
+    (metric, index, tags = []) => metricValue(metric, tags, index, scenario),
+    scenario === "empty",
+    scenario === "error",
+    chunkRequests,
+  );
   await page.route("**/api/series/batch", async (route) => {
     if (scenario === "error") {
       await route.fulfill({ status: 503, body: "fixture upstream unavailable" });

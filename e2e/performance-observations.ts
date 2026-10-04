@@ -63,12 +63,16 @@ export function observeHistory(page: Page, publishColdOracle = false) {
       const body = (await response.json()) as ObservedTile & Batch;
       if (body.buckets) {
         tiles.set(url, body);
-        const id = body.series_key.endsWith("paired-headroom")
-          ? "headroom"
-          : body.series_key.endsWith("available-capacity")
-            ? "capacity"
-            : "demand";
-        for (const { state } of body.buckets) retain(id, state.last_ts, state.last_value);
+        const id =
+          body.series_key === "supply-demand.paired-headroom"
+            ? "headroom"
+            : body.series_key === "supply-demand.available-capacity"
+              ? "capacity"
+              : body.series_key === "supply-demand.demand"
+                ? "demand"
+                : null;
+        // An hourly forecast is a separate product, never the observed demand oracle.
+        if (id) for (const { state } of body.buckets) retain(id, state.last_ts, state.last_value);
       }
       for (const series of body.series ?? []) {
         const id =
