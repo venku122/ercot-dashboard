@@ -1,5 +1,6 @@
 import { seriesKey } from "./chart-config";
 import { CanonicalUrlCache } from "./canonical-url-cache";
+import { TileTransportLimiter } from "./tile-transport-limiter";
 import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
 import {
@@ -137,6 +138,7 @@ const RECENT_TILE_CACHE_TTL_MS = 30 * 1_000;
 const SEALED_TILE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 let catalogCache = new CanonicalUrlCache<unknown>(4);
 let tileCache = new CanonicalUrlCache<TileResult>(512);
+const tileTransportLimiter = new TileTransportLimiter(8);
 let cacheFetchIdentity: typeof fetch | null = null;
 const catalogFingerprints = new Map<string, string>();
 
@@ -630,11 +632,13 @@ async function loadFixedSeriesFromTiles(
           : RECENT_TILE_CACHE_TTL_MS;
       const cached = await tileCache.get(
         url,
-        async (sharedSignal) =>
-          parseTileResult(
-            await fetchJson<unknown>(url, { method: "GET" }, sharedSignal),
-            context.request,
-            context.entry,
+        (sharedSignal) =>
+          tileTransportLimiter.run(sharedSignal, async () =>
+            parseTileResult(
+              await fetchJson<unknown>(url, { method: "GET" }, sharedSignal),
+              context.request,
+              context.entry,
+            ),
           ),
         signal,
         ttlMs,
