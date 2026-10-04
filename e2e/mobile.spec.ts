@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 import { fileURLToPath } from "node:url";
 
@@ -555,6 +556,9 @@ test("progressive-disclosure mobile visual states @mobile-vri", async ({ page })
 });
 
 test("mobile visual evidence states @mobile-vri", async ({ page }) => {
+  // Twenty image states and passive source/geometry evidence run on emulated CI too.
+  test.setTimeout(90_000);
+  const evidence = observeVisualSources(page);
   await openPopulated(page);
   const gridCards = page.locator('[data-group="Grid conditions"] [data-chart-id]');
   for (let index = 0; index < (await gridCards.count()); index += 1) {
@@ -569,13 +573,28 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     "aria-label",
     /[1-9]\d* observations/,
   );
+  await evidence.capture("mobile-after-first-viewport", page.locator("body"));
   await expect.soft(page).toHaveScreenshot("mobile-after-first-viewport.png");
   const supportingReadings = page.locator(".grid-health-details");
   await supportingReadings.locator("summary").click();
   await supportingReadings.scrollIntoViewIfNeeded();
-  await expect.soft(supportingReadings).toHaveScreenshot("mobile-supporting-grid-readings.png", {
-    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
-  });
+  await expect(supportingReadings).toContainText("99 / 100");
+  await expect(supportingReadings).toContainText("8 of 8");
+  await expect(supportingReadings.getByRole("listitem")).toHaveCount(8);
+  await evidence.capture("mobile-supporting-grid-readings", supportingReadings);
+  await withCssPixelAlignment(
+    supportingReadings,
+    async () => {
+      await evidence.capture("mobile-supporting-grid-readings-aligned", supportingReadings);
+      await expect
+        .soft(supportingReadings)
+        .toHaveScreenshot("mobile-supporting-grid-readings.png", {
+          stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+        });
+    },
+    "floor",
+    "layout",
+  );
   await supportingReadings.locator("summary").click();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole("button", { name: "Time & compare" }).click();
@@ -584,11 +603,16 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     .toHaveScreenshot("mobile-controls-sheet.png");
   await page.keyboard.press("Escape");
   await supplyDemand.scrollIntoViewIfNeeded();
+  await evidence.capture("mobile-compact-legend", supplyDemand);
   await expect.soft(supplyDemand).toHaveScreenshot("mobile-compact-legend.png", {
     stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
   });
   await supplyDemand.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
   await supplyDemand.locator(".chart-interpretation summary").click();
+  await expect(supplyDemand).toContainText(
+    "Historical bands are not drawn from the latest capacity",
+  );
+  await evidence.capture("mobile-chart-interpretation", supplyDemand);
   await expect.soft(supplyDemand).toHaveScreenshot("mobile-chart-interpretation.png");
   await page.keyboard.press("Escape");
   await expect(
@@ -611,17 +635,27 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   const healthDetails = page.locator(".grid-health-details");
   await healthDetails.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await healthDetails.scrollIntoViewIfNeeded();
-  await expect.soft(healthDetails).toHaveScreenshot("mobile-grid-health-score.png", {
-    stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
-  });
+  await evidence.capture("mobile-grid-health-score", healthDetails);
+  await withCssPixelAlignment(
+    healthDetails,
+    async () => {
+      await evidence.capture("mobile-grid-health-score-aligned", healthDetails);
+      await expect.soft(healthDetails).toHaveScreenshot("mobile-grid-health-score.png", {
+        stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+      });
+    },
+    "floor",
+    "layout",
+  );
   await mobileNavigation.evaluate((element) => {
     element.style.display = "";
   });
 
-  await page.unrouteAll({ behavior: "wait" });
+  // Register replacements before reload; newest routes win without a polling escape gap.
   await installMobileApi(page, "failed");
   await page.reload();
   const sourceSummary = page.getByLabel("Current ERCOT status");
+  await evidence.capture("mobile-source-failure-summary", sourceSummary);
   await expect.soft(sourceSummary).toHaveScreenshot("mobile-source-failure-summary.png", {
     maxDiffPixelRatio: 0.02,
     maxDiffPixels: 500,
@@ -631,6 +665,11 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   await storage.scrollIntoViewIfNeeded();
   await expect(storage.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
   await expect(storage.getByText("Showing stale data")).toBeVisible();
+  await expect(storage).toContainText(/Data delayed.*18m old/);
+  await expect(storage).toContainText(
+    "Showing the last coherent storage snapshot; source is stale",
+  );
+  await evidence.capture("mobile-stale-storage-card", storage);
   await mobileNavigation.evaluate((element) => {
     element.style.display = "none";
   });
@@ -653,10 +692,11 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     .toHaveScreenshot("mobile-source-failure-drawer.png");
   await page.keyboard.press("Escape");
 
-  await page.unrouteAll({ behavior: "wait" });
+  // Register replacements before reload; newest routes win without a polling escape gap.
   await installMobileApi(page, "active-event");
   await page.goto("/?view=overview");
   await expect(page.getByLabel("Active grid alerts")).toContainText("Transmission constraint");
+  await evidence.capture("mobile-active-operations", page.getByLabel("Current ERCOT status"));
   await expect
     .soft(page.getByLabel("Current ERCOT status"))
     .toHaveScreenshot("mobile-active-operations.png", {
@@ -673,19 +713,27 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     .toHaveScreenshot("mobile-operations-timeline.png");
   await page.keyboard.press("Escape");
 
-  await page.unrouteAll({ behavior: "wait" });
+  // Register replacements before reload; newest routes win without a polling escape gap.
   await installMobileApi(page, "warning");
   await page.goto("/?view=overview");
   const warning = page.locator(".status-strip");
   await expect(warning.getByLabel("ERCOT emergency conditions active")).toBeVisible();
+  await evidence.capture("mobile-grid-warning", warning);
   await expect.soft(warning).toHaveScreenshot("mobile-grid-warning.png");
   const structuredAlert = page.getByLabel("Active grid alerts");
   await structuredAlert.evaluate((element) => element.scrollIntoView({ block: "center" }));
-  await withCssPixelAlignment(structuredAlert, () =>
-    expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
-      maxDiffPixels: 1600,
-      stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
-    }),
+  await evidence.capture("mobile-structured-alert-before-alignment", structuredAlert);
+  await withCssPixelAlignment(
+    structuredAlert,
+    async () => {
+      await evidence.capture("mobile-structured-alert-aligned", structuredAlert);
+      await expect.soft(structuredAlert).toHaveScreenshot("mobile-structured-alert.png", {
+        maxDiffPixels: 1600,
+        stylePath: fileURLToPath(new URL("./mobile-card-screenshot.css", import.meta.url)),
+      });
+    },
+    "floor",
+    "layout",
   );
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();

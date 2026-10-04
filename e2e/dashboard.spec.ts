@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { outlookFixture } from "./mobile-fixtures";
@@ -1153,8 +1154,12 @@ test("view changes clear chart-specific inspect state and legacy inspect links f
 });
 
 test("visual regression progressive-disclosure desktop views", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/?view=overview");
+  await expect(page.locator('[data-chart-id="overview-headroom"]')).toContainText("25.0 GW");
+  await expect(page.getByText(/288 paired observations of 289 nominal sample slots/)).toBeVisible();
+  await evidence.capture("progressive-overview-desktop", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-overview-desktop.png");
 
   await page.getByRole("button", { name: "Outlook view" }).click();
@@ -1167,6 +1172,8 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
 
   await openMoreView(page, "Diagnostics");
   await expect(page.getByLabel("System health details")).toBeVisible();
+  await expect(page.locator('[data-chart-id="collector-duty-cycle"]')).toContainText("12.1%");
+  await evidence.capture("progressive-diagnostics-desktop", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-diagnostics-desktop.png");
 });
 
@@ -1210,11 +1217,21 @@ test("visual regression storage charging", async ({ page }) => {
 });
 
 test("visual regression structured operational alert", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/");
   const alert = page.getByLabel("Active grid alerts");
   await expect(alert).toContainText("Recommended action");
-  await expect(alert).toHaveScreenshot("structured-operational-alert.png");
+  await evidence.capture("structured-operational-alert", alert);
+  await withCssPixelAlignment(
+    alert,
+    async () => {
+      await evidence.capture("structured-operational-alert-aligned", alert);
+      await expect(alert).toHaveScreenshot("structured-operational-alert.png");
+    },
+    "floor",
+    "layout",
+  );
 });
 
 test("visual regression Grid Health Score", async ({ page }) => {
@@ -1227,6 +1244,7 @@ test("visual regression Grid Health Score", async ({ page }) => {
 });
 
 test("visual regression analytical dashboard", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
@@ -1238,5 +1256,8 @@ test("visual regression analytical dashboard", async ({ page }) => {
   }
   await expect(page.locator(".chart-placeholder")).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.locator('[data-chart-id="overview-headroom"]')).toContainText("25.0 GW");
+  await expect(page.getByText(/288 paired observations of 289 nominal sample slots/)).toBeVisible();
+  await evidence.capture("analytical-dashboard", page.locator("body"));
   await expect(page).toHaveScreenshot("analytical-dashboard.png", { fullPage: true });
 });
