@@ -1,0 +1,82 @@
+{
+  "fixture_provenance": "Authored synthetic NP3-565 row with official delivery/issue grammar; normal ingest and actual loopback receiver HTTP200. No production capture or as-known claim. Null is source-reported missingness, never zero.",
+  "normal_ingest_payload": {
+    "publication": {
+      "source_id": "ercot_public_np3_565_weather_zone_forecast",
+      "product_id": "NP3-565-CD",
+      "issued_at": 1784667600,
+      "published_at": null,
+      "raw_posted_datetime": "2026-07-21T16:00:00",
+      "retrieved_at": 1784667660,
+      "artifact_href": "https://api.ercot.com/api/public-reports/np3-565-cd/lf_by_model_weather_zone",
+      "query_window": {
+        "deliveryDateFrom": "2026-07-21",
+        "deliveryDateTo": "2026-07-21"
+      },
+      "parser_schema_version": "ercot-public-wide-v1",
+      "schema_fingerprint": "b5969c5ca165d78a4db53d2e549ee557bf2dc527251ca843fcd1a8ecb273c12e",
+      "declared_unit": "MW",
+      "publication_key_kind": "official_posted_datetime",
+      "publication_key": "2026-07-21T16:00:00"
+    },
+    "rows": [
+      {
+        "target_ts": 1784674800,
+        "postedDatetime": "2026-07-21T16:00:00",
+        "deliveryDate": "2026-07-21",
+        "hourEnding": "18:00",
+        "coast": null,
+        "east": null,
+        "farWest": null,
+        "north": null,
+        "northCentral": null,
+        "southCentral": null,
+        "southern": null,
+        "west": null,
+        "systemTotal": null,
+        "model": "A3",
+        "inUseFlag": true,
+        "DSTFlag": false
+      }
+    ]
+  },
+  "api_path": "/api/v1/historical-forecast?start=1784671200&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
+  "selected_time": {
+    "start": 1784671200,
+    "end": 1784674800,
+    "mode": "fixed",
+    "paused": true,
+    "rangeSeconds": 3600
+  },
+  "response": {
+    "as_of": 1784674800,
+    "availability": "available",
+    "coverage": {
+      "available_value_count": 0,
+      "expected_target_count": 2,
+      "missing_value_count": 2,
+      "selected_target_count": 1,
+      "truncated": false
+    },
+    "measure": "systemTotal",
+    "policy": "issued_before_delivery",
+    "product_id": "NP3-565-CD",
+    "rows": [
+      {
+        "first_seen_at": 1784674860,
+        "interval_end": 1784674800,
+        "interval_start": 1784671200,
+        "issued_at": 1784667600,
+        "model": "A3",
+        "retrieved_at": 1784667660,
+        "target_ts": 1784674800,
+        "unit": "MW",
+        "value": null,
+        "vintage_key": "v1-b495e2bf3a559e6eaa378758c462b5308a7868b5ca988612851ccf5b7be8683f"
+      }
+    ],
+    "system_knowledge_claim": false,
+    "target_end": 1784674801,
+    "target_start": 1784671200
+  }
+}

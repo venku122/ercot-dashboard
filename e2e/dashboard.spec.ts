@@ -1,3 +1,4 @@
+import { installArchivedForecastApi } from "./archived-forecast-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import { observeVisualSources } from "./vri-source-evidence";
 import { withCssPixelAlignment } from "./screenshot-alignment";
@@ -239,13 +240,20 @@ test("production regression fixture keeps actual demand and available capacity v
   await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
   await expect(card.getByRole("button", { name: "Actual demand", exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Available capacity", exact: true })).toBeVisible();
-  await expect(card.getByRole("button", { name: "Forecast demand", exact: true })).toBeVisible();
+  await expect(
+    card.getByRole("button", { name: "Forecast issued before delivery", exact: true }),
+  ).toBeVisible();
   await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
 });
 
 test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }) => {
   const chunkRequests: string[] = [];
   const tileRequests: string[] = [];
+  const archiveRequests: URL[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/v1/historical-forecast") archiveRequests.push(url);
+  });
   await installApi(page, "normal", [], chunkRequests);
   const to = FIXED_NOW_SECONDS - 2 * 86_400;
   const from = to - 7 * 86_400;
@@ -431,7 +439,11 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
     tileUrls.some((url) =>
       /^\/api\/v2\/tiles\/supply-demand\.forecast-demand\/1d\/\d+\/native$/.test(url.pathname),
     ),
-  ).toBe(true);
+  ).toBe(false);
+  expect(archiveRequests).toHaveLength(1);
+  expect(archiveRequests[0]!.searchParams.get("policy")).toBe("issued_before_delivery");
+  expect(Number(archiveRequests[0]!.searchParams.get("start"))).toBe(from);
+  expect(Number(archiveRequests[0]!.searchParams.get("as_of"))).toBe(to);
   const mappedMetrics = new Set(catalogSeries.map((entry) => entry.metric));
   expect(
     chunkRequests.filter((request) =>
@@ -503,6 +515,11 @@ async function installApi(
 ) {
   if (installClock) await page.clock.install({ time: FIXED_NOW });
   else await page.clock.setFixedTime(FIXED_NOW);
+  await installArchivedForecastApi(
+    page,
+    FIXED_NOW_SECONDS,
+    scenario === "empty" || scenario === "error" ? scenario : "normal",
+  );
   await installObservedTiles(
     page,
     FIXED_NOW_SECONDS,
@@ -769,10 +786,9 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await demandLegend.click();
   await expect(demandLegend).toHaveAttribute("aria-pressed", "false");
   await demandLegend.click();
-  await expect(page.getByRole("button", { name: "Forecast demand", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "false",
-  );
+  await expect(
+    page.getByRole("button", { name: "Forecast issued before delivery", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
 
   await page.getByLabel("Supply and demand chart menu").click();
   await expect(page.getByRole("menuitem", { name: "Open inspect" })).toBeVisible();
@@ -1179,6 +1195,7 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
 
 for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
   test(`visual regression ${scenario}`, async ({ page }) => {
+    const evidence = observeVisualSources(page);
     await installApi(page, scenario);
     await page.goto("/");
     if (scenario === "stale") await page.getByRole("button", { name: "Generation view" }).click();
@@ -1195,6 +1212,7 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
       await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
       await page.waitForLoadState("networkidle");
     }
+    await evidence.capture(`${scenario}-${chartId}`, card);
     const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;
     const capture = () =>
       expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`, { maxDiffPixelRatio });
@@ -1274,3 +1292,35 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await evidence.capture("analytical-dashboard", page.locator("body"));
   await expect(page).toHaveScreenshot("analytical-dashboard.png", { fullPage: true });
 });
+
+for (const width of [320, 390, 768, 1440]) {
+  for (const hours of [6, 24, 168]) {
+    test(`ERP-04 shared dashboard archive ${hours}h at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await installApi(page);
+      const response = page.waitForResponse((response) =>
+        response.url().includes("/api/v1/historical-forecast?"),
+      );
+      await page.goto(`/?view=overview&range=${hours * 3600}&live=1&legend=expanded`);
+      const archive = await response;
+      expect(archive.status()).toBe(200);
+      const data = await archive.json();
+      expect(data.rows).toHaveLength(hours + 1);
+      expect(data.coverage).toMatchObject({
+        expected_target_count: hours + 1,
+        selected_target_count: hours + 1,
+        available_value_count: hours + 1,
+        missing_value_count: 0,
+        truncated: false,
+      });
+      const card = page.locator('[data-chart-id="supply-demand"]');
+      await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+      const row = card
+        .getByRole("table", { name: "Supply and demand series statistics" })
+        .getByRole("row")
+        .filter({ hasText: "Forecast issued before delivery" });
+      await expect(row.getByRole("cell").nth(1)).toContainText("71.4 GW");
+      expect(data.fixture_provenance).toContain("synthetic");
+    });
+  }
+}

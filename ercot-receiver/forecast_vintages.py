@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo
 
 MAX_PUBLICATION_ROWS = 50_000
 MAX_QUERY_ROWS = 5_000
+# Separate hourly retrospective contract: a 366-day window plus an inclusive edge.
+MAX_HISTORICAL_FORECAST_ROWS = 366 * 24 + 1
 MAX_TARGET_SPAN = 366 * 86_400
 MAX_OUTLOOK_TARGETS = 193
 MAX_EPOCH_SECONDS = 32_503_680_000
@@ -1016,10 +1018,10 @@ def resolve_publication(conn, source_id, product_id, vintage_key):
     return row
 
 
-def _target_window(start, end):
+def _target_window(start, end, *, max_span=MAX_TARGET_SPAN):
     start = _epoch(start, "target_start")
     end = _epoch(end, "target_end")
-    if end <= start or end - start > MAX_TARGET_SPAN:
+    if end <= start or end - start > max_span:
         raise ValueError("invalid_target_window")
     return start, end
 
@@ -1207,3 +1209,58 @@ def comparison_rows(
             }
         )
     return forecast_publication, actual_publications, output
+
+
+def historical_forecast_rows(conn, start, end, as_of, policy="issued_before_delivery"):
+    """Hourly NP3-565 system demand, selected before each delivery start.
+
+    Official issue time is not system knowledge. The optional system_known
+    policy additionally bounds first ingestion and retrieval at the as-of clock.
+    """
+    # Ending epochs need up to one hour of right-edge query padding for a
+    # selected 366-day delivery window. This allowance is endpoint-specific;
+    # the independent hourly target ceiling still bounds reads before SQL.
+    start, end = _target_window(start, end, max_span=MAX_TARGET_SPAN + 3600)
+    expected_targets = max(0, (end - 1) // 3600 - (start + 3599) // 3600 + 1)
+    if expected_targets > MAX_HISTORICAL_FORECAST_ROWS:
+        raise ValueError("historical_forecast_target_limit_exceeded")
+    as_of = _epoch(as_of, "as_of")
+    if policy not in ("issued_before_delivery", "system_known"):
+        raise ValueError("invalid_historical_forecast_policy")
+    known = "AND p.retrieved_at <= ? AND p.created_at <= ?" if policy == "system_known" else ""
+    params = [start, end, as_of]
+    if known:
+        params.extend([as_of, as_of])
+    rows = conn.execute(f"""
+        WITH eligible AS (
+          SELECT r.target_ts, r.system_total, p.issued_at, p.retrieved_at,
+                 p.created_at, p.vintage_key, r.model,
+                 ROW_NUMBER() OVER (PARTITION BY r.target_ts
+                   ORDER BY p.issued_at DESC, p.created_at ASC, p.vintage_key, r.model) AS choice
+          FROM forecast_np3_565_rows r
+          JOIN forecast_publications p ON p.id = r.publication_id
+          WHERE r.target_ts >= ? AND r.target_ts < ?
+            AND p.product_id = 'NP3-565-CD' AND p.declared_unit = 'MW'
+            AND r.in_use_flag = 1 AND p.issued_at <= ?
+            AND p.issued_at <= r.target_ts - 3600 {known}
+        )
+        SELECT target_ts, system_total, issued_at, retrieved_at, created_at, vintage_key, model
+        FROM eligible WHERE choice=1 ORDER BY target_ts LIMIT ?
+    """, (*params, MAX_HISTORICAL_FORECAST_ROWS + 1)).fetchall()
+    if len(rows) > MAX_HISTORICAL_FORECAST_ROWS:
+        raise ValueError("historical_forecast_target_limit_exceeded")
+    fields = ("target_ts", "value", "issued_at", "retrieved_at", "first_seen_at", "vintage_key", "model")
+    output = [dict(zip(fields, row)) for row in rows]
+    for row in output:
+        row.update(interval_start=row["target_ts"] - 3600, interval_end=row["target_ts"], unit="MW")
+    return {"product_id": PRODUCT_NP3_565, "measure": "systemTotal", "policy": policy,
+            "as_of": as_of, "target_start": start, "target_end": end, "rows": output,
+            "availability": "available" if output else "no_eligible_archived_vintage",
+            "system_knowledge_claim": policy == "system_known",
+            "coverage": {
+                "expected_target_count": expected_targets,
+                "selected_target_count": len(output),
+                "available_value_count": sum(row["value"] is not None for row in output),
+                "missing_value_count": max(0, (end - 1) // 3600 - (start + 3599) // 3600 + 1 - sum(row["value"] is not None for row in output)),
+                "truncated": False,
+            }}

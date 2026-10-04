@@ -880,6 +880,192 @@ export async function loadSeries(
   signal: AbortSignal,
   previousData: Map<string, LoadedSeries> = new Map(),
 ): Promise<Map<string, LoadedSeries>> {
+  const wantsForecast = charts.some(
+    (chart) =>
+      chart.id === "supply-demand" &&
+      chart.series.some((series) => series.id === "forecast-demand"),
+  );
+  const observedCharts = wantsForecast
+    ? charts.map((chart) =>
+        chart.id === "supply-demand"
+          ? {
+              ...chart,
+              series: chart.series.filter((series) => series.id !== "forecast-demand"),
+            }
+          : chart,
+      )
+    : charts;
+  const forecast = async (window: Pick<TimeState, "start" | "end">): Promise<LoadedSeries> => {
+    const params = new URLSearchParams({
+      start: String(Math.ceil(window.start)),
+      // Keep the actual hour-ending epoch for a delivery interval crossing the
+      // selected right edge. Issuance remains bounded by the selected-time clock.
+      end: String(Math.ceil(window.end / 3600) * 3600 + 1),
+      as_of: String(Math.floor(window.end)),
+      policy: "issued_before_delivery",
+    });
+    try {
+      const payload = await fetchJson<{
+        product_id: string;
+        policy: string;
+        coverage?: {
+          expected_target_count: number;
+          available_value_count: number;
+          missing_value_count: number;
+          truncated: boolean;
+        };
+        rows: Array<{
+          target_ts: number;
+          interval_start: number;
+          interval_end: number;
+          issued_at: number;
+          value: number | null;
+          unit: string;
+        }>;
+      }>(`/api/v1/historical-forecast?${params}`, { method: "GET" }, signal);
+      if (
+        payload.product_id !== "NP3-565-CD" ||
+        payload.policy !== "issued_before_delivery" ||
+        !Array.isArray(payload.rows)
+      )
+        throw new Error("Invalid historical forecast contract");
+      const coverage = payload.coverage;
+      if (
+        coverage &&
+        (coverage.truncated !== false ||
+          ![
+            coverage.expected_target_count,
+            coverage.available_value_count,
+            coverage.missing_value_count,
+          ].every((value) => Number.isSafeInteger(value) && value >= 0))
+      )
+        throw new Error("Invalid historical forecast coverage");
+      if (payload.rows.length > 8785) throw new Error("Historical forecast row bound exceeded");
+      const sourceRows = payload.rows.filter(
+        (row) =>
+          (row.value === null || Number.isFinite(row.value)) &&
+          row.unit === "MW" &&
+          [row.target_ts, row.interval_start, row.interval_end, row.issued_at].every(
+            Number.isSafeInteger,
+          ) &&
+          row.interval_end === row.target_ts &&
+          row.interval_end - row.interval_start === 3600 &&
+          row.issued_at <= row.interval_start &&
+          row.issued_at <= window.end,
+      );
+      const eligible = sourceRows.filter(
+        (row): row is typeof row & { value: number } => row.value !== null,
+      );
+      const hasMissingValues = sourceRows.some(
+        (row) =>
+          row.value === null && row.interval_end > window.start && row.interval_start < window.end,
+      );
+      if (coverage && coverage.available_value_count !== eligible.length)
+        throw new Error("Historical forecast value coverage mismatch");
+      const rows = eligible.filter(
+        (row) => row.interval_end > window.start && row.interval_start < window.end,
+      );
+      if (new Set(rows.map((row) => row.target_ts)).size !== rows.length)
+        throw new Error("Ambiguous historical forecast delivery interval");
+      const points: Point[] = rows.map((row) => [row.target_ts, row.value]);
+      return {
+        points,
+        compare: [],
+        meta: {
+          bucket_seconds: 3600,
+          since: window.start,
+          until: window.end,
+          intervals: rows.map((row) => ({
+            timestamp: row.target_ts,
+            start: row.interval_start,
+            end: row.interval_end,
+          })),
+          coverage: coverage
+            ? rows.length === Math.ceil(window.end / 3600) - Math.floor(window.start / 3600)
+              ? "complete"
+              : "partial"
+            : "unknown",
+        },
+        error: points.length
+          ? null
+          : hasMissingValues
+            ? "Archived pre-delivery forecast has missing reported values"
+            : "No eligible archived forecast issued before delivery",
+        // Only a structurally valid source result can be informationally empty.
+        // Invalid rows filtered above retain the existing unavailable lifecycle.
+        errorKind:
+          !points.length && sourceRows.length === payload.rows.length
+            ? hasMissingValues
+              ? "missing-forecast-values"
+              : "no-eligible-vintage"
+            : undefined,
+      };
+    } catch (error) {
+      if (isAbortError(error, signal)) throw error;
+      return {
+        points: [],
+        compare: [],
+        meta: { bucket_seconds: 3600 },
+        error: "Archived pre-delivery forecast unavailable; current future outlook is separate",
+      };
+    }
+  };
+  const historicalForecast = async (): Promise<LoadedSeries> => {
+    const comparison = compareWindow(compare, time, customCompareSeconds);
+    const [current, prior] = await Promise.all([
+      forecast(time),
+      compare === "none" ? Promise.resolve(null) : forecast(comparison),
+    ]);
+    return {
+      ...current,
+      compare: alignComparisonForMode(prior?.points ?? [], compare, comparison.offset),
+      meta: {
+        ...current.meta,
+        comparison_intervals: (prior?.meta.intervals ?? []).map((interval) => {
+          const aligned = alignComparisonForMode(
+            [[interval.timestamp, 0]],
+            compare,
+            comparison.offset,
+          );
+          const ending = aligned[0]![0];
+          // Calendar alignment changes the displayed ending epoch, never the
+          // source's proven one-hour duration across a repeated Chicago hour.
+          return {
+            timestamp: ending,
+            start: ending - (interval.end - interval.start),
+            end: ending,
+          };
+        }),
+      },
+      errorKind:
+        (current.error || prior?.error) &&
+        (!current.error || current.errorKind) &&
+        (!prior?.error || prior.errorKind)
+          ? (current.errorKind ?? prior?.errorKind)
+          : undefined,
+      error:
+        current.errorKind && prior?.error && !prior.errorKind
+          ? `Historical forecast comparison unavailable: ${prior.error}`
+          : (current.error ??
+            (prior?.error ? `Historical forecast comparison unavailable: ${prior.error}` : null)),
+    };
+  };
+  const [result, historical] = await Promise.all([
+    loadObservedSeries(observedCharts, time, compare, customCompareSeconds, signal, previousData),
+    wantsForecast ? historicalForecast() : Promise.resolve(null),
+  ]);
+  if (historical) result.set("supply-demand:forecast-demand", historical);
+  return result;
+}
+
+async function loadObservedSeries(
+  charts: ChartDefinition[],
+  time: TimeState,
+  compare: CompareMode,
+  customCompareSeconds: number,
+  signal: AbortSignal,
+  previousData: Map<string, LoadedSeries> = new Map(),
+): Promise<Map<string, LoadedSeries>> {
   const pairedCharts = charts.filter((chart) =>
     chart.series.some((series) => series.metric === HEADROOM_METRIC),
   );
@@ -913,7 +1099,14 @@ export async function loadSeries(
     const [pairedData, physicalData] = await Promise.all([
       pairedLoad(),
       physicalCharts.length
-        ? loadSeries(physicalCharts, time, compare, customCompareSeconds, signal, previousData)
+        ? loadObservedSeries(
+            physicalCharts,
+            time,
+            compare,
+            customCompareSeconds,
+            signal,
+            previousData,
+          )
         : Promise.resolve(new Map<string, LoadedSeries>()),
     ]);
     return new Map([...physicalData, ...pairedData]);

@@ -50,7 +50,7 @@ export const chartDefinitions: ChartDefinition[] = [
       },
       {
         id: "forecast-demand",
-        label: "Forecast demand",
+        label: "Forecast issued before delivery",
         metric: "ercot.supply_demand.forecast_demand_mw",
         color: colors.slate,
       },

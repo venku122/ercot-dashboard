@@ -21,7 +21,7 @@ export function observeVisualSources(page: Page) {
   const onResponse = (response: Response) => {
     const path = new URL(response.url()).pathname;
     if (
-      !/^\/api\/(series\/batch|latest\/batch|v[12]\/(source-health|tile-catalog|tiles\/|series\/chunk))/.test(
+      !/^\/api\/(series\/batch|latest\/batch|v[12]\/(source-health|tile-catalog|tiles\/|series\/chunk|historical-forecast))/.test(
         path,
       )
     )
@@ -61,6 +61,23 @@ export function observeVisualSources(page: Page) {
         status: response.status(),
         query: response.request().postDataJSON(),
         sha256: body ? createHash("sha256").update(JSON.stringify(body)).digest("hex") : null,
+        forecast:
+          path === "/api/v1/historical-forecast" && body
+            ? {
+                product_id: body.product_id,
+                measure: body.measure,
+                policy: body.policy,
+                as_of: body.as_of,
+                target_start: body.target_start,
+                target_end: body.target_end,
+                availability: body.availability,
+                system_knowledge_claim: body.system_knowledge_claim,
+                coverage: body.coverage,
+                row_count: body.rows?.length,
+                first_row: body.rows?.[0],
+                last_row: body.rows?.at(-1),
+              }
+            : undefined,
         sources:
           (body?.series ?? body?.latest ?? body?.sources)?.map(summarize) ??
           (body ? [summarize(body)] : []),

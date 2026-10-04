@@ -1,0 +1,95 @@
+{
+  "source_sha": "30dbe53dd19a692eec3b4f1b05c92d74a0bffd3d",
+  "test_base_sha": "1011513bc99cbfa8dcf45ece426b48c457801620",
+  "platform": "darwin",
+  "linux_status": "PENDING_MATCHING_ACTUAL_CI_IMAGES_AND_REPEATS",
+  "nullable_forecast_source_fix": "INDEPENDENT_SCOPED_REVIEW_PASS_30dbe53",
+  "final_scoped_native_run": {
+    "status": "PASS",
+    "browser_cases": 14,
+    "repeat_each": 2,
+    "log": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-final.log",
+    "unit_cases": 14,
+    "unit_log": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/null-source-unit.log",
+    "http_cases": 1,
+    "http_log": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/null-source-http.log"
+  },
+  "images": [
+    {
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/normal-supply-demand-chromium-darwin.png",
+      "original_sha256": "d178128b16b9db02c76d391d05c4e23f3174b9b694d431cf9ef983774ef4b984",
+      "candidate_sha256": "d87fd403515d2ab5111adb23a5fd0e45dc123b658504b67a69b6b59b3169d4b1",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/dashboard-visual-regression-normal-chromium/normal-supply-demand-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/dashboard-visual-regression-normal-chromium-repeat1/normal-supply-demand-actual.png",
+      "repeat_pixels_identical": true,
+      "individually_viewed": true,
+      "reason": "Archived NP3-565 pre-delivery hourly forecast replaces the old observed-time forecast alias. Demand68.1GW and capacity93.1GW unchanged; forecast71.4GW; dashed physical curves retain coarse/unknown bootstrap policy.",
+      "review_role": "author individual image/source review; separate peer review required"
+    },
+    {
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-after-first-viewport-iphone-pro-max-webkit-darwin.png",
+      "original_sha256": "37764f5276ddee807e9c06658d89e4d4fbb31feee38d93cb7d25f4c26ee81dd8",
+      "candidate_sha256": "3d71bf72b9dcb7cb78514c0847371e51cdb6d875968c5a0d0c5421281815c93a",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit-repeat1/mobile-after-first-viewport-actual.png",
+      "repeat_pixels_identical": true,
+      "individually_viewed": true,
+      "reason": "Archived71.4GW forecast, explicit pre-delivery label and historical-knowledge caveat. Demand68.3GW/capacity88.6GW and pairedheadroom20.3GW unchanged. Caveat adds vertical space without hiding the paired chart.",
+      "review_role": "author individual image/source review; separate peer review required"
+    },
+    {
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-derived-metrics-iphone-pro-max-webkit-darwin.png",
+      "original_sha256": "bb449e7ba2159dfc24ca8fbdc8a00ae3803db36ec7ee7d72a61fbb82b97ab5cc",
+      "candidate_sha256": "72c4f7b063c1764f95de624dfd5c2da1c5697090b0e7c47db7158b96deb7ecfe",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-derived-metrics-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit-repeat1/mobile-derived-metrics-actual.png",
+      "repeat_pixels_identical": true,
+      "individually_viewed": true,
+      "reason": "Existing source storage-net latest point -456.7246094442273MW is rounded to -456.7MW, replacing stale -423.1MW baseline. Charging state and other six metrics unchanged; no fixture value mutation.",
+      "review_role": "author individual image/source review; separate peer review required"
+    },
+    {
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-inspect-portrait-iphone-pro-max-webkit-darwin.png",
+      "original_sha256": "21acf5412d6c202130f3e189c3f8ba8019aa6286558edbcec744099160c97f7e",
+      "candidate_sha256": "98bb98eb9c6e8dd6dbdb1cf630ab83869de7dfa899e6162a6bec4ccf66c085ae",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit-repeat1/mobile-inspect-portrait-actual.png",
+      "repeat_pixels_identical": true,
+      "individually_viewed": true,
+      "reason": "New archived forecast curve and truthful coarse physical dash treatment; same axes, data, controls, guide and contained dialog. Added readiness assertions before passive capture; original8pixel tolerance retained.",
+      "review_role": "author individual image/source review; separate peer review required"
+    },
+    {
+      "snapshot": "e2e/mobile.spec.ts-snapshots/progressive-overview-mobile-iphone-pro-max-webkit-darwin.png",
+      "original_sha256": "f4983c17973c97e7ca19e285e6f313f61f285611b8e44d85208766686f2b5119",
+      "candidate_sha256": "3d71bf72b9dcb7cb78514c0847371e51cdb6d875968c5a0d0c5421281815c93a",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-red-tests/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit-repeat1/progressive-overview-mobile-actual.png",
+      "repeat_pixels_identical": true,
+      "individually_viewed": true,
+      "reason": "Old native baseline predates inherited06 compact homepage and paired tile: old6h/promo \u2192 current1d/status/readings/headroom.07 adds archive71.4GW forecast/caveat. Individually reviewed full original/new frame.",
+      "review_role": "author individual image/source review; separate peer review required"
+    },
+    {
+      "snapshot": "e2e/mobile.spec.ts-snapshots/progressive-advanced-mobile-iphone-pro-max-webkit-darwin.png",
+      "original_sha256": "3c0ca640894eeda39f41ada3bbb8ab023a02934e8baf2dd8bf5a4cfd06b12b31",
+      "candidate_sha256": "65049d0565850ba03b2bec9b1a424693ab3b932b508d50ad0330ac8c6f12eb22",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-stage-tests/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-advanced-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/native-stage-tests/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit-repeat1/progressive-advanced-mobile-actual.png",
+      "repeat_pixels_identical": true,
+      "individually_viewed": true,
+      "reason": "Old native baseline6h \u2192 existing current1d selection; same operatingreserve source value1.2GW and sampled shape, truthful coarse dashed geometry. No product change in this supplement.",
+      "review_role": "author individual image/source review; separate peer review required"
+    }
+  ],
+  "tolerances_changed": false,
+  "product_or_fixture_source_values_changed": false,
+  "new_docker_jobs": false,
+  "full_static_validation": {
+    "status": "PASS",
+    "frontend": 504,
+    "receiver": 288,
+    "contracts": 42,
+    "log": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/validate.log"
+  }
+}

@@ -25,7 +25,7 @@ async function expectKnownUnavailableSupplyLegends(card: import("@playwright/tes
   await expect(legends).toHaveCount(1);
   await expect(legends.locator(".legend-label")).toHaveText([
     "Actual demand",
-    "Forecast demand",
+    "Forecast issued before delivery",
     "Available capacity",
   ]);
   await expect(legends.locator(".legend-latest")).toHaveText(["—", "—", "—"]);
@@ -553,23 +553,28 @@ test("P0 viewport metadata opts into safe-area layout @mobile-core", async ({ pa
 });
 
 test("progressive-disclosure mobile visual states @mobile-vri", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await openPopulated(page);
   await expect(page.locator('[data-chart-id="supply-demand"] canvas')).toHaveAttribute(
     "aria-label",
     /[1-9]\d* observations/,
   );
+  await evidence.capture("progressive-overview-mobile", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-overview-mobile.png");
 
   await page.getByRole("button", { name: "Outlook view" }).click();
   await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
+  await evidence.capture("progressive-outlook-mobile", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-outlook-mobile.png");
 
   await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Grid Signals", exact: true })).toBeVisible();
+  await evidence.capture("progressive-advanced-mobile", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-advanced-mobile.png");
 
   await openMoreView(page, "Diagnostics");
   await expect(page.getByLabel("System health details")).toBeVisible();
+  await evidence.capture("progressive-diagnostics-mobile", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-diagnostics-mobile.png");
 });
 
@@ -646,6 +651,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   });
   await expect(mobileNavigation).toBeHidden();
   await page.evaluate(() => new Promise(requestAnimationFrame));
+  await evidence.capture("mobile-derived-metrics", derivedMetrics);
   await expect.soft(derivedMetrics).toHaveScreenshot("mobile-derived-metrics.png", {
     maxDiffPixelRatio: 0.02,
     maxDiffPixels: 6000,
@@ -755,9 +761,13 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
   );
 
   await page.getByRole("button", { name: "Open Supply and demand inspect mode" }).click();
-  await expect
-    .soft(page.getByRole("dialog", { name: "Inspect Supply and demand" }))
-    .toHaveScreenshot("mobile-inspect-portrait.png", { maxDiffPixels: 8 });
+  const portraitInspect = page.getByRole("dialog", { name: "Inspect Supply and demand" });
+  await expect(portraitInspect).toHaveAttribute("aria-busy", "false");
+  await expect(portraitInspect.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await evidence.capture("mobile-inspect-portrait", portraitInspect);
+  await expect.soft(portraitInspect).toHaveScreenshot("mobile-inspect-portrait.png", {
+    maxDiffPixels: 8,
+  });
 });
 
 test("landscape inspect remains usable @landscape-vri", async ({ page }) => {

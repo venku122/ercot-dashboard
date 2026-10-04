@@ -107,8 +107,9 @@ export function temporalPolicy(
   if (chartId === "supply-demand" && series.id === "forecast-demand")
     return {
       ...hourly,
+      cursor: { mode: "interval" },
       evidence:
-        "Supply demand hourly forecast legacy fixtures; publication vintage resolved separately",
+        "NP3-565 archived forecast hourEnding and proven half-open delivery bounds; publication and retrieval clocks remain separate",
     };
   return chartTemporalPolicies[chartId];
 }
