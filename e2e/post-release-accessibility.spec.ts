@@ -17,7 +17,10 @@ test("ERP-09 exact table discloses truncation, units and keyboard scrolling", as
   await expect(region).toHaveAttribute("tabindex", "0");
   await region.focus();
   await expect(region).toBeFocused();
-  await expect(region.getByRole("columnheader", { name: "Value (MW)", exact: true })).toBeVisible();
+  await expect(
+    region.getByRole("columnheader", { name: "Displayed value", exact: true }),
+  ).toBeVisible();
+  await expect(card.getByText("Source unit: MW.", { exact: false })).toBeVisible();
   await expect(
     region.getByRole("columnheader", { name: "Resolution and coverage", exact: true }),
   ).toBeVisible();
@@ -86,7 +89,7 @@ for (const width of [320, 768, 1440]) {
   });
 }
 
-for (const width of [390, 1440]) {
+for (const width of [320, 390, 1440]) {
   test(`ERP-09 critical controls retain named 44px targets and reduced motion at ${width}px`, async ({
     page,
   }) => {

@@ -1387,9 +1387,9 @@ export function ChartCard({
         >
           <summary>Accessible data table</summary>
           <p>
-            Displayed source values. Dashed lines and * readouts indicate aggregate or unknown
-            resolution; bucket width does not prove coverage. Cursor values expire independently of
-            line continuity.
+            Source unit: {chart.unit}. Displayed values include their units. Dashed lines and *
+            readouts indicate aggregate or unknown resolution; bucket width does not prove coverage.
+            Cursor values expire independently of line continuity.
             {visibleSeries.some((series) => temporalPolicy(chart.id, series)?.kind === "interval")
               ? " Verified delivery intervals use [start, end); timestamps label interval ending, not retrieval time."
               : ""}
@@ -1427,7 +1427,7 @@ export function ChartCard({
                       ? "Interval ending (UTC)"
                       : "Timestamp (UTC)"}
                   </th>
-                  <th scope="col">Value ({chart.unit})</th>
+                  <th scope="col">Displayed value</th>
                   <th scope="col">Resolution and coverage</th>
                   <th scope="col">Published interval (UTC)</th>
                 </tr>

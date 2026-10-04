@@ -545,3 +545,20 @@
   flex-basis: 10ch;
   min-width: min(100%, 10ch);
 }
+
+/* Compact ordinary-phone spacing retains complete readings and 44px controls.
+   Narrow zoom containers keep their independent reflow rules. */
+@container dashboard-page (min-width: 251px) and (max-width: 450px) {
+  .homepage-workspace {
+    margin-top: 0;
+  }
+  .homepage-readings {
+    margin-bottom: 4px;
+  }
+  .dashboard-shell:has(.homepage-workspace) .status-strip {
+    margin: 2px 0;
+  }
+  .homepage-workspace .chart-card-overview:not(.chart-card-inspect) {
+    gap: 4px;
+  }
+}
