@@ -66,6 +66,7 @@ import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import type {
   CompareMode,
   DashboardState,
+  EventRecord,
   LegendMode,
   LoadedSeries,
   SourceHealth,
@@ -132,6 +133,8 @@ const ExternalContextView = lazy(() =>
     default: module.ExternalContextView,
   })),
 );
+
+const EMPTY_EVENTS: EventRecord[] = [];
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -1125,7 +1128,7 @@ export function App() {
         chart={chart}
         compare={state.compare}
         customCompareSeconds={state.customCompareSeconds}
-        events={state.events ? events : []}
+        events={state.events ? events : EMPTY_EVENTS}
         hiddenSeries={state.hiddenSeries}
         inspect={state.expandedChart === chart.id}
         legendMode={state.legendMode}

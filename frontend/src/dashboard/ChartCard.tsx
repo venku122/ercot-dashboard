@@ -270,6 +270,20 @@ export function ChartCard({
   time,
   selectionTime = time,
 }: Props) {
+  const appliedData = useRef<{
+    instance: ChartJs<"line">;
+    datasets: Array<ChartDataset<"line", ScatterDataPoint[]>>;
+    events: EventRecord[];
+    start: number;
+    end: number;
+    zeroCentered: boolean | undefined;
+  } | null>(null);
+  const appliedInteraction = useRef<{
+    instance: ChartJs<"line">;
+    policy: ReturnType<typeof chartInteractionPolicy>;
+    inspect: boolean;
+    presentation: Props["presentation"];
+  } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorLineRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartJs<"line"> | null>(null);
@@ -751,6 +765,20 @@ export function ChartCard({
         },
       },
     });
+    appliedData.current = {
+      instance,
+      datasets: dynamic.current.datasets,
+      events: dynamic.current.events,
+      start: dynamic.current.time.start,
+      end: dynamic.current.time.end,
+      zeroCentered: chart.zeroCentered,
+    };
+    appliedInteraction.current = {
+      instance,
+      policy: dynamic.current.interactionPolicy,
+      inspect,
+      presentation,
+    };
     window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
     window.__ercotChartLifecycle.constructed += 1;
     chartRef.current = instance;
@@ -762,6 +790,7 @@ export function ChartCard({
     cursorByChart.set(instance, initialCursor.timestamp);
     pinnedByChart.set(instance, initialCursor.pinned);
     setPinned(initialCursor.pinned);
+    if (initialCursor.timestamp !== null) instance.draw();
     const unsubscribe = chartCoordinator.subscribe((timestamp, isPinned) => {
       if (!cursorActive.current) return;
       cursorTimestamp.current = timestamp;
@@ -788,6 +817,14 @@ export function ChartCard({
     const instance = chartRef.current;
     const zoomOptions = instance?.options.plugins?.zoom;
     if (!instance || !zoomOptions) return;
+    const previous = appliedInteraction.current;
+    if (
+      previous?.instance === instance &&
+      previous.policy === interactionPolicy &&
+      previous.inspect === inspect &&
+      previous.presentation === presentation
+    )
+      return;
     instance.options.events =
       inspect || presentation !== "overview"
         ? ["mousemove", "mouseout", "click", "touchstart", "touchmove"]
@@ -814,11 +851,37 @@ export function ChartCard({
       },
     };
     instance.update("none");
+    appliedInteraction.current = { instance, policy: interactionPolicy, inspect, presentation };
   }, [interactionPolicy, inspect, presentation]);
 
   useEffect(() => {
     const instance = chartRef.current;
     if (!instance) return;
+    const maximum = chart.zeroCentered
+      ? Math.max(
+          1,
+          ...datasets.flatMap((dataset) =>
+            dataset.data
+              .filter((point) => Number.isFinite(point.y))
+              .map((point) => Math.abs(point.y ?? 0)),
+          ),
+        )
+      : null;
+    const previous = appliedData.current;
+    const currentY = instance.options.scales?.["y"];
+    const domainMatches =
+      maximum === null ||
+      (currentY?.suggestedMin === -maximum && currentY?.suggestedMax === maximum);
+    if (
+      previous?.instance === instance &&
+      previous.datasets === datasets &&
+      previous.events === events &&
+      previous.start === time.start &&
+      previous.end === time.end &&
+      previous.zeroCentered === chart.zeroCentered &&
+      domainMatches
+    )
+      return;
     instance.data.datasets = datasets;
     const xScale = instance.options.scales?.["x"];
     if (xScale) {
@@ -826,19 +889,19 @@ export function ChartCard({
       xScale.max = time.end * 1000;
     }
     const yScale = instance.options.scales?.["y"];
-    if (chart.zeroCentered && yScale) {
-      const maximum = Math.max(
-        1,
-        ...datasets.flatMap((dataset) =>
-          dataset.data
-            .filter((point) => Number.isFinite(point.y))
-            .map((point) => Math.abs(point.y ?? 0)),
-        ),
-      );
+    if (maximum !== null && yScale) {
       yScale.suggestedMin = -maximum;
       yScale.suggestedMax = maximum;
     }
     instance.update("none");
+    appliedData.current = {
+      instance,
+      datasets,
+      events,
+      start: time.start,
+      end: time.end,
+      zeroCentered: chart.zeroCentered,
+    };
     instance.canvas.dataset["chartReady"] = datasets.some((dataset) => dataset.data.length)
       ? "true"
       : "false";
