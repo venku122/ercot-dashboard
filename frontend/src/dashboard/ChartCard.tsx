@@ -9,10 +9,8 @@ import {
 import "chartjs-adapter-date-fns";
 
 import {
-  CategoryScale,
   Chart as ChartJs,
   Filler,
-  Legend,
   LineController,
   LineElement,
   LinearScale,
@@ -54,14 +52,12 @@ import { formatAge, formatValue } from "./units";
 import { useVisible } from "./use-visible";
 
 ChartJs.register(
-  CategoryScale,
   LinearScale,
   TimeScale,
   LineController,
   LineElement,
   PointElement,
   Tooltip,
-  Legend,
   Filler,
   zoomPlugin,
 );
