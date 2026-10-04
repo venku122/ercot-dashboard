@@ -125,6 +125,39 @@ describe("PR21 Texas Grid browser lifecycle acceptance", () => {
     expect(container.querySelectorAll(".texas-grid-table tbody tr").length).toBeGreaterThan(0);
   });
 
+  it("renders verified MWH source label with an explicit unclassified disclosure", async () => {
+    mocks.loadTexasGridResource.mockImplementation((selected: TexasGridSelectedResource) => {
+      const fixture = texasGridGisFixture();
+      return Promise.resolve(
+        parseTexasGridResource(
+          {
+            ...fixture,
+            fuels: [...fixture.fuels, { code: "MWH", label: "MWH (as reported)" }],
+            limits: { max_aggregates: 143 },
+            aggregates: [
+              {
+                phase: "ss_started_fis_started_no_ia",
+                fuel: "source_mwh",
+                count: 1,
+                capacity_mw: 50,
+              },
+            ],
+          },
+          selected,
+        ),
+      );
+    });
+    await act(async () => render(true));
+    await flush();
+    click(container, "Open interconnection history");
+    await flush();
+    expect(container.querySelector(".texas-grid-table tbody")?.textContent).toContain(
+      "MWH (as reported)",
+    );
+    expect(container.textContent).toContain("unclassified source fuel code");
+    expect(container.textContent).toContain("no battery or storage classification is inferred");
+  });
+
   it("aborts selected history on switch and exit without mixing stale completion", async () => {
     const signals: AbortSignal[] = [];
     const resolves: Array<(resource: TexasGridResource) => void> = [];

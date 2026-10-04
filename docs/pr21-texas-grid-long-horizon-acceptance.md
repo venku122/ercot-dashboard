@@ -422,3 +422,10 @@ a non-negative integer and `last_error` is a nullable bounded string.
 14. Deliver equal and older failed source attempts after recovery; they return
     `unchanged` and `ignored_older` and do not regress health or increment its
     failure count.
+
+## October 2026 GIS additive source category
+
+The verified September 2026 workbook adds the literal, unclassified `MWH` fuel
+code. The current exact registry uses 13 fuels and a 143 aggregate ceiling;
+legacy 12-fuel/132 publications remain readable. See
+[ERP-08 source schema evidence](post-release/ERP-08-gis-schema.md).

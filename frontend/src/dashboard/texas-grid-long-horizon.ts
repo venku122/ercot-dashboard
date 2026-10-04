@@ -88,7 +88,7 @@ export type TexasGridGisResource = {
   phases: TexasGridPhase[];
   fuels: TexasGridFuel[];
   aggregates: TexasGridGisAggregate[];
-  limits: { max_aggregates: 132 };
+  limits: { max_aggregates: 132 | 143 };
 };
 
 export type TexasGridCapacityRow = {
@@ -583,13 +583,17 @@ function parseGis(value: Record<string, unknown>): TexasGridGisResource {
     throw new Error("invalid_texas_grid_gis");
   const limits = object(value["limits"], "invalid_texas_grid_gis");
   exact(limits, ["max_aggregates"], "invalid_texas_grid_gis");
+  const maximum = limits["max_aggregates"];
+  const fuelCodes = maximum === 143 ? [...FUEL_CODES, "MWH"] : FUEL_CODES;
+  const fuelLabels = maximum === 143 ? [...FUEL_LABELS, "MWH (as reported)"] : FUEL_LABELS;
+  const fuelIds = maximum === 143 ? [...FUEL_IDS, "source_mwh"] : FUEL_IDS;
   if (
-    limits["max_aggregates"] !== 132 ||
+    (maximum !== 132 && maximum !== 143) ||
     !Array.isArray(value["phases"]) ||
     !Array.isArray(value["fuels"]) ||
     !Array.isArray(value["aggregates"]) ||
     value["aggregates"].length < 1 ||
-    value["aggregates"].length > 132
+    value["aggregates"].length > maximum
   )
     throw new Error("invalid_texas_grid_gis");
   const phases = value["phases"].map((entry, index) => {
@@ -602,21 +606,23 @@ function parseGis(value: Record<string, unknown>): TexasGridGisResource {
   const fuels = value["fuels"].map((entry, index) => {
     const fuel = object(entry, "invalid_texas_grid_gis_fuel");
     exact(fuel, ["code", "label"], "invalid_texas_grid_gis_fuel");
-    if (fuel["code"] !== FUEL_CODES[index] || fuel["label"] !== FUEL_LABELS[index])
+    if (fuel["code"] !== fuelCodes[index] || fuel["label"] !== fuelLabels[index])
       throw new Error("invalid_texas_grid_gis_fuel");
-    return { code: FUEL_CODES[index]!, label: FUEL_LABELS[index]! };
+    return { code: fuelCodes[index]!, label: fuelLabels[index]! };
   });
-  if (phases.length !== PHASES.length || fuels.length !== FUEL_CODES.length)
+  if (phases.length !== PHASES.length || fuels.length !== fuelCodes.length)
     throw new Error("invalid_texas_grid_gis");
   const phaseOrder = new Map<string, number>(phases.map((phase, index) => [phase.id, index]));
-  const fuelOrder = new Map<string, number>(FUEL_IDS.map((fuel, index) => [fuel, index]));
+  const fuelOrder = new Map<string, number>(fuelIds.map((fuel, index) => [fuel, index]));
   let previous = -1;
   const aggregates = value["aggregates"].map((entry) => {
     const row = object(entry, "invalid_texas_grid_gis_aggregate");
     exact(row, ["phase", "fuel", "count", "capacity_mw"], "invalid_texas_grid_gis_aggregate");
     const phase = boundedString(row["phase"], "invalid_texas_grid_gis_aggregate", 100);
     const fuel = boundedString(row["fuel"], "invalid_texas_grid_gis_aggregate", 10);
-    const order = (phaseOrder.get(phase) ?? -1) * FUEL_CODES.length + (fuelOrder.get(fuel) ?? -1);
+    if (!phaseOrder.has(phase) || !fuelOrder.has(fuel))
+      throw new Error("invalid_texas_grid_gis_aggregate");
+    const order = phaseOrder.get(phase)! * fuelCodes.length + fuelOrder.get(fuel)!;
     if (order < 0 || order <= previous) throw new Error("invalid_texas_grid_gis_aggregate");
     previous = order;
     const count = integer(row["count"], "invalid_texas_grid_gis_aggregate");
@@ -642,7 +648,7 @@ function parseGis(value: Record<string, unknown>): TexasGridGisResource {
     phases,
     fuels,
     aggregates,
-    limits: { max_aggregates: 132 },
+    limits: { max_aggregates: maximum },
   };
 }
 

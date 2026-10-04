@@ -64,6 +64,7 @@ function GisEvidence({ resource }: { resource: TexasGridGisResource }) {
             SOL: "solar",
             WAT: "water",
             WIN: "wind",
+            MWH: "source_mwh",
           }[fuel.code]!,
           fuel.label,
         ]),
@@ -76,6 +77,12 @@ function GisEvidence({ resource }: { resource: TexasGridGisResource }) {
         <div>
           <p className="eyebrow">Official ERCOT monthly planning snapshot</p>
           <h3 id="texas-grid-gis-title">Generator interconnection study aggregates</h3>
+          {resource.fuels.some((fuel) => fuel.code === "MWH") && (
+            <p>
+              MWH (as reported) is an unclassified source fuel code. ERCOT’s workbook fuel legend
+              does not define it; no battery or storage classification is inferred.
+            </p>
+          )}
           <p>
             Project-row counts and signed source capacity sums by official study phase and fuel.
             Negative MW can reflect repowering net-change adjustments. These values are not
