@@ -200,7 +200,7 @@ for (const seconds of [21600, 86400, 604800])
     await expect(
       page
         .locator('[data-chart-id="supply-demand"]')
-        .getByRole("button", { name: "Forecast demand", exact: true })
+        .getByRole("button", { name: "Forecast issued before delivery", exact: true })
         .locator(".legend-latest"),
     ).toContainText("GW");
   });

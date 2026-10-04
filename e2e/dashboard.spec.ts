@@ -240,13 +240,20 @@ test("production regression fixture keeps actual demand and available capacity v
   await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
   await expect(card.getByRole("button", { name: "Actual demand", exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "Available capacity", exact: true })).toBeVisible();
-  await expect(card.getByRole("button", { name: "Forecast demand", exact: true })).toBeVisible();
+  await expect(
+    card.getByRole("button", { name: "Forecast issued before delivery", exact: true }),
+  ).toBeVisible();
   await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
 });
 
 test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }) => {
   const chunkRequests: string[] = [];
   const tileRequests: string[] = [];
+  const archiveRequests: URL[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/v1/historical-forecast") archiveRequests.push(url);
+  });
   await installApi(page, "normal", [], chunkRequests);
   const to = FIXED_NOW_SECONDS - 2 * 86_400;
   const from = to - 7 * 86_400;
@@ -432,7 +439,11 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
     tileUrls.some((url) =>
       /^\/api\/v2\/tiles\/supply-demand\.forecast-demand\/1d\/\d+\/native$/.test(url.pathname),
     ),
-  ).toBe(true);
+  ).toBe(false);
+  expect(archiveRequests).toHaveLength(1);
+  expect(archiveRequests[0]!.searchParams.get("policy")).toBe("issued_before_delivery");
+  expect(Number(archiveRequests[0]!.searchParams.get("start"))).toBe(from);
+  expect(Number(archiveRequests[0]!.searchParams.get("as_of"))).toBe(to);
   const mappedMetrics = new Set(catalogSeries.map((entry) => entry.metric));
   expect(
     chunkRequests.filter((request) =>
@@ -775,10 +786,9 @@ test("time, inspect, cursor, legend, compare, events, CSV and URL state", async 
   await demandLegend.click();
   await expect(demandLegend).toHaveAttribute("aria-pressed", "false");
   await demandLegend.click();
-  await expect(page.getByRole("button", { name: "Forecast demand", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "false",
-  );
+  await expect(
+    page.getByRole("button", { name: "Forecast issued before delivery", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
 
   await page.getByLabel("Supply and demand chart menu").click();
   await expect(page.getByRole("menuitem", { name: "Open inspect" })).toBeVisible();

@@ -980,6 +980,7 @@ export async function loadSeries(
             : "unknown",
         },
         error: points.length ? null : "No eligible archived forecast issued before delivery",
+        errorKind: points.length ? undefined : "no-eligible-vintage",
       };
     } catch (error) {
       if (isAbortError(error, signal)) throw error;
@@ -991,7 +992,7 @@ export async function loadSeries(
       };
     }
   };
-  const historicalForecast = async () => {
+  const historicalForecast = async (): Promise<LoadedSeries> => {
     const comparison = compareWindow(compare, time, customCompareSeconds);
     const [current, prior] = await Promise.all([
       forecast(time),
@@ -1018,9 +1019,17 @@ export async function loadSeries(
           };
         }),
       },
+      errorKind:
+        (current.error || prior?.error) &&
+        (!current.error || current.errorKind === "no-eligible-vintage") &&
+        (!prior?.error || prior.errorKind === "no-eligible-vintage")
+          ? "no-eligible-vintage"
+          : undefined,
       error:
-        current.error ??
-        (prior?.error ? `Historical forecast comparison unavailable: ${prior.error}` : null),
+        current.errorKind === "no-eligible-vintage" && prior?.error && !prior.errorKind
+          ? `Historical forecast comparison unavailable: ${prior.error}`
+          : (current.error ??
+            (prior?.error ? `Historical forecast comparison unavailable: ${prior.error}` : null)),
     };
   };
   const [result, historical] = await Promise.all([

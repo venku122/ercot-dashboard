@@ -88,3 +88,46 @@ it("historical comparison selects its own allowed window and aligns calendar tar
   expect(Number(requests[1]!.searchParams.get("as_of"))).toBe(end - 90000);
   expect(result.get("supply-demand:forecast-demand")?.compare).toEqual([[end, 24]]);
 });
+
+for (const comparisonFailure of [false, true]) {
+  it(`successful empty archive is distinct from comparison failure=${comparisonFailure}`, async () => {
+    let selected = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (!url.includes("historical-forecast"))
+          return new Response(JSON.stringify({ series: [] }));
+        selected += 1;
+        if (comparisonFailure && selected === 2)
+          return new Response("upstream unavailable", { status: 503 });
+        return new Response(
+          JSON.stringify({
+            product_id: "NP3-565-CD",
+            policy: "issued_before_delivery",
+            rows: [],
+            coverage: {
+              expected_target_count: 1,
+              available_value_count: 0,
+              missing_value_count: 1,
+              truncated: false,
+            },
+          }),
+        );
+      }),
+    );
+    const result = await loadSeries(
+      [chartDefinitions.find((chart) => chart.id === "supply-demand")!],
+      { start: 3600, end: 7200, mode: "live", paused: false, rangeSeconds: 3600 },
+      "previous_period",
+      0,
+      new AbortController().signal,
+    );
+    const forecast = result.get("supply-demand:forecast-demand")!;
+    expect(forecast.points).toEqual([]);
+    expect(forecast.compare).toEqual([]);
+    expect(forecast.errorKind).toBe(comparisonFailure ? undefined : "no-eligible-vintage");
+    expect(forecast.error).toContain(
+      comparisonFailure ? "comparison unavailable" : "No eligible archived forecast",
+    );
+  });
+}

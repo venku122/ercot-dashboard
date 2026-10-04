@@ -701,7 +701,9 @@ export function ChartCard({
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.points ?? [],
   );
   const errors = chart.series
-    .map((series) => seriesData.get(seriesKey(chart.id, series.id))?.error)
+    .map((series) => seriesData.get(seriesKey(chart.id, series.id)))
+    .filter((loaded) => loaded?.errorKind !== "no-eligible-vintage")
+    .map((loaded) => loaded?.error)
     .filter((value): value is string => Boolean(value));
   const updateUnavailable = !loading && Boolean(errors.length || requestError);
   const sourceUnavailable =

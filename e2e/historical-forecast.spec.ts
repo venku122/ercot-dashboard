@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { nativeFixtureIndex } from "./paired-headroom-fixtures";
 import { FIXED_NOW_SECONDS, installMobileApi } from "./mobile-fixtures";
 
+// Native v1 includes the requested right endpoint. The shared epoch oracle puts
+// fixtureNow at index64 (index63 is the last completed five-minute observation).
+const latestNativeDemand =
+  68_200 + Math.sin(nativeFixtureIndex(FIXED_NOW_SECONDS, FIXED_NOW_SECONDS) / 5) * 3200;
+const latestNativeDemandLabel = `${(latestNativeDemand / 1000).toFixed(1)} GW`;
 for (const width of [390, 1440]) {
   test(`ERP-04 archived forecast overlaps actuals at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -46,7 +52,7 @@ for (const width of [390, 1440]) {
     await expect(forecast.locator(".legend-latest")).toContainText("72.3 GW");
     await expect(
       card.locator(".legend-row").filter({ hasText: "Actual demand" }).locator(".legend-latest"),
-    ).toContainText("71.0 GW");
+    ).toContainText(latestNativeDemandLabel);
     await expect(
       page.getByText("Official issue time does not prove this system knew it then.", {
         exact: false,
@@ -92,8 +98,11 @@ for (const width of [390, 1440]) {
       page.getByText(/No eligible archived forecast issued before delivery/),
     ).toBeVisible();
     await expect(
+      card.getByText("Temporarily unavailable… Existing observations remain visible."),
+    ).toHaveCount(0);
+    await expect(
       card.locator(".legend-row").filter({ hasText: "Actual demand" }).locator(".legend-latest"),
-    ).toContainText("71.0 GW");
+    ).toContainText(latestNativeDemandLabel);
     await expect(
       card
         .locator(".legend-row")
