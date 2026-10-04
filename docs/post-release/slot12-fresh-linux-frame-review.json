@@ -1,0 +1,336 @@
+{
+  "source_head": "18de30690868d512967c0135a00706aa431312af",
+  "run_id": 37199683936,
+  "desktop_artifact": 11301954354,
+  "mobile_artifact": 11302726523,
+  "numeric_verdict": "FAIL median3265.878431ms retained",
+  "product_changes": false,
+  "fixture_changes": false,
+  "tolerance_changes": false,
+  "source_capture_limitation": "Passive JSON accumulates whole-flow responses; no per-pixel atomic transaction or unverified trace POST hashes claimed.",
+  "frames": [
+    {
+      "name": "progressive-overview-desktop",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/progressive-overview-desktop-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-overview-desktop-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-overview-desktop-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-overview-desktop-diff.png",
+      "original_sha256": "9f45968cb8150c129657012b26c664f6e62583a9ba7e48b784992a0a391f0978",
+      "candidate_sha256": "9cd3e862455a3473d8d2812a015183cb923fee8487c3d40f86e0d6651c056191",
+      "diff_sha256": "385e668f686a908fa53b4680f79e466c468a95da2db2d4093800ee8c09093614",
+      "review": "All three images individually viewed",
+      "reason": "44 px controls/legend rows; archived71.4 GW replaces old observed alias, native unavailable dash distinct from legacy collection.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/artifacts/post-release/vri-review/linux/chromium/progressive-overview-desktop.json",
+          "sha256": "eaf453bcda20fde0be440131ad37967ddde30918e84260f8d0bb5705244a383d",
+          "response_count": 34
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "analytical-dashboard",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/analytical-dashboard-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-diff.png",
+      "original_sha256": "c4894668d4f9a4fefa250a2d7653918296758ec90bcbba90c6b49ed632d82aea",
+      "candidate_sha256": "2dea3726c3f54b19cbbc211e08992d5bf1779667d4491fabb393e029b3338f1b",
+      "diff_sha256": "453827684561f3bab6d812459e20631e6b99629880d5461616960e7d13a8e7a8",
+      "review": "All three images individually viewed",
+      "reason": "44 px controls/disclosure/legend rows; native-unavailable and independent38.74 legacy collection captions, archive71.4 GW/Outlook70.4 GW/headroom15.7 GW retained.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/artifacts/post-release/vri-review/linux/chromium/analytical-dashboard.json",
+          "sha256": "87c9d3165619498668835295d8f962ac41b6453993f4465b5546f7d41bc6ab37",
+          "response_count": 35
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "empty-lifecycle-chart-desktop",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/empty-lifecycle-chart-desktop-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-empty-lifecycle-state-chromium/empty-lifecycle-chart-desktop-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-empty-lifecycle-state-chromium/empty-lifecycle-chart-desktop-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-empty-lifecycle-state-chromium/empty-lifecycle-chart-desktop-diff.png",
+      "original_sha256": "ae13bf6c9a69a26431e88dc763b6d9bf0f9d1598517cda1b1307508d45785e77",
+      "candidate_sha256": "605e20d1926483bdbb23c6df000cbd8dd8c2c33c06e8fcfba4e83a1a212ae2ea",
+      "diff_sha256": "a4cb421f715176f531c30ad6bcb7e43a8e3c6a3708c03af2f80b5c857811ecf6",
+      "review": "All three images individually viewed",
+      "reason": "44 px Inspect control; empty waiting state unchanged.",
+      "source_records": [],
+      "source_limitation": "No per-frame passive JSON; retained DOM/error-context and frozen fixture/flow are source references.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "negative-pricing",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/negative-pricing-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-negative-chromium/negative-pricing-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-negative-chromium/negative-pricing-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-negative-chromium/negative-pricing-diff.png",
+      "original_sha256": "32a36bda2cb0562dd1bca36f949a6e7c45c115a4f918c4fe58b0c48636f65432",
+      "candidate_sha256": "865969f3e439a623abca018edca6066e90323b058a24151459f23de0be59074b",
+      "diff_sha256": "f34a64b91f918b55c42c4c151303db5612e48bb157b52b6c80af4773fc0608f0",
+      "review": "All three images individually viewed",
+      "reason": "44 px controls/legend targets; negative425/MWh extreme retained.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/artifacts/post-release/vri-review/linux/chromium/negative-pricing.json",
+          "sha256": "606ea7ebcca260fcfa1e18a18f7b480494537448bc72492a520033a24d9bcbdf",
+          "response_count": 35
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "normal-supply-demand",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/normal-supply-demand-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-normal-chromium/normal-supply-demand-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-normal-chromium/normal-supply-demand-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-normal-chromium/normal-supply-demand-diff.png",
+      "original_sha256": "89ef8d71f1c038776811478f3c0194c589da2410d8b1707eaec28683a1e44494",
+      "candidate_sha256": "4e72c326d6eb60ba5d60fa211d98429ebc5c41396bc30114d28d0992d9b31848",
+      "diff_sha256": "8bb66587a5a29dd13d8dc0e778fe8a0605fc5cabcd44963fbc01b59303e27122",
+      "review": "All three images individually viewed",
+      "reason": "44 px controls/legend targets;68.1 GW demand/71.4 GW archive/93.1 GW capacity retained.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/artifacts/post-release/vri-review/linux/chromium/normal-supply-demand.json",
+          "sha256": "9305fe1f44eff85bc2540e780808302c1080bf5f23d2995f4e787fd06cc8f8b1",
+          "response_count": 34
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "spike-pricing",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/spike-pricing-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-spike-chromium/spike-pricing-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-spike-chromium/spike-pricing-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-spike-chromium/spike-pricing-diff.png",
+      "original_sha256": "c41ebb85d217925ef84c179be590bb86767ebf85a2139786c04e106713a74444",
+      "candidate_sha256": "d0fc4b17833e8757580c20e4d43e5e3dbc896bd4985b4e58d2bba33cfe933287",
+      "diff_sha256": "71b6535aac91744797b73377768b873611d21a9df61c427acd9d1f2e3744f4a2",
+      "review": "All three images individually viewed",
+      "reason": "44 px controls/legend targets;5250/MWh spike retained; aggregate unknown-resolution style dashed.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/artifacts/post-release/vri-review/linux/chromium/spike-pricing.json",
+          "sha256": "1258cdde3b8bd6f9ddf2917448efcefef7346f77a14403e1038e6ec5e764b22e",
+          "response_count": 35
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "stale-storage",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/stale-storage-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-stale-chromium/stale-storage-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-stale-chromium/stale-storage-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-stale-chromium/stale-storage-diff.png",
+      "original_sha256": "1698faa8084709a95df79ea40c0c945fc96dd40007195e2bc976ce0105d7ce4a",
+      "candidate_sha256": "70af0e177cf4cc253024568e04ffeaa34182f92b3dc3fa10ce034cb7bdd7ee29",
+      "diff_sha256": "3d4b2b6d6c3fe00607b77daa0ad0d1b60355407c625d1687257ccfec58f67356",
+      "review": "All three images individually viewed",
+      "reason": "44 px control/disclosure/legend spacing; signed storage and1 h stale caveat retained.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/artifacts/post-release/vri-review/linux/chromium/stale-storage.json",
+          "sha256": "beefdc16aae974e60e547add4b8121735a2d9136b8518f91949a90f8cfa37020",
+          "response_count": 34
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "storage-charging",
+      "snapshot": "e2e/dashboard.spec.ts-snapshots/storage-charging-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-storage-charging-chromium/storage-charging-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-storage-charging-chromium/storage-charging-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/dashboard-visual-regression-storage-charging-chromium/storage-charging-diff.png",
+      "original_sha256": "a448ec3280ec54ffb0d75ec50dd642ed8141fe7341bf272129afd80985ecf103",
+      "candidate_sha256": "1d1576e910642530ada22bae6006c08858d8110b4c747f1e2667a076d60e9d72",
+      "diff_sha256": "18a881e77c43e845c45a5dc3a900419b787427eeb4272dc478a12838c5fa89a3",
+      "review": "All three images individually viewed",
+      "reason": "44 px controls/disclosure/legend rows; signed storage values retained; unknown aggregate resolution dashed.",
+      "source_records": [],
+      "source_limitation": "No per-frame passive JSON; retained DOM/error-context and frozen fixture/flow are source references.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "picker-closed",
+      "snapshot": "e2e/datadog-picker-conformance.spec.ts-snapshots/picker-closed-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-closed-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-closed-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-closed-diff.png",
+      "original_sha256": "0a4046a426e7702e64f297d4e5b7afe752a7cfa32abf6a81d3c1716973f23c41",
+      "candidate_sha256": "8f5dd97a051cd94ce2faac5abe5c2187ead060c6b92836b51aad8f5bceb872fe",
+      "diff_sha256": "a5b0c5475d4da6e9b60631b68cb1c0f7fa5564c9d89880b72b75af8084f1f8c1",
+      "review": "All three images individually viewed",
+      "reason": "44 px pointer target replaces obsolete42 px geometry;1d/UTC-05 labels retained.",
+      "source_records": [],
+      "source_limitation": "No per-frame passive JSON; retained DOM/error-context and frozen fixture/flow are source references.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "storage-context-replay-coherent",
+      "snapshot": "e2e/storage-context-replay.spec.ts-snapshots/storage-context-replay-coherent-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/storage-context-replay-sto-c336a-and-preserves-exact-context-chromium/storage-context-replay-coherent-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/storage-context-replay-sto-c336a-and-preserves-exact-context-chromium/storage-context-replay-coherent-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/storage-context-replay-sto-c336a-and-preserves-exact-context-chromium/storage-context-replay-coherent-diff.png",
+      "original_sha256": "07d983d3dea1f5eeebae0e62f90fa5fc1fa5a0e2815c567f2f68b5e32f622d32",
+      "candidate_sha256": "1209362b0f8ce3e2ece4381fad15d56f0f23443294a007092d11fd36a54e0ade",
+      "diff_sha256": "3ae33a2e45daedc329ebddd9412322f306dd75931daaede1a09f8f2ba26299ed",
+      "review": "All three images individually viewed",
+      "reason": "One-pixel text/card alignment; source UTC21:00..23:00 window and sparse AS/Lambda points preserved.",
+      "source_records": [],
+      "source_limitation": "No per-frame passive JSON; retained DOM/error-context and frozen fixture/flow are source references.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "storage-operations-exact",
+      "snapshot": "e2e/storage-operations.spec.ts-snapshots/storage-operations-exact-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/storage-operations-storage-00771-oses-exact-truthful-context-chromium/storage-operations-exact-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/storage-operations-storage-00771-oses-exact-truthful-context-chromium/storage-operations-exact-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-desktop/test-results/storage-operations-storage-00771-oses-exact-truthful-context-chromium/storage-operations-exact-diff.png",
+      "original_sha256": "d53af08018092185327b79231b345d286f134cbbea33c2c9cdd81641cfa1b17d",
+      "candidate_sha256": "fbac29c62533197fe435d8e3696e2c07022937f31d02453852c7c51bf7937565",
+      "diff_sha256": "fe797a033243ba0be1e4154cf1385d73f47bd9e490849deab8f156c6a5477cef",
+      "review": "All three images individually viewed",
+      "reason": "One-pixel row alignment; exact22:59:33Z signed storage values and0.0 balance preserved.",
+      "source_records": [],
+      "source_limitation": "No per-frame passive JSON; retained DOM/error-context and frozen fixture/flow are source references.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "mobile-after-first-viewport",
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-after-first-viewport-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-diff.png",
+      "original_sha256": "7724b0fc8379148368505bf20f76e8747f1e65c704d45f1c43cecfa938e1b927",
+      "candidate_sha256": "97c3612e7a3610cd1aeca374c679dd47a08218918ea660fe633215ae56266a3b",
+      "diff_sha256": "348db6b7d6e6f95afd27bd6d3699e09322fa41a0657b9b853a1d02dae249cf9f",
+      "review": "All three images individually viewed",
+      "reason": "Contained readout geometry/44 px controls; curves and temporal captions preserved.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-after-first-viewport.json",
+          "sha256": "b642ea644cb85e339cb285e5540e2ec39746c5e5993ab426e67b01db61080f8d",
+          "response_count": 35
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "mobile-compact-legend",
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-compact-legend-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-compact-legend-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-compact-legend-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-compact-legend-diff.png",
+      "original_sha256": "f8997169d7a978700ab053633091509a0071b2dd5471bff5fe660f0dc81087e1",
+      "candidate_sha256": "ca810ffe41cf7f3dca7ca06f68e9ef9ef01623bb7813ad70b3c0c7a57052abc6",
+      "diff_sha256": "1231e9116e6b0fcc127837d641959c65ed4c36f8a5984d3af4e2fb2708c32b7f",
+      "review": "All three images individually viewed",
+      "reason": "44 px rows/short legend geometry; archived71.4 GW/source curves retained.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-compact-legend.json",
+          "sha256": "0fece4923fa8a50268c0a84fbec7be7fdb45151efcfae9e27c71f5dac5f0be5b",
+          "response_count": 35
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "progressive-overview-mobile",
+      "snapshot": "e2e/mobile.spec.ts-snapshots/progressive-overview-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-diff.png",
+      "original_sha256": "7724b0fc8379148368505bf20f76e8747f1e65c704d45f1c43cecfa938e1b927",
+      "candidate_sha256": "97c3612e7a3610cd1aeca374c679dd47a08218918ea660fe633215ae56266a3b",
+      "diff_sha256": "348db6b7d6e6f95afd27bd6d3699e09322fa41a0657b9b853a1d02dae249cf9f",
+      "review": "All three images individually viewed",
+      "reason": "Contained readout geometry/44 px controls; archived71.4 GW and native unavailable preserved.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/progressive-overview-mobile.json",
+          "sha256": "b642ea644cb85e339cb285e5540e2ec39746c5e5993ab426e67b01db61080f8d",
+          "response_count": 35
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "empty-lifecycle-chart-mobile",
+      "snapshot": "e2e/mobile.spec.ts-snapshots/empty-lifecycle-chart-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-visual-regression-empty-lifecycle-state-mobile-vri-iphone-pro-max-webkit/empty-lifecycle-chart-mobile-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-visual-regression-empty-lifecycle-state-mobile-vri-iphone-pro-max-webkit/empty-lifecycle-chart-mobile-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/test-results/mobile-visual-regression-empty-lifecycle-state-mobile-vri-iphone-pro-max-webkit/empty-lifecycle-chart-mobile-diff.png",
+      "original_sha256": "369d9cbdb59d40039bf8bf7e51ed03fbabac2e350a77b438f00379442a5db619",
+      "candidate_sha256": "3b75a166082f5363a0b6323611d71db38060b4903972fd9fc61c02c374ba645a",
+      "diff_sha256": "4444596dd9d822ea6900a6eb5900b8de4cc4f3ed781798c813621d9f040ac462",
+      "review": "All three images individually viewed",
+      "reason": "Contained readout geometry/44 px controls; valid empty and dashes preserved.",
+      "source_records": [
+        {
+          "path": "/tmp/ercot-post-release-2026-10/ci12-18de-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/empty-lifecycle-chart-mobile.json",
+          "sha256": "a07a1ad84ea994a36ffeb6919f5d0f2093175b7b5972fc67817fcd0dfbdcfb15",
+          "response_count": 35
+        }
+      ],
+      "source_limitation": null,
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    }
+  ],
+  "capture_followup": "Only nine desktop picker and four progressive-disclosure screenshot assertions use expect.soft. Each mismatch still fails testcase/run. Geometry, fonts, state, readiness, source/data assertions, tolerances and fixtures stay hard and unchanged; later actual frames can now be retained after earlier mismatches.",
+  "frozen_source_files": [
+    {
+      "path": "e2e/dashboard.spec.ts",
+      "sha256": "b44544343d9549161ccee3433823f5b5fd9f2f05b18d8c0396def77186e8f1eb"
+    },
+    {
+      "path": "e2e/mobile.spec.ts",
+      "sha256": "4141155ab6e73091ff836dd672341f1d4f674898b8701966f76b78e66e61cb55"
+    },
+    {
+      "path": "e2e/storage-context-replay.spec.ts",
+      "sha256": "42e4ee09cd39cb0b7e5e5058659081d9a17747311ca7968f5262c5e6c8f5aa19"
+    },
+    {
+      "path": "e2e/storage-operations.spec.ts",
+      "sha256": "ba2e928e76bc0f40093a86743e273bfe1fe5b5336a570fca03c6e4739a9c6d3e"
+    },
+    {
+      "path": "e2e/datadog-picker-conformance.spec.ts",
+      "sha256": "d4243c3c3d4925ec68979b284773f094cdf8dcf1bd99421391d7aa9f667b43d7"
+    }
+  ]
+}

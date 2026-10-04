@@ -1265,21 +1265,21 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
   await expect(page.locator('[data-chart-id="overview-headroom"]')).toContainText("25.0 GW");
   await expect(page.getByText(/288 paired observations of 289 nominal sample slots/)).toBeVisible();
   await evidence.capture("progressive-overview-desktop", page.locator("body"));
-  await expect(page).toHaveScreenshot("progressive-overview-desktop.png");
+  await expect.soft(page).toHaveScreenshot("progressive-overview-desktop.png");
 
   await page.getByRole("button", { name: "Outlook view" }).click();
   await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
-  await expect(page).toHaveScreenshot("progressive-outlook-desktop.png");
+  await expect.soft(page).toHaveScreenshot("progressive-outlook-desktop.png");
 
   await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Grid Signals", exact: true })).toBeVisible();
-  await expect(page).toHaveScreenshot("progressive-advanced-desktop.png");
+  await expect.soft(page).toHaveScreenshot("progressive-advanced-desktop.png");
 
   await openMoreView(page, "Diagnostics");
   await expect(page.getByLabel("System health details")).toBeVisible();
   await expect(page.locator('[data-chart-id="collector-duty-cycle"]')).toContainText("12.1%");
   await evidence.capture("progressive-diagnostics-desktop", page.locator("body"));
-  await expect(page).toHaveScreenshot("progressive-diagnostics-desktop.png");
+  await expect.soft(page).toHaveScreenshot("progressive-diagnostics-desktop.png");
 });
 
 for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
