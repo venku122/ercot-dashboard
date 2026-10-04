@@ -1,3 +1,4 @@
+import { installArchivedForecastApi } from "./archived-forecast-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import { observeVisualSources } from "./vri-source-evidence";
 import { withCssPixelAlignment } from "./screenshot-alignment";
@@ -503,6 +504,11 @@ async function installApi(
 ) {
   if (installClock) await page.clock.install({ time: FIXED_NOW });
   else await page.clock.setFixedTime(FIXED_NOW);
+  await installArchivedForecastApi(
+    page,
+    FIXED_NOW_SECONDS,
+    scenario === "empty" || scenario === "error" ? scenario : "normal",
+  );
   await installObservedTiles(
     page,
     FIXED_NOW_SECONDS,
@@ -1274,3 +1280,35 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await evidence.capture("analytical-dashboard", page.locator("body"));
   await expect(page).toHaveScreenshot("analytical-dashboard.png", { fullPage: true });
 });
+
+for (const width of [320, 390, 768, 1440]) {
+  for (const hours of [6, 24, 168]) {
+    test(`ERP-04 shared dashboard archive ${hours}h at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await installApi(page);
+      const response = page.waitForResponse((response) =>
+        response.url().includes("/api/v1/historical-forecast?"),
+      );
+      await page.goto(`/?view=overview&range=${hours * 3600}&live=1&legend=expanded`);
+      const archive = await response;
+      expect(archive.status()).toBe(200);
+      const data = await archive.json();
+      expect(data.rows).toHaveLength(hours + 1);
+      expect(data.coverage).toMatchObject({
+        expected_target_count: hours + 1,
+        selected_target_count: hours + 1,
+        available_value_count: hours + 1,
+        missing_value_count: 0,
+        truncated: false,
+      });
+      const card = page.locator('[data-chart-id="supply-demand"]');
+      await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+      const row = card
+        .getByRole("table", { name: "Supply and demand series statistics" })
+        .getByRole("row")
+        .filter({ hasText: "Forecast issued before delivery" });
+      await expect(row.getByRole("cell").nth(1)).toContainText("71.4 GW");
+      expect(data.fixture_provenance).toContain("synthetic");
+    });
+  }
+}

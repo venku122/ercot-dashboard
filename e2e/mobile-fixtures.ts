@@ -1,3 +1,4 @@
+import { installArchivedForecastApi } from "./archived-forecast-fixtures";
 import type { Page } from "@playwright/test";
 import {
   installObservedTiles,
@@ -377,6 +378,11 @@ export async function installMobileApi(
   options: { nativeCadence?: boolean } = {},
 ) {
   await page.clock.setFixedTime(FIXED_NOW);
+  await installArchivedForecastApi(
+    page,
+    FIXED_NOW_SECONDS,
+    scenario === "empty" || scenario === "error" ? scenario : "normal",
+  );
   await installObservedTiles(
     page,
     FIXED_NOW_SECONDS,
