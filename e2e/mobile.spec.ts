@@ -579,22 +579,22 @@ test("progressive-disclosure mobile visual states @mobile-vri", async ({ page })
     /[1-9]\d* observations/,
   );
   await evidence.capture("progressive-overview-mobile", page.locator("body"));
-  await expect(page).toHaveScreenshot("progressive-overview-mobile.png");
+  await expect.soft(page).toHaveScreenshot("progressive-overview-mobile.png");
 
   await page.getByRole("button", { name: "Outlook view" }).click();
   await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
   await evidence.capture("progressive-outlook-mobile", page.locator("body"));
-  await expect(page).toHaveScreenshot("progressive-outlook-mobile.png");
+  await expect.soft(page).toHaveScreenshot("progressive-outlook-mobile.png");
 
   await openMoreView(page, "Advanced");
   await expect(page.getByRole("heading", { name: "Grid Signals", exact: true })).toBeVisible();
   await evidence.capture("progressive-advanced-mobile", page.locator("body"));
-  await expect(page).toHaveScreenshot("progressive-advanced-mobile.png");
+  await expect.soft(page).toHaveScreenshot("progressive-advanced-mobile.png");
 
   await openMoreView(page, "Diagnostics");
   await expect(page.getByLabel("System health details")).toBeVisible();
   await evidence.capture("progressive-diagnostics-mobile", page.locator("body"));
-  await expect(page).toHaveScreenshot("progressive-diagnostics-mobile.png");
+  await expect.soft(page).toHaveScreenshot("progressive-diagnostics-mobile.png");
 });
 
 test("mobile visual evidence states @mobile-vri", async ({ page }) => {

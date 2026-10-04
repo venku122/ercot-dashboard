@@ -37,7 +37,8 @@ import {
 } from "./dashboard/data-lifecycle";
 import { OperationsTimeline } from "./dashboard/OperationsTimeline";
 import { buildDerivedMetrics } from "./dashboard/derived-metrics";
-import { useOverviewData } from "./dashboard/data-hooks";
+import { useOverviewData, useOutlookData } from "./dashboard/data-hooks";
+import { OverviewOutlook } from "./dashboard/OverviewOutlook";
 import {
   chartGroupDefinition,
   chartGroupDisplayLabel,
@@ -597,6 +598,15 @@ export function App() {
   const eventsTriggerRef = useRef<HTMLButtonElement>(null);
   const dashboardTitleRef = useRef<HTMLHeadingElement>(null);
   const viewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const outlookResource = useOutlookData(selectedView === "overview" || selectedView === "outlook");
+  // Subscribe in the owner before a lazy specialist mounts and reads these fields.
+  const outlookRequest = {
+    data: outlookResource.data,
+    error: outlookResource.error,
+    isLoading: outlookResource.isLoading,
+    isValidating: outlookResource.isValidating,
+    mutate: outlookResource.mutate,
+  };
   const resolvedTime = useMemo(() => toErcotTimeState(state.time, clockMs), [clockMs, state.time]);
   const [seriesTime, setSeriesTime] = useState(resolvedTime);
   useEffect(() => {
@@ -1231,6 +1241,12 @@ export function App() {
               seriesData={overviewSeriesData}
               time={seriesTime}
             />
+            <OverviewOutlook
+              request={outlookRequest}
+              now={Math.floor(clockMs / 1000)}
+              historical={resolvedTime.mode === "fixed" || resolvedTime.paused}
+              onOpen={() => navigateToView("outlook")}
+            />
             <section className="homepage-events" aria-label="Operations context">
               <Button ref={eventsTriggerRef} onClick={() => setMobileDialog("events")}>
                 Operations messages · {events.length} in window
@@ -1387,7 +1403,11 @@ export function App() {
 
         {selectedView === "outlook" ? (
           <Suspense fallback={<DataLifecycleMessage state="loading" />}>
-            <OutlookView enabled={selectedView === "outlook"} />
+            <OutlookView
+              enabled={selectedView === "outlook"}
+              request={outlookRequest}
+              now={Math.floor(clockMs / 1000)}
+            />
           </Suspense>
         ) : null}
 

@@ -1,0 +1,33 @@
+{
+  "source_sha": "683f4e60bd91ab203a3bb7da48bc0aa79f29b986",
+  "run": 37196279323,
+  "job": 111418720436,
+  "artifact": 11300814168,
+  "parent_supplement": "dd37290bd38f84f369c2d62f2666b3c4ebdf82be",
+  "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-grid-health-score-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+  "viewed": ["expected", "actual", "diff"],
+  "sha256": {
+    "expected": "869b203034e4572a2979744d638a725dc8449c90e2775dfeb108797f38633636",
+    "actual": "08d5df4d95ba95177ccfab4ec3b3d64902d7864ab32e0f4785432ee886659564",
+    "diff": "47d41a6cdfc78d13ee4966bf5c03025249e12b7e0b9692ec1764c8a8f731ec79"
+  },
+  "paths": {
+    "expected": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-grid-health-score-expected.png",
+    "actual": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-grid-health-score-actual.png",
+    "diff": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-grid-health-score-diff.png"
+  },
+  "source_evidence": [
+    {
+      "path": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-grid-health-score.json",
+      "sha256": "31d6d8546941e2462216bed169b09f76f207cfe88d755838e4c1f74f61f79f85"
+    },
+    {
+      "path": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-grid-health-score-aligned.json",
+      "sha256": "5db15f6dcff8874f39da7d27f4b83c775ca0f5f81aa1db56a96221e0c50c3049"
+    }
+  ],
+  "reason": "Additional soft screenshot in same mobilevisualflow. Same20px factor wrapping as supporting;99/eightfactors/88.5GW/68.2GW/60.001Hz/38.74$/MWh unchanged. Collection-time price explicitly unknownsettlementinterval. Actualcanonicalepoch1784674770,34source responses.",
+  "captures": 1,
+  "matching_repeat": "PENDING_NEW_HEAD_CI",
+  "scope": "One PNG plusdocs only. No fixture/source/threshold/assertion change."
+}

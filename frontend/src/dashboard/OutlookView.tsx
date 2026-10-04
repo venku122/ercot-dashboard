@@ -1,9 +1,9 @@
-import { EvidenceDisclosure } from "./EvidenceDisclosure";
+import { OutlookProfile } from "./OutlookProfile";
 import { useEffect, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { Button } from "../components/ui/button";
-import { useOutlookData } from "./data-hooks";
+import type { OutlookDataRequest } from "./data-hooks";
 import { ForecastQualityPanel } from "./ForecastQualityPanel";
 import { PredictiveWeatherPanel } from "./PredictiveWeatherPanel";
 import { buildGridOutlook, type GridOutlook, type OutlookDayCard } from "./outlook";
@@ -11,6 +11,7 @@ import { formatAge, formatValue } from "./units";
 
 export type OutlookViewProps = {
   enabled: boolean;
+  request: OutlookDataRequest;
   now?: number;
 };
 
@@ -40,65 +41,6 @@ function revision(valueMw: number | null) {
   if (valueMw === null) return "No day-prior comparison";
   const sign = valueMw > 0 ? "+" : "";
   return `${sign}${formatValue(valueMw, "MW")} since the day-prior vintage`;
-}
-
-function OutlookProfile({ outlook }: { outlook: GridOutlook }) {
-  const points = outlook.next24Hours;
-  if (points.length < 2) {
-    return <p className="outlook-empty">Next-24-hour profile is not available.</p>;
-  }
-  const values = points.map((point) => point[1]);
-  const minimum = Math.min(...values);
-  const maximum = Math.max(...values);
-  const spread = Math.max(1, maximum - minimum);
-  const polyline = points
-    .map((point, index) => {
-      const x = (index / (points.length - 1)) * 100;
-      const y = 38 - ((point[1] - minimum) / spread) * 34;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
-  return (
-    <figure className="outlook-profile">
-      <svg
-        aria-label={`Next 24 hour demand forecast from ${formatValue(minimum, "MW")} to ${formatValue(maximum, "MW")}`}
-        preserveAspectRatio="none"
-        role="img"
-        viewBox="0 0 100 42"
-      >
-        <polyline fill="none" points={polyline} vectorEffect="non-scaling-stroke" />
-      </svg>
-      <figcaption>
-        <span>Now</span>
-        <span>Next 24 hours</span>
-      </figcaption>
-      <EvidenceDisclosure title="Hourly forecast values">
-        <div
-          className="table-scroll ui-data-table"
-          role="region"
-          aria-label="Exact forecast evidence"
-          tabIndex={0}
-        >
-          <table aria-label="Next 24 hour forecast values">
-            <thead>
-              <tr>
-                <th>Interval ending</th>
-                <th>Forecast demand</th>
-              </tr>
-            </thead>
-            <tbody>
-              {points.map(([timestamp, demand]) => (
-                <tr key={timestamp}>
-                  <td>{timeLabel(timestamp)}</td>
-                  <td>{formatValue(demand, "MW")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </EvidenceDisclosure>
-    </figure>
-  );
 }
 
 function DayCard({
@@ -334,10 +276,13 @@ export function OutlookContent({ outlook }: { outlook: GridOutlook }) {
   );
 }
 
-export function OutlookView({ enabled, now = Math.floor(Date.now() / 1_000) }: OutlookViewProps) {
-  const outlook = useOutlookData(enabled);
+export function OutlookView({
+  enabled,
+  request: outlook,
+  now = Math.floor(Date.now() / 1_000),
+}: OutlookViewProps) {
   if (!enabled) return null;
-  if (outlook.error) {
+  if (outlook.error && !outlook.data) {
     return (
       <section aria-label="Grid Outlook unavailable">
         <DataLifecycleMessage state="unavailable" />
@@ -348,5 +293,14 @@ export function OutlookView({ enabled, now = Math.floor(Date.now() / 1_000) }: O
   if (!outlook.data) {
     return <DataLifecycleMessage state="loading" />;
   }
-  return <OutlookContent outlook={buildGridOutlook(outlook.data, now)} />;
+  return (
+    <>
+      {outlook.error ? (
+        <p role="status">
+          Refresh failed; showing the retained publication with its original issue time.
+        </p>
+      ) : null}
+      <OutlookContent outlook={buildGridOutlook(outlook.data, now)} />
+    </>
+  );
 }

@@ -583,3 +583,60 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Wrapping keeps the complete picker and playback controls inside zoomed headers. */
+.time-range-picker {
+  min-width: 0;
+  max-width: 100%;
+}
+.time-range-picker__cluster {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.time-range-picker__input-shell {
+  min-width: min(250px, 100%);
+  max-width: 100%;
+}
+@container dashboard-page (max-width: 450px) {
+  .time-range-picker--mobile .time-range-picker__cluster > .time-range-picker__input-shell {
+    flex-basis: 100%;
+  }
+}
+
+@container dashboard-page (max-width: 250px) {
+  .time-range-picker--mobile {
+    flex-basis: 100%;
+  }
+  .time-range-picker__input-shell,
+  .time-range-picker--mobile .time-range-picker__cluster > .time-range-picker__input-shell {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 44px;
+  }
+  .time-range-picker__offset {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@container dashboard-page (max-width: 250px) {
+  .time-range-picker__input {
+    flex-basis: 60px;
+  }
+  .time-range-picker__offset {
+    flex-basis: calc(100% - 14px);
+  }
+}
+
+.time-range-picker--mobile {
+  min-width: min(200px, 100%);
+}
+.time-range-picker--mobile .time-range-picker__cluster > .time-range-picker__input-shell {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 44px;
+}
+.time-range-picker--mobile .time-range-picker__input {
+  flex-basis: 60px;
+  min-width: 60px;
+}

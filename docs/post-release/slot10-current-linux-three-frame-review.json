@@ -1,0 +1,96 @@
+{
+  "source_sha": "683f4e60bd91ab203a3bb7da48bc0aa79f29b986",
+  "run": 37196279323,
+  "job": 111418720436,
+  "artifact": {
+    "artifact": 11300814168,
+    "run": 37196279323,
+    "head": "683f4e60bd91ab203a3bb7da48bc0aa79f29b986",
+    "archive_sha256": "9d2a31d3f5a57ea48fe006e423110eeb95b1aca835738df7944ebcacda801cf8",
+    "scope": "Only three own frame triples/source JSON and DOM contexts"
+  },
+  "frames": [
+    {
+      "name": "storage-context-replay-exact-mobile",
+      "target": "e2e/mobile-storage-context-replay.spec.ts-snapshots/storage-context-replay-exact-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "reason": "First header/two rows glyph raster changes; allnine Systemfrequency21:00\u201321:08UTC exactepochs preserved.",
+      "viewed": ["expected", "actual", "diff"],
+      "capture_count": 1,
+      "repeat": "PENDING_NEW_HEAD_CI",
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-storage-context-rep-86ff4--mobile-evidence-mobile-vri-iphone-pro-max-webkit/storage-context-replay-exact-mobile-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-storage-context-rep-86ff4--mobile-evidence-mobile-vri-iphone-pro-max-webkit/storage-context-replay-exact-mobile-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-storage-context-rep-86ff4--mobile-evidence-mobile-vri-iphone-pro-max-webkit/storage-context-replay-exact-mobile-diff.png"
+      },
+      "sha256": {
+        "expected": "409b7a3283989b1834a54f1fd9e40479b181fa8312c3d7776589e31ffac1231a",
+        "actual": "5a3b2fa594375a9f978c1df61e9ea5e77d14c8abb31aa4c888c8e45e7110ed65",
+        "diff": "7f5b517066bbd4d5d019a1f137a9b4d2dd840891a4fb780e0e5b0f668a6f9e4f"
+      },
+      "original_matches_expected": true,
+      "candidate_matches_actual": true
+    },
+    {
+      "name": "progressive-advanced-mobile",
+      "target": "e2e/mobile.spec.ts-snapshots/progressive-advanced-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "reason": "44px responsive playback and Inspect targets wrap. Same1.2GW PRC curve now dashed for aggregate/unknownresolution:64points/day bucket1371sec cannot prove nativecontinuity.",
+      "viewed": ["expected", "actual", "diff"],
+      "capture_count": 1,
+      "repeat": "PENDING_NEW_HEAD_CI",
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-advanced-mobile-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-advanced-mobile-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-advanced-mobile-diff.png"
+      },
+      "sha256": {
+        "expected": "2fbb64ba9856a143946b1eecfe3cacdf58c1d16bdc743cfbab480cb1b28344c8",
+        "actual": "ae0181250fb460203b4b578bea08b5290b730961096bc119af5f9b0f0be5383c",
+        "diff": "6540c530fc357dc22e802bb62007d2e99892cf9e82518d2fd862153830b418b8"
+      },
+      "original_matches_expected": true,
+      "candidate_matches_actual": true
+    },
+    {
+      "name": "mobile-supporting-grid-readings",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-supporting-grid-readings-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "reason": "Factor headings/maximums wrap withoutoverlap,20pxgrowth;99/100 eightfactors preserved. Legacyprice38.74 explicitlycollectiontime with unknownsettlementinterval, capacity88.5GW/demand68.2GW/frequency60.001Hz unchanged.",
+      "viewed": ["expected", "actual", "diff"],
+      "capture_count": 1,
+      "repeat": "PENDING_NEW_HEAD_CI",
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-supporting-grid-readings-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-supporting-grid-readings-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-supporting-grid-readings-diff.png"
+      },
+      "sha256": {
+        "expected": "869b203034e4572a2979744d638a725dc8449c90e2775dfeb108797f38633636",
+        "actual": "08d5df4d95ba95177ccfab4ec3b3d64902d7864ab32e0f4785432ee886659564",
+        "diff": "47d41a6cdfc78d13ee4966bf5c03025249e12b7e0b9692ec1764c8a8f731ec79"
+      },
+      "original_matches_expected": true,
+      "candidate_matches_actual": true
+    }
+  ],
+  "source_evidence": [
+    {
+      "path": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-supporting-grid-readings.json",
+      "sha256": "d7e0a8b9a5462b8204fb5fb20e01830cc5b5be3c629e1f76af239a57a95eaff4"
+    },
+    {
+      "path": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-supporting-grid-readings-aligned.json",
+      "sha256": "4873b79c14b74f7dd8b225ca81da34db6a197f62f9f2cb56c50183faea0b4965"
+    },
+    {
+      "path": "/tmp/ercot-post-release-2026-10/ci10-683f-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/progressive-advanced-mobile.json",
+      "sha256": "134114841d3b3e8e86379bdf4a6e012298c72f8fbef5e02d6f08a754cffd012a"
+    }
+  ],
+  "source_limit": "Source records arewholeflow,notperframe. Storageexact hasactualDOM+fixture/test assertions,no dedicatedrawresponsecapture. Oneactualperframe,matchingrepeatpending.",
+  "scope": "Three own10 actualLinuxframes only. Product/source/fixtures/thresholds/assertions unchanged; no inherited09 or12geometry.",
+  "fixture_sha256": {
+    "e2e/mobile-fixtures.ts": "7f8b6db246426b13ccb3207a4c31ae037c88b460d0967d8c81682819ca124276",
+    "e2e/paired-headroom-fixtures.ts": "41e8bee4d6d4fa3414a6f2be0779b52590b89c322b268758f24f1156dddaf71d",
+    "e2e/archived-forecast-fixtures.ts": "1191792f4fb8027065f4204915f1453f5e41ca3d3ab8f794d8fed66ab1d59091",
+    "e2e/market-geography-fixtures.ts": "7a79e923485f33e61f50c45fd3b9c702779ddae52b65f5ceb805d1cb9a42e789"
+  }
+}
