@@ -27,7 +27,7 @@ BINDINGS = {
     "forecast_publications": ("ercot_public_load_collector.ts", "Outlook, historical forecast, Forecast Quality", "MW; issue/target/retrieval separately; real pair coverage required"),
     "renewable_publications": ("ercot_mis_renewable_runner.ts", "Renewable publications", "MW; hourly immutable publication"),
     "regional_renewable_publications": ("ercot_mis_regional_runner.ts", "Regional renewables", "MW; hourly regional publication"),
-    "market_mechanics": ("ercot_mis_market_runner.ts", "Market Mechanics", "product-specific MW / USD/MW-hour; not energy price"),
+    "market_mechanics": ("ercot_mis_market_runner.ts", "Market Mechanics", "product-specific MW / USD/MW (frozen PR14 scalar contract); not energy price"),
     "market_geography": ("ercot_public_market_geography_runner.ts", "Market Geography and settlement Overview", "USD/MWh; authoritative settlement intervals"),
     "nws_weather": ("nws_weather_runner.ts", "Predictive Weather", "NWS alerts and representative airport grid forecasts"),
     "long_horizon": ("long_horizon_runner.ts", "Texas Grid planning", "MW; planning snapshots, not committed capacity"),

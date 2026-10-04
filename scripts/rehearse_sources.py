@@ -105,8 +105,15 @@ def main():
         for family in PATHS:
             path = "/api/v1/" + family
             responses[path] = get_json(origin, path)
-        for path in sorted({path for value in responses.values() for path in resource_paths(value)}):
+        paths = list(dict.fromkeys(path for value in responses.values() for path in resource_paths(value)))
+        capture_deadline = time.monotonic() + 60
+        captured = 0
+        for path in paths[:64]:
+            if time.monotonic() >= capture_deadline:
+                break
             responses[path] = get_json(origin, path)
+            captured += 1
+        (output / "capture-budget.json").write_text(json.dumps({"max_immutable_resources": 64, "request_start_window_seconds": 60, "individual_read_timeout_seconds": 10, "captured": captured, "available": len(paths), "truncated": captured < len(paths)}) + "\n")
         (output / "responses.json").write_text(json.dumps(responses, indent=2) + "\n")
         (output / "source-rehearsals.json").write_text(json.dumps(records, indent=2) + "\n")
         if args.browser:

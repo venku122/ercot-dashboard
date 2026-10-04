@@ -1,0 +1,32 @@
+{
+  "ercot-collector": {
+    "rehearsal_blob_or_tree": "4d87ad5fd7178793794bf763d5e516dbccdcc977",
+    "candidate_blob_or_tree": "4d87ad5fd7178793794bf763d5e516dbccdcc977",
+    "identical": true
+  },
+  "ercot-receiver/server.py": {
+    "rehearsal_blob_or_tree": "a010c85bcf32b0770d0ef8c306e1f2648e30428b",
+    "candidate_blob_or_tree": "a010c85bcf32b0770d0ef8c306e1f2648e30428b",
+    "identical": true
+  },
+  "ercot-receiver/market_mechanics.py": {
+    "rehearsal_blob_or_tree": "e5c19ba94bc84ad3963d6796bb1b2b964de65c03",
+    "candidate_blob_or_tree": "e5c19ba94bc84ad3963d6796bb1b2b964de65c03",
+    "identical": true
+  },
+  "ercot-receiver/market_geography.py": {
+    "rehearsal_blob_or_tree": "a15615cc0d6e266f62aa9c31945727f81c34dd12",
+    "candidate_blob_or_tree": "a15615cc0d6e266f62aa9c31945727f81c34dd12",
+    "identical": true
+  },
+  "frontend/src/dashboard/market-mechanics.ts": {
+    "rehearsal_blob_or_tree": "80776902b30ecfc6ca97f5e4c7a687238bb23885",
+    "candidate_blob_or_tree": "80776902b30ecfc6ca97f5e4c7a687238bb23885",
+    "identical": true
+  },
+  "frontend/src/dashboard/market-geography.ts": {
+    "rehearsal_blob_or_tree": "9ec1330774c688ba2bc1aea46f0d5e1b45534b0f",
+    "candidate_blob_or_tree": "9ec1330774c688ba2bc1aea46f0d5e1b45534b0f",
+    "identical": true
+  }
+}

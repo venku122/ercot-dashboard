@@ -37,10 +37,10 @@
       "logical_dependency_ids": [],
       "pr_number": 75,
       "pr_url": "https://github.com/venku122/ercot-dashboard/pull/75",
-      "head_sha": "20f10aa3a6440d744394f74c0121cd73128b7dcb",
-      "tested_sha": "20f10aa3a6440d744394f74c0121cd73128b7dcb",
+      "head_sha": "d9521dd554d3111e82897295d6359bbca7ee5f0c",
+      "tested_sha": "d9521dd554d3111e82897295d6359bbca7ee5f0c",
       "status": "DRAFT_LOCALLY_VALIDATED",
-      "observed_at_utc": "2026-10-04T03:29:18.945714+00:00"
+      "observed_at_utc": "2026-10-04T04:47:42.035691+00:00"
     },
     {
       "slot": 4,
@@ -50,10 +50,10 @@
       "logical_dependency_ids": ["ERP-01"],
       "pr_number": 76,
       "pr_url": "https://github.com/venku122/ercot-dashboard/pull/76",
-      "head_sha": "e64ebc41a308019a05ab445f9f4ed20c98e65eda",
-      "tested_sha": "e64ebc41a308019a05ab445f9f4ed20c98e65eda",
+      "head_sha": "be356ccb0c62746bed3711315fe85d52078b9539",
+      "tested_sha": "be356ccb0c62746bed3711315fe85d52078b9539",
       "status": "DRAFT_LOCALLY_VALIDATED",
-      "observed_at_utc": "2026-10-04T03:37:38.050949+00:00"
+      "observed_at_utc": "2026-10-04T04:47:43.923566+00:00"
     },
     {
       "slot": 5,
