@@ -219,7 +219,13 @@ test("PERF-01 production homepage cold-load and cursor evidence", async ({ brows
     fixtureHasher.update(path).update(content ?? "ABSENT");
   }
   const result = {
-    candidateSha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+    candidateSha: execFileSync(
+      "git",
+      ["-c", `safe.directory=${process.cwd()}`, "rev-parse", "HEAD"],
+      {
+        encoding: "utf8",
+      },
+    ).trim(),
     fixtureHash: fixtureHasher.digest("hex"),
     fixtureFiles,
     readiness:
