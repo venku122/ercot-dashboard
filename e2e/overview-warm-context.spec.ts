@@ -82,6 +82,9 @@ for (const change of ["range", "comparison", "disjoint-clock"] as const) {
         "aria-label",
         "Grid frequency previous selection series statistics",
       );
+      await expect(frequency.locator(".legend-table caption")).toContainText(
+        "latest value from the previous selection",
+      );
       await expect(frequency).toContainText(
         new Date((FIXED_NOW_SECONDS - 21600) * 1000).toISOString(),
       );

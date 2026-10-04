@@ -29,9 +29,14 @@ test("displayed table header agrees with mixed MW/GW cells and preserves raw CSV
       },
     });
   });
-  await page.goto("/?range=21600&live=1");
+  await page.goto("/?range=21600&live=1&legend=expanded");
   const card = page.locator('[data-chart-id="supply-demand"]');
   await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect(card.locator(".legend-table caption")).toContainText("Source unit: MW.");
+  await expect(card.locator(".legend-table caption")).toContainText(
+    "Displayed values include their units.",
+  );
+  await expect(card.locator(".legend-table caption")).not.toContainText("Values in MW.");
   await card.getByText("Accessible data table", { exact: true }).click();
   const table = card.getByRole("region", { name: "Supply and demand displayed source data" });
   await expect(table.getByRole("cell", { name: "900.0 MW", exact: true }).first()).toBeVisible();
@@ -39,7 +44,9 @@ test("displayed table header agrees with mixed MW/GW cells and preserves raw CSV
   await expect(
     table.getByRole("columnheader", { name: "Displayed value", exact: true }),
   ).toBeVisible();
-  await expect(card.getByText("Source unit: MW.", { exact: false })).toBeVisible();
+  await expect(
+    card.locator("details").getByText("Source unit: MW.", { exact: false }),
+  ).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await card.getByLabel(/chart menu/).click();
   await card.getByRole("menuitem", { name: "Download CSV", exact: true }).click();

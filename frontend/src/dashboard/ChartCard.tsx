@@ -1349,8 +1349,10 @@ export function ChartCard({
               aria-label={`${chart.title} ${previousSelectionNote ? "previous selection " : ""}series statistics`}
             >
               <caption className="sr-only">
-                Values in {chart.unit}. Value shows the valid cursor reading or selected-window
-                latest value. Min, max and average describe the selected window; energy is in MWh.
+                Source unit: {chart.unit}. Displayed values include their units. Value shows the
+                valid cursor reading or latest value from the{" "}
+                {previousSelectionNote ? "previous selection" : "selected window"}. Min, max and
+                average describe that same window. Energy source unit is MWh.
               </caption>
               <thead>
                 <tr>

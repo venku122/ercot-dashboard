@@ -20,7 +20,9 @@ test("ERP-09 exact table discloses truncation, units and keyboard scrolling", as
   await expect(
     region.getByRole("columnheader", { name: "Displayed value", exact: true }),
   ).toBeVisible();
-  await expect(card.getByText("Source unit: MW.", { exact: false })).toBeVisible();
+  await expect(
+    card.locator("details").getByText("Source unit: MW.", { exact: false }),
+  ).toBeVisible();
   await expect(
     region.getByRole("columnheader", { name: "Resolution and coverage", exact: true }),
   ).toBeVisible();
