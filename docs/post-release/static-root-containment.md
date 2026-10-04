@@ -1,0 +1,7 @@
+# Static web root containment repair
+
+Final receiver review reproduced a pre-existing sibling-prefix escape: with web root `/app/web`, a raw `/../web-private/file` request passed the string-prefix check and could serve an existing sibling file. A symlink within the web root could also point outside it. The reproduction used only disposable local files; no production file exposure was investigated or claimed.
+
+Static serving now resolves the configured web root and requested path with realpath, then requires filesystem commonpath equality before opening a file. Literal traversal, sibling-prefix traversal and symlink file/directory escapes return403. Valid root/assets retain their content/cache semantics, including a symlinked configured web root and links whose targets stay inside it. Asset files remain deployment-controlled; this is path containment, not a sandbox against an attacker concurrently rewriting the server filesystem.
+
+Five real loopback HTTP regressions preserve raw request paths through HTTPConnection. Before the fix, four sibling/symlink subcases returned200 instead of403. After the fix, all five tests passed, with valid root/assets positively checked. The source reviewer implemented this supplement and cannot independently certify it; root peer review and final integrated verification are required. No collector, production or browser/numeric job ran during this repair.

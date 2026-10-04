@@ -5540,8 +5540,9 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         if path == "/":
             path = "/index.html"
-        fs_path = os.path.normpath(os.path.join(WEB_DIR, path.lstrip("/")))
-        if not fs_path.startswith(WEB_DIR):
+        web_root = os.path.realpath(WEB_DIR)
+        fs_path = os.path.realpath(os.path.join(web_root, path.lstrip("/")))
+        if os.path.commonpath((web_root, fs_path)) != web_root:
             self._send_text(403, "forbidden")
             return
         if not os.path.exists(fs_path) or os.path.isdir(fs_path):
