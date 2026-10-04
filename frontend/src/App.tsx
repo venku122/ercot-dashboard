@@ -711,7 +711,7 @@ export function App() {
     // Serialize visibility batches. New placements reuse completed data and wait
     // for the current batch instead of aborting and duplicating its requests.
     if (historyControllers.current.size) return;
-    const requestedCharts = chartDefinitions
+    let requestedCharts = chartDefinitions
       .filter(
         (chart) =>
           (selectedView === "overview"
@@ -738,6 +738,15 @@ export function App() {
         ...headroomChart,
         series: headroomChart.series.filter((series) => series.id === "headroom"),
       });
+    }
+    // Commit the first useful plots before larger selected-window frequency
+    // or newly visible histories. Leave every deferred key unmarked so the
+    // existing serialized visibility queue loads it immediately next.
+    if (selectedView === "overview") {
+      const firstPlots = requestedCharts.filter((chart) =>
+        ["supply-demand", "capacity-headroom", "overview-headroom"].includes(chart.id),
+      );
+      if (firstPlots.length) requestedCharts = firstPlots;
     }
     if (!requestedCharts.length) {
       setLoading(false);
