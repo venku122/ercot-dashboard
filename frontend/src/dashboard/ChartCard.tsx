@@ -1054,7 +1054,10 @@ export function ChartCard({
         </div>
       )}
 
-      {hasData ? (
+      {/* Keep known mobile overview controls in the initial layout. Their real
+          target height prevents later placeholders briefly entering the viewport
+          before history hydration; absent source values remain explicit dashes. */}
+      {hasData || (mobile && presentation === "overview") ? (
         <div className={`series-legend legend-${legendMode}`}>
           {legendMode === "expanded" ? (
             <table className="legend-table" aria-label={`${chart.title} series statistics`}>
