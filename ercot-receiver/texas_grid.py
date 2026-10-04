@@ -135,24 +135,30 @@ def _publication(value, stream, now):
 def _gis_resource(value):
     _exact(value, ("unit", "statistic", "phases", "fuels", "aggregates", "limits"), "invalid_texas_grid_gis")
     phases = [{"id": key, "label": label} for key, label in zip(PHASES, PHASE_LABELS)]
+    fuel_ids = FUELS
     fuels = [{"code": code, "label": label} for code, label in zip(FUEL_CODES, FUEL_LABELS)]
-    if value["unit"] != "MW" or value["statistic"] != "project_count_and_source_capacity_sum" or value["phases"] != phases or value["fuels"] != fuels or value["limits"] != {"max_aggregates": 132}:
+    limit = 132
+    if value["limits"] == {"max_aggregates": 143}:
+        fuel_ids = (*FUELS, "source_mwh")
+        fuels.append({"code": "MWH", "label": "MWH (as reported)"})
+        limit = 143
+    if value["unit"] != "MW" or value["statistic"] != "project_count_and_source_capacity_sum" or value["phases"] != phases or value["fuels"] != fuels or value["limits"] != {"max_aggregates": limit}:
         raise ValueError("invalid_texas_grid_gis")
     rows = value["aggregates"]
-    if not isinstance(rows, list) or not 1 <= len(rows) <= 132:
+    if not isinstance(rows, list) or not 1 <= len(rows) <= limit:
         raise ValueError("invalid_texas_grid_gis")
     normalized, seen = [], set()
     for row in rows:
         _exact(row, ("phase", "fuel", "count", "capacity_mw"), "invalid_texas_grid_gis_row")
         key = (row["phase"], row["fuel"])
-        if key[0] not in PHASES or key[1] not in FUELS or key in seen:
+        if key[0] not in PHASES or key[1] not in fuel_ids or key in seen:
             raise ValueError("invalid_texas_grid_gis_row")
         seen.add(key)
         normalized.append({"phase": key[0], "fuel": key[1], "count": _integer(row["count"], 0, 10_000, "invalid_texas_grid_gis_count"), "capacity_mw": _number(row["capacity_mw"], signed=True)})
     phase_order = {key: index for index, key in enumerate(PHASES)}
-    fuel_order = {key: index for index, key in enumerate(FUELS)}
+    fuel_order = {key: index for index, key in enumerate(fuel_ids)}
     normalized.sort(key=lambda row: (phase_order[row["phase"]], fuel_order[row["fuel"]]))
-    return {"unit": "MW", "statistic": value["statistic"], "phases": phases, "fuels": fuels, "aggregates": normalized, "limits": {"max_aggregates": 132}}
+    return {"unit": "MW", "statistic": value["statistic"], "phases": phases, "fuels": fuels, "aggregates": normalized, "limits": {"max_aggregates": limit}}
 
 
 def _capacity_row(row, monthly):

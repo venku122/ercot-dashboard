@@ -88,6 +88,21 @@ class TexasGridTest(unittest.TestCase):
     def tearDown(self):
         self.conn.close()
 
+    def test_explicit_source_mwh_additive_registry_preserves_legacy(self):
+        legacy = ingest_texas_grid(self.conn, gis_payload(), NOW)
+        self.assertEqual(texas_grid_resource(self.conn, "gis", legacy["content_version"])["limits"], {"max_aggregates": 132})
+        payload = gis_payload(retrieved=NOW - 40)
+        payload["resource"]["fuels"].append({"code": "MWH", "label": "MWH (as reported)"})
+        payload["resource"]["limits"] = {"max_aggregates": 143}
+        payload["resource"]["aggregates"] = [{"phase": PHASES[1], "fuel": "source_mwh", "count": 1, "capacity_mw": 50}]
+        current = ingest_texas_grid(self.conn, payload, NOW)
+        resource = texas_grid_resource(self.conn, "gis", current["content_version"])
+        self.assertEqual(resource["aggregates"], payload["resource"]["aggregates"])
+        self.assertEqual(resource["limits"], {"max_aggregates": 143})
+        payload["resource"]["aggregates"][0]["fuel"] = "invented"
+        with self.assertRaises(ValueError):
+            ingest_texas_grid(self.conn, payload, NOW)
+
     def test_signed_gis_aggregate_and_manifest_resource(self):
         result = ingest_texas_grid(self.conn, gis_payload(), NOW)
         self.assertEqual(result["status"], "inserted")

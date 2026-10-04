@@ -88,6 +88,7 @@ const GIS_FUELS = new Map([
   ["SOL", "solar"],
   ["WAT", "water"],
   ["WIN", "wind"],
+  ["MWH", "source_mwh"],
 ]);
 const TREND_FUELS = new Map([
   ["Wind Chart", "wind"],
@@ -114,6 +115,7 @@ const GIS_FUEL_LABELS = new Map([
   ["SOL", "Solar"],
   ["WAT", "Water"],
   ["WIN", "Wind"],
+  ["MWH", "MWH (as reported)"],
 ]);
 export const GIS_FUEL_REGISTRY = Object.freeze(
   [...GIS_FUELS].map(([code, id]) =>

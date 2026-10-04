@@ -278,3 +278,41 @@ Deno.test("official full and abbreviated English source months normalize exactly
   }
   assert(rejected);
 });
+
+Deno.test("September 2026 GIS literal MWH fuel remains unclassified with SO technology", () => {
+  const workbook = new Map<string, Sheet>(GIS_SHEETS.map((name) => [name, new Map()]));
+  const observed = row({
+    A: "fixture-only",
+    C: "SS Started, FIS Started, No IA",
+    I: "MWH",
+    J: "SO",
+    K: 50,
+  });
+  workbook.set(
+    "Project Details - Large Gen",
+    new Map([
+      [31, row({ A: "INR", C: "GIM Study Phase", I: "Fuel", K: "Capacity (MW)" })],
+      [33, observed],
+    ]),
+  );
+  workbook.set(
+    "Project Details - Small Gen",
+    new Map([[15, row({ A: "INR", I: "Fuel", K: "Capacity (MW)" })]]),
+  );
+  const result = aggregateGisWorkbook(workbook, "2026-09");
+  assert(
+    JSON.stringify(result) ===
+      JSON.stringify([
+        { phase: "ss_started_fis_started_no_ia", fuel: "source_mwh", count: 1, capacity_mw: 50 },
+      ]),
+  );
+  assert(GIS_FUEL_REGISTRY.at(-1)?.label === "MWH (as reported)");
+  observed.set("I", "UNREVIEWED");
+  let error = "";
+  try {
+    aggregateGisWorkbook(workbook, "2026-09");
+  } catch (failure) {
+    error = (failure as Error).message;
+  }
+  assert(error === "long_horizon_gis_enum");
+});

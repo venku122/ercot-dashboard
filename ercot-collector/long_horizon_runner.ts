@@ -116,7 +116,7 @@ async function gisPayload(retrievedAt: number): Promise<Json> {
       phases: GIS_PHASE_REGISTRY,
       fuels: GIS_FUEL_REGISTRY.map(({ code, label }) => ({ code, label })),
       aggregates: aggregateGisWorkbook(await parseXlsx(workbook), resolvedSourcePeriod),
-      limits: { max_aggregates: 132 },
+      limits: { max_aggregates: GIS_PHASE_REGISTRY.length * GIS_FUEL_REGISTRY.length },
     },
   };
 }

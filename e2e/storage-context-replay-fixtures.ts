@@ -1,11 +1,14 @@
 import type { Page } from "@playwright/test";
 
-import { MARKET_SERIES, type MarketSeriesKey } from "../frontend/src/dashboard/market-mechanics";
+import {
+  LEGACY_MARKET_SERIES,
+  type MarketSeriesKey,
+} from "../frontend/src/dashboard/market-mechanics";
 import { FIXED_NOW_SECONDS, type MobileScenario } from "./mobile-fixtures";
 import { installStorageOperationsApi } from "./storage-operations-fixtures";
 
 function productFor(key: MarketSeriesKey): [string, string] {
-  if (key === "market.sced.system-lambda") return ["ercot_mis_np6_322", "NP6-322-CD"];
+  if (key.startsWith("market.sced.system-lambda")) return ["ercot_mis_np6_322", "NP6-322-CD"];
   if (key.includes("price-adder") || key.includes("adder-input"))
     return ["ercot_mis_np6_323", "NP6-323-CD"];
   if (key.includes("as-capability")) return ["ercot_mis_np6_328", "NP6-328-CD"];
@@ -47,18 +50,32 @@ function source(key: MarketSeriesKey, target: number) {
   };
 }
 
-function snapshot(target: number, offset: number) {
+function replaySeries(basis: "legacy" | "split") {
+  if (basis === "legacy") return LEGACY_MARKET_SERIES;
+  return Object.fromEntries([
+    ...Object.entries(LEGACY_MARKET_SERIES).filter(([key]) => key !== "market.sced.system-lambda"),
+    ["market.sced.system-lambda.capped", "$/MWh"],
+    ["market.sced.system-lambda.uncapped", "$/MWh"],
+  ]);
+}
+
+function snapshot(target: number, offset: number, basis: "legacy" | "split") {
+  const series = replaySeries(basis);
   return {
     alignment: "exact_same_sced_timestamp",
-    lambda_parity: { delta: 0, state: "match", tolerance: 0.00005 },
+    lambda_parity: {
+      delta: basis === "legacy" ? 0 : null,
+      state: basis === "legacy" ? "match" : "unavailable_unverified_basis",
+      tolerance: 0.00005,
+    },
     readings: Object.fromEntries(
-      (Object.keys(MARKET_SERIES) as MarketSeriesKey[]).map((key, index) => [
+      (Object.keys(series) as MarketSeriesKey[]).map((key, index) => [
         key,
         {
           source: source(key, target),
-          unit: MARKET_SERIES[key],
+          unit: series[key],
           value:
-            key === "market.sced.system-lambda"
+            key === "market.sced.system-lambda" || key === "market.sced.system-lambda.capped"
               ? offset === 0
                 ? -18.75
                 : 24.5
@@ -77,6 +94,7 @@ export async function installStorageContextReplayApi(
   scenario: MobileScenario,
   batchRequests: string[][],
   marketRequests: string[],
+  basis: "legacy" | "split" = "legacy",
 ) {
   await installStorageOperationsApi(page, scenario, batchRequests);
   await page.route("**/api/series/batch", async (route) => {
@@ -123,16 +141,17 @@ export async function installStorageContextReplayApi(
   });
   await page.route("**/api/v1/market-mechanics", (route) => {
     marketRequests.push(new URL(route.request().url()).pathname);
-    const current = snapshot(FIXED_NOW_SECONDS - 602, 0);
-    const previous = snapshot(FIXED_NOW_SECONDS - 902, -1);
+    const series = replaySeries(basis);
+    const current = snapshot(FIXED_NOW_SECONDS - 602, 0, basis);
+    const previous = snapshot(FIXED_NOW_SECONDS - 902, -1, basis);
     return route.fulfill({
       json: {
         changes: Object.fromEntries(
-          (Object.keys(MARKET_SERIES) as MarketSeriesKey[]).map((key) => [
+          (Object.keys(series) as MarketSeriesKey[]).map((key) => [
             key,
             {
               delta: current.readings[key].value - previous.readings[key].value,
-              unit: MARKET_SERIES[key],
+              unit: series[key],
             },
           ]),
         ),

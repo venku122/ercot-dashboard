@@ -47,9 +47,19 @@ export const STORAGE_CONTEXT_SERIES = {
   },
 } as const;
 
-export type StorageContextSeriesId = keyof typeof STORAGE_CONTEXT_SERIES;
+export const STORAGE_CONTEXT_CAPPED_LAMBDA = {
+  cadenceSeconds: 300,
+  metric: "market.sced.system-lambda.capped",
+  sourceId: "ercot_mis_np6_322",
+  timeBasis: "exact_sced_target_ts",
+  unit: "$/MWh",
+} as const;
+export type StorageContextSeriesId = keyof typeof STORAGE_CONTEXT_SERIES | "systemLambdaCapped";
 export type StorageContextPoint = readonly [timestamp: number, value: number];
-type BaseSeriesId = Exclude<StorageContextSeriesId, "availableAsCapability" | "systemLambda">;
+type BaseSeriesId = Exclude<
+  StorageContextSeriesId,
+  "availableAsCapability" | "systemLambda" | "systemLambdaCapped"
+>;
 export type StorageContextInputSeries = {
   id: BaseSeriesId;
   points: readonly StorageContextPoint[];
@@ -62,7 +72,9 @@ export type StorageContextMarketSnapshot = {
   alignment: "exact_same_sced_timestamp";
   readings: {
     "market.sced.as-capability.regup-rrs-ecrs-nonspin": StorageContextMarketReading;
-    "market.sced.system-lambda": StorageContextMarketReading;
+    "market.sced.system-lambda"?: StorageContextMarketReading;
+    "market.sced.system-lambda.capped"?: StorageContextMarketReading;
+    "market.sced.system-lambda.uncapped"?: StorageContextMarketReading;
   };
   target_ts: number;
 };
@@ -83,6 +95,7 @@ const CARDINALITY: Record<StorageContextSeriesId, number> = {
   frequency: 1440,
   netOutput: 288,
   systemLambda: 2,
+  systemLambdaCapped: 2,
 };
 
 function validatePoints(
@@ -113,12 +126,16 @@ function validatePoints(
 
 function marketPoints(snapshot: StorageContextMarketSnapshot | null, start: number, end: number) {
   if (!snapshot) return [];
-  const lambda = snapshot.readings["market.sced.system-lambda"];
+  const legacy = snapshot.readings["market.sced.system-lambda"];
+  const capped = snapshot.readings["market.sced.system-lambda.capped"];
+  if (Boolean(legacy) === Boolean(capped)) throw new Error("invalid_storage_context_market_basis");
+  const lambda = (capped ?? legacy)!;
   const capability = snapshot.readings["market.sced.as-capability.regup-rrs-ecrs-nonspin"];
   if (
     snapshot.alignment !== "exact_same_sced_timestamp" ||
     !Number.isSafeInteger(snapshot.target_ts) ||
     !Number.isFinite(lambda.value) ||
+    !capability ||
     !Number.isFinite(capability.value) ||
     lambda.source.source_id !== "ercot_mis_np6_322" ||
     lambda.source.product_id !== "NP6-322-CD" ||
@@ -129,7 +146,7 @@ function marketPoints(snapshot: StorageContextMarketSnapshot | null, start: numb
   if (snapshot.target_ts < start || snapshot.target_ts >= end) return [];
   return [
     {
-      id: "systemLambda" as const,
+      id: capped ? ("systemLambdaCapped" as const) : ("systemLambda" as const),
       point: [snapshot.target_ts, lambda.value] as StorageContextPoint,
     },
     {
@@ -164,18 +181,29 @@ export function deriveStorageContextReplay(input: StorageContextReplayInput) {
   ]) {
     points.set(marker.id, [...(points.get(marker.id) ?? []), marker.point]);
   }
-  for (const id of ["systemLambda", "availableAsCapability"] as const)
+  for (const id of ["systemLambda", "systemLambdaCapped", "availableAsCapability"] as const)
     validatePoints(points.get(id) ?? [], input.start, input.end, CARDINALITY[id]);
-  const series = (Object.keys(STORAGE_CONTEXT_SERIES) as StorageContextSeriesId[]).map((id) => ({
+  const series = (
+    Object.keys(STORAGE_CONTEXT_SERIES) as (keyof typeof STORAGE_CONTEXT_SERIES)[]
+  ).map((id) => ({
     ...STORAGE_CONTEXT_SERIES[id],
     id,
     points: points.get(id) ?? [],
   }));
+  const cappedSeries = points.get("systemLambdaCapped")?.length
+    ? [
+        {
+          ...STORAGE_CONTEXT_CAPPED_LAMBDA,
+          id: "systemLambdaCapped" as const,
+          points: points.get("systemLambdaCapped")!,
+        },
+      ]
+    : [];
   return {
     alignment: STORAGE_CONTEXT_ALIGNMENT,
     end: input.end,
     policy: STORAGE_CONTEXT_REPLAY_POLICY,
-    series,
+    series: [...series, ...cappedSeries],
     start: input.start,
   };
 }

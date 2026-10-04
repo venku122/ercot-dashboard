@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MarketMechanicsPanel } from "./MarketMechanicsPanel";
 import {
-  MARKET_SERIES,
+  LEGACY_MARKET_SERIES as MARKET_SERIES,
+  MARKET_SERIES as ALL_MARKET_SERIES,
   type MarketManifest,
   type MarketResource,
   type MarketResourceLink,
@@ -30,7 +31,7 @@ const NOW = DAY + 64_800;
 const VERSION = `mmr1-${"a".repeat(64)}`;
 
 function productFor(key: MarketSeriesKey): [string, string] {
-  if (key === "market.sced.system-lambda") return ["ercot_mis_np6_322", "NP6-322-CD"];
+  if (key.startsWith("market.sced.system-lambda")) return ["ercot_mis_np6_322", "NP6-322-CD"];
   if (key.includes("price-adder") || key.includes("adder-input")) {
     return ["ercot_mis_np6_323", "NP6-323-CD"];
   }
@@ -64,7 +65,7 @@ function link(key: MarketSeriesKey): MarketResourceLink {
 
 function manifest(): MarketManifest {
   const readings = Object.fromEntries(
-    (Object.keys(MARKET_SERIES) as MarketSeriesKey[]).map((key, index) => [
+    (Object.keys(MARKET_SERIES) as Array<keyof typeof MARKET_SERIES>).map((key, index) => [
       key,
       { value: index + 0.25, unit: MARKET_SERIES[key], source: source(key) },
     ]),
@@ -79,7 +80,7 @@ function manifest(): MarketManifest {
     },
     previous: null,
     changes: Object.fromEntries(
-      (Object.keys(MARKET_SERIES) as MarketSeriesKey[]).map((key) => [
+      (Object.keys(MARKET_SERIES) as Array<keyof typeof MARKET_SERIES>).map((key) => [
         key,
         { delta: null, unit: MARKET_SERIES[key] },
       ]),
@@ -130,7 +131,7 @@ function resource(resourceLink: MarketResourceLink): MarketResource {
     series_key: resourceLink.series_key,
     tile_start: DAY,
     tile_end: DAY + 86_400,
-    unit: MARKET_SERIES[resourceLink.series_key],
+    unit: ALL_MARKET_SERIES[resourceLink.series_key],
     rows: [
       { target_ts: DAY + 60, value: 1, source: source(resourceLink.series_key) },
       { target_ts: DAY + 360, value: 2, source: source(resourceLink.series_key) },
@@ -200,6 +201,42 @@ afterEach(async () => {
 });
 
 describe("market mechanics panel independent lifecycle acceptance", () => {
+  it("shows separate capped/uncapped cards and declines unverified parity with one default history request", async () => {
+    const value = manifest();
+    const current = value.current!;
+    for (const key of Object.keys(current.readings) as MarketSeriesKey[]) {
+      if (key === "market.sced.system-lambda" || key.startsWith("market.sced.as-mcpc.")) {
+        const old = current.readings[key];
+        delete current.readings[key];
+        delete value.changes[key];
+        for (const basis of ["capped", "uncapped"]) {
+          const next = (key + "." + basis) as MarketSeriesKey;
+          current.readings[next] = { ...old, value: basis === "capped" ? 1.25 : 2.5 };
+          value.changes[next] = { delta: null, unit: old.unit };
+        }
+      }
+    }
+    current.lambda_parity = {
+      state: "unavailable_unverified_basis",
+      delta: null,
+      tolerance: 0.00005,
+    };
+    value.resources = [link("market.sced.system-lambda.capped")];
+    mocks.loadManifest.mockResolvedValueOnce(value);
+    const { host, root } = renderPanel();
+    activeRoot = root;
+    await act(async () => button(host, "What changed with the price move?").click());
+    await flush();
+    expect(host.textContent).toContain("Capped System Lambda");
+    expect(host.textContent).toContain("Uncapped System Lambda");
+    expect(host.textContent).toContain("no verified capped/uncapped basis match");
+    expect(host.textContent).toContain("ecrs capped MCPC");
+    expect(mocks.loadResource).toHaveBeenCalledTimes(1);
+    expect(mocks.loadResource.mock.calls[0]![0].series_key).toBe(
+      "market.sced.system-lambda.capped",
+    );
+  });
+
   it("is collapsed-lazy and fetches one manifest plus selected history only", async () => {
     const { host, root } = renderPanel();
     activeRoot = root;

@@ -15,6 +15,9 @@ test("market mechanics is lazy, contextual, and selected-history only", async ({
 
   await panel.getByRole("button", { name: "What changed with the price move?" }).click();
   await expect(panel.getByText(/Exact SCED alignment/)).toBeVisible();
+  await expect(
+    panel.locator('section[aria-labelledby^="market-group-"]').first().getByRole("heading"),
+  ).toHaveText("Energy signal");
   await expect.poll(() => requests.length).toBe(2);
   expect(requests[0]).toBe("/api/v1/market-mechanics");
   expect(requests[1]).toContain("market.sced.system-lambda");

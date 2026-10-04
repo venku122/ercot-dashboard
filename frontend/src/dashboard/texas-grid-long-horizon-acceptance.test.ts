@@ -260,6 +260,35 @@ describe("PR21 Texas Grid strict frontend contract", () => {
     expect(() => parseTexasGridManifest(unavailable)).toThrow("invalid_texas_grid_section");
   });
 
+  it("accepts only the additive source-reported MWH registry and rejects unknown later-phase fuels", () => {
+    const fixture = texasGridGisFixture();
+    const extended = {
+      ...fixture,
+      fuels: [...fixture.fuels, { code: "MWH", label: "MWH (as reported)" }],
+      limits: { max_aggregates: 143 },
+      aggregates: [
+        { phase: "ss_started_fis_started_no_ia", fuel: "source_mwh", count: 1, capacity_mw: 50 },
+      ],
+    };
+    const result = parseTexasGridResource(extended, selected("gis"));
+    expect(result.stream).toBe("gis");
+    if (result.stream === "gis") expect(result.aggregates).toEqual(extended.aggregates);
+    expect(() =>
+      parseTexasGridResource({ ...extended, limits: { max_aggregates: 132 } }, selected("gis")),
+    ).toThrow();
+    expect(() =>
+      parseTexasGridResource(
+        {
+          ...fixture,
+          aggregates: [
+            { phase: "ss_started_fis_started_no_ia", fuel: "unknown", count: 1, capacity_mw: 50 },
+          ],
+        },
+        selected("gis"),
+      ),
+    ).toThrow("invalid_texas_grid_gis_aggregate");
+  });
+
   it("preserves signed repowering adjustments without calling them installed capacity", () => {
     const resource = parseTexasGridResource(texasGridGisFixture(), selected("gis"));
     expect(resource.stream).toBe("gis");

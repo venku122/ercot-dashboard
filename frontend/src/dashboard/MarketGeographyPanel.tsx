@@ -378,8 +378,9 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
                     <span>{row.constraint_name}</span>
                     <strong>{formatValue(row.shadow_price, "$/MWh")}</strong>
                     <small>
-                      {row.from_station} {row.from_station_kv} kV → {row.to_station}{" "}
-                      {row.to_station_kv} kV · {row.cct_status_label}
+                      {row.from_station || "Station not reported"} {row.from_station_kv} kV →{" "}
+                      {row.to_station || "Station not reported"} {row.to_station_kv} kV ·{" "}
+                      {row.cct_status_label}
                     </small>
                   </button>
                 ))}
@@ -408,8 +409,8 @@ export function MarketGeographyPanel({ enabled }: { enabled: boolean }) {
                           <td>{row.constraint_name}</td>
                           <td>{row.contingency_name}</td>
                           <td>
-                            {row.from_station} {row.from_station_kv} kV → {row.to_station}{" "}
-                            {row.to_station_kv} kV
+                            {row.from_station || "Station not reported"} {row.from_station_kv} kV →{" "}
+                            {row.to_station || "Station not reported"} {row.to_station_kv} kV
                           </td>
                           <td>
                             {formatValue(row.value_mw, "MW")} / {formatValue(row.limit_mw, "MW")}

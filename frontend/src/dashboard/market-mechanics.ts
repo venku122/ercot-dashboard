@@ -1,4 +1,4 @@
-export const MARKET_SERIES = {
+export const LEGACY_MARKET_SERIES = {
   "market.sced.system-lambda": "$/MWh",
   "market.sced.price-adder.energy": "$/MWh",
   "market.sced.price-adder.regup": "$/MW",
@@ -31,6 +31,21 @@ export const MARKET_SERIES = {
   "market.sced.as-mcpc.regup": "$/MW",
   "market.sced.as-mcpc.rrs": "$/MW",
 } as const;
+export const MARKET_SERIES = {
+  ...LEGACY_MARKET_SERIES,
+  "market.sced.system-lambda.capped": "$/MWh",
+  "market.sced.system-lambda.uncapped": "$/MWh",
+  "market.sced.as-mcpc.ecrs.capped": "$/MW",
+  "market.sced.as-mcpc.ecrs.uncapped": "$/MW",
+  "market.sced.as-mcpc.nonspin.capped": "$/MW",
+  "market.sced.as-mcpc.nonspin.uncapped": "$/MW",
+  "market.sced.as-mcpc.regdown.capped": "$/MW",
+  "market.sced.as-mcpc.regdown.uncapped": "$/MW",
+  "market.sced.as-mcpc.regup.capped": "$/MW",
+  "market.sced.as-mcpc.regup.uncapped": "$/MW",
+  "market.sced.as-mcpc.rrs.capped": "$/MW",
+  "market.sced.as-mcpc.rrs.uncapped": "$/MW",
+} as const;
 export type MarketSeriesKey = keyof typeof MARKET_SERIES;
 
 export type MarketSource = {
@@ -48,7 +63,11 @@ export type MarketSnapshot = {
   target_ts: number;
   alignment: "exact_same_sced_timestamp";
   readings: Record<MarketSeriesKey, MarketReading>;
-  lambda_parity: { state: "match" | "mismatch"; delta: number; tolerance: number };
+  lambda_parity: {
+    state: "match" | "mismatch" | "unavailable_unverified_basis";
+    delta: number | null;
+    tolerance: number;
+  };
 };
 export type MarketResourceLink = {
   series_key: MarketSeriesKey;
@@ -100,7 +119,7 @@ function finite(value: unknown): number {
   return value;
 }
 function expectedProduct(key: MarketSeriesKey) {
-  if (key === "market.sced.system-lambda") return ["ercot_mis_np6_322", "NP6-322-CD"];
+  if (key.startsWith("market.sced.system-lambda")) return ["ercot_mis_np6_322", "NP6-322-CD"];
   if (key.includes("price-adder") || key.includes("adder-input"))
     return ["ercot_mis_np6_323", "NP6-323-CD"];
   if (key.includes("as-capability")) return ["ercot_mis_np6_328", "NP6-328-CD"];
@@ -189,14 +208,23 @@ function snapshot(value: unknown): MarketSnapshot | null {
   if (value === null) return null;
   const item = object(value);
   const readingsValue = object(item["readings"]);
+  const keys = Object.keys(readingsValue);
+  const lambdaSplit = keys.includes("market.sced.system-lambda.capped");
+  const mcpcSplit = keys.includes("market.sced.as-mcpc.ecrs.capped");
+  const required = Object.keys(LEGACY_MARKET_SERIES).flatMap((key) =>
+    key === "market.sced.system-lambda" && lambdaSplit
+      ? [key + ".capped", key + ".uncapped"]
+      : key.startsWith("market.sced.as-mcpc.") && mcpcSplit
+        ? [key + ".capped", key + ".uncapped"]
+        : [key],
+  );
   if (
     item["alignment"] !== "exact_same_sced_timestamp" ||
-    JSON.stringify(Object.keys(readingsValue).sort()) !==
-      JSON.stringify(Object.keys(MARKET_SERIES).sort())
+    JSON.stringify(keys.sort()) !== JSON.stringify(required.sort())
   )
     throw new Error("invalid_market_current");
   const readings = {} as Record<MarketSeriesKey, MarketReading>;
-  for (const rawKey of Object.keys(MARKET_SERIES)) {
+  for (const rawKey of keys) {
     const key = rawKey as MarketSeriesKey;
     const reading = object(readingsValue[key]);
     if (reading["unit"] !== MARKET_SERIES[key]) throw new Error("invalid_market_unit");
@@ -208,18 +236,26 @@ function snapshot(value: unknown): MarketSnapshot | null {
   }
   const parity = object(item["lambda_parity"]);
   const tolerance = finite(parity["tolerance"]);
-  const delta = finite(parity["delta"]);
+  const unavailable = parity["state"] === "unavailable_unverified_basis";
+  const delta = unavailable && parity["delta"] === null ? null : finite(parity["delta"]);
   if (
     tolerance !== 0.00005 ||
-    !["match", "mismatch"].includes(String(parity["state"])) ||
-    (parity["state"] === "match") !== Math.abs(delta) <= tolerance
+    (unavailable && delta !== null) ||
+    lambdaSplit !== unavailable ||
+    (!unavailable &&
+      (!["match", "mismatch"].includes(String(parity["state"])) ||
+        (parity["state"] === "match") !== Math.abs(delta!) <= tolerance))
   )
     throw new Error("invalid_market_lambda_parity");
   return {
     target_ts: integer(item["target_ts"]),
     alignment: "exact_same_sced_timestamp",
     readings,
-    lambda_parity: { state: parity["state"] as "match" | "mismatch", delta, tolerance },
+    lambda_parity: {
+      state: parity["state"] as MarketSnapshot["lambda_parity"]["state"],
+      delta,
+      tolerance,
+    },
   };
 }
 
@@ -278,15 +314,17 @@ export function parseMarketManifest(value: unknown): MarketManifest {
   const changesValue = object(input["changes"]);
   if (
     JSON.stringify(Object.keys(changesValue).sort()) !==
-    JSON.stringify((current ? Object.keys(MARKET_SERIES) : []).sort())
+    JSON.stringify((current ? Object.keys(current.readings) : []).sort())
   )
     throw new Error("invalid_market_changes");
   const changes = {} as MarketManifest["changes"];
   if (current)
-    for (const rawKey of Object.keys(MARKET_SERIES)) {
+    for (const rawKey of Object.keys(current.readings)) {
       const key = rawKey as MarketSeriesKey;
       const change = object(changesValue[key]);
-      const expected = previous ? current.readings[key].value - previous.readings[key].value : null;
+      const expected = previous?.readings[key]
+        ? current.readings[key].value - previous.readings[key].value
+        : null;
       if (change["unit"] !== MARKET_SERIES[key] || change["delta"] !== expected)
         throw new Error("invalid_market_changes");
       changes[key] = { delta: expected, unit: MARKET_SERIES[key] };

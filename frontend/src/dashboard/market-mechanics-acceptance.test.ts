@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MARKET_SERIES,
+  LEGACY_MARKET_SERIES as MARKET_SERIES,
   parseMarketManifest,
   parseMarketResource,
   type MarketManifest,
@@ -69,7 +69,7 @@ function link(key: MarketSeriesKey, version = VERSION_A): MarketResourceLink {
 
 function manifest(current = false) {
   const readings = Object.fromEntries(
-    (Object.keys(MARKET_SERIES) as MarketSeriesKey[]).map((key, index) => [
+    (Object.keys(MARKET_SERIES) as Array<keyof typeof MARKET_SERIES>).map((key, index) => [
       key,
       { value: index, unit: MARKET_SERIES[key], source: source(key) },
     ]),
@@ -98,7 +98,7 @@ function manifest(current = false) {
     previous: null,
     changes: current
       ? Object.fromEntries(
-          (Object.keys(MARKET_SERIES) as MarketSeriesKey[]).map((key) => [
+          (Object.keys(MARKET_SERIES) as Array<keyof typeof MARKET_SERIES>).map((key) => [
             key,
             { delta: null, unit: MARKET_SERIES[key] },
           ]),
@@ -123,6 +123,73 @@ function manifest(current = false) {
 }
 
 describe("market mechanics independent wire acceptance", () => {
+  it("accepts exactly complete capped/uncapped snapshot groups with unavailable unverified lambda parity", () => {
+    const value = manifest(true);
+    const readings = value.current!.readings;
+    for (const key of Object.keys(readings)) {
+      if (key === "market.sced.system-lambda" || key.startsWith("market.sced.as-mcpc.")) {
+        const old = readings[key]!;
+        delete readings[key];
+        for (const basis of ["capped", "uncapped"])
+          readings[key + "." + basis] = { ...old, value: basis === "capped" ? 1.25 : 2.5 };
+      }
+    }
+    const extended = {
+      ...value,
+      current: {
+        ...value.current!,
+        readings,
+        lambda_parity: { state: "unavailable_unverified_basis", delta: null, tolerance: 0.00005 },
+      },
+      changes: Object.fromEntries(
+        Object.entries(readings).map(([key, reading]) => [
+          key,
+          { delta: null, unit: reading.unit },
+        ]),
+      ),
+    };
+    expect(Object.keys(parseMarketManifest(extended).current!.readings)).toHaveLength(37);
+    expect(() =>
+      parseMarketManifest({
+        ...extended,
+        current: {
+          ...extended.current,
+          lambda_parity: { state: "unavailable_unverified_basis", delta: 0, tolerance: 0.00005 },
+        },
+      }),
+    ).toThrow("invalid_market_lambda_parity");
+    const missing = structuredClone(extended);
+    delete missing.current.readings["market.sced.as-mcpc.ecrs.uncapped"];
+    expect(() => parseMarketManifest(missing)).toThrow("invalid_market_current");
+    expect(() =>
+      parseMarketManifest({
+        ...extended,
+        current: {
+          ...extended.current,
+          lambda_parity: { state: "match", delta: 0, tolerance: 0.00005 },
+        },
+      }),
+    ).toThrow("invalid_market_lambda_parity");
+  });
+
+  it("preserves new capped/uncapped lambda resource identity and source unit", () => {
+    const key = "market.sced.system-lambda.capped" as MarketSeriesKey;
+    const selected = link(key);
+    const value = {
+      schema_version: 1,
+      methodology: "market-context-v1",
+      series_key: key,
+      tile_start: DAY,
+      tile_end: DAY + 86400,
+      lod: "native",
+      unit: "$/MWh",
+      content_version: VERSION_A,
+      rows: [{ target_ts: NOW - 62, value: 59.54911, source: source("market.sced.system-lambda") }],
+    };
+    expect(parseMarketResource(value, selected).rows[0]?.value).toBe(59.54911);
+    expect(() => parseMarketResource({ ...value, unit: "$/MW" }, selected)).toThrow();
+  });
+
   it("accepts exact valid-empty and exact same-SCED current manifests", () => {
     expect(parseMarketManifest(manifest())).toMatchObject({ current: null, resources: [] });
     expect(Object.keys(parseMarketManifest(manifest(true)).current!.readings)).toHaveLength(31);
@@ -137,7 +204,7 @@ describe("market mechanics independent wire acceptance", () => {
     };
     value.previous = structuredClone(value.current);
     value.previous!.target_ts -= 300;
-    for (const key of Object.keys(MARKET_SERIES) as MarketSeriesKey[]) {
+    for (const key of Object.keys(MARKET_SERIES) as Array<keyof typeof MARKET_SERIES>) {
       value.previous!.readings[key]!.value -= 1;
       value.previous!.readings[key]!.source.raw_sced_timestamp = "08/18/2026 12:53:58";
       value.changes[key] = { delta: 1, unit: MARKET_SERIES[key] };
@@ -180,7 +247,7 @@ describe("market mechanics independent wire acceptance", () => {
   });
 
   it("binds every scalar reading to its exact official source and product", () => {
-    for (const key of Object.keys(MARKET_SERIES) as MarketSeriesKey[]) {
+    for (const key of Object.keys(MARKET_SERIES) as Array<keyof typeof MARKET_SERIES>) {
       const wrong = manifest(true);
       const reading = (
         wrong.current!.readings as unknown as Record<string, { source: ReturnType<typeof source> }>
@@ -215,7 +282,7 @@ describe("market mechanics independent wire acceptance", () => {
     ] as const) {
       const value = manifest(true);
       value.current!.target_ts = target;
-      for (const key of Object.keys(MARKET_SERIES) as MarketSeriesKey[]) {
+      for (const key of Object.keys(MARKET_SERIES) as Array<keyof typeof MARKET_SERIES>) {
         const item = value.current!.readings[key]!.source;
         item.issued_at = target + 2;
         item.raw_publish_datetime = publish;
