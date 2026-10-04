@@ -274,6 +274,7 @@ export function ChartCard({
   const cursorLineRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartJs<"line"> | null>(null);
   const accessibleDataRef = useRef<HTMLDetailsElement>(null);
+  const [dataTableOpen, setDataTableOpen] = useState(false);
   const inspectTriggerRef = useRef<HTMLButtonElement>(null);
   const cursorTimestamp = useRef<number | null>(null);
   const pointerDown = useRef<{ x: number; y: number } | null>(null);
@@ -1270,7 +1271,12 @@ export function ChartCard({
         </p>
       ) : null}
       {hasData ? (
-        <details className="accessible-data" ref={accessibleDataRef}>
+        <details
+          className="accessible-data"
+          ref={accessibleDataRef}
+          open={dataTableOpen}
+          onToggle={(event) => setDataTableOpen(event.currentTarget.open)}
+        >
           <summary>Accessible data table</summary>
           <p>
             Displayed source values. Dashed lines and * readouts indicate aggregate or unknown
@@ -1296,17 +1302,19 @@ export function ChartCard({
                 </tr>
               </thead>
               <tbody>
-                {visibleSeries.flatMap((series) =>
-                  (seriesData.get(seriesKey(chart.id, series.id))?.points ?? [])
-                    .slice(-250)
-                    .map(([timestamp, value]) => (
-                      <tr key={`${series.id}:${timestamp}`}>
-                        <td>{series.label}</td>
-                        <td>{new Date(timestamp * 1000).toISOString()}</td>
-                        <td>{formatValue(value, chart.unit)}</td>
-                      </tr>
-                    )),
-                )}
+                {dataTableOpen
+                  ? visibleSeries.flatMap((series) =>
+                      (seriesData.get(seriesKey(chart.id, series.id))?.points ?? [])
+                        .slice(-250)
+                        .map(([timestamp, value]) => (
+                          <tr key={`${series.id}:${timestamp}`}>
+                            <td>{series.label}</td>
+                            <td>{new Date(timestamp * 1000).toISOString()}</td>
+                            <td>{formatValue(value, chart.unit)}</td>
+                          </tr>
+                        )),
+                    )
+                  : null}
               </tbody>
             </table>
           </div>
