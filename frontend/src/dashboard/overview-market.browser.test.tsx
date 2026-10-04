@@ -58,3 +58,54 @@ it("price selection and history switch atomically and ignore obsolete point resp
     pending.clear();
   }
 });
+
+it("selected NP6-905 cursor uses proven halfopen intervals and labels the ending time", async () => {
+  const { chartCoordinator } = await import("./chart-coordinator");
+  const { observationAt, temporalPolicy } = await import("./series-temporal-policy");
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  window.history.replaceState({}, "", "/?overviewPoint=HB_HOUSTON");
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  let selected: import("./types").ChartDefinition | undefined;
+  let loaded: import("./types").LoadedSeries | undefined;
+  try {
+    await act(async () =>
+      root.render(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <OverviewCharts
+            time={{ start: 5400, end: 8100, rangeSeconds: 2700, mode: "fixed", paused: false }}
+            seriesData={new Map()}
+            renderChart={(chart, _presentation, data) => {
+              if (chart.id === "pricing") {
+                selected = chart;
+                loaded = data?.get("pricing:interval");
+              }
+              return <article>{chart.title}</article>;
+            }}
+          />
+        </SWRConfig>,
+      ),
+    );
+    await act(async () =>
+      pending.get("HB_HOUSTON--HU")!([
+        { target_ts: 7200, interval_start: 6300, interval_end: 7200, value: -50 },
+        { target_ts: 8100, interval_start: 7200, interval_end: 8100, value: 99 },
+      ] as PriceRow[]),
+    );
+    const policy = temporalPolicy("pricing", selected!.series[0]!);
+    expect(observationAt(loaded, 7199, policy)?.value).toBe(-50);
+    expect(observationAt(loaded, 7200, policy)?.value).toBe(99);
+    expect(observationAt(loaded, 8100, policy)).toBeNull();
+    await act(async () => chartCoordinator.togglePin(7199));
+    const readout = host.querySelector(".homepage-readings > div:nth-child(4)")!;
+    expect(readout.textContent).toContain("-$50.00/MWh");
+    expect(readout.getAttribute("title")).toContain("Interval ending");
+    expect(readout.getAttribute("title")).not.toContain("age -");
+  } finally {
+    await act(async () => chartCoordinator.clearPin());
+    await act(async () => root.unmount());
+    host.remove();
+    pending.clear();
+  }
+});

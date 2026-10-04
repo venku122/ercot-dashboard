@@ -44,3 +44,9 @@ clock. Both history and ranking use latest published corrections and explicitly
 make no as-known-by-system replay claim. Credential/source-disabled deployments
 show unavailable states. No production database, credentials, source activation,
 legacy timestamps or remote configuration were changed.
+
+## Verified interval cursor and exports
+
+The selected NP6-905 chart explicitly uses an interval policy and carries each parsed row's verified start/end bounds with its interval-ending timestamp. Cursor lookup is halfopen: the price applies at start and before end, advances to a separately verified next interval at the shared boundary, and becomes unavailable at the final end. Legacy collection-snapshot pricing keeps its existing instant policy.
+
+Cursor readouts and legend titles label interval ending and the delivery bounds instead of describing an ending timestamp as a negative observation age. The accessible table labels its timestamp column `Interval ending (UTC)`. Selected interval CSV adds the declared unit and verified start/end epoch columns; legacy CSV headers remain compatible. Latest-window values remain explicitly scoped to the selected window.

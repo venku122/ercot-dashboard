@@ -35,6 +35,6 @@ Production rollout and real publication coverage remain separate review gates.
 
 ## Long windows and comparison
 
-The retrospective selector has a separate maximum of8,785 hourly targets for its supported366-day window, with one extra row read to detect overflow. Overflow returns an explicit error rather than a truncated successful series. Coverage reports expected hourly targets, selected targets, available finite values and missing values. The generic5,000-row publication query limit is unchanged.
+The retrospective selector has a separate maximum of 8,785 hourly targets for its supported 366-day window, with one extra row read to detect overflow. Overflow returns an explicit error rather than a truncated successful series. Coverage reports expected hourly targets, selected targets, available finite values and missing values. The generic 5,000-row publication query limit is unchanged.
 
-Comparison selects the actual Chicago calendar or custom comparison window with its own issue cutoff. Only then are its target timestamps aligned into the current chart using the existing calendar comparison function. Across fall DST, a prior calendar day may differ by25 elapsed hours; it is not replaced with a fixed86,400-second shift. Missing comparison archives are explicitly unavailable.
+Comparison selects the actual Chicago calendar or custom comparison window with its own issue cutoff. Only then are its target timestamps aligned into the current chart using the existing calendar comparison function. Across fall DST, a prior calendar day may differ by 25 elapsed hours; it is not replaced with a fixed 86,400-second shift. Missing comparison archives are explicitly unavailable.

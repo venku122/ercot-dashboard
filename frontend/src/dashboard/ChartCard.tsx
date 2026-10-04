@@ -1,3 +1,4 @@
+import { seriesIntervalLabel } from "./interval-price-series";
 import { observationAt, seriesResolution, temporalPolicy } from "./series-temporal-policy";
 import "chartjs-adapter-date-fns";
 
@@ -111,17 +112,21 @@ function CursorLegendValue({
       data-value-scope={cursor === null ? "window-latest" : "cursor"}
       title={
         cursor === null
-          ? "Latest value in selected window"
+          ? policy?.cursor.mode === "interval" && loaded?.points.length
+            ? `Latest interval in selected window · ${seriesIntervalLabel(loaded, loaded.points.at(-1)![0])}`
+            : "Latest value in selected window"
           : sample
             ? policy?.cursor.mode === "interval"
-              ? (() => {
-                  const interval = loaded?.meta.intervals?.find(
-                    (item) => item.timestamp === sample.ts,
-                  );
-                  return interval
-                    ? `Delivery interval [${marketTime(interval.start)}, ${marketTime(interval.end)}) · hour ending ${marketTime(sample.ts)}`
-                    : "Delivery interval bounds unavailable";
-                })()
+              ? policy.kind === "forecast"
+                ? (() => {
+                    const interval = loaded?.meta.intervals?.find(
+                      (item) => item.timestamp === sample.ts,
+                    );
+                    return interval
+                      ? `Delivery interval [${marketTime(interval.start)}, ${marketTime(interval.end)}) · hour ending ${marketTime(sample.ts)}`
+                      : "Delivery interval bounds unavailable";
+                  })()
+                : seriesIntervalLabel(loaded, sample.ts)
               : `${marketTime(sample.ts)} · ${Math.round(cursor - sample.ts)}s before cursor · ${sample.resolution === "native" ? "source observation" : `${sample.resolution} resolution · ${sample.coverage} coverage`}`
             : "No recent preceding observation"
       }
@@ -141,7 +146,14 @@ const interpretationFill = {
 } as const;
 
 function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
-  const rows = ["series,timestamp_iso,timestamp_epoch,value"];
+  const intervals = chart.series.some(
+    (series) => temporalPolicy(chart.id, series)?.kind === "interval",
+  );
+  const rows = [
+    intervals
+      ? "series,interval_ending_iso,interval_ending_epoch,value,unit,interval_start_epoch,interval_end_epoch"
+      : "series,timestamp_iso,timestamp_epoch,value",
+  ];
   for (const series of chart.series.filter((candidate) => !candidate.inputOnly)) {
     const loaded = data.get(seriesKey(chart.id, series.id));
     for (const [timestamp, value] of loaded?.points ?? []) {
@@ -151,6 +163,13 @@ function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
           new Date(timestamp * 1000).toISOString(),
           timestamp,
           value,
+          ...(intervals
+            ? [
+                JSON.stringify(chart.unit),
+                loaded?.meta.intervals?.find((item) => item.timestamp === timestamp)?.start ?? "",
+                loaded?.meta.intervals?.find((item) => item.timestamp === timestamp)?.end ?? "",
+              ]
+            : []),
         ].join(","),
       );
     }
@@ -1105,13 +1124,22 @@ export function ChartCard({
             Displayed source values. Dashed lines and * readouts indicate aggregate or unknown
             resolution; bucket width does not prove coverage. Cursor values expire independently of
             line continuity.
+            {visibleSeries.some((series) => temporalPolicy(chart.id, series)?.kind === "interval")
+              ? " Verified delivery intervals use [start, end); timestamps label interval ending, not retrieval time."
+              : ""}
           </p>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
                   <th>Series</th>
-                  <th>Timestamp</th>
+                  <th>
+                    {visibleSeries.some(
+                      (series) => temporalPolicy(chart.id, series)?.kind === "interval",
+                    )
+                      ? "Interval ending (UTC)"
+                      : "Timestamp"}
+                  </th>
                   <th>Value</th>
                 </tr>
               </thead>

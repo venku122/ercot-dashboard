@@ -1,3 +1,8 @@
+import {
+  intervalPriceSeries,
+  intervalPriceTemporalPolicy,
+  seriesIntervalLabel,
+} from "./interval-price-series";
 import { observationAt, temporalPolicy } from "./series-temporal-policy";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import useSWR from "swr";
@@ -76,14 +81,18 @@ function TimeReadings({
           const point = observationAt(
             loaded,
             readingTime,
-            series ? temporalPolicy(chartId!, series) : undefined,
+            key === "pricing:interval"
+              ? intervalPriceTemporalPolicy
+              : series
+                ? temporalPolicy(chartId!, series)
+                : undefined,
           );
           return (
             <div key={key}>
               <dt>{label}</dt>
               <dd>
                 {point
-                  ? `${formatValue(point.value, unit)} · ${marketTime(point.ts)} · ${Math.round(readingTime - point.ts)}s old · ${point.resolution} · ${point.coverage} coverage · ${loaded?.meta.bucket_seconds ?? "unknown"}s bucket`
+                  ? `${formatValue(point.value, unit)} · ${marketTime(point.ts)} · ${key === "pricing:interval" ? seriesIntervalLabel(loaded, point.ts) : `${Math.round(readingTime - point.ts)}s old`} · ${point.resolution} · ${point.coverage} coverage · ${loaded?.meta.bucket_seconds ?? "unknown"}s bucket`
                   : "No recent compatible observation"}
               </dd>
             </div>
@@ -105,7 +114,11 @@ function TimeReadings({
           const point = observationAt(
             loaded,
             readingTime,
-            series ? temporalPolicy(chartId!, series) : undefined,
+            key === "pricing:interval"
+              ? intervalPriceTemporalPolicy
+              : series
+                ? temporalPolicy(chartId!, series)
+                : undefined,
           );
           return (
             <div
@@ -113,7 +126,9 @@ function TimeReadings({
               tabIndex={0}
               title={
                 point
-                  ? `${point.resolution === "native" ? "Observation" : `${point.resolution} resolution · ${point.coverage} coverage`}: ${marketTime(point.ts)} · age ${Math.round(readingTime - point.ts)} seconds`
+                  ? key === "pricing:interval"
+                    ? seriesIntervalLabel(loaded, point.ts)
+                    : `${point.resolution === "native" ? "Observation" : `${point.resolution} resolution · ${point.coverage} coverage`}: ${marketTime(point.ts)} · age ${Math.round(readingTime - point.ts)} seconds`
                   : "No recent compatible observation"
               }
             >
@@ -215,17 +230,22 @@ export function OverviewCharts({
       sourceUrl: "https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD",
       description:
         "Exact selected point and type, 15-minute delivery interval ending; latest published corrections, not an as-known replay. Legacy collection snapshots remain independent.",
-      series: [{ id: "interval", label: marketNames[selected] ?? selected, color: "#60a5fa" }],
+      series: [
+        {
+          id: "interval",
+          label: marketNames[selected] ?? selected,
+          color: "#60a5fa",
+          temporal: intervalPriceTemporalPolicy,
+        },
+      ],
     }),
     [selected],
   );
   const displaySeries = new Map(seriesData);
-  displaySeries.set("pricing:interval", {
-    points: (history.data ?? []).map((row) => [row.target_ts, row.value]),
-    compare: [],
-    error: history.error ? "Interval history unavailable for this point/window" : null,
-    meta: { bucket_seconds: 900, since: time.start, until: time.end },
-  });
+  displaySeries.set(
+    "pricing:interval",
+    intervalPriceSeries(history.data ?? [], time.start, time.end, Boolean(history.error)),
+  );
   return (
     <section className="homepage-workspace" aria-label="Grid charts">
       <TimeReadings seriesData={displaySeries} time={time} selected={selected} />

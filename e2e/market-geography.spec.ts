@@ -26,7 +26,12 @@ test("market geography is contextual, lazy, selected-only, exact, and noncausal"
   await installMarketGeographyApi(page, requests);
 
   await page.goto("/");
-  expect(requests).toEqual([]);
+  // Overview acquires the compact current context, but no immutable specialist history.
+  await expect.poll(() => requests).toEqual(["/api/v1/market-geography"]);
+  expect(requests.some((path) => path.startsWith("/api/v2/market-geography/"))).toBe(false);
+  await expect.poll(() => responses.has("/api/v1/market-geography")).toBe(true);
+  requests.length = 0;
+  responses.clear();
   await page.goto("/?view=market");
   const panel = page.getByRole("region", { name: "Where are prices diverging?" });
   await expect(panel).toBeVisible();
