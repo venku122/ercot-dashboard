@@ -55,7 +55,7 @@ import {
 } from "./dashboard/information-architecture";
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
-import { historicalContextAsOf } from "./dashboard/historical-context";
+import { historicalContextAsOf } from "./dashboard/historical-context-clock";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
 import {
   ERCOT_CALENDAR_PRESETS,

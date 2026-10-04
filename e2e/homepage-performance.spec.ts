@@ -197,10 +197,6 @@ test("PERF-01 production homepage cold-load and cursor evidence", async ({ brows
     balanceCard.getByRole("button", { name: "Available capacity", exact: true }),
   ).not.toHaveClass(/legend-row-hidden/);
   await history.settled();
-  expect(
-    history.requests.slice(before),
-    "all GET/POST history requests during 200 changed readouts and solo/restore",
-  ).toEqual([]);
   const budget = evaluatePerformanceBudget({
     coldMs,
     pointerMs: samples.samples,
@@ -209,7 +205,12 @@ test("PERF-01 production homepage cold-load and cursor evidence", async ({ brows
   });
   const fixtureFiles: Record<string, string | null> = {};
   const fixtureHasher = createHash("sha256");
-  for (const path of ["e2e/mobile-fixtures.ts", "e2e/paired-headroom-fixtures.ts"]) {
+  for (const path of [
+    "e2e/mobile-fixtures.ts",
+    "e2e/paired-headroom-fixtures.ts",
+    "e2e/archived-forecast-fixtures.ts",
+    "e2e/market-geography-fixtures.ts",
+  ]) {
     const content = await readFile(path).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT") throw error;
       return null;
@@ -248,6 +249,10 @@ test("PERF-01 production homepage cold-load and cursor evidence", async ({ brows
     JSON.stringify(result, null, 2) + "\n",
   );
   console.log(JSON.stringify({ ...result, profiles: undefined, pointerMs: undefined }));
+  expect(
+    history.requests.slice(before),
+    "all GET/POST history requests during 200 changed readouts and solo/restore",
+  ).toEqual([]);
   if (process.env.PERFORMANCE_REPORT_ONLY !== "1") expect(budget.failures).toEqual([]);
   await context.close();
 });
