@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { installObservedTiles } from "./paired-headroom-fixtures";
+import { installObservedTiles, nativeFixtureIndex } from "./paired-headroom-fixtures";
 
 export type MobileScenario =
   | "active-event"
@@ -313,6 +313,57 @@ function eventFixture(scenario: MobileScenario) {
   ];
 }
 
+// Mirrors the receiver's bounded v1 aggregate contract over a complete raw oracle.
+// Min/max vertices retain real epochs; averages have explicit aggregate bucket epochs.
+export function projectNativeFixture(
+  points: number[][],
+  since: number,
+  until: number,
+  maxPoints: number,
+  aggregation = "average",
+) {
+  if (!maxPoints || points.length <= maxPoints) return { points, bucketSeconds: 300 };
+  const target = aggregation === "minmax" ? Math.max(1, Math.floor(maxPoints / 2)) : maxPoints;
+  const bucketSeconds = Math.max(1, Math.floor((until - since) / target) + 1);
+  const buckets = new Map<number, number[][]>();
+  for (const point of points) {
+    const epoch = Math.floor(point[0]! / bucketSeconds) * bucketSeconds;
+    const bucket = buckets.get(epoch) ?? [];
+    bucket.push(point);
+    buckets.set(epoch, bucket);
+  }
+  let projected = [...buckets].flatMap(([epoch, bucket]) => {
+    if (aggregation !== "minmax")
+      return [[epoch, bucket.reduce((sum, point) => sum + point[1]!, 0) / bucket.length]];
+    const minimum = bucket.reduce((a, b) => (b[1]! < a[1]! ? b : a));
+    const maximum = bucket.reduce((a, b) => (b[1]! > a[1]! ? b : a));
+    return minimum === maximum ? [minimum] : [minimum, maximum].sort((a, b) => a[0]! - b[0]!);
+  });
+  // The receiver applies a second bounded min/max pass if UTC bucket alignment
+  // leaves an extra edge bucket. Preserve actual extrema and their epochs.
+  if (projected.length > maxPoints) {
+    const step =
+      Math.floor(
+        (projected.at(-1)![0]! - projected[0]![0]!) / Math.max(1, Math.floor(maxPoints / 2)),
+      ) + 1;
+    const groups = new Map<number, number[][]>();
+    for (const point of projected) {
+      const index = Math.max(0, Math.ceil((point[0]! - projected[0]![0]!) / step) - 1);
+      const group = groups.get(index) ?? [];
+      group.push(point);
+      groups.set(index, group);
+    }
+    projected = [...groups.values()]
+      .flatMap((group) => {
+        const minimum = group.reduce((a, b) => (b[1]! < a[1]! ? b : a)),
+          maximum = group.reduce((a, b) => (b[1]! > a[1]! ? b : a));
+        return minimum === maximum ? [minimum] : [minimum, maximum].sort((a, b) => a[0]! - b[0]!);
+      })
+      .slice(0, maxPoints);
+  }
+  return { points: projected, bucketSeconds };
+}
+
 export async function installMobileApi(
   page: Page,
   scenario: MobileScenario = "normal",
@@ -326,6 +377,7 @@ export async function installMobileApi(
     (metric, index) => metricValue(metric, ["source:supply_demand"], index, scenario),
     scenario === "empty",
     scenario === "error",
+    options.nativeCadence === true,
   );
   await page.route("**/api/series/batch", async (route) => {
     if (scenario === "error") {
@@ -333,34 +385,66 @@ export async function installMobileApi(
       return;
     }
     const payload = route.request().postDataJSON() as {
-      queries: Array<{ id: string; metric: string; since: number; tags: string[]; until: number }>;
+      queries: Array<{
+        id: string;
+        metric: string;
+        since: number;
+        tags: string[];
+        until: number;
+        max_points?: number;
+        aggregation?: "minmax" | "average";
+      }>;
     };
     requests.push(payload.queries.map((query) => query.id));
     const series = payload.queries.map((query) => {
       const count = options.nativeCadence
-        ? Math.min(1200, Math.floor((query.until - query.since) / 300) + 1)
+        ? Math.max(0, Math.floor((query.until - Math.ceil(query.since / 300) * 300) / 300) + 1)
         : query.id.includes("compare")
           ? 42
           : 64;
-      const step = Math.max(60, Math.floor((query.until - query.since) / (count - 1)));
+      // Native mode is one epoch-anchored raw source, inclusive v1 bounds.
+      // The unchanged 64/42-point mode is a legacy aggregate screenshot fixture.
+      const step = options.nativeCadence
+        ? 300
+        : Math.max(60, Math.floor((query.until - query.since) / (count - 1)));
+      const first = options.nativeCadence ? Math.ceil(query.since / 300) * 300 : query.since;
       const points =
         scenario === "empty"
           ? []
           : Array.from({ length: count }, (_, index) => [
-              query.since + index * step,
-              query.id.startsWith("hero:")
-                ? heroHistoryValue(query.metric, query.tags, index, count, scenario)
-                : metricValue(query.metric, query.tags, index, scenario),
+              first + index * step,
+              options.nativeCadence
+                ? metricValue(
+                    query.metric,
+                    query.tags,
+                    nativeFixtureIndex(first + index * step, FIXED_NOW_SECONDS),
+                    scenario,
+                  )
+                : query.id.startsWith("hero:")
+                  ? heroHistoryValue(query.metric, query.tags, index, count, scenario)
+                  : metricValue(query.metric, query.tags, index, scenario),
             ]);
+      const projection = options.nativeCadence
+        ? projectNativeFixture(
+            points,
+            query.since,
+            query.until,
+            query.max_points ?? 1200,
+            query.aggregation,
+          )
+        : { points, bucketSeconds: step };
       return {
         id: query.id,
         metric: query.metric,
-        points,
+        points: projection.points,
         meta: {
           since: query.since,
           until: query.until,
-          max_points: 1200,
-          bucket_seconds: step,
+          max_points: query.max_points ?? 1200,
+          bucket_seconds: projection.bucketSeconds,
+          ...(options.nativeCadence
+            ? { aggregation: query.aggregation ?? "average", native_interval_seconds: 300 }
+            : {}),
           partial_current_bucket: !query.id.includes("compare"),
           stats: {
             average: points.length

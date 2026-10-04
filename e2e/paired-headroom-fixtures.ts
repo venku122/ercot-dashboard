@@ -49,6 +49,7 @@ export function observedTileFixture(
   now: number,
   value: NativeFixtureValue,
   empty = false,
+  inclusiveNow = false,
 ) {
   const match =
     /^\/api\/v2\/tiles\/(supply-demand\.(?:paired-headroom|available-capacity|demand))\/(1h|1d)\/(\d+)\/(native|5m|15m|1h)$/.exec(
@@ -61,7 +62,7 @@ export function observedTileFixture(
   const paired = key === pairedCatalogEntry.key;
   const step = lod === "native" ? 300 : lod === "5m" ? 300 : lod === "15m" ? 900 : 3600;
   const rows: Array<[number, number]> = [];
-  for (let ts = start; !empty && ts < end && ts <= now - 30; ts += 300) {
+  for (let ts = start; !empty && ts < end && ts <= now - (inclusiveNow ? 0 : 30); ts += 300) {
     const index = nativeFixtureIndex(ts, now);
     // Same source identity and epoch for both native contributors; subtraction
     // happens here, before any bucket counts, extrema, sums or timestamps.
@@ -160,6 +161,7 @@ export async function installObservedTiles(
   value: NativeFixtureValue,
   empty = false,
   unavailable = false,
+  inclusiveNow = false,
 ) {
   const fulfill = async (route: Parameters<Parameters<Page["route"]>[1]>[0], payload: unknown) => {
     const body = JSON.stringify(payload),
@@ -204,7 +206,7 @@ export async function installObservedTiles(
     }
     await fulfill(
       route,
-      observedTileFixture(new URL(route.request().url()).pathname, now, value, empty),
+      observedTileFixture(new URL(route.request().url()).pathname, now, value, empty, inclusiveNow),
     );
   });
 }
