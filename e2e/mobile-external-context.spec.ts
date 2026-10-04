@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 
 import { installExternalContextApi } from "./external-context-fixtures";
 import { expectNoHorizontalOverflow, installMobileApi } from "./mobile-fixtures";
@@ -33,6 +34,7 @@ test("External Context navigation and exact evidence are contained on mobile @mo
 test("External Context has stable mobile no-key and eGRID evidence @mobile-vri", async ({
   page,
 }) => {
+  const evidence = observeVisualSources(page);
   await installMobileApi(page);
   await installExternalContextApi(page);
   await page.goto("/?view=external-context&context_source=epa_egrid");
@@ -42,6 +44,11 @@ test("External Context has stable mobile no-key and eGRID evidence @mobile-vri",
     (element as HTMLElement).style.visibility = "hidden";
   });
   await panel.scrollIntoViewIfNeeded();
+  const exact = panel.getByRole("region", { name: "Exact eGRID ERCT annual rate evidence" });
+  await expect(exact.locator("tbody tr")).toHaveCount(7);
+  await expect(exact).toContainText("818.7");
+  await evidence.capture("external-context-mobile", panel);
+  await evidence.capture("external-context-exact-mobile", exact);
   await expect(panel).toHaveScreenshot("external-context-mobile.png");
   await expect(
     panel.getByRole("region", { name: "Exact eGRID ERCT annual rate evidence" }),

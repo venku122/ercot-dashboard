@@ -11,17 +11,21 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 
 // Passive evidence for individually reviewed images. Source samples are never modified.
-export function observeVisualSources(page: Page) {
+export function observeVisualSources(page: Page, options: { contextOnly?: boolean } = {}) {
+  const isContext = (url: string) =>
+    /\/api\/v[12]\/(historical-context|external-context|texas-grid)/.test(url);
   const responses: unknown[] = [];
   const failures: string[] = [];
   const pending = new Set<Promise<void>>();
   const onRequestFailed = (request: Request) => {
-    if (request.url().includes("/api/")) failures.push(request.url());
+    if (request.url().includes("/api/") && (!options.contextOnly || isContext(request.url())))
+      failures.push(request.url());
   };
   const onResponse = (response: Response) => {
     const path = new URL(response.url()).pathname;
+    if (options.contextOnly && !isContext(path)) return;
     if (
-      !/^\/api\/(series\/batch|latest\/batch|v[12]\/(source-health|tile-catalog|tiles\/|series\/chunk|historical-forecast))/.test(
+      !/^\/api\/(series\/batch|latest\/batch|v[12]\/(source-health|tile-catalog|tiles\/|series\/chunk|historical-forecast|historical-context|external-context|texas-grid))/.test(
         path,
       )
     )
@@ -59,6 +63,9 @@ export function observeVisualSources(page: Page) {
       responses.push({
         path: response.url(),
         status: response.status(),
+        contextBody: /\/api\/v[12]\/(historical-context|external-context|texas-grid)/.test(path)
+          ? body
+          : undefined,
         query: response.request().postDataJSON(),
         sha256: body ? createHash("sha256").update(JSON.stringify(body)).digest("hex") : null,
         forecast:
