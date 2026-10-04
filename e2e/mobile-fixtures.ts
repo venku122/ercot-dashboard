@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { installObservedTiles } from "./paired-headroom-fixtures";
 
 export type MobileScenario =
   | "active-event"
@@ -319,6 +320,13 @@ export async function installMobileApi(
   options: { nativeCadence?: boolean } = {},
 ) {
   await page.clock.setFixedTime(FIXED_NOW);
+  await installObservedTiles(
+    page,
+    FIXED_NOW_SECONDS,
+    (metric, index) => metricValue(metric, ["source:supply_demand"], index, scenario),
+    scenario === "empty",
+    scenario === "error",
+  );
   await page.route("**/api/series/batch", async (route) => {
     if (scenario === "error") {
       await route.fulfill({ status: 503, body: "fixture upstream unavailable" });

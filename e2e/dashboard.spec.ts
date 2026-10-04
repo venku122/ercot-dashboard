@@ -2,6 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { outlookFixture } from "./mobile-fixtures";
+import {
+  installObservedTiles,
+  observedTileFixture,
+  pairedCatalogEntry,
+} from "./paired-headroom-fixtures";
 
 type Scenario =
   | "empty"
@@ -243,6 +248,7 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
   const to = FIXED_NOW_SECONDS - 2 * 86_400;
   const from = to - 7 * 86_400;
   const catalogSeries = [
+    pairedCatalogEntry,
     {
       key: "supply-demand.available-capacity",
       match: "exact",
@@ -280,7 +286,7 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
       unit: "MW",
     },
   ] as const;
-  await page.route("**/api/v2/tile-catalog", async (route) => {
+  await page.route("**/api/v2/tile-catalog**", async (route) => {
     await route.fulfill({
       json: {
         boundary_policy: {
@@ -291,7 +297,11 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
         derived_resources: [],
         lod_seconds: { "15m": 900, "1h": 3600, "5m": 300, native: null },
         schema: 2,
-        series: catalogSeries,
+        series: catalogSeries.filter(
+          (entry) =>
+            entry.match !== "paired" ||
+            new URL(route.request().url()).search === "?include=paired-headroom",
+        ),
         tile_spans: { "1d": 86_400, "1h": 3600 },
       },
     });
@@ -305,6 +315,15 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
     expect(match).not.toBeNull();
     const [, seriesKey, tileSpan, tileStartRaw, lod] = match!;
     const definition = catalogSeries.find((entry) => entry.key === seriesKey)!;
+    if (seriesKey !== "supply-demand.forecast-demand") {
+      await route.fulfill({
+        json: observedTileFixture(url.pathname, FIXED_NOW_SECONDS, (metric) =>
+          metric.includes("available_capacity") ? 93000 : 68000,
+        ),
+      });
+      return;
+    }
+
     const tileStart = Number(tileStartRaw);
     const tileEnd = tileStart + (tileSpan === "1d" ? 86_400 : 3600);
     const overlapStart = Math.max(tileStart, from);
@@ -482,11 +501,12 @@ async function installApi(
 ) {
   if (installClock) await page.clock.install({ time: FIXED_NOW });
   else await page.clock.setFixedTime(FIXED_NOW);
-  await page.route("**/api/v2/tile-catalog", (route) =>
-    route.fulfill({ status: 503, body: "fixture v2 catalog unavailable" }),
-  );
-  await page.route("**/api/v2/tiles/**", (route) =>
-    route.fulfill({ status: 503, body: "fixture v2 tile unavailable" }),
+  await installObservedTiles(
+    page,
+    FIXED_NOW_SECONDS,
+    (metric, index) => metricValue(metric, ["source:supply_demand"], index, scenario),
+    scenario === "empty",
+    scenario === "error",
   );
   await page.route("**/api/v1/series/chunk**", async (route) => {
     const url = new URL(route.request().url());
