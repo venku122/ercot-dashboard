@@ -1,3 +1,9 @@
+import {
+  canonicalDisplayPoints,
+  connectionGap,
+  observationAt,
+  temporalPolicy,
+} from "./series-temporal-policy";
 import { chartDefinitions } from "./chart-config";
 import type { ChartDefinition, LoadedSeries, Point, SeriesDefinition } from "./types";
 import type { RankingRow } from "./api";
@@ -70,44 +76,27 @@ export function precedingObservation(
   maxAge: number,
   nativeCadence = 300,
 ) {
-  if (!series) return null;
-  let low = 0,
-    high = series.points.length - 1,
-    found: Point | undefined;
-  while (low <= high) {
-    const mid = (low + high) >>> 1;
-    const point = series.points[mid]!;
-    if (point[0] <= at) {
-      found = point;
-      low = mid + 1;
-    } else high = mid - 1;
-  }
-  if (!found || !Number.isFinite(found[1]) || at - found[0] > maxAge) return null;
-  return {
-    ts: found[0],
-    value: found[1],
-    aggregate: (series.meta.bucket_seconds ?? 0) > nativeCadence,
-  };
+  return observationAt(series, at, {
+    kind: "instant",
+    nativeCadenceSeconds: nativeCadence,
+    connectionGapSeconds: maxAge,
+    cursor: { mode: "preceding", maxAgeSeconds: maxAge },
+    evidence: "Legacy caller supplied cadence and age",
+  });
 }
 
-// Collection resolution is independent of a series' native publication cadence.
 export function seriesGapSeconds(chartId: string, series: SeriesDefinition, loaded?: LoadedSeries) {
-  const defaultGap = chartId === "frequency" ? 60 : 600;
-  const nativeCadence =
-    chartId === "pricing"
-      ? 900
-      : chartId === "supply-demand" && series.id === "forecast-demand"
-        ? 3600
-        : 0;
-  return Math.max(defaultGap, nativeCadence * 1.5, (loaded?.meta.bucket_seconds ?? 0) * 2);
+  return connectionGap(temporalPolicy(chartId, series), loaded);
 }
 
 export function displayPoints(points: Point[], gapSeconds: number) {
   const output: Array<{ x: number; y: number }> = [];
-  points.forEach(([ts, value], index) => {
-    const prior = points[index - 1];
-    if (prior && ts - prior[0] > gapSeconds)
-      output.push({ x: (prior[0] + gapSeconds) * 1000, y: Number.NaN });
+  const canonical = canonicalDisplayPoints(points);
+  const allowedGap = Number.isFinite(gapSeconds) && gapSeconds >= 0 ? gapSeconds : 0;
+  canonical.forEach(([ts, value], index) => {
+    const prior = canonical[index - 1];
+    if (prior && ts - prior[0] > allowedGap)
+      output.push({ x: (prior[0] + allowedGap) * 1000, y: Number.NaN });
     output.push({ x: ts * 1000, y: value });
   });
   return output;
@@ -126,7 +115,14 @@ export function alignedGeneration(series: LoadedSeries[]) {
           ? values.get(ts)!
           : Number.NaN,
       ]),
-      Math.max(600, ...series.map((item) => (item.meta.bucket_seconds ?? 0) * 2)),
+      Math.max(
+        ...series.map((item) =>
+          connectionGap(
+            temporalPolicy("fuel-mix", { id: "generation", color: "", label: "" }),
+            item,
+          ),
+        ),
+      ),
     ),
   );
 }

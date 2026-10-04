@@ -1,3 +1,4 @@
+import { observationAt, temporalPolicy } from "./series-temporal-policy";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import useSWR from "swr";
 import { chartDefinitions } from "./chart-config";
@@ -9,7 +10,6 @@ import {
   marketNames,
   marketSeries,
   marketTime,
-  precedingObservation,
   coherentPriceSnapshots,
 } from "./homepage-model";
 import { formatValue } from "./units";
@@ -54,35 +54,40 @@ function TimeReadings({
   const priceSeries = marketSeries[selected];
   const readingTime = cursor.timestamp ?? time.end;
   const readings = [
-    ["Demand", "supply-demand:demand", "MW", 600],
-    ["Derived headroom", "overview-headroom:headroom", "MW", 600],
-    ["Reported PRC", "overview-headroom:prc", "MW", 600],
-    [marketNames[selected] ?? selected, `pricing:${priceSeries}`, "$/MWh", 1800],
-    ["Frequency", "frequency:frequency", "Hz", 60],
+    ["Demand", "supply-demand:demand", "MW"],
+    ["Derived headroom", "overview-headroom:headroom", "MW"],
+    ["Reported PRC", "overview-headroom:prc", "MW"],
+    [marketNames[selected] ?? selected, `pricing:${priceSeries}`, "$/MWh"],
+    ["Frequency", "frequency:frequency", "Hz"],
   ] as const;
   return evidence ? (
     <details className="homepage-engineering">
       <summary>Cursor evidence · observation times, ages &amp; resolution</summary>
       <p className="homepage-chart-note">
-        {marketTime(readingTime)} · * is a displayed aggregate bucket, not a native observation. No
-        request is made when moving the cursor. Arrow keys move the cursor; Enter pins the range;
-        Escape clears without resuming live.
+        {marketTime(readingTime)} · * marks aggregate or unknown resolution. Bucket width does not
+        prove native coverage. No request is made when moving the cursor. Arrow keys move the
+        cursor; Enter pins the range; Escape clears without resuming live.
       </p>
       <dl>
-        {readings.map(([label, key, unit, age]) => {
+        {readings.map(([label, key, unit]) => {
           const loaded = seriesData.get(key);
-          const point = precedingObservation(
+          const [chartId, seriesId] = key.split(":");
+          const series =
+            chartDefinitions
+              .find((item) => item.id === chartId)
+              ?.series.find((item) => item.id === seriesId) ??
+            headroomChart.series.find((item) => item.id === seriesId);
+          const point = observationAt(
             loaded,
             readingTime,
-            Math.max(age, (loaded?.meta.bucket_seconds ?? 0) * 2),
-            unit === "Hz" ? 1 : 300,
+            series ? temporalPolicy(chartId!, series) : undefined,
           );
           return (
             <div key={key}>
               <dt>{label}</dt>
               <dd>
                 {point
-                  ? `${formatValue(point.value, unit)} · ${marketTime(point.ts)} · ${Math.round(readingTime - point.ts)}s old · ${point.aggregate ? "aggregate" : "source-resolution"} · ${loaded?.meta.bucket_seconds ?? "unknown"}s bucket`
+                  ? `${formatValue(point.value, unit)} · ${marketTime(point.ts)} · ${Math.round(readingTime - point.ts)}s old · ${point.resolution} · ${point.coverage} coverage · ${loaded?.meta.bucket_seconds ?? "unknown"}s bucket`
                   : "No recent compatible observation"}
               </dd>
             </div>
@@ -93,13 +98,18 @@ function TimeReadings({
   ) : (
     <>
       <div className="homepage-readings" aria-label="Time-aligned grid readings">
-        {readings.map(([label, key, unit, age]) => {
+        {readings.map(([label, key, unit]) => {
           const loaded = seriesData.get(key);
-          const point = precedingObservation(
+          const [chartId, seriesId] = key.split(":");
+          const series =
+            chartDefinitions
+              .find((item) => item.id === chartId)
+              ?.series.find((item) => item.id === seriesId) ??
+            headroomChart.series.find((item) => item.id === seriesId);
+          const point = observationAt(
             loaded,
             readingTime,
-            Math.max(age, (loaded?.meta.bucket_seconds ?? 0) * 2),
-            unit === "Hz" ? 1 : 300,
+            series ? temporalPolicy(chartId!, series) : undefined,
           );
           return (
             <div
@@ -107,7 +117,7 @@ function TimeReadings({
               tabIndex={0}
               title={
                 point
-                  ? `${point.aggregate ? "Aggregate bucket" : "Observation"}: ${marketTime(point.ts)} · age ${Math.round(readingTime - point.ts)} seconds`
+                  ? `${point.resolution === "native" ? "Observation" : `${point.resolution} resolution · ${point.coverage} coverage`}: ${marketTime(point.ts)} · age ${Math.round(readingTime - point.ts)} seconds`
                   : "No recent compatible observation"
               }
             >
@@ -128,7 +138,7 @@ function TimeReadings({
                     ) : (
                       formatValue(point.value, unit)
                     )}
-                    {point.aggregate ? "*" : ""}
+                    {point.resolution !== "native" ? "*" : ""}
                   </>
                 ) : (
                   "—"
