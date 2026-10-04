@@ -4,7 +4,12 @@ import useSWR from "swr";
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { DisclosureCard } from "../components/ui/disclosure-card";
 import { formatValue } from "./units";
-import { loadMarketManifest, loadMarketResource, type MarketSeriesKey } from "./market-mechanics";
+import {
+  loadMarketManifest,
+  loadMarketResource,
+  MARKET_SERIES,
+  type MarketSeriesKey,
+} from "./market-mechanics";
 
 const LABELS: Partial<Record<MarketSeriesKey, string>> = {
   "market.sced.system-lambda": "System Lambda",
@@ -124,7 +129,8 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
   const grouped = useMemo(() => {
     if (!current) return [];
     const result = new Map<string, MarketSeriesKey[]>();
-    for (const key of Object.keys(current.readings) as MarketSeriesKey[]) {
+    for (const key of Object.keys(MARKET_SERIES) as MarketSeriesKey[]) {
+      if (!current.readings[key]) continue;
       const name = group(key);
       result.set(name, [...(result.get(name) ?? []), key]);
     }
