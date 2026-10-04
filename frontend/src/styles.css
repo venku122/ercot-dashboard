@@ -242,7 +242,7 @@
 }
 
 html {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100%;
   background: #070b12;
 }
@@ -282,6 +282,8 @@ a {
 }
 
 .dashboard-shell {
+  container-name: dashboard-page;
+  container-type: inline-size;
   width: min(1780px, 100%);
   margin: 0 auto;
   padding: 28px clamp(16px, 3vw, 42px) 48px;
@@ -3042,7 +3044,7 @@ footer p {
   html,
   body {
     max-width: 100%;
-    overflow-x: clip;
+    overflow-x: visible;
   }
 
   .dashboard-shell {
@@ -5213,4 +5215,122 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ui-content-gap);
+}
+
+/* Reflow follows available CSS space, including when browser zoom narrows it. */
+.dashboard-brand > div,
+.dashboard-header > *,
+.compact-control-bar,
+.series-legend {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@container dashboard-page (max-width: 900px) {
+  .dashboard-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .dashboard-header .compact-control-bar {
+    grid-column: 1 / -1;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .dashboard-brand h1 {
+    overflow-wrap: anywhere;
+  }
+}
+
+@container dashboard-page (max-width: 250px) {
+  .dashboard-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dashboard-header .freshness-state {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+  .dashboard-brand {
+    flex-wrap: wrap;
+  }
+}
+
+@container dashboard-page (max-width: 450px) {
+  .desktop-view-nav {
+    flex-wrap: wrap;
+  }
+  .status-strip,
+  .status-strip-item {
+    flex-wrap: wrap;
+  }
+  .chart-card-header {
+    flex-wrap: wrap;
+  }
+}
+
+@container dashboard-page (max-width: 250px) {
+  .dashboard-shell:has(.homepage-workspace) .compact-control-bar {
+    flex-wrap: wrap;
+  }
+  .dashboard-shell:has(.homepage-workspace) .status-strip-item {
+    flex-direction: column;
+    align-items: flex-start;
+    padding-inline: 4px;
+  }
+  .status-strip-item strong {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: initial;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Intrinsic content also remains bounded in engines with different zoom query sizing. */
+.grid-health-summary,
+.grid-health-summary > *,
+.overview-readings,
+.overview-readings > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.grid-health-summary-heading,
+.grid-health-details li > div {
+  flex-wrap: wrap;
+}
+
+.grid-health-details,
+.grid-health-details > div {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.grid-health-details > div {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 701px) {
+  .dashboard-header {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .dashboard-header > .dashboard-brand {
+    flex: 1 1 min(340px, 100%);
+  }
+  .dashboard-header > .compact-control-bar {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard-header {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .dashboard-header > .dashboard-brand {
+    flex: 1 1 min(170px, 100%);
+  }
+  .dashboard-shell:has(.homepage-workspace) .compact-control-bar {
+    flex-wrap: wrap;
+  }
 }

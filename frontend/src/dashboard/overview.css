@@ -25,7 +25,7 @@
 }
 .homepage-readings {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(7rem, 100%), 1fr));
   border: 1px solid #334155;
   border-radius: 6px;
   margin-bottom: 12px;
@@ -437,4 +437,89 @@
   bottom: 16px;
   right: 16px;
   z-index: 50;
+}
+
+@container dashboard-page (max-width: 450px) {
+  .homepage-readings {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .homepage-readings > div {
+    grid-column: span 2;
+  }
+  .homepage-readings > div:nth-child(n + 4) {
+    grid-column: span 3;
+  }
+  .homepage-readings > div > span {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .homepage-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .homepage-wide,
+  .homepage-narrow,
+  .homepage-half,
+  .homepage-full {
+    grid-column: 1;
+  }
+}
+
+@container dashboard-page (max-width: 250px) {
+  .homepage-readings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .homepage-readings > div,
+  .homepage-readings > div:nth-child(n + 4) {
+    grid-column: auto;
+    overflow: visible;
+  }
+  .homepage-readings span,
+  .homepage-readings strong,
+  .homepage-price-select {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .homepage-price-select {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container dashboard-page (max-width: 450px) {
+  .homepage-ranking table {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .homepage-ranking th,
+  .homepage-ranking td,
+  .homepage-ranking button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@container dashboard-page (max-width: 450px) {
+  .homepage-price-select {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.homepage-workspace .chart-card-header {
+  flex-wrap: wrap;
+}
+.homepage-workspace .chart-card-header > div {
+  min-width: 0;
+  max-width: 100%;
+}
+.homepage-workspace .chart-actions {
+  flex-wrap: wrap;
+}
+
+@container dashboard-page (max-width: 450px) {
+  .homepage-readings > div {
+    overflow: visible;
+  }
+  .homepage-readings > div > strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
