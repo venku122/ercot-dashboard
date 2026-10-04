@@ -1,3 +1,5 @@
+> Historical evidence: preserved as originally measured. For current revisions, campaign acceptance, deployment unknowns and architecture precedence, see [Current status](../CURRENT_STATUS.md). Pointer added October 3, 2026.
+
 # Homepage verification
 
 Application revision tested: `8aadcf8cc240e91893d65f5b8dd76fe76bf5be62`.

@@ -1,5 +1,7 @@
 # ERCOT Grid Monitor
 
+Current code, validation and deployment evidence: [Current status](docs/CURRENT_STATUS.md).
+
 Live ERCOT grid metrics with a self-hosted collector, receiver, and analytical dashboard UI.
 
 Live site:
