@@ -88,6 +88,7 @@ type Props = {
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
   time: TimeState;
+  selectionTime?: TimeState;
 };
 
 const tickDate = new Intl.DateTimeFormat("en-US", {
@@ -267,6 +268,7 @@ export function ChartCard({
   seriesData,
   sourceHealth,
   time,
+  selectionTime = time,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorLineRef = useRef<HTMLDivElement>(null);
@@ -329,7 +331,7 @@ export function ChartCard({
     const completed = loaded?.meta.completed_selection;
     return loaded?.points.length &&
       completed &&
-      isPreviousSelection(completed, time, compare, customCompareSeconds)
+      isPreviousSelection(completed, selectionTime, compare, customCompareSeconds)
       ? [selectionDescription(completed)]
       : [];
   });
@@ -403,7 +405,7 @@ export function ChartCard({
       });
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
-          label: `${series.label} · ${(isPreviousSelection(loaded.meta.completed_selection, time, compare, customCompareSeconds) ? loaded.meta.completed_selection!.compare : compare).replace("_", " ")}`,
+          label: `${series.label} · ${(isPreviousSelection(loaded.meta.completed_selection, selectionTime, compare, customCompareSeconds) ? loaded.meta.completed_selection!.compare : compare).replace("_", " ")}`,
           data:
             temporalPolicy(chart.id, series)?.cursor.mode === "interval"
               ? intervalPlotPoints(loaded.compare, loaded.meta.comparison_intervals ?? [], {
@@ -905,7 +907,7 @@ export function ChartCard({
           policy={temporalPolicy(chart.id, series)}
           previousSelection={isPreviousSelection(
             loaded?.meta.completed_selection,
-            time,
+            selectionTime,
             compare,
             customCompareSeconds,
           )}

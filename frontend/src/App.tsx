@@ -1157,6 +1157,7 @@ export function App() {
         }
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
         time={seriesTime}
+        selectionTime={resolvedTime}
       />
     </Suspense>
   );
