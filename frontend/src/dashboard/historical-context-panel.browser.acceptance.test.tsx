@@ -77,6 +77,18 @@ describe("PR20 historical context browser lifecycle acceptance", () => {
     );
   }
 
+  it("keeps a unique disclosure relationship mounted while collapsed and restores it when expanded", async () => {
+    await act(async () => render(true, false));
+    const trigger = container.querySelector<HTMLButtonElement>("button[aria-expanded]")!;
+    const id = trigger.getAttribute("aria-controls")!;
+    expect(container.querySelector(`[id="${id}"]`)).not.toBeNull();
+    expect(container.querySelector(`[id="${id}"]`)?.hasAttribute("hidden")).toBe(true);
+    await act(async () => render(true, true));
+    await flush();
+    expect(trigger.getAttribute("aria-controls")).toBe(id);
+    expect(container.querySelector(`[id="${id}"]`)?.hasAttribute("hidden")).toBe(false);
+  });
+
   it("makes zero requests outside Overview or collapsed and one resolver request when opened", async () => {
     await act(async () => render(false, false));
     await flush();

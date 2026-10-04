@@ -1,3 +1,4 @@
+import { EvidenceDisclosure } from "./EvidenceDisclosure";
 import { useEffect, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
@@ -72,7 +73,7 @@ function Eia930Evidence({ resource }: { resource: Eia930Resource }) {
       <p>Retrieved {utc(resource.publication.retrieved_at)}</p>
       <div
         aria-label="Exact EIA-930 hourly context evidence"
-        className="external-context-table table-scroll"
+        className="external-context-table table-scroll ui-data-table"
         role="region"
         tabIndex={0}
       >
@@ -133,7 +134,7 @@ function HenryHubEvidence({ resource }: { resource: HenryHubResource }) {
       <p>Retrieved {utc(resource.publication.retrieved_at)}</p>
       <div
         aria-label="Exact Henry Hub daily spot-price evidence"
-        className="external-context-table table-scroll"
+        className="external-context-table table-scroll ui-data-table"
         role="region"
         tabIndex={0}
       >
@@ -184,7 +185,7 @@ function EgridEvidence({ resource }: { resource: EgridResource }) {
       </p>
       <div
         aria-label="Exact eGRID ERCT annual rate evidence"
-        className="external-context-table table-scroll"
+        className="external-context-table table-scroll ui-data-table"
         role="region"
         tabIndex={0}
       >
@@ -209,8 +210,7 @@ function EgridEvidence({ resource }: { resource: EgridResource }) {
           </tbody>
         </table>
       </div>
-      <details>
-        <summary>Exact eGRID publication identity</summary>
+      <EvidenceDisclosure title="Exact eGRID publication identity">
         <dl className="external-context-provenance">
           <div>
             <dt>Workbook SHA-256</dt>
@@ -229,7 +229,7 @@ function EgridEvidence({ resource }: { resource: EgridResource }) {
             <dd>{resource.publication.production_version ?? "Not present in workbook"}</dd>
           </div>
         </dl>
-      </details>
+      </EvidenceDisclosure>
     </section>
   );
 }
@@ -307,6 +307,7 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
               <h3>EIA-930 ERCO hourly context</h3>
               <p>Delayed preliminary hourly energy demand and signed total net interchange.</p>
               <Button
+                variant="segmented"
                 aria-pressed={selectedStream === "eia930_demand"}
                 disabled={!manifest.data.eia_930.selected}
                 onClick={() => choose("eia930_demand")}
@@ -331,6 +332,7 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
                 Daily source-market-date context without fill, interpolation, or same-hour joins.
               </p>
               <Button
+                variant="segmented"
                 aria-pressed={selectedStream === "henry_hub_daily"}
                 disabled={!manifest.data.natural_gas.selected}
                 onClick={() => choose("henry_hub_daily")}
@@ -357,6 +359,7 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
                   : "Retrospective annual average output emission-rate methodology."}
               </p>
               <Button
+                variant="segmented"
                 aria-pressed={selectedStream === "epa_egrid"}
                 disabled={!manifest.data.epa_egrid.selected}
                 onClick={() => choose("epa_egrid")}
@@ -392,11 +395,10 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
           ) : null}
           {resource.data ? <ResourceEvidence resource={resource.data} /> : null}
 
-          <details>
-            <summary>Source collection and materialization health</summary>
+          <EvidenceDisclosure title="Source collection and materialization health">
             <div
               aria-label="Exact external-context source health"
-              className="external-context-table table-scroll"
+              className="external-context-table table-scroll ui-data-table"
               role="region"
               tabIndex={0}
             >
@@ -429,7 +431,7 @@ export function ExternalContextView({ enabled }: { enabled: boolean }) {
                 </tbody>
               </table>
             </div>
-          </details>
+          </EvidenceDisclosure>
         </>
       ) : null}
     </section>

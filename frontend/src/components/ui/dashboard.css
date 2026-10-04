@@ -103,6 +103,7 @@ button.ui-segment-button[aria-pressed="true"] {
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 .ui-data-table table {
   width: 100%;
