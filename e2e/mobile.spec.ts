@@ -763,10 +763,16 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     .getByLabel("Active grid alerts")
     .getByRole("button", { name: "Review operations" })
     .click();
-  await expect
-    .soft(page.getByRole("dialog", { name: "Operations timeline" }))
-    .toHaveScreenshot("mobile-operations-timeline.png");
+  const operations = page.getByRole("dialog", { name: "Operations timeline" });
+  await expect(operations.getByLabel("Filter operations timeline by severity")).toBeVisible();
+  await expect(
+    operations.getByRole("list", { name: "Historical operations timeline" }).getByRole("listitem"),
+  ).toHaveCount(6);
+  await expect(operations).toContainText("Showing 6 of 6 events, newest first");
+  await evidence.capture("mobile-operations-timeline", operations);
+  await expect.soft(operations).toHaveScreenshot("mobile-operations-timeline.png");
   await page.keyboard.press("Escape");
+  await expect(operations).toBeHidden();
 
   // Register replacements before reload; newest routes win without a polling escape gap.
   await installMobileApi(page, "warning");
