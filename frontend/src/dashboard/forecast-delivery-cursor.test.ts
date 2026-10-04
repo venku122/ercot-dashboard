@@ -175,3 +175,56 @@ it("aligns comparison delivery bounds from its own source window", async () => {
     )?.value,
   ).toBe(24000);
 });
+
+for (const fractional of [0.4, 0.6]) {
+  it(`bounds a fractional 366-day delivery window without advancing cutoff (${fractional})`, async () => {
+    const start = Date.parse("2026-08-18T08:00:00Z") / 1000 + fractional;
+    const end = start + 366 * 86400;
+    let query: URL | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (!url.includes("historical-forecast"))
+          return new Response(JSON.stringify({ series: [] }));
+        query = new URL(url, "http://localhost");
+        const left = Number(query.searchParams.get("start"));
+        const right = Number(query.searchParams.get("end"));
+        const expected = Math.floor((right - 1) / 3600) - Math.ceil(left / 3600) + 1;
+        // Real receiver guards independently tested in test_forecast_vintages.py.
+        if (right - left > 366 * 86400 + 3600 || expected > 8785)
+          return new Response(JSON.stringify({ error: "invalid_historical_forecast" }), {
+            status: 400,
+          });
+        const target = Math.ceil(end / 3600) * 3600;
+        return new Response(
+          JSON.stringify({
+            product_id: "NP3-565-CD",
+            policy: "issued_before_delivery",
+            rows: [
+              {
+                target_ts: target,
+                interval_start: target - 3600,
+                interval_end: target,
+                issued_at: Math.floor(end) - 7200,
+                value: 42000,
+                unit: "MW",
+              },
+            ],
+          }),
+        );
+      }),
+    );
+    const definition = chartDefinitions.find((c) => c.id === "supply-demand")!;
+    const result = await loadSeries(
+      [{ ...definition, series: definition.series.filter((s) => s.id === "forecast-demand") }],
+      { mode: "fixed", paused: true, start, end, rangeSeconds: end - start },
+      "none",
+      0,
+      new AbortController().signal,
+    );
+    expect(result.get("supply-demand:forecast-demand")?.error).toBeNull();
+    expect(result.get("supply-demand:forecast-demand")?.points.at(-1)?.[1]).toBe(42000);
+    expect(Number(query?.searchParams.get("start"))).toBe(Math.ceil(start));
+    expect(Number(query?.searchParams.get("as_of"))).toBe(Math.floor(end));
+  });
+}

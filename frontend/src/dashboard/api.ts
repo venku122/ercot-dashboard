@@ -897,11 +897,11 @@ export async function loadSeries(
     : charts;
   const forecast = async (window: Pick<TimeState, "start" | "end">): Promise<LoadedSeries> => {
     const params = new URLSearchParams({
-      start: String(Math.round(window.start)),
+      start: String(Math.ceil(window.start)),
       // Keep the actual hour-ending epoch for a delivery interval crossing the
       // selected right edge. Issuance remains bounded by the selected-time clock.
       end: String(Math.ceil(window.end / 3600) * 3600 + 1),
-      as_of: String(Math.round(window.end)),
+      as_of: String(Math.floor(window.end)),
       policy: "issued_before_delivery",
     });
     try {
