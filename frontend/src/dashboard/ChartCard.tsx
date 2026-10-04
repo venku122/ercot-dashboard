@@ -256,7 +256,11 @@ export function ChartCard({
         label: series.label,
         data: stacked
           ? aligned[visibleSeries.indexOf(series)]
-          : displayPoints(loaded?.points ?? [], seriesGapSeconds(chart.id, series, loaded)),
+          : displayPoints(
+              loaded?.points ?? [],
+              seriesGapSeconds(chart.id, series, loaded),
+              loaded?.meta.observed_envelope_support,
+            ),
         borderColor: series.color,
         ...(seriesResolution(loaded, temporalPolicy(chart.id, series)) !== "native"
           ? { borderDash: [4, 4] }
@@ -285,7 +289,11 @@ export function ChartCard({
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
           label: `${series.label} · ${compare.replace("_", " ")}`,
-          data: displayPoints(loaded.compare, seriesGapSeconds(chart.id, series, loaded)),
+          data: displayPoints(
+            loaded.compare,
+            seriesGapSeconds(chart.id, series, loaded),
+            loaded.meta.comparison_observed_envelope_support,
+          ),
           stack: `comparison-${series.id}`,
           fill: false,
           borderColor: `${series.color}70`,
@@ -1046,7 +1054,10 @@ export function ChartCard({
         </div>
       )}
 
-      {hasData ? (
+      {/* Keep known mobile overview controls in the initial layout. Their real
+          target height prevents later placeholders briefly entering the viewport
+          before history hydration; absent source values remain explicit dashes. */}
+      {hasData || (mobile && presentation === "overview") ? (
         <div className={`series-legend legend-${legendMode}`}>
           {legendMode === "expanded" ? (
             <table className="legend-table" aria-label={`${chart.title} series statistics`}>

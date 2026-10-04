@@ -417,10 +417,15 @@ function projectCoarseBucket(bucket: AggregateBucket, mode: TileProjectionMode):
   const { state } = bucket;
   if (state.count === 0) return [];
   if (mode === "average") return [[bucket.start, state.value_sum / state.count]];
-  const minimum = [state.minimum_ts!, state.minimum!] satisfies Point;
-  const maximum = [state.maximum_ts!, state.maximum!] satisfies Point;
-  if (minimum[0] === maximum[0] && minimum[1] === maximum[1]) return [minimum];
-  return [minimum, maximum].sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+  const observations = new Map<number, number>();
+  for (const [timestamp, value] of [
+    [state.first_ts!, state.first_value!],
+    [state.minimum_ts!, state.minimum!],
+    [state.maximum_ts!, state.maximum!],
+    [state.last_ts!, state.last_value!],
+  ])
+    observations.set(timestamp!, value!);
+  return [...observations].sort((left, right) => left[0] - right[0]);
 }
 
 export function composeTileWindow(

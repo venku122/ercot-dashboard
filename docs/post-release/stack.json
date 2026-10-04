@@ -61,11 +61,12 @@
       "branch": "ercot-post-release/05-source-audit",
       "base_branch": "ercot-post-release/04-temporal-policies",
       "logical_dependency_ids": ["ERP-01"],
-      "pr_number": null,
-      "pr_url": null,
-      "head_sha": null,
-      "tested_sha": null,
-      "status": "PLANNED_NOT_CREATED"
+      "pr_number": 77,
+      "pr_url": "https://github.com/venku122/ercot-dashboard/pull/77",
+      "head_sha": "327c9eb0bb6315539b9e5ce53eb9a7cac7568fbc",
+      "tested_sha": "327c9eb0bb6315539b9e5ce53eb9a7cac7568fbc",
+      "status": "DRAFT_LOCALLY_VALIDATED",
+      "observed_at_utc": "2026-10-04T05:45:08.734496+00:00"
     },
     {
       "slot": 6,

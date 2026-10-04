@@ -1,5 +1,6 @@
 import { seriesKey } from "./chart-config";
 import { CanonicalUrlCache } from "./canonical-url-cache";
+import { TileTransportLimiter } from "./tile-transport-limiter";
 import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
 import {
@@ -42,6 +43,8 @@ import {
   type HistoricalContextResolver,
 } from "./historical-context";
 import {
+  HEADROOM_METRIC,
+  HEADROOM_PAIRING,
   parseTileCatalog,
   planTileRequests,
   resolveTileSeries,
@@ -101,7 +104,22 @@ type ChunkResult = {
   tags: string[];
 };
 
+type HeadroomCoverage = {
+  continuous_buckets?: number[];
+  policy: string;
+  paired_count: number;
+  expected_count: number;
+  unpaired_count: number;
+  ambiguous_count: number;
+  first_observed_ts: number | null;
+  last_observed_ts: number | null;
+  collection_history: "first_collection_time_not_recorded";
+  reason: "missing_compatible_contributor" | "no_matching_native_epochs" | null;
+  partial_buckets: number[];
+};
+
 type TileResult = {
+  pairing?: HeadroomCoverage;
   boundary_policy: "native_edges_coarse_aligned_interiors";
   buckets: AggregateBucket[];
   lod: TileRequest["lod"];
@@ -121,8 +139,9 @@ const RECENT_TILE_CACHE_TTL_MS = 30 * 1_000;
 const SEALED_TILE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 let catalogCache = new CanonicalUrlCache<unknown>(4);
 let tileCache = new CanonicalUrlCache<TileResult>(512);
+const tileTransportLimiter = new TileTransportLimiter(8);
 let cacheFetchIdentity: typeof fetch | null = null;
-let catalogFingerprint: string | null = null;
+const catalogFingerprints = new Map<string, string>();
 
 export function resetCanonicalApiCachesForTests(): void {
   catalogCache.clear();
@@ -130,14 +149,14 @@ export function resetCanonicalApiCachesForTests(): void {
   catalogCache = new CanonicalUrlCache<unknown>(4);
   tileCache = new CanonicalUrlCache<TileResult>(512);
   cacheFetchIdentity = null;
-  catalogFingerprint = null;
+  catalogFingerprints.clear();
 }
 
 function resetCachesForChangedTransport(): void {
   if (cacheFetchIdentity === fetch) return;
   catalogCache.clear();
   tileCache.clear();
-  catalogFingerprint = null;
+  catalogFingerprints.clear();
   cacheFetchIdentity = fetch;
 }
 
@@ -183,7 +202,9 @@ function parseTileResult(
   const result = value as Partial<TileResult>;
   if (
     Object.keys(value).sort().join(",") !==
-      "boundary_policy,buckets,lod,native_interval_seconds,rollup,schema,series_key,statistic_policy,tile_end,tile_span,tile_start,unit" ||
+      (entry.match === "paired"
+        ? "boundary_policy,buckets,lod,native_interval_seconds,pairing,rollup,schema,series_key,statistic_policy,tile_end,tile_span,tile_start,unit"
+        : "boundary_policy,buckets,lod,native_interval_seconds,rollup,schema,series_key,statistic_policy,tile_end,tile_span,tile_start,unit") ||
     result.schema !== 2 ||
     result.series_key !== entry.key ||
     result.tile_span !== request.tileSpan ||
@@ -198,6 +219,29 @@ function parseTileResult(
     !Array.isArray(result.buckets)
   ) {
     throw new Error("invalid_tile_response_contract");
+  }
+  if (entry.match === "paired") {
+    const coverage = result.pairing;
+    if (
+      !coverage ||
+      coverage.policy !== HEADROOM_PAIRING.policy ||
+      coverage.collection_history !== "first_collection_time_not_recorded" ||
+      ![
+        coverage.paired_count,
+        coverage.expected_count,
+        coverage.unpaired_count,
+        coverage.ambiguous_count,
+      ].every((count) => Number.isSafeInteger(count) && count >= 0) ||
+      (coverage.continuous_buckets !== undefined &&
+        (!Array.isArray(coverage.continuous_buckets) ||
+          !coverage.continuous_buckets.every(Number.isSafeInteger))) ||
+      !Array.isArray(coverage.partial_buckets) ||
+      !coverage.partial_buckets.every(Number.isSafeInteger) ||
+      ![null, "missing_compatible_contributor", "no_matching_native_epochs"].includes(
+        coverage.reason,
+      )
+    )
+      throw new Error("invalid_headroom_coverage");
   }
   let priorKey: readonly [number, number] = [-Infinity, -Infinity];
   const buckets = result.buckets.map((raw) => {
@@ -240,6 +284,31 @@ function parseTileResult(
     priorKey = key;
     return { end, start, state };
   });
+  if (entry.match === "paired" && result.pairing?.continuous_buckets) {
+    const width =
+      request.lod === "native"
+        ? 0
+        : request.lod === "5m"
+          ? 300
+          : request.lod === "15m"
+            ? 900
+            : 3600;
+    const anchors = result.pairing.continuous_buckets;
+    if (
+      new Set(anchors).size !== anchors.length ||
+      anchors.some(
+        (anchor) =>
+          !buckets.some(
+            (bucket) =>
+              bucket.start === anchor &&
+              width > 0 &&
+              bucket.state.count === width / 300 &&
+              bucket.state.last_ts! - bucket.state.first_ts! === width - 300,
+          ),
+      )
+    )
+      throw new Error("invalid_headroom_continuity_evidence");
+  }
   return { ...(result as TileResult), buckets };
 }
 
@@ -506,19 +575,27 @@ async function loadFixedSeriesFromTiles(
   signal: AbortSignal,
 ): Promise<Map<string, LoadedSeries>> {
   resetCachesForChangedTransport();
+  const catalogUrl = charts.some((chart) =>
+    chart.series.some((series) => series.metric === HEADROOM_METRIC),
+  )
+    ? "/api/v2/tile-catalog?include=paired-headroom"
+    : "/api/v2/tile-catalog";
   const catalog = parseTileCatalog(
     await catalogCache.get(
-      "/api/v2/tile-catalog",
-      (sharedSignal) => fetchJson<unknown>("/api/v2/tile-catalog", { method: "GET" }, sharedSignal),
+      catalogUrl,
+      (sharedSignal) => fetchJson<unknown>(catalogUrl, { method: "GET" }, sharedSignal),
       signal,
       CATALOG_CACHE_TTL_MS,
     ),
   );
   const nextCatalogFingerprint = JSON.stringify(catalog);
-  if (catalogFingerprint !== null && catalogFingerprint !== nextCatalogFingerprint) {
+  if (
+    catalogFingerprints.has(catalogUrl) &&
+    catalogFingerprints.get(catalogUrl) !== nextCatalogFingerprint
+  ) {
     tileCache.clear();
   }
-  catalogFingerprint = nextCatalogFingerprint;
+  catalogFingerprints.set(catalogUrl, nextCatalogFingerprint);
   const now = Math.floor(Date.now() / 1000);
   const comparison = compareWindow(compare, time, customCompareSeconds);
   const comparisonTime: TimeState = {
@@ -584,11 +661,13 @@ async function loadFixedSeriesFromTiles(
           : RECENT_TILE_CACHE_TTL_MS;
       const cached = await tileCache.get(
         url,
-        async (sharedSignal) =>
-          parseTileResult(
-            await fetchJson<unknown>(url, { method: "GET" }, sharedSignal),
-            context.request,
-            context.entry,
+        (sharedSignal) =>
+          tileTransportLimiter.run(sharedSignal, async () =>
+            parseTileResult(
+              await fetchJson<unknown>(url, { method: "GET" }, sharedSignal),
+              context.request,
+              context.entry,
+            ),
           ),
         signal,
         ttlMs,
@@ -632,27 +711,125 @@ async function loadFixedSeriesFromTiles(
                 : [],
             ),
             power: job.entry!.statistic_policy === "power",
-            projection: job.chart.spikeCritical ? "spike-envelope" : "average",
+            projection:
+              job.entry!.match === "paired" || job.chart.spikeCritical
+                ? "spike-envelope"
+                : "average",
             start: Math.round(window.start),
           });
         };
+        const support = (requests: TileRequest[], window: TimeState, align = false) => {
+          const ranges = requests
+            .flatMap((request) => {
+              const tile = tileByUrl.get(request.url);
+              if (!tile || tile instanceof Error) return [];
+              return tile.buckets
+                .filter(
+                  (bucket) =>
+                    bucket.state.first_ts !== null &&
+                    bucket.state.first_ts >= window.start &&
+                    bucket.state.last_ts! <= window.end &&
+                    (request.lod === "native" ||
+                      tile.pairing?.continuous_buckets?.includes(bucket.start)),
+                )
+                .map((bucket) => ({ start: bucket.state.first_ts!, end: bucket.state.last_ts! }));
+            })
+            .map((range) => {
+              if (!align) return range;
+              const aligned = alignComparisonForMode(
+                [
+                  [range.start, 0],
+                  [range.end, 0],
+                ],
+                compare,
+                comparison.offset,
+              );
+              return { start: aligned[0]![0], end: aligned[1]![0] };
+            })
+            .sort((left, right) => left.start - right.start);
+          const merged: Array<{ start: number; end: number }> = [];
+          for (const range of ranges) {
+            const prior = merged.at(-1);
+            if (prior && range.start - prior.end <= 300) prior.end = Math.max(prior.end, range.end);
+            else merged.push({ ...range });
+          }
+          return merged;
+        };
         const projection = project(job.currentRequests, time);
+        const paired = job.entry.match === "paired";
+        const partial =
+          paired &&
+          job.currentRequests.some((request) => {
+            const tile = tileByUrl.get(request.url);
+            return (
+              tile &&
+              !(tile instanceof Error) &&
+              tile.pairing?.partial_buckets.some(
+                (start) => start <= time.end && start >= time.start,
+              )
+            );
+          });
         const comparisonProjection =
           compare === "none" ? null : project(job.comparisonRequests, comparisonTime);
+        const missingContributor =
+          paired &&
+          job.currentRequests.some((request) => {
+            const tile = tileByUrl.get(request.url);
+            return (
+              tile &&
+              !(tile instanceof Error) &&
+              tile.pairing?.reason === "missing_compatible_contributor"
+            );
+          });
         loaded = {
           compare: alignComparisonForMode(
             comparisonProjection?.points ?? [],
             compare,
             comparison.offset,
           ),
-          error: null,
+          error:
+            paired && projection.stats.count === 0
+              ? missingContributor
+                ? "paired_headroom_missing_compatible_contributor"
+                : "paired_headroom_no_matching_native_epochs"
+              : null,
           meta: {
-            bucket_seconds: null,
-            max_points: 1200,
-            partial_current_bucket: false,
+            bucket_seconds: paired
+              ? Math.max(
+                  ...job.currentRequests.map((request) =>
+                    request.lod === "native" ? 300 : catalog.lod_seconds[request.lod]!,
+                  ),
+                )
+              : null,
+            max_points: paired ? projection.points.length : 1200,
+            partial_current_bucket: partial,
             since: time.start,
-            stats: projection.stats,
+            stats: {
+              ...projection.stats,
+              ...(paired
+                ? {
+                    minimum_ts: projection.state.minimum_ts,
+                    maximum_ts: projection.state.maximum_ts,
+                  }
+                : {}),
+            },
             until: time.end,
+            ...(paired
+              ? {
+                  observed_envelope_support: support(job.currentRequests, time),
+                  comparison_observed_envelope_support: support(
+                    job.comparisonRequests,
+                    comparisonTime,
+                    true,
+                  ),
+                  pairing: {
+                    policy: HEADROOM_PAIRING.policy,
+                    paired_count: projection.stats.count,
+                    expected_count: Math.floor((time.end - time.start) / 300) + 1,
+                    collection_history: "first_collection_time_not_recorded" as const,
+                  },
+                }
+              : {}),
           },
           points: projection.points,
         };
@@ -663,14 +840,16 @@ async function loadFixedSeriesFromTiles(
     output.set(
       job.key,
       loaded ??
-        (await loadFixedPhysicalSeriesFromChunks(
-          job.chart,
-          job.series,
-          time,
-          compare,
-          customCompareSeconds,
-          signal,
-        )),
+        (job.series.metric === HEADROOM_METRIC
+          ? { points: [], compare: [], meta: {}, error: "paired_headroom_unavailable" }
+          : await loadFixedPhysicalSeriesFromChunks(
+              job.chart,
+              job.series,
+              time,
+              compare,
+              customCompareSeconds,
+              signal,
+            )),
     );
   }
   for (const chart of charts) {
@@ -701,6 +880,44 @@ export async function loadSeries(
   signal: AbortSignal,
   previousData: Map<string, LoadedSeries> = new Map(),
 ): Promise<Map<string, LoadedSeries>> {
+  const pairedCharts = charts.filter((chart) =>
+    chart.series.some((series) => series.metric === HEADROOM_METRIC),
+  );
+  if (pairedCharts.length) {
+    const physicalCharts = charts.filter((chart) => !pairedCharts.includes(chart));
+    const pairedOnly = pairedCharts.map((chart) => ({
+      ...chart,
+      series: chart.series.filter((series) => series.metric === HEADROOM_METRIC),
+    }));
+    const pairedLoad = async () => {
+      try {
+        return await loadFixedSeriesFromTiles(
+          pairedOnly,
+          time,
+          compare,
+          customCompareSeconds,
+          signal,
+        );
+      } catch (error) {
+        if (isAbortError(error, signal)) throw error;
+        return new Map<string, LoadedSeries>(
+          pairedOnly.flatMap((chart) =>
+            chart.series.map((series) => [
+              seriesKey(chart.id, series.id),
+              { points: [], compare: [], meta: {}, error: "paired_headroom_unavailable" },
+            ]),
+          ),
+        );
+      }
+    };
+    const [pairedData, physicalData] = await Promise.all([
+      pairedLoad(),
+      physicalCharts.length
+        ? loadSeries(physicalCharts, time, compare, customCompareSeconds, signal, previousData)
+        : Promise.resolve(new Map<string, LoadedSeries>()),
+    ]);
+    return new Map([...physicalData, ...pairedData]);
+  }
   if (time.mode === "fixed") {
     try {
       return await loadFixedSeriesFromTiles(charts, time, compare, customCompareSeconds, signal);

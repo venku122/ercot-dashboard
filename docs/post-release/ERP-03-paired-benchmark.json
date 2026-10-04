@@ -1,0 +1,67 @@
+{
+  "mode": "isolated_synthetic_representative_year",
+  "contributor_rows": 210240,
+  "database_bytes": 49848320,
+  "sql_plan": [
+    "CO-ROUTINE epochs",
+    "COMPOUND QUERY",
+    "LEFT-MOST SUBQUERY",
+    "MATERIALIZE capacity",
+    "SEARCH metrics USING COVERING INDEX idx_metrics_series_ts_id_value (series_id=? AND ts>? AND ts<?)",
+    "SCAN capacity",
+    "UNION USING TEMP B-TREE",
+    "MATERIALIZE demand",
+    "SEARCH metrics USING COVERING INDEX idx_metrics_series_ts_id_value (series_id=? AND ts>? AND ts<?)",
+    "SCAN demand",
+    "SCAN e",
+    "BLOOM FILTER ON c (ts=?)",
+    "SEARCH c USING AUTOMATIC COVERING INDEX (ts=?) LEFT-JOIN",
+    "BLOOM FILTER ON d (ts=?)",
+    "SEARCH d USING AUTOMATIC COVERING INDEX (ts=?) LEFT-JOIN",
+    "USE TEMP B-TREE FOR ORDER BY"
+  ],
+  "windows": {
+    "6h": {
+      "cold_ms": 1.709,
+      "warm_ms": 0.005,
+      "response_buckets": 72,
+      "paired_samples": 72,
+      "requests": 6
+    },
+    "24h": {
+      "cold_ms": 1.295,
+      "warm_ms": 0.001,
+      "response_buckets": 24,
+      "paired_samples": 288,
+      "requests": 1
+    },
+    "7d": {
+      "cold_ms": 9.551,
+      "warm_ms": 0.006,
+      "response_buckets": 168,
+      "paired_samples": 2016,
+      "requests": 7
+    },
+    "30d": {
+      "cold_ms": 41.212,
+      "warm_ms": 0.022,
+      "response_buckets": 720,
+      "paired_samples": 8640,
+      "requests": 30
+    },
+    "90d": {
+      "cold_ms": 125.024,
+      "warm_ms": 0.075,
+      "response_buckets": 2160,
+      "paired_samples": 25920,
+      "requests": 90
+    },
+    "1y": {
+      "cold_ms": 488.306,
+      "warm_ms": 0.304,
+      "response_buckets": 8760,
+      "paired_samples": 105120,
+      "requests": 365
+    }
+  }
+}

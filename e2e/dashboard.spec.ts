@@ -1,7 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { outlookFixture } from "./mobile-fixtures";
+import {
+  installObservedTiles,
+  installPhysicalChunks,
+  observedTileFixture,
+  pairedCatalogEntry,
+} from "./paired-headroom-fixtures";
 
 type Scenario =
   | "empty"
@@ -243,6 +250,7 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
   const to = FIXED_NOW_SECONDS - 2 * 86_400;
   const from = to - 7 * 86_400;
   const catalogSeries = [
+    pairedCatalogEntry,
     {
       key: "supply-demand.available-capacity",
       match: "exact",
@@ -280,7 +288,7 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
       unit: "MW",
     },
   ] as const;
-  await page.route("**/api/v2/tile-catalog", async (route) => {
+  await page.route("**/api/v2/tile-catalog**", async (route) => {
     await route.fulfill({
       json: {
         boundary_policy: {
@@ -291,7 +299,11 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
         derived_resources: [],
         lod_seconds: { "15m": 900, "1h": 3600, "5m": 300, native: null },
         schema: 2,
-        series: catalogSeries,
+        series: catalogSeries.filter(
+          (entry) =>
+            entry.match !== "paired" ||
+            new URL(route.request().url()).search === "?include=paired-headroom",
+        ),
         tile_spans: { "1d": 86_400, "1h": 3600 },
       },
     });
@@ -305,6 +317,15 @@ test("fixed seven-day windows use canonical v2 aggregate tiles", async ({ page }
     expect(match).not.toBeNull();
     const [, seriesKey, tileSpan, tileStartRaw, lod] = match!;
     const definition = catalogSeries.find((entry) => entry.key === seriesKey)!;
+    if (seriesKey !== "supply-demand.forecast-demand") {
+      await route.fulfill({
+        json: observedTileFixture(url.pathname, FIXED_NOW_SECONDS, (metric) =>
+          metric.includes("available_capacity") ? 93000 : 68000,
+        ),
+      });
+      return;
+    }
+
     const tileStart = Number(tileStartRaw);
     const tileEnd = tileStart + (tileSpan === "1d" ? 86_400 : 3600);
     const overlapStart = Math.max(tileStart, from);
@@ -482,31 +503,21 @@ async function installApi(
 ) {
   if (installClock) await page.clock.install({ time: FIXED_NOW });
   else await page.clock.setFixedTime(FIXED_NOW);
-  await page.route("**/api/v2/tile-catalog", (route) =>
-    route.fulfill({ status: 503, body: "fixture v2 catalog unavailable" }),
+  await installObservedTiles(
+    page,
+    FIXED_NOW_SECONDS,
+    (metric, index, tags = ["source:supply_demand"]) => metricValue(metric, tags, index, scenario),
+    scenario === "empty",
+    scenario === "error",
   );
-  await page.route("**/api/v2/tiles/**", (route) =>
-    route.fulfill({ status: 503, body: "fixture v2 tile unavailable" }),
+  await installPhysicalChunks(
+    page,
+    FIXED_NOW_SECONDS,
+    (metric, index, tags = []) => metricValue(metric, tags, index, scenario),
+    scenario === "empty",
+    scenario === "error",
+    chunkRequests,
   );
-  await page.route("**/api/v1/series/chunk**", async (route) => {
-    const url = new URL(route.request().url());
-    chunkRequests.push(url.toString());
-    const metric = url.searchParams.get("metric") ?? "fixture";
-    const tags = url.searchParams.getAll("tag");
-    const start = Number(url.searchParams.get("start"));
-    const end = Number(url.searchParams.get("end"));
-    const resolution = Number(url.searchParams.get("resolution"));
-    const points: Array<[number, number]> = [];
-    for (let timestamp = start; timestamp < end; timestamp += resolution) {
-      points.push([
-        timestamp,
-        metricValue(metric, tags, Math.round((timestamp - start) / resolution), scenario),
-      ]);
-    }
-    await route.fulfill({
-      json: { aggregation: "average", end, metric, points, resolution, start, tags },
-    });
-  });
   await page.route("**/api/series/batch", async (route) => {
     if (scenario === "error") {
       await route.fulfill({ status: 503, body: "fixture upstream unavailable" });
@@ -1143,8 +1154,12 @@ test("view changes clear chart-specific inspect state and legacy inspect links f
 });
 
 test("visual regression progressive-disclosure desktop views", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/?view=overview");
+  await expect(page.locator('[data-chart-id="overview-headroom"]')).toContainText("25.0 GW");
+  await expect(page.getByText(/288 paired observations of 289 nominal sample slots/)).toBeVisible();
+  await evidence.capture("progressive-overview-desktop", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-overview-desktop.png");
 
   await page.getByRole("button", { name: "Outlook view" }).click();
@@ -1157,6 +1172,8 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
 
   await openMoreView(page, "Diagnostics");
   await expect(page.getByLabel("System health details")).toBeVisible();
+  await expect(page.locator('[data-chart-id="collector-duty-cycle"]')).toContainText("12.1%");
+  await evidence.capture("progressive-diagnostics-desktop", page.locator("body"));
   await expect(page).toHaveScreenshot("progressive-diagnostics-desktop.png");
 });
 
@@ -1200,23 +1217,47 @@ test("visual regression storage charging", async ({ page }) => {
 });
 
 test("visual regression structured operational alert", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/");
   const alert = page.getByLabel("Active grid alerts");
   await expect(alert).toContainText("Recommended action");
-  await expect(alert).toHaveScreenshot("structured-operational-alert.png");
+  await evidence.capture("structured-operational-alert", alert);
+  await withCssPixelAlignment(
+    alert,
+    async () => {
+      await evidence.capture("structured-operational-alert-aligned", alert);
+      await expect(alert).toHaveScreenshot("structured-operational-alert.png");
+    },
+    "floor",
+    "layout",
+  );
 });
 
 test("visual regression Grid Health Score", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/");
   const scoreDetails = page.locator(".grid-health-details");
   await scoreDetails.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
-  await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
+  await expect(scoreDetails).toContainText("99 / 100");
+  await expect(scoreDetails).toContainText("8 of 8");
+  await expect(scoreDetails).toContainText("All eight weighted factors are current and included.");
+  await evidence.capture("grid-health-score-raw", scoreDetails);
+  await withCssPixelAlignment(
+    scoreDetails,
+    async () => {
+      await evidence.capture("grid-health-score-aligned", scoreDetails);
+      await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
+    },
+    "floor",
+    "layout",
+  );
 });
 
 test("visual regression analytical dashboard", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
@@ -1228,5 +1269,8 @@ test("visual regression analytical dashboard", async ({ page }) => {
   }
   await expect(page.locator(".chart-placeholder")).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.locator('[data-chart-id="overview-headroom"]')).toContainText("25.0 GW");
+  await expect(page.getByText(/288 paired observations of 289 nominal sample slots/)).toBeVisible();
+  await evidence.capture("analytical-dashboard", page.locator("body"));
   await expect(page).toHaveScreenshot("analytical-dashboard.png", { fullPage: true });
 });

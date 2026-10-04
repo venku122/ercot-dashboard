@@ -1,0 +1,149 @@
+{
+  "renderer_source_sha": "ef4dcb49e0ad42e39c2444b6d3ab692bb1518348",
+  "preserved_evidence_directory": "/tmp/ercot-post-release-2026-10/ERP-06-vri-preserved",
+  "individually_reviewed_images": [
+    {
+      "source": "/tmp/ercot-post-release-2026-10/ERP-06-vri-preserved/frozen-ef4-linux-red/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-overview-desktop-actual.png",
+      "target": "e2e/dashboard.spec.ts-snapshots/progressive-overview-desktop-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "ba7fc36fff372c7e17b225d75593e887b8fcade652b33380c7fbc536e7c50bb7",
+      "new_sha256": "9f45968cb8150c129657012b26c664f6e62583a9ba7e48b784992a0a391f0978"
+    },
+    {
+      "source": "/tmp/ercot-post-release-2026-10/ERP-06-vri-preserved/frozen-ef4-linux-red/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-actual.png",
+      "target": "e2e/dashboard.spec.ts-snapshots/analytical-dashboard-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "f6dc86e3e8a9c4c6faf7d098a5520015b66a6a7ae85d44763362b43fa92b65bb",
+      "new_sha256": "4a34ab25d7ccd7af5c2b90659487271d280c1311308162069d7c7977828c9f67"
+    },
+    {
+      "source": "/tmp/ercot-post-release-2026-10/ERP-06-vri-preserved/alignment-linux-red/dashboard-visual-regression-structured-operational-alert-chromium/structured-operational-alert-actual.png",
+      "target": "e2e/dashboard.spec.ts-snapshots/structured-operational-alert-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "ee6ba11f8b36f255b84f455325cfdb82b48d2084891d5e89399fde5f8d75a1c6",
+      "new_sha256": "bf9df9b7843e56e491e03a97bf046cf9023c5d204fde7fc2857f5e0343220835"
+    },
+    {
+      "source": "/tmp/ercot-post-release-2026-10/ERP-06-vri-preserved/alignment-linux-red/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-supporting-grid-readings-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-supporting-grid-readings-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "bfe90eb8769c5d696ef0ca2f473ac057bb7a8a1a159e722072266b6d48693f8d",
+      "new_sha256": "fa7d898befdcf08d2f4073d5bc30a598489f1b41295f8c183e6e320f2629da76"
+    },
+    {
+      "source": "/tmp/ercot-post-release-2026-10/ERP-06-vri-preserved/alignment-linux-red/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-grid-health-score-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-grid-health-score-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "bfe90eb8769c5d696ef0ca2f473ac057bb7a8a1a159e722072266b6d48693f8d",
+      "new_sha256": "fa7d898befdcf08d2f4073d5bc30a598489f1b41295f8c183e6e320f2629da76"
+    },
+    {
+      "name": "progressive-overview-desktop",
+      "old_sha256": "c350bcf55ada502d734446300d21740dfbe881e2603382ce06dff14f9a76fe1c",
+      "new_sha256": "8a8c5b569f4c814a42e29aa81736d26ae91e9da9b3bb3094f983c188de0c89c7",
+      "source": "artifacts/post-release/vri-native-tests/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-overview-desktop-actual.png",
+      "target": "e2e/dashboard.spec.ts-snapshots/progressive-overview-desktop-chromium-darwin.png"
+    },
+    {
+      "name": "analytical-dashboard",
+      "old_sha256": "c00c4df15ef0a72aad926a75c5f1f76f1347030c449272aa0abc3a74db62aad0",
+      "new_sha256": "31ffd3b45d6076699ec5bc77a76b41a9bec4d1c24bfae2c93c48e6457d242241",
+      "source": "artifacts/post-release/vri-native-tests/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-actual.png",
+      "target": "e2e/dashboard.spec.ts-snapshots/analytical-dashboard-chromium-darwin.png"
+    },
+    {
+      "name": "structured-operational-alert",
+      "old_sha256": "b79451b8eff625cd12ee169fa48dbe9cf1d04e5e83d8d285778c875b352eb25d",
+      "new_sha256": "d9fbb72a4a6dc23695b858e1fa79927e561b31b057945c05ed9da71704801422",
+      "source": "artifacts/post-release/vri-native-tests/dashboard-visual-regression-structured-operational-alert-chromium/structured-operational-alert-actual.png",
+      "target": "e2e/dashboard.spec.ts-snapshots/structured-operational-alert-chromium-darwin.png"
+    },
+    {
+      "name": "mobile-after-first-viewport",
+      "old_sha256": "f4983c17973c97e7ca19e285e6f313f61f285611b8e44d85208766686f2b5119",
+      "new_sha256": "37764f5276ddee807e9c06658d89e4d4fbb31feee38d93cb7d25f4c26ee81dd8",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-after-first-viewport-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-supporting-grid-readings",
+      "old_sha256": "ba53bea4997a51dc5132dce149d5705dbce57524e33277d2f334e4e2c049cb4c",
+      "new_sha256": "ad41e97c7ec37a869ab71525fc3dd5c9394bf431ecfa27ad8affd5044e4431bf",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-supporting-grid-readings-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-supporting-grid-readings-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-grid-health-score",
+      "old_sha256": "2f7a15ff44fb92c96b40f16a1240d437d38ba40a98cc3f4557afb979d7812005",
+      "new_sha256": "ad41e97c7ec37a869ab71525fc3dd5c9394bf431ecfa27ad8affd5044e4431bf",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-grid-health-score-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-grid-health-score-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-compact-legend",
+      "old_sha256": "151e7a07dd8d43b3dee02ac5201d60668cf194d709f4d1eb55a54c26102a7db9",
+      "new_sha256": "e4bd0e3ae494be725ce3a92240c13f4ce13cb2e8cf3c9f43742629dc284db3a1",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-compact-legend-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-compact-legend-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-chart-interpretation",
+      "old_sha256": "b82c61bd80c50c384ebb4f249c26715a1bd9e145cf01f2a9ecb5682d20254b76",
+      "new_sha256": "190db713d13e56af9ff3f422b4a075f4b112f438482d5d83ea02daacb7645201",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-chart-interpretation-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-chart-interpretation-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-inspect-portrait",
+      "old_sha256": "7f6bd690c939530583498e46eb0979f109300f684a9f2f8a29f01f9c976128b4",
+      "new_sha256": "21acf5412d6c202130f3e189c3f8ba8019aa6286558edbcec744099160c97f7e",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-inspect-portrait-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-source-failure-summary",
+      "old_sha256": "236060069acc8665664d40e0aed897eabb351edad9b68158d750ac2ba609d8f5",
+      "new_sha256": "1da791850f3897e3569066b73c53ccbd58844f3568d1b2ae38538e200abb0eb7",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-source-failure-summary-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-source-failure-summary-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-stale-storage-card",
+      "old_sha256": "a6b8f55a65bf86d7233236c815ac7a3cbd839329330aa6d23548aa09c3ca40f7",
+      "new_sha256": "0cb32307d4b4c06ba8e3ee7b4b40621d15e95c8622127370231c437d77c2dd4e",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-stale-storage-card-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-stale-storage-card-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-active-operations",
+      "old_sha256": "45d014e9c473134d68a4141e366e9d4f219760c7fea5b02b2eaa85fd72b8bd8b",
+      "new_sha256": "e630b3ef5e6e17762f6a42516c595e44af93a1d29f49271b463f948b2aa0dc8d",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-active-operations-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-active-operations-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-grid-warning",
+      "old_sha256": "b05c28c1e5bd82a2469f084095c96a218f8aa1be7f4111d731e0b472c6d51ba7",
+      "new_sha256": "f1ecfbbbd04c5719cc7de42326468d1455a4ae183d71512a9785627ceed43c5e",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-grid-warning-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-grid-warning-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "mobile-structured-alert",
+      "old_sha256": "6165a1267259424349b0cbe563359b898db5908cb4a5f0bca5ce73efa5a96656",
+      "new_sha256": "99fb9b830998d11f93e1ffd9c52b0e2346e6d9c3c155648cc3a85a1b2d4e5aa2",
+      "source": "artifacts/post-release/vri-native-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-structured-alert-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-structured-alert-iphone-pro-max-webkit-darwin.png"
+    },
+    {
+      "name": "progressive-diagnostics-desktop",
+      "old_sha256": "58d69f5e1b717eca66090c9238cc2ca448e0a25eceaa9b0e436980263bee1b6d",
+      "new_sha256": "b5228a81ba7f55fc111eb13ea322715d441e45de45af1ef353053aa4bb58ef11",
+      "source": "artifacts/post-release/vri-native-green-tests/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-diagnostics-desktop-actual.png",
+      "target": "e2e/dashboard.spec.ts-snapshots/progressive-diagnostics-desktop-chromium-darwin.png"
+    },
+    {
+      "name": "mobile-structured-alert",
+      "old_sha256": "6bbb9237c6d53f10ce617641f80c1ecce0231fa642b887b971ce305e3a0a2d2f",
+      "new_sha256": "e04968b0ea8b287b3113428ccfcd0032df9d767c2086943eaf0f1e246a38f4c5",
+      "source": "artifacts/post-release/vri-linux-final-tests/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-structured-alert-actual.png",
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-structured-alert-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "repeat_actual_sha256": "e04968b0ea8b287b3113428ccfcd0032df9d767c2086943eaf0f1e246a38f4c5"
+    }
+  ]
+}

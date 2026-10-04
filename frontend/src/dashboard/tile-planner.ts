@@ -1,9 +1,19 @@
+export const HEADROOM_METRIC = "ercot.supply_demand.paired_headroom_mw";
+export const HEADROOM_PAIRING = {
+  policy: "supply-demand-observed-exact-epoch-v1",
+  contributors: [
+    { metric: "ercot.supply_demand.available_capacity_mw", tags: ["source:supply_demand"] },
+    { metric: "ercot.supply_demand.demand_mw", tags: ["source:supply_demand"] },
+  ],
+};
+
 export type TileLod = "native" | "5m" | "15m" | "1h";
 export type TileSpan = "1h" | "1d";
 
 export type TileCatalogSeries = {
   key: string;
-  match: "exact" | "selector";
+  match: "exact" | "selector" | "paired";
+  pairing?: typeof HEADROOM_PAIRING;
   metric: string;
   native_interval_seconds: number;
   rollup: null | "sum";
@@ -281,7 +291,9 @@ export function parseTileCatalog(value: unknown): TileCatalog {
     if (
       !entry ||
       Object.keys(entry).sort().join(",") !==
-        "key,match,metric,native_interval_seconds,rollup,source,statistic_policy,supported_lods,tags,unit" ||
+        (entry.match === "paired"
+          ? "key,match,metric,native_interval_seconds,pairing,rollup,source,statistic_policy,supported_lods,tags,unit"
+          : "key,match,metric,native_interval_seconds,rollup,source,statistic_policy,supported_lods,tags,unit") ||
       typeof entry.key !== "string" ||
       keys.has(entry.key) ||
       entry.key <= priorKey ||
@@ -294,12 +306,24 @@ export function parseTileCatalog(value: unknown): TileCatalog {
       !entry.supported_lods.includes("native") ||
       new Set(entry.supported_lods).size !== entry.supported_lods.length ||
       entry.supported_lods.some((lod) => !(lod in catalog.lod_seconds!)) ||
-      !["exact", "selector"].includes(entry.match) ||
+      !["exact", "selector", "paired"].includes(entry.match) ||
       !["gauge", "power"].includes(entry.statistic_policy) ||
       typeof entry.source !== "string" ||
       entry.source.length === 0 ||
       typeof entry.unit !== "string" ||
       entry.unit.length === 0 ||
+      (entry.match === "paired" &&
+        (entry.key !== "supply-demand.paired-headroom" ||
+          entry.metric !== HEADROOM_METRIC ||
+          entry.statistic_policy !== "gauge" ||
+          entry.source !== "supply_demand" ||
+          entry.unit !== "MW" ||
+          entry.native_interval_seconds !== 300 ||
+          entry.rollup !== null ||
+          JSON.stringify(entry.tags) !== '["source:supply_demand"]' ||
+          entry.pairing?.policy !== HEADROOM_PAIRING.policy ||
+          JSON.stringify(entry.pairing.contributors) !==
+            JSON.stringify(HEADROOM_PAIRING.contributors))) ||
       (entry.match === "exact" && entry.rollup !== null) ||
       (entry.match === "selector" && (entry.rollup !== "sum" || entry.tags.length === 0)) ||
       entry.supported_lods.some((lod) => {

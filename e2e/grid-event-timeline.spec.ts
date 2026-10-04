@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import {
@@ -18,6 +19,7 @@ test("grid event timeline is Reliability-only, strict, shareable, and noncausal"
   expect(requests).toEqual([]);
 
   await page.goto(GRID_EVENT_URL);
+  const evidence = observeVisualSources(page);
   const panel = page.getByRole("region", { name: "Unified grid event timeline" });
   await expect(panel).toBeVisible();
   await expect.poll(() => requests).toHaveLength(1);
@@ -60,7 +62,16 @@ test("grid event timeline is Reliability-only, strict, shareable, and noncausal"
   expect(replay.searchParams.get("from")).toBe(String(GRID_EVENT_FROM));
   expect(replay.searchParams.get("to")).toBe(String(GRID_EVENT_TO));
   await expect(panel.getByText(/Replay needs one unambiguous UTC timestamp/)).toHaveCount(1);
-  await expect(panel).toHaveScreenshot("grid-event-timeline.png");
+  await evidence.capture("grid-event-timeline-raw", panel);
+  await withCssPixelAlignment(
+    panel,
+    async () => {
+      await evidence.capture("grid-event-timeline-aligned", panel);
+      await expect(panel).toHaveScreenshot("grid-event-timeline.png");
+    },
+    "floor",
+    "layout",
+  );
 
   await panel.getByText("Exact event evidence").click();
   const exact = panel.getByRole("region", { name: "Unified grid event exact evidence" });
@@ -68,10 +79,18 @@ test("grid event timeline is Reliability-only, strict, shareable, and noncausal"
   await expect(exact.locator("tbody tr")).toHaveCount(5);
   await expect(exact).toContainText("source_snapshot_epoch_not_official_declaration_time");
   await expect(exact).toContainText("eea_transition_v1 v1");
-  await withCssPixelAlignment(exact, () =>
-    expect(exact).toHaveScreenshot("grid-event-timeline-exact.png"),
+  await evidence.capture("grid-event-timeline-exact-raw", exact);
+  await withCssPixelAlignment(
+    exact,
+    async () => {
+      await evidence.capture("grid-event-timeline-exact-aligned", exact);
+      await expect(exact).toHaveScreenshot("grid-event-timeline-exact.png");
+    },
+    "floor",
+    "layout",
   );
 
+  await evidence.stop();
   await page.reload();
   await expect(panel.locator('[data-event-focused="true"]')).toContainText(
     "Official ERCOT operations message",

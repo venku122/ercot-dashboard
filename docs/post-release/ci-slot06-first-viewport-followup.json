@@ -1,0 +1,141 @@
+{
+  "scope": "two individually reviewed Linux first-viewport PNGs only; no product/test/fixture/tolerance changes",
+  "published_ci_sha": "5b4c0ece89b37c9289a0e983aeac9fd34fc73bb7",
+  "own_base_sha": "e3209cf1b30c098f42a9b3033a6ebab717cd941a",
+  "both_exact_base_trees": "8e91f5adbc8f35a2638e8d3c8ae1eeef6a56952f",
+  "source_run": 37189925526,
+  "source_job": 111399800407,
+  "capture_count_each": 1,
+  "repeat_status": "PENDING_REMOTE_SAME_SHA_JOB_RERUN",
+  "source_evidence": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/ci06-latest-mobile-artifacts/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-after-first-viewport.json",
+  "source_evidence_sha256": "1794a8e0bed4dabbd2e2c64faa9e040ea5d6f5fc76c97ff1df8d4364c02a5ef2",
+  "sourceHead_field": "unset by workflow; mapped through exact run/job SHA and verified identical base trees",
+  "paired_tiles": [
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784588400/native",
+      "sha256": "3b623b7528141a8791c00d49ff879f9962d9f18f24ca047854e33464f9eb74aa"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784592000/native",
+      "sha256": "a77e884ed7cfe9f2f9fb57249b141bac83c043afebfbe7096d2b609d169ea62e"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784595600/native",
+      "sha256": "4fee03dce6a2606dec6b35e313cea50935cefc7be69bdb5066e70c7620b28f0a"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784599200/native",
+      "sha256": "8120ddd55aa942134844fdb9c06b199c7e739625562373a61e4eadf21748e60e"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784602800/native",
+      "sha256": "9dd147f59ddcedd9812e172c86a1a2cd583dcadc1e008307c409cc7fe172b3e8"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784606400/native",
+      "sha256": "9d51e0bebef8ff738c94a0204a54a13db263ce6c2ac77e8ad5d5be3e59e239a4"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784610000/native",
+      "sha256": "e1146c01fef0c634fe3dcc69106e506bb25f89906074c6b3cb3c749e30fdec0a"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784613600/native",
+      "sha256": "e188942ccb89ba674d7a9ebdbb095bb39c812622f6ff036c72177fa44c99522f"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784617200/native",
+      "sha256": "ab9ca2a7753fa6e2c409ac8c68df32d06407c685d30c82405aa31fff4944a27a"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784620800/native",
+      "sha256": "46b9ba1fa0cf633310f2eade7ae9c751242ada4d2a9d38b217cf7c6f8ccffe0d"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784624400/native",
+      "sha256": "9c758ba5523663a0c40d0988fa954577a5f9196510e1c5b3a348be23e61141ca"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784628000/native",
+      "sha256": "eea5a867332d0e25a3542504c5ac33ee71c53ac28adfc750253e5fe596848324"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784631600/native",
+      "sha256": "94a4c2a6765a13c88bca32c1f965f837c0924457a2f7f67fa94ebb101b701a6b"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784635200/native",
+      "sha256": "1dffcd59ad6be29261ac652b7b99a040688e100402676b343ad74c23eb32877f"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784638800/native",
+      "sha256": "a7d80d5a2d4a8e3ad38a913f9fdb0069165e58f22fabb9c965b67c4ce1fe651d"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784642400/native",
+      "sha256": "f8d56579eb919a46e9f9786cf6f75a8b62da7dad45e5d993e44ef3e0ed1cf94f"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784646000/native",
+      "sha256": "c1cfaf1d075179940677bd40df39cf247552bd636bee8a53a77639f51d8146f5"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784649600/native",
+      "sha256": "c08617b9d162f0e8204b62324afb35524039edb4f1b30ae6d6cf835dc9512cf6"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784653200/native",
+      "sha256": "accb5a1cd1d1a6a4c99d3cc9f6dec727a7406d6c720fb65752c304a5e339504c"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784656800/native",
+      "sha256": "7b87cdec118265b83735c899d4c859d93a0fd4409cab230cf0aef03b044de0ee"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784660400/native",
+      "sha256": "b20e3a52c82264a40f5395b951d478427189591391f23be43d8615e1a4203abe"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784664000/native",
+      "sha256": "bfa24c582ab00cdefae973d92a0a51cf2f057fe48a6d06fe88105da9334d8f46"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784667600/native",
+      "sha256": "aca06e615121f7751fb830c990290bf3435b28128de11734d4229621c3b95658"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784671200/native",
+      "sha256": "70935828fdac8e8e23b850e1486695e4d24e380452e517625c7b608c885bf107"
+    },
+    {
+      "path": "http://127.0.0.1:3000/api/v2/tiles/supply-demand.paired-headroom/1h/1784674800/native",
+      "sha256": "ac4a6772f0866fcb6017c382c03d0e26711b006bba58bbeece940f58b305dde6"
+    }
+  ],
+  "observed_values": {
+    "demand_gw": 68.3,
+    "available_capacity_gw": 88.6,
+    "paired_headroom_gw": 20.3,
+    "reported_prc_gw": 1.2
+  },
+  "images": [
+    {
+      "snapshot": "e2e/mobile.spec.ts-snapshots/progressive-overview-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/ci06-two-frame-originals/progressive-overview-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "original_sha256": "bbcea228e37ad17fd32d887af12f1c3b8ae0bf0b7b5449202c3dc511fb261955",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/ci06-latest-mobile-artifacts/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-actual.png",
+      "actual_sha256": "f3c545867a89cb3251a02404748391a34eec695668eebffb01e8e7f8b5b79a31",
+      "review": "author individually viewed original/actual/diff; separate peer review required",
+      "matching_remote_repeat": "PENDING"
+    },
+    {
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-after-first-viewport-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/ci06-two-frame-originals/mobile-after-first-viewport-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "original_sha256": "bbcea228e37ad17fd32d887af12f1c3b8ae0bf0b7b5449202c3dc511fb261955",
+      "actual": "/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/ci06-latest-mobile-artifacts/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-actual.png",
+      "actual_sha256": "f3c545867a89cb3251a02404748391a34eec695668eebffb01e8e7f8b5b79a31",
+      "review": "author individually viewed original/actual/diff; separate peer review required",
+      "matching_remote_repeat": "PENDING"
+    }
+  ]
+}

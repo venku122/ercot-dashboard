@@ -1,0 +1,23 @@
+# ERP-03: observed source-paired headroom
+
+The additive canonical key `supply-demand.paired-headroom` reads only the exact normalized identities `ercot.supply_demand.available_capacity_mw` and `ercot.supply_demand.demand_mw`, both with `source:supply_demand`. The collector maps both from the same observed rows of the Supply and Demand dashboard, excluding forecast rows. Its contract is `supply-demand-observed-exact-epoch-v1`.
+
+Capacity and demand are joined on their native epoch before subtracting. Only epochs with exactly one row for each contributor participate. Missing contributors and duplicate/ambiguous native rows are withheld. PRC and the separately reported Reliability capacity feed remain independent. An unrelated source with equal timestamps or cadence cannot participate. This path calculates a gauge and never emits generated energy statistics.
+
+The raw counterexample `(100,90)` and `(200,195)` yields headroom `[10,5]`, min 5 at the second epoch, max 10 at the first, and mean 7.5. Existing mergeable tile algebra preserves sample counts, arithmetic mean, extrema and their actual timestamps. The spike envelope preserves negative minima rather than subtracting independent extrema or averaging them away.
+
+Generic tiles remain ephemeral. Each canonical request scans only its one-hour or UTC-day source bounds using the existing normalized covering index; results use existing receiver LRU, generation guards, deterministic body ETags and singleflight. Dependencies include both normalized source IDs and both source identity keys, including when a contributor does not yet exist. Correction invalidation intersects each requested tile range. Restart regenerates identical bytes from unchanged source observations. There is no derived headroom table, stored tile body or filesystem tile cache.
+
+Frontend live and fixed windows both use this canonical source-paired identity. Current and comparison windows are independently requested and composed. The older physical API remains compatible; an older receiver lacking this identity produces explicit unavailable headroom rather than a raw-history fallback or guessed source pairing. Operational chart requests start concurrently with this optional catalog request. Overview, Inspect, accessible table and CSV use the same loaded projected series. Statistics remain derived from the paired native support, not from sampled plot envelopes; units remain MW.
+
+Tile metadata includes paired/unpaired/ambiguous counts, nominal expected slots at the source's five-minute cadence, first/last retained paired epochs within the tile, partial aggregate buckets and unavailable reasons. Window coverage uses paired sample counts from the composed aggregate state. The UI explicitly discloses that missing contributors remain gaps and that first collection time is unavailable. Retained timestamps do not certify complete source history or system knowledge at those times.
+
+## Validation and bounded performance
+
+Run `python3 -m unittest discover -s ercot-receiver -p test_paired_headroom.py` for source identity, oracle, negative extrema, duplicate ambiguity, contributor corrections, empty-to-populated invalidation, restart, singleflight and covering-index plan regressions. Frontend `paired-headroom.test.ts` tests unavailable older receivers, semantic contract rejection, all supported window bounds, gauge statistics, negative projection values, bounded canonical request counts and independent request starts. `paired-headroom-view.test.tsx` checks the rendered coverage disclosure.
+
+Run `python3 scripts/benchmark_paired_headroom.py` for a synthetic representative year (210,240 contributor rows) entirely inside a temporary database. The committed companion JSON records local measurements: seven days 9.551 ms cold / 0.006 ms receiver-cache warm, one year 488.306 ms cold / 0.304 ms warm. These measure in-process generation/cache access, excluding transport, JSON transfer, browser rendering and production characteristics.
+
+A year is bounded to 365 daily resources and 8,760 hourly aggregate buckets before spike-envelope projection. The existing maximum one-hour LOD can exceed the planner's preferred 1,200 plot-point target on long windows; actual projected cardinality is disclosed in loaded metadata. This campaign does not silently introduce coarser persistence or drop extrema to meet a nominal target.
+
+Synthetic local browser evidence is recorded separately in the campaign handoff; it does not certify historical production availability. No production database, flags, containers, credentials or feed delivery changed. Rollback is removal of the additive catalog/loader/frontend change; no persisted headroom data or migration needs reversal.

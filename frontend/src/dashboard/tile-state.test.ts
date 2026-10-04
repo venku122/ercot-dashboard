@@ -210,7 +210,45 @@ describe("mixed native-edge and coarse-interior projection", () => {
     expect(spike.state).toEqual(average.state);
   });
 
-  it("projects one spike point when extrema share timestamp and value", () => {
+  it("retains non-extreme first and last observed vertices with a four-point bound", () => {
+    const raw = [
+      [90000, 10, 0],
+      [90300, 5, 0],
+      [90600, 7, 0],
+    ] as const;
+    const projected = composeTileWindow({
+      coarseInterior: [bucket(90000, 93600, raw)],
+      start: 90000,
+      end: 93600,
+      nativeEdges: [],
+      projection: "spike-envelope",
+    });
+    expect(projected.points).toEqual(raw.map(([ts, value]) => [ts, value]));
+    expect(projected.points.at(-1)?.[1]).toBe(projected.stats.latest);
+    const four = composeTileWindow({
+      coarseInterior: [
+        bucket(90000, 93600, [
+          [90000, 7, 0],
+          [90300, 10, 0],
+          [90600, 5, 0],
+          [90900, 8, 0],
+        ]),
+      ],
+      start: 90000,
+      end: 93600,
+      nativeEdges: [],
+      projection: "spike-envelope",
+    });
+    expect(four.points).toEqual([
+      [90000, 7],
+      [90300, 10],
+      [90600, 5],
+      [90900, 8],
+    ]);
+    expect(four.points).toHaveLength(4);
+  });
+
+  it("retains distinct first and last epochs for a constant envelope", () => {
     const constant = bucket(200, 300, [
       [210, 7, 0],
       [250, 7, 0],
@@ -223,7 +261,10 @@ describe("mixed native-edge and coarse-interior projection", () => {
         projection: "spike-envelope",
         start: 200,
       }).points,
-    ).toEqual([[210, 7]]);
+    ).toEqual([
+      [210, 7],
+      [250, 7],
+    ]);
   });
 
   it("omits empty coarse buckets and rejects partial coarse clipping", () => {
