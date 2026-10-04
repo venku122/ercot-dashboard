@@ -28,6 +28,17 @@
   position: relative;
 }
 
+/* Desktop geometry stays inside the frozen 42±2px contract; inputs retain 44px targets. */
+.time-range-picker--desktop {
+  --trp-control-height: 44px;
+}
+
+.time-range-picker--desktop .time-range-picker__input {
+  background: transparent;
+  height: 44px;
+  margin-block: -1px;
+}
+
 .time-range-picker__cluster,
 .time-range-picker__playback {
   align-items: center;

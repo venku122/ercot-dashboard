@@ -1,0 +1,7 @@
+# Desktop picker geometry and target repair
+
+The desktop picker rendered a46px shell and playback buttons, exceeding the unchanged frozen Datadog42±2px contract. Desktop presentation now uses44px controls. Its actual input remains44px high, with a transparent background and1px negative vertical margins to account for the shell borders. This also keeps the Overview shell's automatic height at44px while allowing additional rows when enlarged text wraps. Mobile presentation rules remain unchanged.
+
+`e2e/desktop-picker-targets.spec.ts` reproduced46px shell failures at768,1440 and1920px before the repair. It verifies actual44px input/shell bounds, playback targets, focus border/ring, keyboard opening/closing and responsive containment at320,390,768,1440 and1920px. Focus images include the outside ring; numeric bounds and images are saved under `artifacts/post-release/desktop-picker-targets/`.
+
+The focused33-test Chromium run passed, including existing44px target/reduced-motion, text-only200%, contrast/non-color, zoom and WebKit zoom checks. The unchanged original Datadog suite passed narrow desktop and mobile; its desktop case passed geometry/typography and then failed the existing `picker-closed.png` baseline. That image difference remains preserved for individual review, with no baseline, contract, tolerance or fixture changes in this repair. These local automated checks do not certify a physical device or screen-reader session.
