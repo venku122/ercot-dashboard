@@ -1,3 +1,4 @@
+import { temporalPolicy } from "./series-temporal-policy";
 import type { ChartDefinition } from "./types";
 import { chartGroupDefinitions } from "./information-architecture";
 
@@ -804,4 +805,11 @@ export const chartGroups = chartGroupDefinitions.map((definition) => definition.
 
 export function seriesKey(chartId: string, seriesId: string) {
   return `${chartId}:${seriesId}`;
+}
+
+for (const chart of chartDefinitions) {
+  for (const series of chart.series) {
+    const policy = temporalPolicy(chart.id, series);
+    if (policy) series.temporal = policy;
+  }
 }

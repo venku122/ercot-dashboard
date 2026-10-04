@@ -1,3 +1,4 @@
+import { observationAt, seriesResolution, temporalPolicy } from "./series-temporal-policy";
 import "chartjs-adapter-date-fns";
 
 import {
@@ -20,13 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { seriesKey } from "./chart-config";
-import {
-  alignedGeneration,
-  displayPoints,
-  seriesGapSeconds,
-  marketTime,
-  precedingObservation,
-} from "./homepage-model";
+import { alignedGeneration, displayPoints, seriesGapSeconds, marketTime } from "./homepage-model";
 import {
   formatInterpretationRange,
   interpretationAriaDescription,
@@ -92,13 +87,13 @@ function CursorLegendValue({
   latest,
   unit,
   visible,
-  maxAge,
+  policy,
 }: {
   loaded: LoadedSeries | undefined;
   latest: number | null;
   unit: string;
   visible: boolean;
-  maxAge: number;
+  policy: import("./types").SeriesTemporalPolicy | undefined;
 }) {
   const [cursor, setCursor] = useState(chartCoordinator.snapshot().timestamp);
   useEffect(() => {
@@ -109,8 +104,7 @@ function CursorLegendValue({
       unsubscribe();
     };
   }, [visible]);
-  const sample =
-    cursor === null ? null : precedingObservation(loaded, cursor, maxAge, unit === "Hz" ? 1 : 300);
+  const sample = cursor === null ? null : observationAt(loaded, cursor, policy);
   return (
     <span
       className="legend-latest"
@@ -119,12 +113,12 @@ function CursorLegendValue({
         cursor === null
           ? "Latest value in selected window"
           : sample
-            ? `${marketTime(sample.ts)} · ${Math.round(cursor - sample.ts)}s before cursor · ${sample.aggregate ? "aggregate bucket" : "source observation"}`
+            ? `${marketTime(sample.ts)} · ${Math.round(cursor - sample.ts)}s before cursor · ${sample.resolution === "native" ? "source observation" : `${sample.resolution} resolution · ${sample.coverage} coverage`}`
             : "No recent preceding observation"
       }
     >
       {formatValue(cursor === null ? latest : (sample?.value ?? null), unit)}
-      {sample?.aggregate ? "*" : ""}
+      {sample && sample.resolution !== "native" ? "*" : ""}
     </span>
   );
 }
@@ -264,6 +258,9 @@ export function ChartCard({
           ? aligned[visibleSeries.indexOf(series)]
           : displayPoints(loaded?.points ?? [], seriesGapSeconds(chart.id, series, loaded)),
         borderColor: series.color,
+        ...(seriesResolution(loaded, temporalPolicy(chart.id, series)) !== "native"
+          ? { borderDash: [4, 4] }
+          : {}),
         backgroundColor: stacked ? `${series.color}a0` : series.color,
         ...(stacked ? { fill: true, stack: "generation" } : {}),
         ...(chart.id === "storage" && presentation === "overview" && series.id !== "net-output"
@@ -278,7 +275,7 @@ export function ChartCard({
           : {}),
         ...(series.lineStyle === "dashed" ? { borderDash: [5, 4] } : {}),
         borderWidth: 1.6,
-        pointRadius: 0,
+        pointRadius: seriesGapSeconds(chart.id, series, loaded) === 0 ? 3 : 0,
         pointHitRadius: 12,
         tension: 0,
         ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
@@ -295,7 +292,7 @@ export function ChartCard({
           backgroundColor: `${series.color}70`,
           borderWidth: 1.2,
           borderDash: [6, 5],
-          pointRadius: 0,
+          pointRadius: seriesGapSeconds(chart.id, series, loaded) === 0 ? 3 : 0,
           tension: 0,
           ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
           hidden,
@@ -740,7 +737,7 @@ export function ChartCard({
           latest={stats.latest}
           unit={chart.unit}
           visible={visible}
-          maxAge={seriesGapSeconds(chart.id, series, loaded)}
+          policy={temporalPolicy(chart.id, series)}
         />
       ) : (
         <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
@@ -987,7 +984,8 @@ export function ChartCard({
                 Math.min(
                   time.end,
                   current +
-                    (event.key === "ArrowLeft" ? -1 : 1) * (chart.id === "frequency" ? 1 : 300),
+                    (event.key === "ArrowLeft" ? -1 : 1) *
+                      (temporalPolicy(chart.id, visibleSeries[0]!)?.nativeCadenceSeconds ?? 300),
                 ),
               );
               if (chartCoordinator.snapshot().pinned) chartCoordinator.clearPin();
@@ -1081,6 +1079,11 @@ export function ChartCard({
       {hasData ? (
         <details className="accessible-data" ref={accessibleDataRef}>
           <summary>Accessible data table</summary>
+          <p>
+            Displayed source values. Dashed lines and * readouts indicate aggregate or unknown
+            resolution; bucket width does not prove coverage. Cursor values expire independently of
+            line continuity.
+          </p>
           <div className="table-scroll">
             <table>
               <thead>

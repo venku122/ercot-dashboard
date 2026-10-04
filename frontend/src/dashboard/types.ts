@@ -27,7 +27,16 @@ export type DashboardState = {
   time: TimeRangeValue;
 };
 
+export type SeriesTemporalPolicy = {
+  kind: "instant" | "interval" | "forecast" | "discrete";
+  nativeCadenceSeconds: number | null;
+  connectionGapSeconds: number;
+  cursor: { mode: "preceding"; maxAgeSeconds: number } | { mode: "interval" };
+  evidence: string;
+};
+
 export type SeriesDefinition = {
+  temporal?: SeriesTemporalPolicy;
   color: string;
   derive?: {
     from: string[];
@@ -83,6 +92,8 @@ export type ChartDefinition = {
 };
 
 export type SeriesMeta = {
+  coverage?: "complete" | "partial" | "unknown";
+  intervals?: Array<{ timestamp: number; start: number; end: number }>;
   bucket_seconds?: number | null;
   max_points?: number | null;
   partial_current_bucket?: boolean;
