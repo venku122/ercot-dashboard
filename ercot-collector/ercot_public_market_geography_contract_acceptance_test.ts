@@ -317,3 +317,10 @@ Deno.test("ERP-08 official LMP padding and non-station interface constraints rem
   equal(rows[0]?.to_station, "");
   equal(rows[0]?.violated_mw, -122.8);
 });
+
+Deno.test("ERP05 interval 4 normal and repeated delivery hours end in consecutive UTC hours", () => {
+  const csv = (flag: string) =>
+    `DeliveryDate,DeliveryHour,DeliveryInterval,SettlementPointName,SettlementPointType,SettlementPointPrice,DSTFlag\n11/01/2026,2,4,HB_HOUSTON,HU,1,${flag}`;
+  equal(parse("NP6-905-CD", csv("N"))[0]!.target_ts, Date.parse("2026-11-01T07:00:00Z") / 1000);
+  equal(parse("NP6-905-CD", csv("Y"))[0]!.target_ts, Date.parse("2026-11-01T08:00:00Z") / 1000);
+});

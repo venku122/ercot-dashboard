@@ -1,4 +1,10 @@
-import { observationAt, seriesResolution, temporalPolicy } from "./series-temporal-policy";
+import { seriesIntervalLabel, intervalPlotPoints } from "./interval-price-series";
+import {
+  observationAt,
+  seriesResolution,
+  temporalPolicy,
+  seriesMarkerRadius,
+} from "./series-temporal-policy";
 import "chartjs-adapter-date-fns";
 
 import {
@@ -111,17 +117,21 @@ function CursorLegendValue({
       data-value-scope={cursor === null ? "window-latest" : "cursor"}
       title={
         cursor === null
-          ? "Latest value in selected window"
+          ? policy?.cursor.mode === "interval" && loaded?.points.length
+            ? `Latest interval in selected window · ${seriesIntervalLabel(loaded, loaded.points.at(-1)![0])}`
+            : "Latest value in selected window"
           : sample
             ? policy?.cursor.mode === "interval"
-              ? (() => {
-                  const interval = loaded?.meta.intervals?.find(
-                    (item) => item.timestamp === sample.ts,
-                  );
-                  return interval
-                    ? `Delivery interval [${marketTime(interval.start)}, ${marketTime(interval.end)}) · hour ending ${marketTime(sample.ts)}`
-                    : "Delivery interval bounds unavailable";
-                })()
+              ? policy.kind === "forecast"
+                ? (() => {
+                    const interval = loaded?.meta.intervals?.find(
+                      (item) => item.timestamp === sample.ts,
+                    );
+                    return interval
+                      ? `Delivery interval [${marketTime(interval.start)}, ${marketTime(interval.end)}) · hour ending ${marketTime(sample.ts)}`
+                      : "Delivery interval bounds unavailable";
+                  })()
+                : seriesIntervalLabel(loaded, sample.ts)
               : `${marketTime(sample.ts)} · ${Math.round(cursor - sample.ts)}s before cursor · ${sample.resolution === "native" ? "source observation" : `${sample.resolution} resolution · ${sample.coverage} coverage`}`
             : "No recent preceding observation"
       }
@@ -140,8 +150,47 @@ const interpretationFill = {
   watch: "rgba(251, 191, 36, 0.08)",
 } as const;
 
+function tooltipSeriesData(
+  chart: ChartDefinition,
+  data: Map<string, LoadedSeries>,
+  label: string | undefined,
+) {
+  const series = chart.series.find(
+    (series) => label === series.label || label?.startsWith(`${series.label} · `),
+  );
+  const base = series ? data.get(seriesKey(chart.id, series.id)) : undefined;
+  const comparison = series && label !== series.label;
+  const loaded =
+    base && comparison
+      ? {
+          ...base,
+          points: base.compare,
+          meta: { ...base.meta, intervals: base.meta.comparison_intervals ?? [] },
+        }
+      : base;
+  return { series, loaded };
+}
+function tooltipIntervalLabel(
+  loaded: LoadedSeries | undefined,
+  timestamp: number,
+  forecast: boolean,
+) {
+  if (!forecast) return seriesIntervalLabel(loaded, timestamp);
+  const interval = loaded?.meta.intervals?.find((item) => item.timestamp === timestamp);
+  return interval
+    ? `Delivery interval [${marketTime(interval.start)}, ${marketTime(interval.end)}) · hour ending ${marketTime(timestamp)}`
+    : "Delivery interval bounds unavailable";
+}
+
 function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
-  const rows = ["series,timestamp_iso,timestamp_epoch,value"];
+  const intervals = chart.series.some(
+    (series) => temporalPolicy(chart.id, series)?.kind === "interval",
+  );
+  const rows = [
+    intervals
+      ? "series,interval_ending_iso,interval_ending_epoch,value,unit,interval_start_epoch,interval_end_epoch"
+      : "series,timestamp_iso,timestamp_epoch,value",
+  ];
   for (const series of chart.series.filter((candidate) => !candidate.inputOnly)) {
     const loaded = data.get(seriesKey(chart.id, series.id));
     for (const [timestamp, value] of loaded?.points ?? []) {
@@ -151,6 +200,13 @@ function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
           new Date(timestamp * 1000).toISOString(),
           timestamp,
           value,
+          ...(intervals
+            ? [
+                JSON.stringify(chart.unit),
+                loaded?.meta.intervals?.find((item) => item.timestamp === timestamp)?.start ?? "",
+                loaded?.meta.intervals?.find((item) => item.timestamp === timestamp)?.end ?? "",
+              ]
+            : []),
         ].join(","),
       );
     }
@@ -265,11 +321,16 @@ export function ChartCard({
         label: series.label,
         data: stacked
           ? aligned[visibleSeries.indexOf(series)]
-          : displayPoints(
-              loaded?.points ?? [],
-              seriesGapSeconds(chart.id, series, loaded),
-              loaded?.meta.observed_envelope_support,
-            ),
+          : temporalPolicy(chart.id, series)?.cursor.mode === "interval"
+            ? intervalPlotPoints(loaded?.points ?? [], loaded?.meta.intervals ?? [], {
+                start: time.start,
+                end: time.end,
+              })
+            : displayPoints(
+                loaded?.points ?? [],
+                seriesGapSeconds(chart.id, series, loaded),
+                loaded?.meta.observed_envelope_support,
+              ),
         borderColor: series.color,
         ...(seriesResolution(loaded, temporalPolicy(chart.id, series)) !== "native"
           ? { borderDash: [4, 4] }
@@ -288,28 +349,44 @@ export function ChartCard({
           : {}),
         ...(series.lineStyle === "dashed" ? { borderDash: [5, 4] } : {}),
         borderWidth: 1.6,
-        pointRadius: seriesGapSeconds(chart.id, series, loaded) === 0 ? 3 : 0,
+        pointRadius: seriesMarkerRadius(
+          loaded?.points ?? [],
+          seriesGapSeconds(chart.id, series, loaded),
+        ),
         pointHitRadius: 12,
         tension: 0,
-        ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
+        ...(temporalPolicy(chart.id, series)?.cursor.mode === "interval"
+          ? { stepped: "before" as const, pointRadius: 0 }
+          : chart.id === "eea"
+            ? { stepped: "after" as const }
+            : {}),
         spanGaps: false,
         hidden,
       });
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
           label: `${series.label} · ${compare.replace("_", " ")}`,
-          data: displayPoints(
-            loaded.compare,
-            seriesGapSeconds(chart.id, series, loaded),
-            loaded.meta.comparison_observed_envelope_support,
-          ),
+          data:
+            temporalPolicy(chart.id, series)?.cursor.mode === "interval"
+              ? intervalPlotPoints(loaded.compare, loaded.meta.comparison_intervals ?? [], {
+                  start: time.start,
+                  end: time.end,
+                })
+              : displayPoints(
+                  loaded.compare,
+                  seriesGapSeconds(chart.id, series, loaded),
+                  loaded.meta.comparison_observed_envelope_support,
+                ),
           stack: `comparison-${series.id}`,
           fill: false,
           borderColor: `${series.color}70`,
           backgroundColor: `${series.color}70`,
           borderWidth: 1.2,
           borderDash: [6, 5],
-          pointRadius: seriesGapSeconds(chart.id, series, loaded) === 0 ? 3 : 0,
+          pointRadius: seriesMarkerRadius(
+            loaded.compare,
+            seriesGapSeconds(chart.id, series, loaded),
+          ),
           tension: 0,
           ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
           hidden,
@@ -317,14 +394,14 @@ export function ChartCard({
       }
     }
     return output;
-  }, [chart, compare, hiddenSeries, seriesData, visibleSeries, presentation]);
+  }, [chart, compare, hiddenSeries, seriesData, visibleSeries, presentation, time.start, time.end]);
   const hasData = visibleSeries.some(
     (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
   );
 
-  const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time });
+  const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time, chart });
   const suppressZoomCommit = useRef(false);
-  dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time };
+  dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time, chart };
 
   useEffect(() => {
     if (!hasData || !mounted || !canvasRef.current) return;
@@ -475,13 +552,50 @@ export function ChartCard({
           tooltip: {
             enabled: true,
             callbacks: {
-              title: (items) =>
-                items.length && items[0].parsed.x !== null
-                  ? marketTime(items[0].parsed.x / 1000)
-                  : "",
+              title: (items) => {
+                if (!items.length || items[0].parsed.x === null) return "";
+                const { series, loaded } = tooltipSeriesData(
+                  dynamic.current.chart,
+                  dynamic.current.seriesData,
+                  items[0].dataset.label,
+                );
+                if (
+                  series &&
+                  temporalPolicy(dynamic.current.chart.id, series)?.cursor.mode === "interval"
+                ) {
+                  const at = cursorTimestamp.current ?? items[0].parsed.x / 1000;
+                  const sample = observationAt(
+                    loaded,
+                    at,
+                    temporalPolicy(dynamic.current.chart.id, series),
+                  );
+                  return sample
+                    ? tooltipIntervalLabel(
+                        loaded,
+                        sample.ts,
+                        temporalPolicy(dynamic.current.chart.id, series)?.kind === "forecast",
+                      )
+                    : "No containing delivery interval";
+                }
+                return marketTime(items[0].parsed.x / 1000);
+              },
               label(context) {
-                const value = context.parsed.y;
-                return `${context.dataset.label ?? "Series"}: ${formatValue(value, chart.unit)}`;
+                const { series, loaded } = tooltipSeriesData(
+                  dynamic.current.chart,
+                  dynamic.current.seriesData,
+                  context.dataset.label,
+                );
+                const interval =
+                  series &&
+                  temporalPolicy(dynamic.current.chart.id, series)?.cursor.mode === "interval";
+                const value = interval
+                  ? (observationAt(
+                      loaded,
+                      cursorTimestamp.current ?? context.parsed.x! / 1000,
+                      temporalPolicy(dynamic.current.chart.id, series),
+                    )?.value ?? null)
+                  : context.parsed.y;
+                return `${context.dataset.label ?? "Series"}: ${formatValue(value, dynamic.current.chart.unit)}`;
               },
             },
           },
@@ -1105,13 +1219,22 @@ export function ChartCard({
             Displayed source values. Dashed lines and * readouts indicate aggregate or unknown
             resolution; bucket width does not prove coverage. Cursor values expire independently of
             line continuity.
+            {visibleSeries.some((series) => temporalPolicy(chart.id, series)?.kind === "interval")
+              ? " Verified delivery intervals use [start, end); timestamps label interval ending, not retrieval time."
+              : ""}
           </p>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
                   <th>Series</th>
-                  <th>Timestamp</th>
+                  <th>
+                    {visibleSeries.some(
+                      (series) => temporalPolicy(chart.id, series)?.kind === "interval",
+                    )
+                      ? "Interval ending (UTC)"
+                      : "Timestamp"}
+                  </th>
                   <th>Value</th>
                 </tr>
               </thead>

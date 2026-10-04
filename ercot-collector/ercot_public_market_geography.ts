@@ -219,7 +219,7 @@ export function marketIntervalTargetTs(
     throw new Error("market_geography_delivery_interval");
   const [, month, day, year] = match.map(Number);
   const wall = new Date(
-    Date.UTC(year!, month! - 1, day!, 0, (deliveryHour - 1) * 60 + deliveryInterval * 15),
+    Date.UTC(year!, month! - 1, day!, 0, (deliveryHour - 1) * 60 + (deliveryInterval - 1) * 15),
   );
   const normalizedDate = `${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}/${year}`;
   if (
@@ -237,7 +237,7 @@ export function marketIntervalTargetTs(
   );
   if (!normalizedDate || !candidates.length || (repeated && candidates.length !== 2))
     throw new Error("market_geography_delivery_interval");
-  return Math.floor((repeated ? candidates.at(-1)! : candidates[0]!) / 1000);
+  return Math.floor((repeated ? candidates.at(-1)! : candidates[0]!) / 1000) + 900;
 }
 
 function rowObject(headers: readonly string[], cells: string[]): Record<string, string> {

@@ -1,3 +1,4 @@
+import { installMarketGeographyApi } from "./market-geography-fixtures";
 import { installArchivedForecastApi } from "./archived-forecast-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import { observeVisualSources } from "./vri-source-evidence";
@@ -512,9 +513,14 @@ async function installApi(
   requests: string[][] = [],
   chunkRequests: string[] = [],
   installClock = false,
+  options: { marketGeography?: "enabled" | "disabled" } = {},
 ) {
   if (installClock) await page.clock.install({ time: FIXED_NOW });
   else await page.clock.setFixedTime(FIXED_NOW);
+  await installMarketGeographyApi(page, [], {
+    disabled: options.marketGeography !== "enabled",
+    priceTarget: Math.floor(FIXED_NOW_SECONDS / 900) * 900,
+  });
   await installArchivedForecastApi(
     page,
     FIXED_NOW_SECONDS,
@@ -982,6 +988,64 @@ test("system health is summarized by default with full diagnostics on demand", a
   await expect(summary).toContainText("Energy Storage Resources failed");
 });
 
+test("desktop ordinary MIS routes are explicit source-unavailable and preserve core collection prices", async ({
+  page,
+}) => {
+  await installApi(page);
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const manifest = await fetch("/api/v1/market-geography");
+    const history = await fetch(
+      "/api/v1/market-price-history?identity=HB_NORTH--HU&start=1784588400&end=1784674801",
+    );
+    return {
+      manifestStatus: manifest.status,
+      historyStatus: history.status,
+      manifest: await manifest.json(),
+      history: await history.json(),
+    };
+  });
+  expect(result.manifestStatus).toBe(200);
+  expect(result.historyStatus).toBe(200);
+  expect(result.manifest.kind).toBe("market_geography_manifest");
+  expect(result.manifest.settlement_interval.state).toBe("unavailable");
+  expect(result.manifest.source_health).toHaveLength(3);
+  expect(
+    result.manifest.source_health.every(
+      (source: { availability_status: string }) => source.availability_status === "source_disabled",
+    ),
+  ).toBe(true);
+  expect(result.history.product_id).toBe("NP6-905-CD");
+  expect(result.history.identity).toBe("HB_NORTH--HU");
+  expect(result.history.rows).toEqual([]);
+  const collection = page.locator('[data-chart-id="pricing-collection"]');
+  await collection.scrollIntoViewIfNeeded();
+  await expect(collection).toContainText("Legacy");
+  await expect(collection.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+});
+
+test("desktop enabled MIS fixture preserves selected-point native identity", async ({ page }) => {
+  await installApi(page, "normal", [], [], false, { marketGeography: "enabled" });
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const manifest = await fetch("/api/v1/market-geography").then((response) => response.json());
+    const history = await fetch(
+      "/api/v1/market-price-history?identity=HB_NORTH--HU&start=1784588400&end=1784674801",
+    ).then((response) => response.json());
+    return { manifest, history };
+  });
+  expect(result.manifest.settlement_interval.state).toBe("available");
+  expect(result.history.identity).toBe("HB_NORTH--HU");
+  expect(result.history.rows.length).toBeGreaterThan(0);
+  expect(
+    result.history.rows.every(
+      (row: { settlement_point: string; settlement_point_type: string }) =>
+        row.settlement_point === "HB_NORTH" && row.settlement_point_type === "HU",
+    ),
+  ).toBe(true);
+  expect(result.history.rows.at(-1).value).toBe(18);
+});
+
 test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page }) => {
   await page.addInitScript(() => {
     const durations: number[] = [];
@@ -990,11 +1054,27 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
       durations.push(...list.getEntries().map((entry) => entry.duration));
     }).observe({ entryTypes: ["longtask"] });
   });
-  await installApi(page);
+  // Exercise canvas construction with deliberately populated native MIS data.
+  await installApi(page, "normal", [], [], false, { marketGeography: "enabled" });
   const session = await page.context().newCDPSession(page);
   await session.send("Performance.enable");
   await page.goto("/");
-  await expect.poll(() => page.locator("[data-chart-id]").count()).toBe(6);
+  const overviewCardIds = [
+    "supply-demand",
+    "overview-headroom",
+    "fuel-mix",
+    "storage",
+    "pricing",
+    "pricing-collection",
+    "frequency",
+  ].sort();
+  await expect
+    .poll(() =>
+      page
+        .locator("[data-chart-id]")
+        .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-chart-id")).sort()),
+    )
+    .toEqual(overviewCardIds);
   // Measure the settled plot layout, not the shorter first-sample placeholders.
   await expect(page.locator('[data-chart-id="supply-demand"] canvas')).toHaveAttribute(
     "data-chart-ready",
@@ -1007,7 +1087,7 @@ test("lazy mounting, browser long tasks, and heap remain bounded", async ({ page
   const total = await page.locator("[data-chart-id]").count();
   const initiallyMounted = await page.locator('[data-chart-id][data-mounted="true"]').count();
   const initiallyVisible = await page.locator('[data-chart-id][data-visible="true"]').count();
-  expect(total).toBe(6);
+  expect(total).toBe(overviewCardIds.length);
   await expect(page.locator('[data-chart-id="time-error"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "More views" })).toBeVisible();
   expect(initiallyMounted).toBeLessThanOrEqual(5);
@@ -1066,7 +1146,10 @@ test("inactive views are not requested and all legacy parity surfaces remain rea
   ).toHaveCount(9);
   await page.locator('[data-chart-id="supply-demand"]').scrollIntoViewIfNeeded();
   await expect.poll(() => requests.length).toBeGreaterThan(0);
-  expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(true);
+  // Core collection history stays deferred until its own card becomes visible.
+  expect(requests.flat().some((id) => id.startsWith("pricing:"))).toBe(false);
+  await page.locator('[data-chart-id="pricing-collection"]').scrollIntoViewIfNeeded();
+  await expect.poll(() => requests.flat().some((id) => id.startsWith("pricing:"))).toBe(true);
   expect(requests.flat().some((id) => id.startsWith("time-error:"))).toBe(false);
 
   await page.getByRole("button", { name: "Reliability view" }).click();
@@ -1248,7 +1331,7 @@ test("visual regression structured operational alert", async ({ page }) => {
       await expect(alert).toHaveScreenshot("structured-operational-alert.png");
     },
     "floor",
-    "layout",
+    "settled-layout",
   );
 });
 
@@ -1270,7 +1353,7 @@ test("visual regression Grid Health Score", async ({ page }) => {
       await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
     },
     "floor",
-    "layout",
+    "settled-layout",
   );
 });
 
@@ -1279,7 +1362,7 @@ test("visual regression analytical dashboard", async ({ page }) => {
   await installApi(page);
   await page.goto("/");
   const cards = page.locator("[data-chart-id]");
-  await expect(cards).toHaveCount(6);
+  await expect(cards).toHaveCount(7);
   for (let index = 0; index < (await cards.count()); index += 1) {
     const card = cards.nth(index);
     await card.scrollIntoViewIfNeeded();

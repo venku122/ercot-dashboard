@@ -55,6 +55,27 @@ describe("Grid Health Score", () => {
     expect(result.factors.reduce((total, entry) => total + entry.weight, 0)).toBe(100);
   });
 
+  it("identifies the legacy Houston collection quote without inventing a delivery interval", () => {
+    const inputs = healthyInputs();
+    inputs.latest.set("price", { ts: now - 30, value: -42.16 });
+    const result = buildGridHealthScore(inputs);
+    expect(result.factors.find((entry) => entry.id === "prices")).toMatchObject({
+      available: true,
+      weight: 10,
+      detail:
+        "−$42.16/MWh current collection-price observation. Settlement delivery interval unknown.",
+    });
+    expect(result.coveragePercent).toBe(100);
+    inputs.latest.delete("price");
+    expect(
+      buildGridHealthScore(inputs).factors.find((entry) => entry.id === "prices"),
+    ).toMatchObject({
+      available: false,
+      detail:
+        "Fresh Houston collection-price observation required; settlement delivery interval unknown.",
+    });
+  });
+
   it("applies stress penalties without escaping the zero to 100 range", () => {
     const inputs = healthyInputs();
     inputs.latest.set("demand", { ts: now, value: 89_000 });

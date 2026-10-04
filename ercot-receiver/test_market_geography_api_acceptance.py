@@ -433,6 +433,17 @@ class MarketGeographyHttpAcceptanceTests(unittest.TestCase):
     def get(self, path, headers=None):
         return self.request("GET", path, headers=headers)
 
+    def test_interval_price_history_exact_identity_and_bounded_compatibility(self):
+        self.assertEqual(200, self.post(self.publication("NP6-905-CD", self.price_rows(), 603, NOW - 600))[0])
+        status, headers, raw = self.get(f"/api/v1/market-price-history?identity=HB_NORTH--HU&start={NOW-86400}&end={NOW}")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        result = json.loads(raw)
+        self.assertEqual(result["identity"], "HB_NORTH--HU")
+        self.assertTrue(all(row["settlement_point"] == "HB_NORTH" for row in result["rows"]))
+        self.assertEqual(400, self.get(f"/api/v1/market-price-history?identity=UNSUPPORTED--HU&start={NOW-86400}&end={NOW}")[0])
+        self.assertEqual(400, self.get(f"/api/v1/market-price-history?identity=HB_NORTH--HU&start={NOW-36*86400}&end={NOW}")[0])
+
     def test_auth_queryless_manifest_etag_and_ingest_invalidation(self):
         payload = self.publication(
             "NP6-905-CD", self.price_rows(), 601, NOW - 600

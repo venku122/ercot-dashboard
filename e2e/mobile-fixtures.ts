@@ -1,5 +1,6 @@
 import { installArchivedForecastApi } from "./archived-forecast-fixtures";
 import type { Page } from "@playwright/test";
+import { installMarketGeographyApi } from "./market-geography-fixtures";
 import {
   installObservedTiles,
   installPhysicalChunks,
@@ -375,9 +376,13 @@ export async function installMobileApi(
   page: Page,
   scenario: MobileScenario = "normal",
   requests: string[][] = [],
-  options: { nativeCadence?: boolean } = {},
+  options: { nativeCadence?: boolean; marketGeography?: "enabled" | "disabled" } = {},
 ) {
   await page.clock.setFixedTime(FIXED_NOW);
+  await installMarketGeographyApi(page, [], {
+    disabled: options.marketGeography !== "enabled",
+    priceTarget: Math.floor(FIXED_NOW_SECONDS / 900) * 900,
+  });
   await installArchivedForecastApi(
     page,
     FIXED_NOW_SECONDS,

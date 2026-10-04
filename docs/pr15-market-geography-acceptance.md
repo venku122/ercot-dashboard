@@ -49,8 +49,9 @@ spring wall time is rejected.
 NP6-905 rows identify the end of one ERCOT 15-minute market interval. On a
 normal day, delivery hour 1 interval 1 ends at 00:15 and delivery hour 24
 interval 4 ends at the next local midnight. A source label whose calculated
-spring wall-clock interval end does not exist is rejected. Fall labels whose
-end is ambiguous are distinguished with `DSTFlag`. Impossible
+spring wall-clock interval start does not exist is rejected. `DSTFlag`
+selects the delivery start fold, then 900 elapsed seconds gives the end.
+This preserves HE2 interval4 across both DST boundaries (ERP-05). Impossible
 hour/interval/flag combinations are rejected. The natural key includes both
 `SettlementPointName` and `SettlementPointType`: the same load-zone name is
 published as distinct `LZ` and `LZEW` prices.

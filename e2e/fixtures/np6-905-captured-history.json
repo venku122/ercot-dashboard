@@ -1,0 +1,33 @@
+{
+  "product_id": "NP6-905-CD",
+  "identity": "HB_HOUSTON--HU",
+  "interval_seconds": 900,
+  "start": 1791084600,
+  "end": 1791085501,
+  "policy": "latest_published_corrections_not_as_known",
+  "rows": [
+    {
+      "target_ts": 1791085500,
+      "interval_start": 1791084600,
+      "interval_end": 1791085500,
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "settlement_point": "HB_HOUSTON",
+      "settlement_point_type": "HU",
+      "value": 48.23,
+      "unit": "$/MWh",
+      "publication": {
+        "source_id": "ercot_mis_np6_905",
+        "product_id": "NP6-905-CD",
+        "content_key": "mgp1-131a19d78d6d4d20ca17a84b73ce80bc5f4067422e405fd0f5c0767d20d7a8c4",
+        "document_id": "1282210463",
+        "issued_at": 1791085622,
+        "retrieved_at": 1791086906,
+        "raw_publish_datetime": "2026-10-03T22:47:02-05:00"
+      }
+    }
+  ]
+}

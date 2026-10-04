@@ -114,7 +114,7 @@ def market_interval_target_ts(raw_date, hour, interval, repeated):
         base = datetime.strptime(raw_date, "%m/%d/%Y")
     except ValueError as exc:
         raise ValueError("invalid_market_geography_interval") from exc
-    naive = base + timedelta(minutes=(hour - 1) * 60 + interval * 15)
+    naive = base + timedelta(minutes=(hour - 1) * 60 + (interval - 1) * 15)
     candidates = []
     for fold in (0, 1):
         local = naive.replace(tzinfo=CHICAGO, fold=fold)
@@ -124,7 +124,7 @@ def market_interval_target_ts(raw_date, hour, interval, repeated):
     candidates = sorted(set(candidates))
     if not candidates or (repeated and len(candidates) != 2):
         raise ValueError("invalid_market_geography_interval")
-    return candidates[-1] if repeated else candidates[0]
+    return (candidates[-1] if repeated else candidates[0]) + 900
 
 
 def init_market_geography_schema(conn):
@@ -847,50 +847,69 @@ def _latest_publication(conn, product):
     ).fetchone()
 
 
-def _current_price_snapshot(conn):
-    publication = _latest_publication(conn, "NP6-905-CD")
-    if publication is None:
-        return {"state": "unavailable", "target_ts": None, "rows": [], "reference_prices": [], "missing": [f"{point}--{kind}" for point, kind in DISPLAY_POINTS]}
-    rows = conn.execute(
-        """SELECT target_ts,raw_delivery_date,delivery_hour,delivery_interval,raw_dst_flag,repeated_hour_flag,
-                  settlement_point,settlement_point_type,settlement_point_price
-           FROM market_geography_price_rows WHERE publication_id=?
-           ORDER BY settlement_point,settlement_point_type""",
-        (publication[0],),
-    ).fetchall()
-    source = _publication_record(publication[1:])
-    target = rows[0][0] if rows else None
-    selected = []
-    references = []
-    seen = set()
+def _price_interval_rows(conn, start, end, identity=None, maximum_rows=None):
+    point_clause = "AND r.settlement_point=? AND r.settlement_point_type=?" if identity else ""
+    params = [start, end]
+    if identity:
+        params.extend(identity)
+    params.append(maximum_rows + 1 if maximum_rows is not None else 5000)
+    rows = conn.execute(f"""
+        WITH ranked AS (
+          SELECT r.*, p.source_id,p.product_id,p.content_key,p.document_id,
+                 p.issued_at,p.retrieved_at,p.raw_publish_datetime,
+                 ROW_NUMBER() OVER (PARTITION BY r.target_ts,r.settlement_point,r.settlement_point_type
+                   ORDER BY p.issued_at DESC,LENGTH(p.document_id) DESC,p.document_id DESC) AS choice
+          FROM market_geography_price_rows r
+          JOIN market_geography_publications p ON p.id=r.publication_id
+          WHERE p.product_id='NP6-905-CD' AND r.target_ts>=? AND r.target_ts<? {point_clause}
+            AND p.issued_at = (SELECT MAX(p2.issued_at) FROM market_geography_price_rows r2
+              JOIN market_geography_publications p2 ON p2.id=r2.publication_id
+              WHERE r2.target_ts=r.target_ts AND p2.product_id='NP6-905-CD')
+        ) SELECT * FROM ranked WHERE choice=1
+          ORDER BY target_ts,settlement_point,settlement_point_type LIMIT ?
+    """, params).fetchall()
+    if maximum_rows is not None and len(rows) > maximum_rows:
+        raise ValueError("market_price_row_overflow")
+    output = []
     for row in rows:
-        identity = (row[6], row[7])
-        if identity not in DISPLAY_POINT_SET:
-            continue
-        item = {
-            "target_ts": row[0],
-            "raw_delivery_date": row[1],
-            "delivery_hour": row[2],
-            "delivery_interval": row[3],
-            "raw_dst_flag": row[4],
-            "repeated_hour_flag": bool(row[5]),
-            "settlement_point": row[6],
-            "settlement_point_type": row[7],
-            "value": row[8],
-            "unit": "$/MWh",
-        }
-        seen.add(identity)
-        (selected if identity in set(HEATMAP_POINTS) else references).append(item)
-    missing = [f"{point}--{kind}" for point, kind in DISPLAY_POINTS if (point, kind) not in seen]
-    return {
-        "state": "available" if not missing else "partial",
-        "target_ts": target,
-        "source": source,
-        "rows": selected,
-        "reference_prices": references,
-        "missing": missing,
-        "coherence": "single_np6_905_publication_interval",
-    }
+        output.append({"target_ts": row[1], "interval_start": row[1]-900, "interval_end": row[1],
+            "raw_delivery_date": row[2], "delivery_hour": row[3], "delivery_interval": row[4],
+            "raw_dst_flag": row[5], "repeated_hour_flag": bool(row[6]),
+            "settlement_point": row[7], "settlement_point_type": row[8], "value": row[9], "unit": "$/MWh",
+            "publication": _publication_record(row[10:17])})
+    return output
+
+
+def market_price_history(conn, identity, start, end):
+    if not isinstance(identity, str) or "--" not in identity:
+        raise ValueError("invalid_market_price_identity")
+    point = tuple(identity.split("--"))
+    if point not in DISPLAY_POINT_SET:
+        raise ValueError("unsupported_market_price_identity")
+    if not isinstance(start, int) or not isinstance(end, int) or end <= start or end-start > 35*DAY+900:
+        raise ValueError("unsupported_market_price_window")
+    # Inclusive native ending slots in the half-open query, checked before SQL.
+    expected_targets = (end - 1) // 900 - (start + 899) // 900 + 1
+    if expected_targets > 3361:
+        raise ValueError("unsupported_market_price_window")
+    return {"product_id": "NP6-905-CD", "identity": identity, "interval_seconds": 900,
+            "start": start, "end": end, "policy": "latest_published_corrections_not_as_known",
+            "rows": _price_interval_rows(conn, start, end, point, expected_targets)}
+
+
+def _current_price_snapshot(conn, now):
+    target = conn.execute("SELECT MAX(target_ts) FROM market_geography_price_rows WHERE target_ts<=?", (now,)).fetchone()[0]
+    if target is None:
+        return {"state": "unavailable", "target_ts": None, "rows": [], "reference_prices": [], "missing": [f"{point}--{kind}" for point, kind in DISPLAY_POINTS]}
+    rows = _price_interval_rows(conn, target, target+1)
+    selected = [row for row in rows if (row["settlement_point"],row["settlement_point_type"]) in set(HEATMAP_POINTS)]
+    references = [row for row in rows if (row["settlement_point"],row["settlement_point_type"]) in DISPLAY_POINT_SET and row not in selected]
+    seen = {(row["settlement_point"],row["settlement_point_type"]) for row in selected+references}
+    missing = [f"{point}--{kind}" for point,kind in DISPLAY_POINTS if (point,kind) not in seen]
+    source = max(rows, key=lambda row: row["publication"]["issued_at"])["publication"]
+    return {"state": "available" if not missing else "partial", "target_ts": target,
+            "source": source, "rows": selected, "reference_prices": references, "missing": missing,
+            "coherence": "same_np6_905_delivery_interval_with_per_point_publication"}
 
 
 def _current_lmp_snapshot(conn):
@@ -1014,7 +1033,7 @@ def _health(conn, now):
 
 def market_geography_manifest(conn, now=None):
     current = int(time.time()) if now is None else now
-    price = _current_price_snapshot(conn)
+    price = _current_price_snapshot(conn, current)
     lmp = _current_lmp_snapshot(conn)
     constraints = _coincident_constraints(conn, lmp.get("target_ts"))
     links = [

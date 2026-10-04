@@ -1,0 +1,183 @@
+{
+  "publication": {
+    "source_id": "ercot_mis_np6_905",
+    "product_id": "NP6-905-CD",
+    "publication_key_kind": "official_mis_document",
+    "publication_key": "1282210463",
+    "issued_at": 1791085622,
+    "retrieved_at": 1791086906,
+    "raw_publish_datetime": "2026-10-03T22:47:02-05:00",
+    "document_id": "1282210463",
+    "constructed_name": "cdr.00012301.0000000000000000.20261003.224702269.SPPHLZNP6905_20261003_2245_csv.zip",
+    "artifact_href": "https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=1282210463",
+    "schema_fingerprint": "4e6f1ec046967794271f9fd4c2f880b0382f561502c24e0f883aa0be0cc21974",
+    "parser_schema_version": "ercot-market-geography-v1"
+  },
+  "rows": [
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "HB_BUSAVG",
+      "settlement_point_type": "SH",
+      "settlement_point_price": 59.79
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "HB_HOUSTON",
+      "settlement_point_type": "HU",
+      "settlement_point_price": 48.23
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "HB_HUBAVG",
+      "settlement_point_type": "AH",
+      "settlement_point_price": 60.59
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "HB_NORTH",
+      "settlement_point_type": "HU",
+      "settlement_point_price": 65.1
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "HB_PAN",
+      "settlement_point_type": "HU",
+      "settlement_point_price": 86.99
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "HB_SOUTH",
+      "settlement_point_type": "HU",
+      "settlement_point_price": 35.38
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "HB_WEST",
+      "settlement_point_type": "HU",
+      "settlement_point_price": 93.64
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_AEN",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 39.77
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_CPS",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 32.12
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_HOUSTON",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 47.76
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_LCRA",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 34.3
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_NORTH",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 80.61
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_RAYBN",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 63.22
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_SOUTH",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 37.81
+    },
+    {
+      "raw_delivery_date": "10/03/2026",
+      "delivery_hour": 23,
+      "delivery_interval": 3,
+      "raw_dst_flag": "N",
+      "repeated_hour_flag": false,
+      "target_ts": 1791085500,
+      "settlement_point": "LZ_WEST",
+      "settlement_point_type": "LZ",
+      "settlement_point_price": 98.71
+    }
+  ]
+}

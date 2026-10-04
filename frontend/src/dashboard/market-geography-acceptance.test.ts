@@ -287,3 +287,23 @@ it("ERP-08 preserves source-unreported constraint endpoint names without fabrica
   value.constraints.rows[0]!.from_station = " ";
   expect(() => parseMarketGeographyManifest(value)).toThrow();
 });
+
+it("ERP05 verifies delivery start fold when interval end crosses the repeated hour", () => {
+  const input = manifest();
+  const target = Date.parse("2026-11-01T07:00:00Z") / 1000;
+  input.settlement_interval.target_ts = target;
+  for (const row of [
+    ...input.settlement_interval.rows,
+    ...input.settlement_interval.reference_prices,
+  ]) {
+    Object.assign(row, {
+      target_ts: target,
+      raw_delivery_date: "11/01/2026",
+      delivery_hour: 2,
+      delivery_interval: 4,
+      raw_dst_flag: "N",
+      repeated_hour_flag: false,
+    });
+  }
+  expect(() => parseMarketGeographyManifest(input)).not.toThrow();
+});

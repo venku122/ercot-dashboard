@@ -169,7 +169,7 @@ for (const seconds of [21600, 86400, 604800])
       "overview-headroom",
       "fuel-mix",
       "storage",
-      "pricing",
+      "pricing-collection",
       "frequency",
     ]) {
       const card = page.locator(`[data-chart-id="${id}"]`);
@@ -178,6 +178,10 @@ for (const seconds of [21600, 86400, 604800])
       await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
       await expect(card).not.toContainText("No observations");
     }
+    await expect(page.locator('[data-chart-id="pricing"] canvas')).toHaveCount(0);
+    await expect(page.locator('[data-chart-id="pricing-collection"]')).toContainText(
+      "Delivery interval unknown",
+    );
     expect(failures).toEqual([]);
     for (const body of fallbackBodies)
       expect([

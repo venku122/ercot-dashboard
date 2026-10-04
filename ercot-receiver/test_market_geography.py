@@ -132,6 +132,43 @@ class MarketGeographyTest(unittest.TestCase):
                 self.conn, payload(product, document, rows, current), current_ts=current
             )
 
+    def test_interval_end_preserves_start_fold_across_dst_boundary(self):
+        first = market_interval_target_ts("11/01/2026", 2, 4, False)
+        self.assertEqual(first, int(datetime.fromisoformat("2026-11-01T07:00:00+00:00").timestamp()))
+        repeated = market_interval_target_ts("11/01/2026", 2, 4, True)
+        self.assertEqual(repeated - first, 3600)
+        spring = market_interval_target_ts("03/08/2026", 2, 4, False)
+        self.assertEqual(spring, int(datetime.fromisoformat("2026-03-08T08:00:00+00:00").timestamp()))
+
+    def test_latest_snapshot_excludes_uncompleted_interval(self):
+        self.ingest_all()
+        rows = price_rows()
+        for row in rows:
+            row.update(delivery_interval=4, target_ts=market_interval_target_ts("08/18/2026",13,4,False))
+        ingest_market_geography_publication(self.conn, payload("NP6-905-CD", "1004", rows, self.current), current_ts=self.current)
+        snapshot = market_geography_manifest(self.conn, now=self.current)["settlement_interval"]
+        self.assertEqual(snapshot["target_ts"], price_rows()[0]["target_ts"])
+
+    def test_snapshot_combines_same_interval_without_borrowing_prior_rows(self):
+        rows = price_rows()
+        for document, subset in (("1001", rows[:5]), ("1002", rows[5:])):
+            ingest_market_geography_publication(self.conn, payload("NP6-905-CD", document, subset, self.current), current_ts=self.current)
+        snapshot = market_geography_manifest(self.conn, now=self.current)["settlement_interval"]
+        self.assertEqual(len(snapshot["rows"]), 13)
+        self.assertEqual(snapshot["missing"], [])
+        self.assertEqual(snapshot["rows"][0]["publication"]["product_id"], "NP6-905-CD")
+
+    def test_exact_point_history_has_interval_provenance_and_no_substitute(self):
+        import market_geography as mg
+        self.assertTrue(callable(getattr(mg, "market_price_history", None)), "interval history query is missing")
+        self.ingest_all()
+        history = mg.market_price_history(self.conn, "HB_NORTH--HU", self.current - 86400, self.current + 1)
+        self.assertEqual(history["identity"], "HB_NORTH--HU")
+        self.assertTrue(all(row["settlement_point"] == "HB_NORTH" for row in history["rows"]))
+        self.assertEqual(history["rows"][0]["interval_end"] - history["rows"][0]["interval_start"], 900)
+        with self.assertRaises(ValueError):
+            mg.market_price_history(self.conn, "UNSUPPORTED--HU", self.current - 86400, self.current)
+
     def test_current_manifest_is_coherent_and_noncausal(self):
         self.ingest_all()
         manifest = market_geography_manifest(self.conn, now=self.current)

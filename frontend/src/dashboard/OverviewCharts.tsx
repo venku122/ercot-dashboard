@@ -1,16 +1,24 @@
+import {
+  intervalPriceSeries,
+  intervalPriceTemporalPolicy,
+  seriesIntervalLabel,
+} from "./interval-price-series";
 import { observationAt, temporalPolicy } from "./series-temporal-policy";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import useSWR from "swr";
 import { chartDefinitions } from "./chart-config";
 import { chartCoordinator } from "./chart-coordinator";
-import { loadPriceRanking } from "./api";
 import {
+  loadMarketGeographyManifest,
+  loadIntervalPriceHistory,
+  MARKET_PRICE_POINTS,
+} from "./market-geography";
+import {
+  collectionPriceChart,
   engineeringChartIds,
   headroomChart,
   marketNames,
-  marketSeries,
   marketTime,
-  coherentPriceSnapshots,
 } from "./homepage-model";
 import { formatValue } from "./units";
 import type { ChartDefinition, LoadedSeries, TimeState } from "./types";
@@ -51,13 +59,12 @@ function TimeReadings({
       unsubscribe();
     };
   }, []);
-  const priceSeries = marketSeries[selected];
   const readingTime = cursor.timestamp ?? time.end;
   const readings = [
     ["Demand", "supply-demand:demand", "MW"],
     ["Derived headroom", "overview-headroom:headroom", "MW"],
     ["Reported PRC", "overview-headroom:prc", "MW"],
-    [marketNames[selected] ?? selected, `pricing:${priceSeries}`, "$/MWh"],
+    [marketNames[selected] ?? selected, "pricing:interval", "$/MWh"],
     ["Frequency", "frequency:frequency", "Hz"],
   ] as const;
   return evidence ? (
@@ -80,14 +87,18 @@ function TimeReadings({
           const point = observationAt(
             loaded,
             readingTime,
-            series ? temporalPolicy(chartId!, series) : undefined,
+            key === "pricing:interval"
+              ? intervalPriceTemporalPolicy
+              : series
+                ? temporalPolicy(chartId!, series)
+                : undefined,
           );
           return (
             <div key={key}>
               <dt>{label}</dt>
               <dd>
                 {point
-                  ? `${formatValue(point.value, unit)} · ${marketTime(point.ts)} · ${Math.round(readingTime - point.ts)}s old · ${point.resolution} · ${point.coverage} coverage · ${loaded?.meta.bucket_seconds ?? "unknown"}s bucket`
+                  ? `${formatValue(point.value, unit)} · ${marketTime(point.ts)} · ${key === "pricing:interval" ? seriesIntervalLabel(loaded, point.ts) : `${Math.round(readingTime - point.ts)}s old`} · ${point.resolution} · ${point.coverage} coverage · ${loaded?.meta.bucket_seconds ?? "unknown"}s bucket`
                   : "No recent compatible observation"}
               </dd>
             </div>
@@ -109,7 +120,11 @@ function TimeReadings({
           const point = observationAt(
             loaded,
             readingTime,
-            series ? temporalPolicy(chartId!, series) : undefined,
+            key === "pricing:interval"
+              ? intervalPriceTemporalPolicy
+              : series
+                ? temporalPolicy(chartId!, series)
+                : undefined,
           );
           return (
             <div
@@ -117,7 +132,9 @@ function TimeReadings({
               tabIndex={0}
               title={
                 point
-                  ? `${point.resolution === "native" ? "Observation" : `${point.resolution} resolution · ${point.coverage} coverage`}: ${marketTime(point.ts)} · age ${Math.round(readingTime - point.ts)} seconds`
+                  ? key === "pricing:interval"
+                    ? seriesIntervalLabel(loaded, point.ts)
+                    : `${point.resolution === "native" ? "Observation" : `${point.resolution} resolution · ${point.coverage} coverage`}: ${marketTime(point.ts)} · age ${Math.round(readingTime - point.ts)} seconds`
                   : "No recent compatible observation"
               }
             >
@@ -167,7 +184,11 @@ export function OverviewCharts({
   seriesData,
   time,
 }: {
-  renderChart: (chart: ChartDefinition, presentation: "overview") => ReactNode;
+  renderChart: (
+    chart: ChartDefinition,
+    presentation: "overview",
+    override?: Map<string, LoadedSeries>,
+  ) => ReactNode;
   seriesData: Map<string, LoadedSeries>;
   time: TimeState;
 }) {
@@ -182,31 +203,63 @@ export function OverviewCharts({
     setSelected(point);
     const url = new URL(window.location.href);
     url.searchParams.set("overviewPoint", point);
-    window.history.replaceState(null, "", url);
+    window.history.pushState(null, "", url);
   };
   const {
     data: ranking,
     error: rankingError,
     isLoading,
-  } = useSWR("overview-price-ranking", () => loadPriceRanking(), {
+  } = useSWR("overview-interval-price-ranking", () => loadMarketGeographyManifest(), {
     refreshInterval: time.mode === "live" ? 300_000 : 0,
     revalidateOnFocus: false,
   });
-  const coherent = coherentPriceSnapshots(ranking ?? [], Date.now() / 1000);
-  const newest = coherent[0]?.ts ?? 0;
+  const coherent = [...(ranking?.settlement_interval.rows ?? [])].sort(
+    (a, b) => b.value - a.value || a.settlement_point.localeCompare(b.settlement_point),
+  );
+  const newest = ranking?.settlement_interval.target_ts ?? 0;
+  const pointType = MARKET_PRICE_POINTS.find(([point]) => point === selected)?.[1];
+  const history = useSWR(
+    pointType ? ["overview-interval-history", selected, pointType, time.start, time.end] : null,
+    () => loadIntervalPriceHistory(`${selected}--${pointType}`, time.start, time.end),
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      refreshInterval: time.mode === "live" ? 300000 : 0,
+    },
+  );
   const headroomCoverage = seriesData.get("overview-headroom:headroom")?.meta.pairing;
-  const priceSeries = marketSeries[selected];
   const pricingChart = useMemo(
     () => ({
       ...definition("pricing"),
-      title: `${marketNames[selected] ?? selected} · settlement price`,
-      series: definition("pricing").series.filter((series) => series.id === priceSeries),
+      title: `${marketNames[selected] ?? selected} · NP6-905 settlement price`,
+      sourceId: "ercot_mis_np6_905",
+      sourceUrl: "https://www.ercot.com/mp/data-products/data-product-details?id=NP6-905-CD",
+      description:
+        "Exact selected point and type, 15-minute delivery interval ending; latest published corrections, not an as-known replay. Legacy collection snapshots remain independent.",
+      series: [
+        {
+          id: "interval",
+          label: marketNames[selected] ?? selected,
+          color: "#60a5fa",
+          temporal: intervalPriceTemporalPolicy,
+        },
+      ],
     }),
-    [selected, priceSeries],
+    [selected],
+  );
+  const collectionSeries = new Map(seriesData);
+  for (const series of collectionPriceChart.series) {
+    const loaded = seriesData.get(`pricing:${series.id}`);
+    if (loaded) collectionSeries.set(`pricing-collection:${series.id}`, loaded);
+  }
+  const displaySeries = new Map(seriesData);
+  displaySeries.set(
+    "pricing:interval",
+    intervalPriceSeries(history.data ?? [], time.start, time.end, Boolean(history.error)),
   );
   return (
     <section className="homepage-workspace" aria-label="Grid charts">
-      <TimeReadings seriesData={seriesData} time={time} selected={selected} />
+      <TimeReadings seriesData={displaySeries} time={time} selected={selected} />
       <div className="homepage-chart-grid">
         <div className="homepage-wide">
           {renderChart(definition("supply-demand"), "overview")}
@@ -233,21 +286,24 @@ export function OverviewCharts({
         <div className="homepage-narrow">{renderChart(storageChart, "overview")}</div>
         <section className="homepage-narrow homepage-ranking" aria-label="Settlement price ranking">
           <h3>Settlement price snapshots</h3>
-          <p>Latest collection · $/MWh. Source interval is not retained by this feed.</p>
+          <p>
+            NP6-905-CD · latest completed delivery interval · $/MWh. Ranking is independent of the
+            historical chart window; latest published corrections are not an as-known replay.
+          </p>
           <label className="homepage-price-select">
             History point
             <select value={selected} onChange={(event) => selectPoint(event.target.value)}>
-              {Object.entries(marketNames).map(([id, name]) => (
+              {MARKET_PRICE_POINTS.map(([id]) => (
                 <option key={id} value={id}>
-                  {name}
+                  {marketNames[id] ?? id}
                 </option>
               ))}
-              {!marketNames[selected] ? (
+              {!MARKET_PRICE_POINTS.some(([point]) => point === selected) ? (
                 <option value={selected}>{selected} · history unavailable</option>
               ) : null}
             </select>
           </label>
-          {coherent.length && !coherent.some((row) => row.tag === `ercot_region:${selected}`) ? (
+          {coherent.length && !coherent.some((row) => row.settlement_point === selected) ? (
             <small>Selected point is outside this returned ranking subset.</small>
           ) : null}
           {coherent.length ? (
@@ -255,7 +311,8 @@ export function OverviewCharts({
               <small>
                 {marketTime(newest)}
                 {Date.now() / 1000 - newest > 1800 ? " · stale" : ""}. {coherent.length} of{" "}
-                {(ranking ?? []).length} returned points share this collection time.
+                {MARKET_PRICE_POINTS.length} configured hub/load-zone points share this delivery
+                interval.
               </small>
               <table>
                 <thead>
@@ -266,7 +323,7 @@ export function OverviewCharts({
                 </thead>
                 <tbody>
                   {coherent.map((row) => {
-                    const point = row.tag.replace(/^ercot_region:/, "");
+                    const point = row.settlement_point;
                     return (
                       <tr key={point} aria-selected={selected === point}>
                         <td>
@@ -274,7 +331,11 @@ export function OverviewCharts({
                             {marketNames[point] ?? point}
                           </button>
                         </td>
-                        <td>{row.value.toFixed(2)}</td>
+                        <td
+                          title={`${marketTime(row.target_ts - 900)} – ${marketTime(row.target_ts)} · issue ${row.publication ? marketTime(row.publication.issued_at) : "unknown"} · retrieved ${row.publication ? marketTime(row.publication.retrieved_at) : "unknown"}`}
+                        >
+                          {row.value.toFixed(2)}
+                        </td>
                       </tr>
                     );
                   })}
@@ -285,30 +346,32 @@ export function OverviewCharts({
             <p role="status">
               {isLoading
                 ? "Loading price points…"
-                : rankingError
-                  ? "Price ranking unavailable. Historical series remain independent."
+                : rankingError || ranking?.settlement_interval.state === "unavailable"
+                  ? "Settlement source unavailable. Core collection history remains independent."
                   : "No settlement prices reported."}
             </p>
           )}
         </section>
         <div className="homepage-wide">
-          {priceSeries ? (
-            renderChart(pricingChart, "overview")
+          {pointType ? (
+            renderChart(pricingChart, "overview", displaySeries)
           ) : (
             <section className="homepage-ranking">
               <h3>{selected} history</h3>
               <p>
-                No configured historical series for this price point. Select Houston, North, or West
-                to view their histories.
+                Interval history is unsupported for this price point. No other point is substituted.
               </p>
             </section>
           )}
+        </div>
+        <div className="homepage-full">
+          {renderChart(collectionPriceChart, "overview", collectionSeries)}
         </div>
         <div className="homepage-full homepage-frequency">
           {renderChart(definition("frequency"), "overview")}
         </div>
       </div>
-      <TimeReadings seriesData={seriesData} time={time} selected={selected} evidence />
+      <TimeReadings seriesData={displaySeries} time={time} selected={selected} evidence />
       <details
         className="homepage-engineering"
         onToggle={(event) => setEngineering(event.currentTarget.open)}

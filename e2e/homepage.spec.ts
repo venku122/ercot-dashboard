@@ -1,5 +1,6 @@
+import { installMarketGeographyApi } from "./market-geography-fixtures";
 import { expect, test } from "@playwright/test";
-import { installMobileApi } from "./mobile-fixtures";
+import { FIXED_NOW_SECONDS, installMobileApi } from "./mobile-fixtures";
 
 for (const viewport of [
   { width: 1440, height: 900 },
@@ -38,6 +39,7 @@ test("DATA-01 DATA-03 native headroom, PRC and market selection remain distinct"
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await installMobileApi(page, "normal", [], { nativeCadence: true });
+  await installMarketGeographyApi(page, [], { priceTarget: FIXED_NOW_SECONDS });
   await page.goto("/?range=86400&live=1");
   const headroom = page.locator('[data-chart-id="overview-headroom"]');
   await expect(headroom.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
@@ -49,18 +51,25 @@ test("DATA-01 DATA-03 native headroom, PRC and market selection remain distinct"
   await page.screenshot({ path: "docs/overview-chart-first/native-1440.png" });
   await page
     .getByRole("region", { name: "Settlement price ranking" })
-    .getByRole("button", { name: "West Hub", exact: true })
+    .getByRole("button", { name: /^West Hub/ })
     .click();
   await expect(page.locator('[data-chart-id="pricing"] h3')).toHaveText(
-    "West Hub · settlement price",
+    "West Hub · NP6-905 settlement price",
   );
   await expect(page).toHaveURL(/overviewPoint=HB_WEST/);
   await page
     .getByRole("region", { name: "Settlement price ranking" })
-    .getByRole("button", { name: "LZ_WEST", exact: true })
+    .getByRole("button", { name: /^LZ_WEST/ })
     .click();
-  await expect(page.getByRole("heading", { name: "LZ_WEST history" })).toBeVisible();
-  await expect(page.locator('[data-chart-id="pricing"]')).toHaveCount(0);
+  const price = page.locator('[data-chart-id="pricing"]');
+  await expect(
+    price.getByRole("heading", { name: "LZ_WEST · NP6-905 settlement price" }),
+  ).toBeVisible();
+  await expect(price.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await price.locator("summary").filter({ hasText: "Accessible data table" }).click();
+  await expect(price.getByRole("columnheader", { name: "Interval ending (UTC)" })).toBeVisible();
+  await expect(price.getByRole("cell", { name: "$225.00/MWh", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/overviewPoint=LZ_WEST/);
 });
 
 test("HOME-03 UI-02 Inspect preserves one instance and explicit expanded legends", async ({

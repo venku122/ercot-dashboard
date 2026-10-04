@@ -86,6 +86,7 @@ from market_geography import (
     ingest_market_geography_publication,
     init_market_geography_schema,
     market_geography_manifest,
+    market_price_history,
     market_geography_resource,
 )
 from predictive_weather import (
@@ -4618,6 +4619,17 @@ class Handler(BaseHTTPRequestHandler):
                 {"error": "invalid_forecast_quality_resource"},
                 cache_control="no-store",
             )
+            return
+        if parsed.path == "/api/v1/market-price-history":
+            if not self._rate_limit("market_price_history", RATE_LIMIT_SERIES_RPM):
+                return
+            params = parse_qs(parsed.query)
+            try:
+                payload = market_price_history(get_db(), params["identity"][0], int(params["start"][0]), int(params["end"][0]))
+            except (KeyError, TypeError, ValueError):
+                self._send_json(400, {"error": "unsupported_market_price_query"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="no-store")
             return
         if parsed.path == "/api/v1/historical-forecast":
             if not self._rate_limit("historical_forecast", RATE_LIMIT_SERIES_RPM):

@@ -40,12 +40,15 @@ function source(product: "NP6-788-CD" | "NP6-905-CD" | "NP6-86-CD") {
   };
 }
 
-function priceRows() {
+function priceRows(target = PRICE_TARGET) {
+  const rawStart = chicagoRaw(target - 900);
+  const [date, time] = rawStart.split(" ");
+  const [hour, minute] = time!.split(":").map(Number);
   return POINTS.map(([settlement_point, settlement_point_type], index) => ({
-    target_ts: PRICE_TARGET,
-    raw_delivery_date: "08/20/2026",
-    delivery_hour: 13,
-    delivery_interval: 1,
+    target_ts: target,
+    raw_delivery_date: date!,
+    delivery_hour: hour! + 1,
+    delivery_interval: minute! / 15 + 1,
     raw_dst_flag: "N",
     repeated_hour_flag: false,
     settlement_point,
@@ -105,15 +108,68 @@ function resourceLink(kind: "prices" | "constraints", identity: string) {
   };
 }
 
+function unavailableMarketManifest(asOf: number) {
+  return {
+    schema_version: 1,
+    kind: "market_geography_manifest",
+    methodology: "market-geography-v1",
+    as_of: asOf,
+    visualization_policy: "settlement_price_matrix_not_geographic_boundaries",
+    attribution_status: "unavailable_without_shift_factors",
+    attribution_policy: "coincident_constraint_not_point_price_attribution",
+    settlement_interval: {
+      state: "unavailable",
+      target_ts: null,
+      rows: [],
+      reference_prices: [],
+      missing: POINTS.map(([point, type]) => `${point}--${type}`),
+    },
+    lmp_snapshot: {
+      state: "unavailable",
+      target_ts: null,
+      rows: [],
+      missing: POINTS.map(([point]) => point),
+    },
+    constraints: {
+      state: "unavailable",
+      target_ts: null,
+      rows: [],
+      total_count: 0,
+      truncated: false,
+    },
+    source_health: ["ercot_mis_np6_788", "ercot_mis_np6_86", "ercot_mis_np6_905"].map(
+      (source_id) => ({
+        source_id,
+        state: "unavailable",
+        availability_status: "source_disabled",
+        last_success_ts: null,
+        data_timestamp_ts: null,
+        data_age_seconds: null,
+        gap_count: 0,
+        consecutive_failures: 0,
+        last_error: null,
+      }),
+    ),
+    materialization_health: { state: "unavailable" },
+    resources: [],
+    deferred: {
+      nodal_map: "no_reviewed_node_geometry",
+      constraint_lines: "no_reviewed_station_geometry",
+    },
+  };
+}
+
 export async function installMarketGeographyApi(
   page: Page,
   requests: string[],
   options: {
+    disabled?: boolean;
     gapCount?: number;
     historyError?: boolean;
     manifestError?: boolean;
     partial?: boolean;
     stale?: boolean;
+    priceTarget?: number;
   } = {},
 ) {
   await page.route("**/api/v1/market-geography", (route) => {
@@ -121,7 +177,15 @@ export async function installMarketGeographyApi(
     if (options.manifestError) {
       return route.fulfill({ status: 503, json: { error: "temporarily_unavailable" } });
     }
-    const prices = priceRows();
+    const priceTarget = options.priceTarget ?? PRICE_TARGET;
+    if (options.disabled) return route.fulfill({ json: unavailableMarketManifest(priceTarget) });
+    const prices = priceRows(priceTarget);
+    const scedTarget = options.priceTarget === undefined ? SCED_TARGET : priceTarget - 42;
+    const constraint = {
+      ...constraintRow(),
+      target_ts: scedTarget,
+      raw_sced_timestamp: chicagoRaw(scedTarget),
+    };
     const visible = options.partial
       ? prices.filter(
           (row) => !(row.settlement_point === "LZ_WEST" && row.settlement_point_type === "LZ"),
@@ -132,13 +196,13 @@ export async function installMarketGeographyApi(
         schema_version: 1,
         kind: "market_geography_manifest",
         methodology: "market-geography-v1",
-        as_of: PRICE_TARGET + 60,
+        as_of: options.priceTarget ?? PRICE_TARGET + 60,
         visualization_policy: "settlement_price_matrix_not_geographic_boundaries",
         attribution_status: "unavailable_without_shift_factors",
         attribution_policy: "coincident_constraint_not_point_price_attribution",
         settlement_interval: {
           state: options.partial ? "partial" : "available",
-          target_ts: PRICE_TARGET,
+          target_ts: priceTarget,
           source: source("NP6-905-CD"),
           rows: visible.filter((row) => !["SH", "AH"].includes(row.settlement_point_type)),
           reference_prices: visible.filter((row) =>
@@ -149,11 +213,11 @@ export async function installMarketGeographyApi(
         },
         lmp_snapshot: {
           state: "available",
-          target_ts: SCED_TARGET,
+          target_ts: scedTarget,
           source: source("NP6-788-CD"),
           rows: POINTS.map(([settlement_point], index) => ({
-            target_ts: SCED_TARGET,
-            raw_sced_timestamp: "08/20/2026 12:40:18",
+            target_ts: scedTarget,
+            raw_sced_timestamp: chicagoRaw(scedTarget),
             repeated_hour_flag: false,
             settlement_point,
             value: index,
@@ -164,9 +228,9 @@ export async function installMarketGeographyApi(
         },
         constraints: {
           state: "available",
-          target_ts: SCED_TARGET,
+          target_ts: scedTarget,
           source: source("NP6-86-CD"),
-          rows: [constraintRow()],
+          rows: [constraint],
           total_count: 1,
           truncated: false,
           alignment: "exact_same_sced_as_lmp_snapshot",
@@ -211,6 +275,28 @@ export async function installMarketGeographyApi(
     });
   });
 
+  // Bounded selected-point native history is separate from lazy immutable specialist resources.
+  await page.route("**/api/v1/market-price-history?**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const identity = params.get("identity")!;
+    const [point, type] = identity.split("--");
+    const start = Number(params.get("start")),
+      end = Number(params.get("end"));
+    return route.fulfill({
+      json: {
+        product_id: "NP6-905-CD",
+        identity,
+        interval_seconds: 900,
+        rows: (options.disabled ? [] : priceRows(options.priceTarget ?? PRICE_TARGET)).filter(
+          (row) =>
+            row.settlement_point === point &&
+            row.settlement_point_type === type &&
+            row.target_ts >= start &&
+            row.target_ts < end,
+        ),
+      },
+    });
+  });
   await page.route("**/api/v2/market-geography/**", (route) => {
     const url = new URL(route.request().url());
     requests.push(url.pathname);

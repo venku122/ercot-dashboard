@@ -1,0 +1,82 @@
+{
+  "source_sha": "60992874472e7d136ec876dee2743339d0be49d4",
+  "source_run": 37193917150,
+  "scope": "three truthful expanded collection-price caption frames and alert crop stabilization only",
+  "source_change": "Existing efb9093 collection observation/unknown delivery interval caption; zero value/unit/oracle/API/request changes in this supplement.",
+  "geometry_regression": "Genuine late fractional preceding layout shift: original capture y108.796875 RED; bounded settled-layout crop integer assertion GREEN. Old alert raw54px remained same; old aligned y719.796875 vs current719.",
+  "unchanged": "Thresholds, source assertions, original alignment regressions, request budgets, production source and CSS.",
+  "entries": [
+    {
+      "path": "e2e/dashboard.spec.ts-snapshots/grid-health-score-chromium-darwin.png",
+      "before_sha256": "c339a54e6ecf2ea785ab02d0e07aed29d93792345a03a3e08ee0b5f729c54881",
+      "after_sha256": "3cf939aae2e1ee57846787c167b9090f0cca6b14d15935f3aca7978f01cdaa33",
+      "actual_source": "slot08-alignment-caption-repeat1 native actual",
+      "all_original_actual_diff_individually_viewed": true,
+      "matching_render_repeat": "Two native same-source assertions PASS at existing tolerances; full20state inheritedInspectfailure remains.",
+      "capture_limitation": "One original actual capture; no raw pixel identity claim."
+    },
+    {
+      "path": "e2e/dashboard.spec.ts-snapshots/grid-health-score-chromium-linux-ubuntu-24.04.png",
+      "before_sha256": "ee234e8a404024a7f6d88cdae5c44385486ed08ad3658e4e9ab072432ac68cd3",
+      "after_sha256": "6c1071a85665d526b2ff1286e1500decdae4971499e9af91612fab4a4cdc655b",
+      "actual_source": "run37193917150 exact609928 Linux actual",
+      "all_original_actual_diff_individually_viewed": true,
+      "matching_render_repeat": "PENDING",
+      "capture_limitation": "One original actual capture; no raw pixel identity claim."
+    },
+    {
+      "path": "e2e/dashboard.spec.ts-snapshots/structured-operational-alert-chromium-linux-ubuntu-24.04.png",
+      "before_sha256": "dd38d2947c088be9bc968aa8e411c1988eab717cc8720125a71aff5279f38f15",
+      "after_sha256": "bf9df9b7843e56e491e03a97bf046cf9023c5d204fde7fc2857f5e0343220835",
+      "actual_source": "run37193917150 exact609928 Linux actual",
+      "all_original_actual_diff_individually_viewed": true,
+      "matching_render_repeat": "PENDING",
+      "capture_limitation": "One original actual capture; no raw pixel identity claim."
+    },
+    {
+      "path": "e2e/mobile.spec.ts-snapshots/mobile-grid-health-score-iphone-pro-max-webkit-darwin.png",
+      "before_sha256": "ad41e97c7ec37a869ab71525fc3dd5c9394bf431ecfa27ad8affd5044e4431bf",
+      "after_sha256": "ee819505da1727e835d5aa11c608b1786128ac616c13816b69a8378a4dc34df9",
+      "actual_source": "slot08-alignment-caption-repeat1 native actual",
+      "all_original_actual_diff_individually_viewed": true,
+      "matching_render_repeat": "Two native same-source assertions PASS at existing tolerances; full20state inheritedInspectfailure remains.",
+      "capture_limitation": "One original actual capture; no raw pixel identity claim."
+    },
+    {
+      "path": "e2e/mobile.spec.ts-snapshots/mobile-grid-health-score-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "before_sha256": "fa7d898befdcf08d2f4073d5bc30a598489f1b41295f8c183e6e320f2629da76",
+      "after_sha256": "869b203034e4572a2979744d638a725dc8449c90e2775dfeb108797f38633636",
+      "actual_source": "run37193917150 exact609928 Linux actual",
+      "all_original_actual_diff_individually_viewed": true,
+      "matching_render_repeat": "PENDING",
+      "capture_limitation": "One original actual capture; no raw pixel identity claim."
+    },
+    {
+      "path": "e2e/mobile.spec.ts-snapshots/mobile-supporting-grid-readings-iphone-pro-max-webkit-darwin.png",
+      "before_sha256": "ad41e97c7ec37a869ab71525fc3dd5c9394bf431ecfa27ad8affd5044e4431bf",
+      "after_sha256": "ee819505da1727e835d5aa11c608b1786128ac616c13816b69a8378a4dc34df9",
+      "actual_source": "slot08-alignment-caption-repeat1 native actual",
+      "all_original_actual_diff_individually_viewed": true,
+      "matching_render_repeat": "Two native same-source assertions PASS at existing tolerances; full20state inheritedInspectfailure remains.",
+      "capture_limitation": "One original actual capture; no raw pixel identity claim."
+    },
+    {
+      "path": "e2e/mobile.spec.ts-snapshots/mobile-supporting-grid-readings-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "before_sha256": "fa7d898befdcf08d2f4073d5bc30a598489f1b41295f8c183e6e320f2629da76",
+      "after_sha256": "869b203034e4572a2979744d638a725dc8449c90e2775dfeb108797f38633636",
+      "actual_source": "run37193917150 exact609928 Linux actual",
+      "all_original_actual_diff_individually_viewed": true,
+      "matching_render_repeat": "PENDING",
+      "capture_limitation": "One original actual capture; no raw pixel identity claim."
+    }
+  ],
+  "native_repeat_results": {
+    "repeat1": "4 focused tests pass; original mobile20state all scoped captions pass; inherited Inspect portrait86pixels vs8 fails",
+    "repeat2": "7 focused tests pass including all four original alignment tests; original mobile20state all scoped captions pass; inherited Inspect portrait86pixels vs8 fails",
+    "logs": [
+      "/tmp/ercot-post-release-2026-10/slot08-alignment-caption-final-repeat1.log",
+      "/tmp/ercot-post-release-2026-10/slot08-alignment-caption-final-repeat2.log"
+    ],
+    "limitation": "Repeated assertions at unchanged tolerance; no decoded-pixel equality claim. Linux matching repaired-head repeat pending."
+  }
+}

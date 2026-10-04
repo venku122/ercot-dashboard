@@ -281,8 +281,8 @@ export function buildGridHealthScore({
       10,
       pricePenalty,
       price
-        ? `${formatSignedValue(price.value, "$/MWh")} current settlement price.`
-        : "Fresh Houston price required.",
+        ? `${formatSignedValue(price.value, "$/MWh")} current collection-price observation. Settlement delivery interval unknown.`
+        : "Fresh Houston collection-price observation required; settlement delivery interval unknown.",
     ),
     factor(
       "weather",

@@ -29,7 +29,7 @@ class ChartCoordinator {
   }
 
   clearPin() {
-    if (!this.pinned) return;
+    if (!this.pinned && this.pendingTimestamp === null) return;
     this.pinned = false;
     this.pendingTimestamp = null;
     for (const listener of this.listeners) listener(null, false);

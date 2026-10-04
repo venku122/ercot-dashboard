@@ -24,6 +24,7 @@ import { chartCoordinator } from "./dashboard/chart-coordinator";
 import { OverviewCharts } from "./dashboard/OverviewCharts";
 import {
   homepageSeries,
+  collectionPriceChart,
   headroomChart,
   overviewChartIds,
   engineeringChartIds,
@@ -706,9 +707,11 @@ export function App() {
           (selectedView === "overview"
             ? overviewChartIds.has(chart.id) || engineeringChartIds.has(chart.id)
             : dashboardViewForGroup(chart.group) === selectedView) &&
-          (activeChartIds.has(chart.id) ||
+          ((selectedView === "overview" && chart.id === "pricing"
+            ? activeChartIds.has("pricing-collection")
+            : activeChartIds.has(chart.id)) ||
             (selectedView === "overview" &&
-              ["supply-demand", "capacity-headroom", "pricing", "frequency"].includes(chart.id)) ||
+              ["supply-demand", "capacity-headroom", "frequency"].includes(chart.id)) ||
             (selectedView === "overview" &&
               chart.id === "capacity-headroom" &&
               activeChartIds.has("overview-headroom"))) &&
@@ -843,7 +846,9 @@ export function App() {
 
   const soloSeries = useCallback((chartId: string, key: string) => {
     setState((current) => {
-      const chart = chartDefinitions.find((definition) => definition.id === chartId);
+      const chart =
+        chartDefinitions.find((definition) => definition.id === chartId) ??
+        (chartId === collectionPriceChart.id ? collectionPriceChart : undefined);
       if (!chart) return current;
       const keys = chart.series.map((series) => seriesKey(chart.id, series.id));
       const alreadySolo = keys.every(
@@ -1062,6 +1067,7 @@ export function App() {
   const renderChart = (
     chart: (typeof chartDefinitions)[number],
     presentation: "featured" | "standard" | "overview" = "standard",
+    overrideSeriesData?: Map<string, LoadedSeries>,
   ) => (
     <Suspense
       fallback={<article className="chart-card chart-card-lazy">Loading chart workspace…</article>}
@@ -1097,7 +1103,9 @@ export function App() {
         onZoom={onZoom}
         presentation={presentation}
         requestError={effectiveRequestError}
-        seriesData={selectedView === "overview" ? overviewSeriesData : seriesData}
+        seriesData={
+          overrideSeriesData ?? (selectedView === "overview" ? overviewSeriesData : seriesData)
+        }
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
         time={seriesTime}
       />
