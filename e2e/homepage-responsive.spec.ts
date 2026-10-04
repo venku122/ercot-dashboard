@@ -36,6 +36,12 @@ for (const width of [320, 390, 512, 700, 834]) {
     await page
       .getByRole("combobox", { name: "History point", exact: true })
       .selectOption({ label: "West Hub" });
-    await expect(page.getByRole("heading", { name: "West Hub · settlement price" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "West Hub · NP6-905 settlement price" }),
+    ).toBeVisible();
+    await expect(page.locator('[data-chart-id="pricing"] canvas')).toHaveCount(0);
+    await expect(
+      page.getByText("Settlement source unavailable. Core collection history remains independent."),
+    ).toBeVisible();
   });
 }
