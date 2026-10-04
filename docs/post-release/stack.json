@@ -35,11 +35,12 @@
       "branch": "ercot-post-release/03-release-smoke",
       "base_branch": "ercot-post-release/02-current-status",
       "logical_dependency_ids": [],
-      "pr_number": null,
-      "pr_url": null,
-      "head_sha": null,
-      "tested_sha": null,
-      "status": "PLANNED_NOT_CREATED"
+      "pr_number": 75,
+      "pr_url": "https://github.com/venku122/ercot-dashboard/pull/75",
+      "head_sha": "20f10aa3a6440d744394f74c0121cd73128b7dcb",
+      "tested_sha": "20f10aa3a6440d744394f74c0121cd73128b7dcb",
+      "status": "DRAFT_LOCALLY_VALIDATED",
+      "observed_at_utc": "2026-10-04T03:29:18.945714+00:00"
     },
     {
       "slot": 4,
