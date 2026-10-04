@@ -880,6 +880,89 @@ export async function loadSeries(
   signal: AbortSignal,
   previousData: Map<string, LoadedSeries> = new Map(),
 ): Promise<Map<string, LoadedSeries>> {
+  const wantsForecast = charts.some(
+    (chart) =>
+      chart.id === "supply-demand" &&
+      chart.series.some((series) => series.id === "forecast-demand"),
+  );
+  const observedCharts = wantsForecast
+    ? charts.map((chart) =>
+        chart.id === "supply-demand"
+          ? {
+              ...chart,
+              series: chart.series.filter((series) => series.id !== "forecast-demand"),
+            }
+          : chart,
+      )
+    : charts;
+  const forecast = async (): Promise<LoadedSeries> => {
+    const params = new URLSearchParams({
+      start: String(Math.round(time.start)),
+      end: String(Math.round(time.end) + 1),
+      as_of: String(Math.round(time.end)),
+      policy: "issued_before_delivery",
+    });
+    try {
+      const payload = await fetchJson<{
+        product_id: string;
+        policy: string;
+        rows: Array<{
+          target_ts: number;
+          interval_start: number;
+          issued_at: number;
+          value: number;
+          unit: string;
+        }>;
+      }>(`/api/v1/historical-forecast?${params}`, { method: "GET" }, signal);
+      if (
+        payload.product_id !== "NP3-565-CD" ||
+        payload.policy !== "issued_before_delivery" ||
+        !Array.isArray(payload.rows)
+      )
+        throw new Error("Invalid historical forecast contract");
+      const points: Point[] = payload.rows
+        .filter(
+          (row) =>
+            Number.isFinite(row.value) &&
+            row.unit === "MW" &&
+            row.target_ts >= time.start &&
+            row.target_ts <= time.end &&
+            row.issued_at <= row.interval_start &&
+            row.issued_at <= time.end,
+        )
+        .map((row) => [row.target_ts, row.value]);
+      return {
+        points,
+        compare: [],
+        meta: { bucket_seconds: 3600, since: time.start, until: time.end },
+        error: points.length ? null : "No eligible archived forecast issued before delivery",
+      };
+    } catch (error) {
+      if (isAbortError(error, signal)) throw error;
+      return {
+        points: [],
+        compare: [],
+        meta: { bucket_seconds: 3600 },
+        error: "Archived pre-delivery forecast unavailable; current future outlook is separate",
+      };
+    }
+  };
+  const [result, historical] = await Promise.all([
+    loadObservedSeries(observedCharts, time, compare, customCompareSeconds, signal, previousData),
+    wantsForecast ? forecast() : Promise.resolve(null),
+  ]);
+  if (historical) result.set("supply-demand:forecast-demand", historical);
+  return result;
+}
+
+async function loadObservedSeries(
+  charts: ChartDefinition[],
+  time: TimeState,
+  compare: CompareMode,
+  customCompareSeconds: number,
+  signal: AbortSignal,
+  previousData: Map<string, LoadedSeries> = new Map(),
+): Promise<Map<string, LoadedSeries>> {
   const pairedCharts = charts.filter((chart) =>
     chart.series.some((series) => series.metric === HEADROOM_METRIC),
   );
@@ -913,7 +996,14 @@ export async function loadSeries(
     const [pairedData, physicalData] = await Promise.all([
       pairedLoad(),
       physicalCharts.length
-        ? loadSeries(physicalCharts, time, compare, customCompareSeconds, signal, previousData)
+        ? loadObservedSeries(
+            physicalCharts,
+            time,
+            compare,
+            customCompareSeconds,
+            signal,
+            previousData,
+          )
         : Promise.resolve(new Map<string, LoadedSeries>()),
     ]);
     return new Map([...physicalData, ...pairedData]);

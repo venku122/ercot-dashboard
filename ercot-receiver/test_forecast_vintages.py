@@ -143,6 +143,27 @@ class ForecastStorageTests(unittest.TestCase):
             current_ts=issued + 120,
         )
 
+    def test_historical_forecast_selects_before_delivery_and_excludes_late_system_arrival(self):
+        self.assertTrue(callable(getattr(fv, "historical_forecast_rows", None)), "historical vintage selector is missing")
+        start = TARGET_1 - 3600
+        early = self.ingest(fv.PRODUCT_NP3_565, "early", [row_565(value=10)], start - 120, "MW")
+        self.ingest(fv.PRODUCT_NP3_565, "late", [row_565(value=99)], start + 1, "MW")
+        result = fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 1, TARGET_1)
+        self.assertEqual(result["rows"][0]["value"], 10)
+        self.assertEqual(result["rows"][0]["vintage_key"], early["vintage_key"])
+        self.assertEqual(result["rows"][0]["interval_start"], start)
+        self.conn.execute("UPDATE forecast_publications SET created_at=? WHERE vintage_key=?", (TARGET_1 + 1, early["vintage_key"]))
+        known = fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 1, TARGET_1, "system_known")
+        self.assertEqual(known["rows"], [])
+        self.assertEqual(fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 1, TARGET_1)["rows"][0]["value"], 10)
+
+    def test_historical_forecast_requires_declared_basis_and_bounds(self):
+        self.assertTrue(callable(getattr(fv, "historical_forecast_rows", None)), "historical vintage selector is missing")
+        self.ingest(fv.PRODUCT_NP3_565, "unknown-unit", [row_565()], TARGET_1 - 7200)
+        self.assertEqual(fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 1, TARGET_1)["rows"], [])
+        with self.assertRaises(ValueError):
+            fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 367 * 86400, TARGET_1)
+
     def test_migration_is_idempotent_and_builds_wide_target_indexes(self):
         fv.init_forecast_schema(self.conn)
         tables = {

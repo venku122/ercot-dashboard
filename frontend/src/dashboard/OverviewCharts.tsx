@@ -208,7 +208,16 @@ export function OverviewCharts({
     <section className="homepage-workspace" aria-label="Grid charts">
       <TimeReadings seriesData={seriesData} time={time} selected={selected} />
       <div className="homepage-chart-grid">
-        <div className="homepage-wide">{renderChart(definition("supply-demand"), "overview")}</div>
+        <div className="homepage-wide">
+          {renderChart(definition("supply-demand"), "overview")}
+          <p className="homepage-chart-note">
+            Historical forecast: latest archived MW publication issued before each delivery hour.
+            Official issue time does not prove this system knew it then. Future outlook is separate.
+            {seriesData.get("supply-demand:forecast-demand")?.error
+              ? ` ${seriesData.get("supply-demand:forecast-demand")?.error}.`
+              : ""}
+          </p>
+        </div>
         <div className="homepage-narrow">
           {renderChart(headroomChart, "overview")}
           {headroomCoverage ? (

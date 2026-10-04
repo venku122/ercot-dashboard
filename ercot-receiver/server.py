@@ -36,6 +36,7 @@ from forecast_vintages import (
     PRODUCT_NP3_763,
     PRODUCT_NP6_345,
     comparison_rows,
+    historical_forecast_rows,
     ingest_forecast_publication,
     init_forecast_schema,
     list_publications,
@@ -4617,6 +4618,20 @@ class Handler(BaseHTTPRequestHandler):
                 {"error": "invalid_forecast_quality_resource"},
                 cache_control="no-store",
             )
+            return
+        if parsed.path == "/api/v1/historical-forecast":
+            if not self._rate_limit("historical_forecast", RATE_LIMIT_SERIES_RPM):
+                return
+            params = parse_qs(parsed.query)
+            try:
+                payload = historical_forecast_rows(
+                    get_db(), int(params["start"][0]), int(params["end"][0]),
+                    int(params["as_of"][0]), (params.get("policy") or ["issued_before_delivery"])[0],
+                )
+            except (KeyError, TypeError, ValueError):
+                self._send_json(400, {"error": "invalid_historical_forecast"}, cache_control="no-store")
+                return
+            self._send_json(200, payload, cache_control="no-store")
             return
         if parsed.path == "/api/v1/forecast-publications":
             if not self._rate_limit("forecast_vintages_query", RATE_LIMIT_SERIES_RPM):
