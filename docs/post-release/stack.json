@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "repository": "venku122/ercot-dashboard",
+  "authoring_baseline_sha": "1dc9906ee73a97805d38561de7d79bf424592234",
+  "stack": [
+    {
+      "slot": 1,
+      "primary_issue_id": "ERP-12",
+      "branch": "ercot-post-release/01-tracking-reconciliation",
+      "base_branch": "main",
+      "logical_dependency_ids": [],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 2,
+      "primary_issue_id": "ERP-11",
+      "branch": "ercot-post-release/02-current-status",
+      "base_branch": "ercot-post-release/01-tracking-reconciliation",
+      "logical_dependency_ids": [],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 3,
+      "primary_issue_id": "ERP-01",
+      "branch": "ercot-post-release/03-release-smoke",
+      "base_branch": "ercot-post-release/02-current-status",
+      "logical_dependency_ids": [],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 4,
+      "primary_issue_id": "ERP-02",
+      "branch": "ercot-post-release/04-temporal-policies",
+      "base_branch": "ercot-post-release/03-release-smoke",
+      "logical_dependency_ids": ["ERP-01"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 5,
+      "primary_issue_id": "ERP-08",
+      "branch": "ercot-post-release/05-source-audit",
+      "base_branch": "ercot-post-release/04-temporal-policies",
+      "logical_dependency_ids": ["ERP-01"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 6,
+      "primary_issue_id": "ERP-03",
+      "branch": "ercot-post-release/06-paired-headroom",
+      "base_branch": "ercot-post-release/05-source-audit",
+      "logical_dependency_ids": ["ERP-01", "ERP-02"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 7,
+      "primary_issue_id": "ERP-04",
+      "branch": "ercot-post-release/07-forecast-semantics",
+      "base_branch": "ercot-post-release/06-paired-headroom",
+      "logical_dependency_ids": ["ERP-02", "ERP-08"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 8,
+      "primary_issue_id": "ERP-05",
+      "branch": "ercot-post-release/08-settlement-intervals",
+      "base_branch": "ercot-post-release/07-forecast-semantics",
+      "logical_dependency_ids": ["ERP-02", "ERP-08"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 9,
+      "primary_issue_id": "ERP-10",
+      "branch": "ercot-post-release/09-ui-primitives",
+      "base_branch": "ercot-post-release/08-settlement-intervals",
+      "logical_dependency_ids": ["ERP-01"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 10,
+      "primary_issue_id": "ERP-07",
+      "branch": "ercot-post-release/10-inline-outlook",
+      "base_branch": "ercot-post-release/09-ui-primitives",
+      "logical_dependency_ids": ["ERP-04", "ERP-08", "ERP-10"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 11,
+      "primary_issue_id": "ERP-06",
+      "branch": "ercot-post-release/11-homepage-performance",
+      "base_branch": "ercot-post-release/10-inline-outlook",
+      "logical_dependency_ids": [
+        "ERP-01",
+        "ERP-02",
+        "ERP-03",
+        "ERP-04",
+        "ERP-05",
+        "ERP-07",
+        "ERP-10"
+      ],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    },
+    {
+      "slot": 12,
+      "primary_issue_id": "ERP-09",
+      "branch": "ercot-post-release/12-accessibility-final-evidence",
+      "base_branch": "ercot-post-release/11-homepage-performance",
+      "logical_dependency_ids": ["ERP-06", "ERP-07", "ERP-10"],
+      "pr_number": null,
+      "pr_url": null,
+      "head_sha": null,
+      "tested_sha": null,
+      "status": "PLANNED_NOT_CREATED"
+    }
+  ]
+}

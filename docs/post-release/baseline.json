@@ -1,0 +1,10 @@
+{
+  "baseline": "1dc9906ee73a97805d38561de7d79bf424592234",
+  "observed_at_utc": "2026-10-04T03:06:34.801569+00:00",
+  "lockfile_sha256": "5f23250b4fac2917ceb1fe0d59771001a147a665b93a1450edd89315909e9a4c",
+  "platform": "Darwin arm64",
+  "node": "v25.8.2",
+  "pnpm": "10.30.3",
+  "python": "Python 3.14.3",
+  "production_revision": "DEPLOYED_REVISION_UNKNOWN"
+}
