@@ -108,6 +108,9 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   await surface.getByRole("option", { name: "More" }).click();
   await surface.getByRole("option", { name: /Select from calendar/ }).click();
   await expectGeometry(surface.getByLabel("Calendar range"), contract.geometry.menuWidth, null);
+  const calendarHover = surface.getByRole("button", { name: "July 29, 2026", exact: true });
+  await calendarHover.hover();
+  await expect(calendarHover).toHaveAttribute("aria-pressed", "false");
   await expect(surface).toHaveScreenshot("picker-calendar.png");
   await page.keyboard.press("Escape");
 
