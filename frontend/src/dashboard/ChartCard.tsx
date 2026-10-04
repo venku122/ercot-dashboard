@@ -23,7 +23,7 @@ import {
   type ScatterDataPoint,
 } from "chart.js";
 import zoomPlugin from "chartjs-plugin-zoom";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { seriesKey } from "./chart-config";
@@ -289,7 +289,6 @@ export function ChartCard({
   const cursorLineRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartJs<"line"> | null>(null);
   const accessibleDataRef = useRef<HTMLDetailsElement>(null);
-  const [dataTableOpen, setDataTableOpen] = useState(false);
   const inspectTriggerRef = useRef<HTMLButtonElement>(null);
   const cursorTimestamp = useRef<number | null>(null);
   const pointerDown = useRef<{ x: number; y: number } | null>(null);
@@ -304,6 +303,22 @@ export function ChartCard({
     visible,
   } = useVisible<HTMLElement>(mobile ? "0px" : "100px");
   const [pinned, setPinned] = useState(false);
+  const [dataTableOpen, setDataTableOpen] = useState(false);
+  const [pinAnnouncement, setPinAnnouncement] = useState("");
+  const announcedPin = useRef<number | null>(null);
+  const syncPinnedState = useCallback((timestamp: number | null, isPinned: boolean) => {
+    setPinned(isPinned);
+    if (isPinned && timestamp !== null && announcedPin.current !== timestamp) {
+      announcedPin.current = timestamp;
+      setPinAnnouncement(
+        `Cursor pinned at ${marketTime(timestamp)}. Values are valid observations at or before the cursor, or published intervals containing it.`,
+      );
+    } else if (!isPinned && announcedPin.current !== null) {
+      announcedPin.current = null;
+      setPinAnnouncement("Cursor cleared. Readouts return to selected-window values.");
+    }
+  }, []);
+
   const [copied, setCopied] = useState(false);
   const [interpretationOpen, setInterpretationOpen] = useState(!mobile);
   const interpretation = chart.interpretation;
@@ -324,10 +339,10 @@ export function ChartCard({
       cursorTimestamp.current = snapshot.timestamp;
       cursorByChart.set(instance, snapshot.timestamp);
       pinnedByChart.set(instance, snapshot.pinned);
-      setPinned(snapshot.pinned);
+      syncPinnedState(snapshot.timestamp, snapshot.pinned);
       instance.draw();
     }
-  }, [interactionPolicy.cursorPin, visible]);
+  }, [interactionPolicy.cursorPin, visible, syncPinnedState]);
 
   const wasInspect = useRef(false);
   useEffect(() => {
@@ -795,14 +810,14 @@ export function ChartCard({
     cursorTimestamp.current = initialCursor.timestamp;
     cursorByChart.set(instance, initialCursor.timestamp);
     pinnedByChart.set(instance, initialCursor.pinned);
-    setPinned(initialCursor.pinned);
+    syncPinnedState(initialCursor.timestamp, initialCursor.pinned);
     if (initialCursor.timestamp !== null) instance.draw();
     const unsubscribe = chartCoordinator.subscribe((timestamp, isPinned) => {
       if (!cursorActive.current) return;
       cursorTimestamp.current = timestamp;
       cursorByChart.set(instance, timestamp);
       pinnedByChart.set(instance, isPinned);
-      setPinned(isPinned);
+      syncPinnedState(timestamp, isPinned);
       if (presentation === "overview") paintCursor(instance, timestamp, isPinned);
       else instance.draw();
     });
@@ -817,7 +832,7 @@ export function ChartCard({
       chartRef.current = null;
       delete canvas.dataset["chartReady"];
     };
-  }, [chart, hasData, mounted]);
+  }, [chart, hasData, mounted, syncPinnedState]);
 
   useEffect(() => {
     const instance = chartRef.current;
@@ -1053,7 +1068,23 @@ export function ChartCard({
           ...event.currentTarget.querySelectorAll<HTMLElement>(
             "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex='-1'])",
           ),
-        ];
+        ].filter((element) => {
+          // Chromium can retain layout rectangles inside a closed details element.
+          // Only its direct summary and that summary's descendants are reachable.
+          for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+            if (
+              ancestor.tagName === "DETAILS" &&
+              !ancestor.hasAttribute("open") &&
+              !ancestor.querySelector(":scope > summary")?.contains(element)
+            )
+              return false;
+          }
+          return (
+            element.getClientRects().length > 0 &&
+            getComputedStyle(element).visibility !== "hidden" &&
+            !element.closest("[inert]")
+          );
+        });
         const first = focusable.at(0);
         const last = focusable.at(-1);
         if (!first || !last) return;
@@ -1161,8 +1192,12 @@ export function ChartCard({
         </div>
       ) : null}
 
+      <p aria-live="polite" aria-atomic="true" className="sr-only" data-pin-announcement>
+        {pinAnnouncement}
+      </p>
+
       {showStatusRow ? (
-        <div className="chart-status-row" aria-live="polite">
+        <div className="chart-status-row">
           {sourceHealth && sourceHealth.state !== "healthy" ? (
             <span className={`status-chip status-${sourceHealth.state}`}>
               Data {sourceHealth.freshness_state} · {formatAge(sourceHealth.data_age_seconds)}
@@ -1313,6 +1348,12 @@ export function ChartCard({
               className="legend-table"
               aria-label={`${chart.title} ${previousSelectionNote ? "previous selection " : ""}series statistics`}
             >
+              <caption className="sr-only">
+                Source unit: {chart.unit}. Displayed values include their units. Value shows the
+                valid cursor reading or latest value from the{" "}
+                {previousSelectionNote ? "previous selection" : "selected window"}. Min, max and
+                average describe that same window. Energy source unit is MWh.
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Series</th>
@@ -1348,26 +1389,49 @@ export function ChartCard({
         >
           <summary>Accessible data table</summary>
           <p>
-            Displayed source values. Dashed lines and * readouts indicate aggregate or unknown
-            resolution; bucket width does not prove coverage. Cursor values expire independently of
-            line continuity.
+            Source unit: {chart.unit}. Displayed values include their units. Dashed lines and *
+            readouts indicate aggregate or unknown resolution; bucket width does not prove coverage.
+            Cursor values expire independently of line continuity.
             {visibleSeries.some((series) => temporalPolicy(chart.id, series)?.kind === "interval")
               ? " Verified delivery intervals use [start, end); timestamps label interval ending, not retrieval time."
               : ""}
           </p>
-          <div className="table-scroll">
+          <p>
+            Latest 250 displayed points per series;{" "}
+            {visibleSeries
+              .reduce(
+                (total, series) =>
+                  total +
+                  Math.max(
+                    0,
+                    (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) - 250,
+                  ),
+                0,
+              )
+              .toLocaleString("en-US")}{" "}
+            older displayed points omitted from this table. CSV includes the full displayed
+            selected-window series. Comparison values remain separately labeled in the plot.
+          </p>
+          <div
+            className="table-scroll"
+            role="region"
+            tabIndex={0}
+            aria-label={`${chart.title} displayed source data`}
+          >
             <table>
               <thead>
                 <tr>
-                  <th>Series</th>
-                  <th>
+                  <th scope="col">Series</th>
+                  <th scope="col">
                     {visibleSeries.some(
-                      (series) => temporalPolicy(chart.id, series)?.kind === "interval",
+                      (series) => temporalPolicy(chart.id, series)?.cursor.mode === "interval",
                     )
                       ? "Interval ending (UTC)"
-                      : "Timestamp"}
+                      : "Timestamp (UTC)"}
                   </th>
-                  <th>Value</th>
+                  <th scope="col">Displayed value</th>
+                  <th scope="col">Resolution and coverage</th>
+                  <th scope="col">Published interval (UTC)</th>
                 </tr>
               </thead>
               <tbody>
@@ -1380,6 +1444,26 @@ export function ChartCard({
                             <td>{series.label}</td>
                             <td>{new Date(timestamp * 1000).toISOString()}</td>
                             <td>{formatValue(value, chart.unit)}</td>
+                            <td>
+                              {seriesResolution(
+                                seriesData.get(seriesKey(chart.id, series.id)),
+                                temporalPolicy(chart.id, series),
+                              )}{" "}
+                              ·{" "}
+                              {seriesData.get(seriesKey(chart.id, series.id))?.meta.coverage ??
+                                "unknown"}{" "}
+                              coverage
+                            </td>
+                            <td>
+                              {(() => {
+                                const interval = seriesData
+                                  .get(seriesKey(chart.id, series.id))
+                                  ?.meta.intervals?.find((item) => item.timestamp === timestamp);
+                                return interval
+                                  ? `${new Date(interval.start * 1000).toISOString()}–${new Date(interval.end * 1000).toISOString()} (end exclusive)`
+                                  : "Point observation; no published interval";
+                              })()}
+                            </td>
                           </tr>
                         )),
                     )

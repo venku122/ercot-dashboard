@@ -4,7 +4,7 @@
   --trp-background: #0f172a;
   --trp-border: #334155;
   --trp-control: #111c30;
-  --trp-control-height: 42px;
+  --trp-control-height: 46px;
   --trp-control-text: #cbd5e1;
   --trp-error: #fca5a5;
   --trp-focus: #38bdf8;
@@ -26,6 +26,17 @@
   font-size: var(--trp-font-size);
   line-height: var(--trp-line-height);
   position: relative;
+}
+
+/* Desktop geometry stays inside the frozen 42±2px contract; inputs retain 44px targets. */
+.time-range-picker--desktop {
+  --trp-control-height: 44px;
+}
+
+.time-range-picker--desktop .time-range-picker__input {
+  background: transparent;
+  height: 44px;
+  margin-block: -1px;
 }
 
 .time-range-picker__cluster,

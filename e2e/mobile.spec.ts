@@ -485,9 +485,15 @@ test("mobile interaction evidence flow @mobile-core @interaction-evidence", asyn
   await expect(card).toHaveAttribute("data-interaction-policy", "inspect");
   await card.getByRole("button", { name: "Reset zoom" }).click();
   await card.getByRole("button", { name: "Close inspect" }).click();
-  await page.getByRole("button", { name: "Time & compare" }).click();
-  await expect(page.getByRole("dialog", { name: "Time & comparison" })).toBeVisible();
+  await expect(card).not.toHaveAttribute("data-interaction-policy", "inspect");
+  const controls = page.getByRole("button", { name: "Time & compare" });
+  await controls.click();
+  const sheet = page.getByRole("dialog", { name: "Time & comparison" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Close Time & comparison" })).toBeFocused();
   await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  await expect(controls).toBeFocused();
   await page.getByRole("button", { name: "Market view" }).click();
   await expect(page.getByRole("heading", { name: "Market", exact: true })).toBeFocused();
 });
@@ -757,10 +763,16 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
     .getByLabel("Active grid alerts")
     .getByRole("button", { name: "Review operations" })
     .click();
-  await expect
-    .soft(page.getByRole("dialog", { name: "Operations timeline" }))
-    .toHaveScreenshot("mobile-operations-timeline.png");
+  const operations = page.getByRole("dialog", { name: "Operations timeline" });
+  await expect(operations.getByLabel("Filter operations timeline by severity")).toBeVisible();
+  await expect(
+    operations.getByRole("list", { name: "Historical operations timeline" }).getByRole("listitem"),
+  ).toHaveCount(6);
+  await expect(operations).toContainText("Showing 6 of 6 events, newest first");
+  await evidence.capture("mobile-operations-timeline", operations);
+  await expect.soft(operations).toHaveScreenshot("mobile-operations-timeline.png");
   await page.keyboard.press("Escape");
+  await expect(operations).toBeHidden();
 
   // Register replacements before reload; newest routes win without a polling escape gap.
   await installMobileApi(page, "warning");
@@ -823,7 +835,10 @@ test("iPad weather and advanced analytics remain readable in both orientations @
   }
 
   await page.unrouteAll({ behavior: "wait" });
-  await openPopulated(page, "normal", "/?view=advanced");
+  // A trailing15-minute slope needs actual native source observations;
+  // the64-point/day aggregate fixture truthfully cannot populate that trend.
+  await installMobileApi(page, "normal", [], { nativeCadence: true });
+  await page.goto("/?view=advanced");
   const recovery = page.locator('[data-chart-id="time-error-recovery"]');
   await recovery.scrollIntoViewIfNeeded();
   await expect(recovery).toBeVisible();

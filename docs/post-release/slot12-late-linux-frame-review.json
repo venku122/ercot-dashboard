@@ -1,0 +1,161 @@
+{
+  "source_head": "97af549bf2a0c6b2a314dedd6604503fe16dedda",
+  "run": 37201430032,
+  "artifact": 11303376289,
+  "scope": "Nine individually reviewed Linux desktop frames only; no product, fixtures, tests, tolerance or budgets changed",
+  "frames": [
+    {
+      "name": "picker-calendar",
+      "path": "e2e/datadog-picker-conformance.spec.ts-snapshots/picker-calendar-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-calendar-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-calendar-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-calendar-diff.png",
+      "original_sha256": "b2461ef6e7934b58dde624cc1c6152f694fc664d07dace9a9f04486691a05e5c",
+      "actual_sha256": "28b47169fccf8e3e24db72f874e605b09d2dfd556ba1a2db94c723504c004e55",
+      "diff_sha256": "94f33deba05a17d486b3d51ece93d2aeffe3f9b510088060a38f849ff4733c4f",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Footer minimum height44 adds5px; explicit unselected July29 hover preserves unselected calendar state, July2026 dates unchanged.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "picker-editing",
+      "path": "e2e/datadog-picker-conformance.spec.ts-snapshots/picker-editing-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-editing-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-editing-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-editing-diff.png",
+      "original_sha256": "3aff8f5f45a43012128184c25e5b31be2cd0c0a752a19d6476adfe70bda04a0e",
+      "actual_sha256": "7571c053e8fec57558eb266fadeab62e250cdc0595e82eb805b20725e8b9f852",
+      "diff_sha256": "c2848c488e6bed15e80bd060277c1ac666c71ca21efeafd29e7289f5bcef5a8e",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Open calendar state retained. Footer44 adds5px. Editor text is outside this dialog crop; no source or applied selection change asserted from pixels.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "picker-invalid",
+      "path": "e2e/datadog-picker-conformance.spec.ts-snapshots/picker-invalid-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-invalid-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-invalid-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-invalid-diff.png",
+      "original_sha256": "b26723a7767b20fa343f2b50ed48cefe8edb15e6eca4bb645d91fde4d950cc8a",
+      "actual_sha256": "3565b108fc409c128b7de3c8603f2e9d4fe165fd1b0e9a9966e3d0266d253784",
+      "diff_sha256": "437c71aaddf4fde45ab7c7c4cc90e05fdcebeecb7adb55494448a04f16ba758d",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Invalid state retained; footer44 and error panel height. Error copy is Enter a supported time range. No invalid range applied.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "picker-fixed",
+      "path": "e2e/datadog-picker-conformance.spec.ts-snapshots/picker-fixed-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-fixed-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-fixed-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-fixed-diff.png",
+      "original_sha256": "92da78fe783e1c33c67a155533fb4318fee9ff3271939074ef92ad765a26a341",
+      "actual_sha256": "5efe2ec7b0f3c30772f1da0cde9a52c3625319779e52d020f0f5783315d608c5",
+      "diff_sha256": "f2751bbcac3917c5279845abf773c16234052120e3bd6070d0a54988c8e30787",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Same2h13m Sep1 2026 08:00\u201310:13 UTC\u221205 and play icon; shell512x44 replaces506x42.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "picker-live",
+      "path": "e2e/datadog-picker-conformance.spec.ts-snapshots/picker-live-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-live-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-live-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-live-diff.png",
+      "original_sha256": "51b7c6e5534621989bf8a7bd6398e460a8cecdab6ca33300941debe7b47e7a0b",
+      "actual_sha256": "1236b07d24ca699d3a54765334fee5afa7020e21a72b33d526fe0a2fb0710c71",
+      "diff_sha256": "98f4d3826beeb76731bad99999c4a32a7479f7e1abafc003b0c788c81ad0bdf0",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Current intended default1day/Past1Day replaces stale6h default; pause icon and44px shell retained. Source request bounds recorded in trace.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "picker-paused",
+      "path": "e2e/datadog-picker-conformance.spec.ts-snapshots/picker-paused-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-paused-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-paused-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/datadog-picker-conformance-4f9ab-s-match-the-frozen-contract-chromium/picker-paused-diff.png",
+      "original_sha256": "f3cb7ce014d373731bac2410475d48124501ae7ef367661e0c985f2cd3bb8877",
+      "actual_sha256": "4cf6028eba75964d7c154257bdea3ee3802ed6114931e801c40130589bccb363",
+      "diff_sha256": "17dde83fcd8935178bcaba35bb1bfebe15555169fa2ba20e3b32289a51658e1f",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Same1day Jul20 18:00\u2013Jul21 18:00 UTC\u221205 and play icon,44px shell.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "progressive-advanced-desktop",
+      "path": "e2e/dashboard.spec.ts-snapshots/progressive-advanced-desktop-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-advanced-desktop-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-advanced-desktop-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-advanced-desktop-diff.png",
+      "original_sha256": "cd554aa0e75499e6a378bc131515948cdbebed14322d2211cc1721b04d3248d0",
+      "actual_sha256": "5f1bd31b37306b33cee15f65df3a02da4a63b0324508f435c5a05e30ca3df804",
+      "diff_sha256": "7e809c13758f2ced9ebe338425b39a12831f98db6f9dfc005d48e724d293d189",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Same PRC1211.7680665273979MW and DC21.854980693738852MW;64 exact samples each, extrema/sign retained. Unknown/aggregate-resolution traces dashed;44px controls and disclosure spacing.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "progressive-diagnostics-desktop",
+      "path": "e2e/dashboard.spec.ts-snapshots/progressive-diagnostics-desktop-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-diagnostics-desktop-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-diagnostics-desktop-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-diagnostics-desktop-diff.png",
+      "original_sha256": "680634f49b65025aeb85e4a4a5098d3ba04478738cfac2fbf6ddfea8ecb3b5a2",
+      "actual_sha256": "6eb548f7daf776c26da83e62ed678903046925d53d7cb270c73adbbca01434b8",
+      "diff_sha256": "932599f6327eebc780ccc39a02c0a0a7d9c6f278d5518c890e9935b5a428ccec",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Same five64-observation duty-cycle arrays, final12.10086914166341%, extrema9.00002938034789..14.998720809124515. Exact-only instrumentation policy has zero gap allowance; isolated markers replace implied continuous lines.44px controls and table below crop.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    },
+    {
+      "name": "storage-context-replay-exact",
+      "path": "e2e/storage-context-replay.spec.ts-snapshots/storage-context-replay-exact-chromium-linux-ubuntu-24.04.png",
+      "original": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/storage-context-replay-sto-c336a-and-preserves-exact-context-chromium/storage-context-replay-exact-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/storage-context-replay-sto-c336a-and-preserves-exact-context-chromium/storage-context-replay-exact-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/test-results/storage-context-replay-sto-c336a-and-preserves-exact-context-chromium/storage-context-replay-exact-diff.png",
+      "original_sha256": "a4a1c59e78400efeb16f4c38fb34f4503bb23c9aafdc81eb17b73c6a107b51b6",
+      "actual_sha256": "aaeedbaf00d4e3d8eb1c6fdc773e3f8f04e4a583f3954c2ab9e0429abb633083",
+      "diff_sha256": "e752d5c3fc11de5b0fe0297904e38d9e6414de02ece0660aa76dd6749783ab6b",
+      "review": "All three images individually viewed; source and layout reviewed",
+      "reason": "Same nine exact frequency rows21:00..21:08UTC,Hz,ercot_realtime,60s nominal,collector_capture_time. One-pixel table text/row alignment.",
+      "capture_count": 1,
+      "matching_new_head_repeat": "PENDING"
+    }
+  ],
+  "trace_provenance": {
+    "path": "/tmp/ercot-post-release-2026-10/ci12-97af-desktop/raw-trace-source/provenance.json",
+    "sha256": "bd17ce86f90f8b3868a76ddd3a316df716037b2c9d0ae3fa26ac9bbe5289ff09",
+    "requests": 170,
+    "post_bodies": 23,
+    "unknown_post_bodies": 0,
+    "limitation": "Whole-flow passive trace responses; no claim of an atomic response capture at every screenshot. Missing bodies would be UNKNOWN."
+  },
+  "source_checks": {
+    "advanced": {
+      "prc_count": 64,
+      "prc_latest_mw": 1211.7680665273979,
+      "prc_extrema_mw": [850.0034277072538, 1549.8507610645268],
+      "dc_latest_mw": 21.854980693738852,
+      "dc_extrema_mw": [-649.9936342579573, 649.7228419769783],
+      "response_sha256": "037957ced87e87352b7dcf82a2754707d6205255ad56e3327e33f6d11a61f1b1"
+    },
+    "diagnostics": {
+      "each_count": 64,
+      "latest_percent": 12.10086914166341,
+      "extrema_percent": [9.00002938034789, 14.998720809124515],
+      "response_sha256": "1ddf085ff2d869973f6284b18ab63cbdb256b753063c128dd0f887d5a93bd747",
+      "policy": "series-temporal-policy.ts collector-duty-cycle exact observations only, max gap0"
+    }
+  },
+  "numeric": "Exact97af Linux2731.569171ms FAIL retained, new191 Linux3018.037720ms FAIL retained. Image review does not certify numeric acceptance.",
+  "aggregate_verdict": "PENDING_FINAL_VERIFICATION"
+}

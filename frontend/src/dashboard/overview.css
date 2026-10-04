@@ -203,7 +203,7 @@
 }
 .dashboard-shell:has(.homepage-workspace) {
   max-width: 1800px;
-  padding-top: 3px;
+  padding-top: max(3px, env(safe-area-inset-top));
 }
 .dashboard-shell:has(.homepage-workspace) .dashboard-header {
   margin-bottom: 0;
@@ -216,6 +216,9 @@
 .dashboard-shell:has(.homepage-workspace) .dashboard-view-nav {
   margin: 2px 0;
   padding: 2px;
+  padding-right: max(2px, env(safe-area-inset-right));
+  padding-bottom: max(2px, env(safe-area-inset-bottom));
+  padding-left: max(2px, env(safe-area-inset-left));
   border-radius: 6px;
 }
 .dashboard-shell:has(.homepage-workspace) .desktop-view-nav button {
@@ -529,5 +532,33 @@
 @container dashboard-page (min-width: 251px) and (max-width: 450px) {
   .dashboard-shell:has(.homepage-workspace) .compact-control-bar > .time-range-picker--mobile {
     flex: 1 1 200px;
+  }
+}
+
+/* Text enlargement can require a second row without truncating the active range. */
+.dashboard-shell:has(.homepage-workspace) .time-range-picker__input-shell {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 44px;
+}
+.dashboard-shell:has(.homepage-workspace) .time-range-picker__input {
+  flex-basis: 10ch;
+  min-width: min(100%, 10ch);
+}
+
+/* Compact ordinary-phone spacing retains complete readings and 44px controls.
+   Narrow zoom containers keep their independent reflow rules. */
+@container dashboard-page (min-width: 251px) and (max-width: 450px) {
+  .homepage-workspace {
+    margin-top: 0;
+  }
+  .homepage-readings {
+    margin-bottom: 4px;
+  }
+  .dashboard-shell:has(.homepage-workspace) .status-strip {
+    margin: 2px 0;
+  }
+  .homepage-workspace .chart-card-overview:not(.chart-card-inspect) {
+    gap: 4px;
   }
 }

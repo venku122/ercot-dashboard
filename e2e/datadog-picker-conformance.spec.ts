@@ -70,7 +70,7 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   await expect(editor(page)).toHaveCSS("font-size", `${contract.typography.inputFontSize}px`);
   await expect(editor(page)).toHaveCSS("font-weight", String(contract.typography.inputFontWeight));
   await expect(editor(page)).toHaveCSS("line-height", `${contract.typography.inputLineHeight}px`);
-  await expect(cluster).toHaveScreenshot("picker-closed.png");
+  await expect.soft(cluster).toHaveScreenshot("picker-closed.png");
 
   await editor(page).click();
   let surface = page.getByRole("dialog", { name: "Time range" });
@@ -85,7 +85,7 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   expect(Math.abs(menuBox!.y - (shellBox!.y + shellBox!.height))).toBeLessThanOrEqual(
     contract.geometry.toleranceCssPx,
   );
-  await expect(surface).toHaveScreenshot("picker-presets.png");
+  await expect.soft(surface).toHaveScreenshot("picker-presets.png");
 
   await surface.getByRole("option", { name: "More" }).click();
   const moreBox = await surface.boundingBox();
@@ -103,32 +103,35 @@ test("desktop geometry, typography, states and screenshots match the frozen cont
   expect(
     Math.abs(sidecarBox!.x - (expandedMenuBox!.x + expandedMenuBox!.width)),
   ).toBeLessThanOrEqual(contract.geometry.toleranceCssPx);
-  await expect(surface).toHaveScreenshot("picker-more.png");
+  await expect.soft(surface).toHaveScreenshot("picker-more.png");
 
   await surface.getByRole("option", { name: "More" }).click();
   await surface.getByRole("option", { name: /Select from calendar/ }).click();
   await expectGeometry(surface.getByLabel("Calendar range"), contract.geometry.menuWidth, null);
-  await expect(surface).toHaveScreenshot("picker-calendar.png");
+  const calendarHover = surface.getByRole("button", { name: "July 29, 2026", exact: true });
+  await calendarHover.hover();
+  await expect(calendarHover).toHaveAttribute("aria-pressed", "false");
+  await expect.soft(surface).toHaveScreenshot("picker-calendar.png");
   await page.keyboard.press("Escape");
 
   await editor(page).click();
   await editor(page).fill("Sep 1, 2026, 8:00 am - Sep 1, 2026, 10:13 am");
-  await expect(page.getByRole("dialog", { name: "Time range" })).toHaveScreenshot(
-    "picker-editing.png",
-  );
+  await expect
+    .soft(page.getByRole("dialog", { name: "Time range" }))
+    .toHaveScreenshot("picker-editing.png");
   await editor(page).fill("not a time");
   await editor(page).press("Enter");
-  await expect(page.getByRole("dialog", { name: "Time range" })).toHaveScreenshot(
-    "picker-invalid.png",
-  );
+  await expect
+    .soft(page.getByRole("dialog", { name: "Time range" }))
+    .toHaveScreenshot("picker-invalid.png");
 
   await editor(page).fill("Sep 1, 2026, 8:00 am - Sep 1, 2026, 10:13 am");
   await editor(page).press("Enter");
-  await expect(cluster).toHaveScreenshot("picker-fixed.png");
+  await expect.soft(cluster).toHaveScreenshot("picker-fixed.png");
   await page.getByRole("button", { name: "Play" }).click();
-  await expect(cluster).toHaveScreenshot("picker-live.png");
+  await expect.soft(cluster).toHaveScreenshot("picker-live.png");
   await page.getByRole("button", { name: "Pause" }).click();
-  await expect(cluster).toHaveScreenshot("picker-paused.png");
+  await expect.soft(cluster).toHaveScreenshot("picker-paused.png");
 });
 
 test("More stays within the viewport at narrow desktop widths", async ({ page }) => {
