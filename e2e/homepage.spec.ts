@@ -88,11 +88,11 @@ test("TIME-04 CURSOR-01 keyboard pin freezes live; clearing does not resume", as
   await canvas.focus();
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".homepage-cursor-strip")).toContainText("Pinned");
+  await expect(page.getByRole("button", { name: "Clear pin", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/time_play=paused/);
   const frozenEnd = new URL(page.url()).searchParams.get("time_to_ms");
   await page.getByRole("button", { name: "Clear pin", exact: true }).click();
-  await expect(page.locator(".homepage-cursor-strip")).toContainText("Window end");
+  await expect(page.locator(".homepage-cursor-strip")).toHaveCount(0);
   await expect(page).toHaveURL(/time_play=paused/);
   expect(new URL(page.url()).searchParams.get("time_to_ms")).toBe(frozenEnd);
 });
@@ -144,4 +144,29 @@ test("PERF-02 repeated Overview specialist Inspect traversal leaves no ChartCard
       ),
     )
     .toBe(0);
+});
+
+test("expanded statistics have aligned columns and a stable plot during cursor movement", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await installMobileApi(page);
+  await page.goto("/?range=21600&live=1&legend=expanded");
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  const canvas = card.locator("canvas");
+  await expect(canvas).toHaveAttribute("data-chart-ready", "true");
+  await expect(
+    card.getByRole("table", { name: "Supply and demand series statistics" }),
+  ).toBeVisible();
+  for (const name of ["Series", "Value", "Min", "Max", "Average", "Energy"]) {
+    await expect(card.getByRole("columnheader", { name, exact: true })).toBeVisible();
+  }
+  const before = (await canvas.boundingBox())!;
+  for (let i = 0; i < 12; i++) {
+    await page.mouse.move(before.x + 60 + (i * (before.width - 100)) / 12, before.y + 80);
+    const after = (await canvas.boundingBox())!;
+    expect(after.y).toBeCloseTo(before.y, 1);
+    expect(after.height).toBeCloseTo(before.height, 1);
+  }
+  await expect(page.locator(".homepage-cursor-strip")).toHaveCount(0);
 });

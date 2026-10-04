@@ -419,3 +419,22 @@
     gap: 2px 5px;
   }
 }
+
+/* Cursor updates must never change the height or width of the readings row. */
+.homepage-readings > div {
+  overflow: hidden;
+}
+.homepage-readings > div > span,
+.homepage-readings > div > strong {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.homepage-readings > div > strong {
+  max-width: 100%;
+}
+.homepage-clear-pin {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 50;
+}

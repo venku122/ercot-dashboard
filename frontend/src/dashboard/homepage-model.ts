@@ -1,5 +1,5 @@
 import { chartDefinitions } from "./chart-config";
-import type { ChartDefinition, LoadedSeries, Point } from "./types";
+import type { ChartDefinition, LoadedSeries, Point, SeriesDefinition } from "./types";
 import type { RankingRow } from "./api";
 
 export const overviewChartIds = new Set([
@@ -88,6 +88,18 @@ export function precedingObservation(
     value: found[1],
     aggregate: (series.meta.bucket_seconds ?? 0) > nativeCadence,
   };
+}
+
+// Collection resolution is independent of a series' native publication cadence.
+export function seriesGapSeconds(chartId: string, series: SeriesDefinition, loaded?: LoadedSeries) {
+  const defaultGap = chartId === "frequency" ? 60 : 600;
+  const nativeCadence =
+    chartId === "pricing"
+      ? 900
+      : chartId === "supply-demand" && series.id === "forecast-demand"
+        ? 3600
+        : 0;
+  return Math.max(defaultGap, nativeCadence * 1.5, (loaded?.meta.bucket_seconds ?? 0) * 2);
 }
 
 export function displayPoints(points: Point[], gapSeconds: number) {

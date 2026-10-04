@@ -5207,3 +5207,61 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Shared columns keep range statistics aligned while cursor values change. */
+.series-legend.legend-expanded {
+  display: block;
+  overflow-x: auto;
+}
+.legend-table {
+  width: 100%;
+  min-width: 520px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.legend-table th,
+.legend-table td {
+  padding: 5px 8px;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+.legend-table th {
+  color: var(--muted);
+  font-weight: 500;
+}
+.legend-table th:first-child,
+.legend-table td:first-child {
+  width: 140px;
+  text-align: left;
+}
+.legend-table-toggle {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.legend-table-toggle[aria-pressed="true"] {
+  box-shadow: inset 3px 0 #67e8f9;
+}
+.legend-latest {
+  display: inline-block;
+  min-width: 12ch;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+@media (max-width: 767px) {
+  .legend-table-toggle {
+    min-height: 44px;
+  }
+}
+
+.legend-table:has(th:nth-child(6)) {
+  min-width: 640px;
+}
+.legend-table:has(th:nth-child(6)) th:last-child {
+  width: 130px;
+}

@@ -151,7 +151,11 @@ test("P0 compact legends preserve explicit shared expanded state @mobile-core", 
   await page.goto("/?legend=expanded");
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator("canvas")).toHaveAttribute("aria-label", /[1-9]\d* observations/);
-  await expect(card.locator(".legend-stats")).toHaveCount(3);
+  await expect(
+    card.getByRole("table", { name: "Supply and demand series statistics" }),
+  ).toBeVisible();
+  await expect(card.locator(".legend-table tbody tr")).toHaveCount(3);
+  await expect(card.getByRole("columnheader", { name: "Energy", exact: true })).toBeVisible();
   const frequency = page.locator('[data-chart-id="frequency"]');
   await frequency.scrollIntoViewIfNeeded();
   await expect(frequency.locator(".legend-stats").first()).toBeVisible();

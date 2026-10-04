@@ -12,12 +12,13 @@ test("mouse hover works in a narrow overview without fetching or pinning", async
   const before = requests.length;
   const box = (await canvas.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.locator(".homepage-cursor-strip")).toContainText("Cursor ·");
+  await expect(card.locator('[data-value-scope="cursor"]').first()).toBeVisible();
   await expect(card.locator(".homepage-shared-cursor")).toBeVisible();
   expect(requests.length).toBe(before);
   await expect(page).toHaveURL(/time_play=running/);
   await page.mouse.move(0, 0);
-  await expect(page.locator(".homepage-cursor-strip")).toContainText("Window end");
+  await expect(card.locator('[data-value-scope="window-latest"]').first()).toBeVisible();
+  await expect(page.locator(".homepage-cursor-strip")).toHaveCount(0);
 });
 
 test("live headroom refresh preserves plot position and canvas", async ({ page }) => {

@@ -3,6 +3,7 @@ import {
   alignedGeneration,
   coherentPriceSnapshots,
   displayPoints,
+  seriesGapSeconds,
   homepageSeries,
   marketTime,
   pairedDifference,
@@ -145,5 +146,48 @@ describe("chart-first homepage contracts", () => {
   it("TIME-02 repeated Chicago hours remain distinguishable by UTC offset abbreviation", () => {
     expect(marketTime(Date.parse("2026-11-01T06:30:00Z") / 1000)).toContain("CDT");
     expect(marketTime(Date.parse("2026-11-01T07:30:00Z") / 1000)).toContain("CST");
+  });
+});
+
+describe("native chart cadence", () => {
+  it("connects fifteen-minute prices while retaining an actual missing interval", () => {
+    const gap = seriesGapSeconds(
+      "pricing",
+      { id: "houston", label: "Houston", color: "blue" },
+      loaded([], 1),
+    );
+    const points = displayPoints(
+      [
+        [0, 40],
+        [900, 50],
+        [1800, 60],
+        [3600, 70],
+      ],
+      gap,
+    );
+    expect(points.slice(0, 3).every((point) => Number.isFinite(point.y))).toBe(true);
+    expect(points[3].y).toBeNaN();
+  });
+  it("connects hourly demand forecasts without connecting missing hours", () => {
+    const gap = seriesGapSeconds(
+      "supply-demand",
+      { id: "forecast-demand", label: "Forecast", color: "gray" },
+      loaded([], 1),
+    );
+    const points = displayPoints(
+      [
+        [0, 60000],
+        [3600, 61000],
+        [10800, 62000],
+      ],
+      gap,
+    );
+    expect(points[1]).toEqual({ x: 3600000, y: 61000 });
+    expect(points[2].y).toBeNaN();
+  });
+  it("retains the finer cadence and coarse bucket gap policies", () => {
+    const series = { id: "demand", label: "Demand", color: "blue" };
+    expect(seriesGapSeconds("supply-demand", series, loaded([], 1))).toBe(600);
+    expect(seriesGapSeconds("supply-demand", series, loaded([], 3600))).toBe(7200);
   });
 });
