@@ -19,6 +19,26 @@ class PairedHeadroomTests(unittest.TestCase):
     ingest_metric = fixtures.HttpQueryBoundsTests.ingest_metric
     path = "/api/v2/tiles/supply-demand.paired-headroom/1d/86400/1h"
 
+    def test_paired_catalog_is_explicitly_opted_in_without_changing_legacy_schema(self):
+        legacy, legacy_headers = self.invoke("GET", "/api/v2/tile-catalog")
+        self.assertNotIn("supply-demand.paired-headroom", {entry["key"] for entry in legacy["series"]})
+        old_keys = {"key", "match", "metric", "native_interval_seconds", "rollup", "source", "statistic_policy", "supported_lods", "tags", "unit"}
+        for entry in legacy["series"]:
+            self.assertEqual(set(entry), old_keys)
+            self.assertIn(entry["match"], ("exact", "selector"))
+        opted, opted_headers = self.invoke("GET", "/api/v2/tile-catalog?include=paired-headroom")
+        entries = [entry for entry in opted["series"] if entry["match"] == "paired"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["key"], "supply-demand.paired-headroom")
+        self.assertEqual({**opted, "series": [entry for entry in opted["series"] if entry["match"] != "paired"]}, legacy)
+        self.assertNotEqual(legacy_headers["ETag"], opted_headers["ETag"])
+        self.invoke("GET", "/api/v2/tile-catalog?include=paired-headroom", request_headers={"If-None-Match": legacy_headers["ETag"]})
+        body, headers = self.invoke("GET", "/api/v2/tile-catalog?include=paired-headroom", request_headers={"If-None-Match": opted_headers["ETag"]}, expected_status=304)
+        self.assertIsNone(body)
+        self.assertEqual(headers["ETag"], opted_headers["ETag"])
+        for query in ("include=other", "include=paired-headroom&include=paired-headroom", "include=", "unknown=1"):
+            self.invoke("GET", "/api/v2/tile-catalog?" + query, expected_status=400)
+
     def contributor(self, side, values, source="supply_demand"):
         metric = f"ercot.supply_demand.{side}_mw"
         points = [{"timestamp": ts, "value": value, "dedupe_key": f"{side}:{source}:{ts}"} for ts, value in values]

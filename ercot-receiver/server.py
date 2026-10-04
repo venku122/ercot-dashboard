@@ -626,7 +626,7 @@ def matching_selector_dependencies(metric, tags):
     }
 
 
-def tile_catalog_payload():
+def tile_catalog_payload(include_paired=False):
     return {
         "schema": TILE_SCHEMA_VERSION,
         "tile_spans": dict(TILE_SPANS),
@@ -636,7 +636,7 @@ def tile_catalog_payload():
             "edge_lod": "native",
             "rule": "clients use native boundary tiles and coarse LOD only for aligned interiors",
         },
-        "series": [dict(TILE_CATALOG_BY_KEY[key]) for key in sorted(TILE_CATALOG_BY_KEY)],
+        "series": [dict(TILE_CATALOG_BY_KEY[key]) for key in sorted(TILE_CATALOG_BY_KEY) if include_paired or TILE_CATALOG_BY_KEY[key]["match"] != "paired"],
         "derived_resources": [
             {
                 "series_key": "net-load.actual",
@@ -3756,14 +3756,14 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/v2/tiles/"):
             record_tile_metric(self._app_server(), "tile_origin_requests_total")
         if parsed.path == "/api/v2/tile-catalog":
-            if parsed.query:
+            if parsed.query not in ("", "include=paired-headroom"):
                 self._send_json(
                     400, {"error": "invalid_tile_catalog_request"}, cache_control="no-store"
                 )
                 return
             self._send_json(
                 200,
-                tile_catalog_payload(),
+                tile_catalog_payload(include_paired=parsed.query == "include=paired-headroom"),
                 cache_control="public, max-age=300, s-maxage=3600, must-revalidate",
                 etag=True,
             )

@@ -138,7 +138,7 @@ const SEALED_TILE_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 let catalogCache = new CanonicalUrlCache<unknown>(4);
 let tileCache = new CanonicalUrlCache<TileResult>(512);
 let cacheFetchIdentity: typeof fetch | null = null;
-let catalogFingerprint: string | null = null;
+const catalogFingerprints = new Map<string, string>();
 
 export function resetCanonicalApiCachesForTests(): void {
   catalogCache.clear();
@@ -146,14 +146,14 @@ export function resetCanonicalApiCachesForTests(): void {
   catalogCache = new CanonicalUrlCache<unknown>(4);
   tileCache = new CanonicalUrlCache<TileResult>(512);
   cacheFetchIdentity = null;
-  catalogFingerprint = null;
+  catalogFingerprints.clear();
 }
 
 function resetCachesForChangedTransport(): void {
   if (cacheFetchIdentity === fetch) return;
   catalogCache.clear();
   tileCache.clear();
-  catalogFingerprint = null;
+  catalogFingerprints.clear();
   cacheFetchIdentity = fetch;
 }
 
@@ -544,19 +544,27 @@ async function loadFixedSeriesFromTiles(
   signal: AbortSignal,
 ): Promise<Map<string, LoadedSeries>> {
   resetCachesForChangedTransport();
+  const catalogUrl = charts.some((chart) =>
+    chart.series.some((series) => series.metric === HEADROOM_METRIC),
+  )
+    ? "/api/v2/tile-catalog?include=paired-headroom"
+    : "/api/v2/tile-catalog";
   const catalog = parseTileCatalog(
     await catalogCache.get(
-      "/api/v2/tile-catalog",
-      (sharedSignal) => fetchJson<unknown>("/api/v2/tile-catalog", { method: "GET" }, sharedSignal),
+      catalogUrl,
+      (sharedSignal) => fetchJson<unknown>(catalogUrl, { method: "GET" }, sharedSignal),
       signal,
       CATALOG_CACHE_TTL_MS,
     ),
   );
   const nextCatalogFingerprint = JSON.stringify(catalog);
-  if (catalogFingerprint !== null && catalogFingerprint !== nextCatalogFingerprint) {
+  if (
+    catalogFingerprints.has(catalogUrl) &&
+    catalogFingerprints.get(catalogUrl) !== nextCatalogFingerprint
+  ) {
     tileCache.clear();
   }
-  catalogFingerprint = nextCatalogFingerprint;
+  catalogFingerprints.set(catalogUrl, nextCatalogFingerprint);
   const now = Math.floor(Date.now() / 1000);
   const comparison = compareWindow(compare, time, customCompareSeconds);
   const comparisonTime: TimeState = {

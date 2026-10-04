@@ -86,7 +86,7 @@ describe("paired headroom semantic identity", () => {
         new AbortController().signal,
       );
       expect(result.get("overview-headroom:headroom")?.error).toBe("paired_headroom_unavailable");
-      expect(urls).toEqual(["/api/v2/tile-catalog"]);
+      expect(urls).toEqual(["/api/v2/tile-catalog?include=paired-headroom"]);
     },
   );
 });
@@ -174,7 +174,7 @@ describe("populated paired tile projections", () => {
           urls.push(url);
           return Promise.resolve(
             new Response(
-              JSON.stringify(url.endsWith("tile-catalog") ? catalog : headroomTile(url)),
+              JSON.stringify(url.includes("tile-catalog") ? catalog : headroomTile(url)),
               { status: 200 },
             ),
           );
@@ -222,7 +222,7 @@ it("starts operational plots while the optional paired catalog is pending", asyn
     "fetch",
     vi.fn(async (url: string) => {
       urls.push(url);
-      if (url.endsWith("tile-catalog")) {
+      if (url.includes("tile-catalog")) {
         await gate;
         return new Response(JSON.stringify({ ...catalog, series: [] }));
       }
@@ -263,7 +263,7 @@ it("preserves an explicit unavailable reason for a window without matching nativ
     "fetch",
     vi.fn((url: string) =>
       Promise.resolve(
-        new Response(JSON.stringify(url.endsWith("tile-catalog") ? catalog : headroomTile(url))),
+        new Response(JSON.stringify(url.includes("tile-catalog") ? catalog : headroomTile(url))),
       ),
     ),
   );
