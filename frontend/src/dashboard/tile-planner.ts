@@ -440,12 +440,16 @@ export function planTileRequests({
     throw new Error("invalid_tile_lod_catalog");
   }
   const sealedBefore = now - correctionHorizonSeconds;
+  // Paired native short windows retain exact observations while avoiding a
+  // request/cache transaction for each recent hour. Mutable days retain the
+  // transport cache's recent TTL; selection projection clips off-window rows.
+  const pairedNativeDay = entry.match === "paired" && baseLod === "native" && end - start <= DAY;
   const requests: TileRequest[] = [];
   let cursor = Math.floor(start / DAY) * DAY;
   while (cursor < endExclusive) {
     let tileSpan: TileSpan;
     let tileSeconds: number;
-    if (cursor % DAY === 0 && cursor + DAY <= sealedBefore) {
+    if (cursor % DAY === 0 && (cursor + DAY <= sealedBefore || pairedNativeDay)) {
       tileSpan = "1d";
       tileSeconds = DAY;
     } else {
