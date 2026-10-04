@@ -1,0 +1,9 @@
+# Slot06 first-viewport Linux image followup
+
+Only two Linux image files change: progressive-overview-mobile and mobile-after-first-viewport. Each original/new image pair was individually viewed from genuine CI run37189925526, published head5b4c0ece, mobile job111399800407. Its full tree8e91f5ad matches existing owned basee3209cf. This supplement changes no product code, test assertion, source fixture, tolerance or request budget.
+
+The old frames show unavailable derived headroom and a1.2GW cyan reserve-shaped chart. Actual frames show correct source-paired20.3GW headroom and matching purple20GW geometry. Actual demand68.3GW, capacity88.6GW and reportedPRC1.2GW remain separate and unchanged. Coarse capacity dash treatment remains truthful. Passive captured native300secondMW/gauge paired tile responses and their hashes support this source interpretation; final paired sample20252.927733890407MW rounds20.3GW. There is no source masking or arbitrary pixel tolerance adjustment.
+
+The sourceHead field in the captured JSON is unset by that workflow; provenance is established by exact run/job head and verified identical base trees. Original PNGs, differences and source/geometry JSON remain preserved under `/tmp/ercot-post-release-2026-10/slot07-ci-vri-repair/`. The accompanying JSON lists original/new hashes and paired source response hashes.
+
+There is currently one remote capture per image. A second run of the exact same mobile CI job has been explicitly requested to provide independent repeat evidence. Repeat result and complete post-publication CI are PENDING. Prior same-head CI desktop, static/unit, collector fixtures and performance passed; mobile failed only these two stale image comparisons. This is author evidence and requires separate peer review. No Docker job was started locally.
