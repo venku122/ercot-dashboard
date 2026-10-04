@@ -11,3 +11,5 @@ The first repeat reached fourlaterframes: exactNWSregion nowcontains382pxrathert
 The nextrepeatreachedGridSignalsadvancedframe: complete44pxplaybackcontrols andcardactionswrap, preservingPRCsourcecurveand1.2GWlatest. Exactsource/tracehashesarepreserved; OverviewfirstcriticalplotconstraintsarenotclaimedforspecialistGridSignalsgeometry.
 
 The finalprogressiveframe reachesSystemHealth with11unchangedhealthy sources andtheir17:59observationclocks. Completecontrolsreflow andcurrentdefaultPast1Day replaces a stale6hbaseline; actualrequestboundsarepreservedinthetrace. No sourcehealth status is invented.
+
+Request-body provenance correction: Playwright stores nonempty POST bodies in `resources/<postData._sha1>` even when inline `postData.text` is empty. All 227 POST entries across the 20 frame traces now hash the exact recorded resource bytes, with resource paths and byte counts recorded. Missing resource bytes are explicitly `UNKNOWN`; none are missing in these preserved traces. Bodyless GET requests retain the empty-body hash. Image, fixture, source, response and trace hashes are unchanged.

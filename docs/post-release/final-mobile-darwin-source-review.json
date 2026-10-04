@@ -46,16 +46,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -67,16 +71,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -102,9 +110,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -291,9 +301,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         }
       ],
       "reason": "Shared header removes duplicated eyebrow and reflows title/actions; actual observed capacity stays separate from archived forecast; declared source cadence gaps remain dashed."
@@ -316,16 +328,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -337,16 +353,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -358,9 +378,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "fd1d4b7b55dfd61075212216471bfffc04d10ade2f5d157d320e1dba2a88d1fc",
           "response_status": 200,
-          "response_sha256": "87c183052992773ff091c7b2b318fc3ab327a6154564f185ff614961b35252bf"
+          "response_sha256": "87c183052992773ff091c7b2b318fc3ab327a6154564f185ff614961b35252bf",
+          "request_body_provenance": "resources/728baf9a37ba18a0a5036bd418e0cefe5d2c0161.json",
+          "request_body_bytes": 594
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -411,16 +433,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -432,16 +458,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -467,9 +497,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -656,16 +688,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -684,16 +720,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -705,16 +745,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -740,9 +784,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -929,16 +975,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88"
+          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -957,16 +1007,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -978,16 +1032,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -1013,9 +1071,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -1202,9 +1262,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -1223,16 +1285,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -1244,16 +1310,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -1279,9 +1349,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -1468,16 +1540,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         }
       ],
       "reason": "Critical readouts wrap3+2 with explicit nativeHoustonunavailable; forecast remains71.4GW separate from actual68.3GW/capacity88.6GW; firstplot/headroom retained."
@@ -1514,16 +1590,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -1535,16 +1615,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -1570,9 +1654,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -1759,16 +1845,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -1787,16 +1877,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -1808,16 +1902,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -1843,9 +1941,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -2032,16 +2132,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88"
+          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -2060,16 +2164,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -2081,16 +2189,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -2116,9 +2228,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -2305,9 +2419,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -2326,16 +2442,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -2347,16 +2467,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -2382,9 +2506,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -2571,16 +2697,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         }
       ],
       "reason": "Archived issued-before-delivery forecast71.4GW replaces invalid observedalias68.3GW; truthful half-open hourly interval plot and source-gap lines; bounded plot height adjusts to final accessible header."
@@ -2617,16 +2747,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -2638,16 +2772,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -2673,9 +2811,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -2862,16 +3002,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -2890,16 +3034,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -2911,16 +3059,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -2946,9 +3098,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -3135,16 +3289,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88"
+          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -3163,16 +3321,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -3184,16 +3346,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -3219,9 +3385,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -3408,9 +3576,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -3429,16 +3599,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -3450,16 +3624,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -3485,9 +3663,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -3674,16 +3854,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         }
       ],
       "reason": "Eightfactor99score unchanged; labels/weights reflow vertically and legacyHouston38.74 now identifies collection observation with unknown delivery interval."
@@ -3720,16 +3904,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -3741,16 +3929,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -3776,9 +3968,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -3965,16 +4159,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -3993,16 +4191,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -4014,16 +4216,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -4049,9 +4255,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -4238,16 +4446,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88"
+          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -4266,16 +4478,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -4287,16 +4503,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -4322,9 +4542,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -4511,9 +4733,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -4532,16 +4756,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -4553,16 +4781,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -4588,9 +4820,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -4777,16 +5011,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         }
       ],
       "reason": "Hourly forecast plotted as honest constant delivery intervals rather than interpolation; source epochs and observed curves/action targets unchanged."
@@ -4823,16 +5061,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -4844,16 +5086,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -4879,9 +5125,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -5068,16 +5316,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -5096,16 +5348,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -5117,16 +5373,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -5152,9 +5412,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -5341,16 +5603,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88"
+          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -5369,16 +5635,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -5390,16 +5660,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -5425,9 +5699,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -5614,9 +5890,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -5635,16 +5913,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -5656,16 +5938,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -5691,9 +5977,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -5880,16 +6168,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         }
       ],
       "reason": "Readable header actions move to their own row;18minstale source state/-916.8charge/460.1discharge/-456.7net remain explicit."
@@ -5926,16 +6218,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -5947,16 +6243,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -5982,9 +6282,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -6171,16 +6473,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -6199,16 +6505,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -6220,16 +6530,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -6255,9 +6569,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -6444,16 +6760,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88"
+          "response_sha256": "009fd879afcf13580a11d511522fc33cf437ec478af18387c1c31dc384214b88",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -6472,16 +6792,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -6493,16 +6817,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -6528,9 +6856,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -6717,9 +7047,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-geography",
@@ -6738,16 +7070,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -6759,16 +7095,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -6794,9 +7134,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -6983,16 +7325,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3cb55c8291cbac5f7e8624284cfa1d87b81bcd555590ee0eaceab61394038ea0",
           "response_status": 200,
-          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6"
+          "response_sha256": "bf21580a26d141f984eb563ef0a4313b2aaff22325a489e0a8b9718274b66af6",
+          "request_body_provenance": "resources/99c89ef0dae22af271c90c851bd333797356ae18.json",
+          "request_body_bytes": 1103
         }
       ],
       "reason": "Same truthful collection-price explanation and responsive factor layout, no numerical scoring/source changes."
@@ -7061,16 +7407,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -7082,16 +7432,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -7117,9 +7471,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -7306,9 +7662,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         }
       ],
       "reason": "Same critical readout reflow and atomic unavailable nativeHouston scope; observed and archived forecast source values retained."
@@ -7370,16 +7728,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -7391,16 +7753,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "a92afd7a1fb7b15cf5d37255f0452202425ed509fd0967aac9cbf3d7a839cdc0"
+          "response_sha256": "a92afd7a1fb7b15cf5d37255f0452202425ed509fd0967aac9cbf3d7a839cdc0",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "b6d4443b478f08a968ecd9ec4a8ef97eec9d85f1ad8f9f1a7fef31a1006419d4"
+          "response_sha256": "b6d4443b478f08a968ecd9ec4a8ef97eec9d85f1ad8f9f1a7fef31a1006419d4",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -7419,23 +7785,29 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f33098d408e2818e79ce5ce9141537347ed9f8fb92718127cb0a73425c7a14cb",
           "response_status": 200,
-          "response_sha256": "3278650be166c0397e32f50a092165dbd40b154e264b7ec1ee3f7bfdbc2a4eb1"
+          "response_sha256": "3278650be166c0397e32f50a092165dbd40b154e264b7ec1ee3f7bfdbc2a4eb1",
+          "request_body_provenance": "resources/2b68cb3dea001c561ed69327113be3d8c79a77a4.json",
+          "request_body_bytes": 1668
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "2b356e72a8da444781b6ae764f32c3d730894f103f2945ecd6294f6e8aab48e3",
           "response_status": 200,
-          "response_sha256": "0ea7552a43ac56b806f8fb45b09d0a26026023de8c0d1eb76bb89da34ab6acb8"
+          "response_sha256": "0ea7552a43ac56b806f8fb45b09d0a26026023de8c0d1eb76bb89da34ab6acb8",
+          "request_body_provenance": "resources/eb532d2757f7a0b75e980abc455bebe6967aee2a.json",
+          "request_body_bytes": 939
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "94487b0834a334504768766f6ce0dbee5fc6322f0207d186df2849cdc4c10391",
           "response_status": 200,
-          "response_sha256": "5d0f7fdbdec3109501f6566a4881ca312de077faa843304044da5946359a4e75"
+          "response_sha256": "5d0f7fdbdec3109501f6566a4881ca312de077faa843304044da5946359a4e75",
+          "request_body_provenance": "resources/90e2b738ebcbd602709a9af33920357650001938.json",
+          "request_body_bytes": 225
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/market-mechanics",
@@ -7465,16 +7837,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -7486,16 +7862,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "b566dc06bcc672a9dfdd8fc1b0b330e73e702f18e02ddaede45f502af8101923"
+          "response_sha256": "b566dc06bcc672a9dfdd8fc1b0b330e73e702f18e02ddaede45f502af8101923",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "cb32145946fe07e0c323643c7d2ef611208a10e9a9d36dfb441c53e61f0e4b45"
+          "response_sha256": "cb32145946fe07e0c323643c7d2ef611208a10e9a9d36dfb441c53e61f0e4b45",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -7507,9 +7887,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "baceef4e48ac2a296f95aa5d4e52c631aded82c1e3380da2ac254a1b8ab51df7"
+          "response_sha256": "baceef4e48ac2a296f95aa5d4e52c631aded82c1e3380da2ac254a1b8ab51df7",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         }
       ],
       "reason": "Same coherent signed values/caveats; current fixture canonical latesttimestamp17:59:33replaces historical17:59:06capture; source-observationclock is not a delivery interval."
@@ -7546,16 +7928,20 @@
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4313/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/source-health",
@@ -7567,16 +7953,20 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "67e84928b53494f1115b26fed58193fa3074264acb3411aec8a17ba825647a80"
+          "response_sha256": "67e84928b53494f1115b26fed58193fa3074264acb3411aec8a17ba825647a80",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "d63bbf2f0efe9375895a3773948c8c23156dc22569c2a09d8bff13297a582a20"
+          "response_sha256": "d63bbf2f0efe9375895a3773948c8c23156dc22569c2a09d8bff13297a582a20",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -7602,9 +7992,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "47207be5e44eba97bbfbbf0530fc344fad1c6b2b27a9b29004115057075d5e8c"
+          "response_sha256": "47207be5e44eba97bbfbbf0530fc344fad1c6b2b27a9b29004115057075d5e8c",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4313/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -7791,9 +8183,11 @@
         {
           "url": "http://127.0.0.1:4313/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "8136834354de78a6ab57a7c079d9737bf8b9f85bc7abd5c519ecd84c06b50248"
+          "response_sha256": "8136834354de78a6ab57a7c079d9737bf8b9f85bc7abd5c519ecd84c06b50248",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         }
       ],
       "reason": "Valid empty lifecycle remains waiting/nozeros; forecastlabel nowissued-before-delivery and final mobileheader/legend layout is shorter."
@@ -7848,16 +8242,20 @@
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/source-health",
@@ -7869,16 +8267,20 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -7890,9 +8292,11 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "fd1d4b7b55dfd61075212216471bfffc04d10ade2f5d157d320e1dba2a88d1fc",
           "response_status": 200,
-          "response_sha256": "87c183052992773ff091c7b2b318fc3ab327a6154564f185ff614961b35252bf"
+          "response_sha256": "87c183052992773ff091c7b2b318fc3ab327a6154564f185ff614961b35252bf",
+          "request_body_provenance": "resources/728baf9a37ba18a0a5036bd418e0cefe5d2c0161.json",
+          "request_body_bytes": 594
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/market-geography",
@@ -7950,16 +8354,20 @@
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/source-health",
@@ -7971,16 +8379,20 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -8006,9 +8418,11 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -8195,9 +8609,11 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         }
       ],
       "reason": "Two+1h/+2h numeric observations nowoccupy4.17%/8.33% of24htimestampdomain instead of stretchingacross24h;75.5GWpeak/11.8GWheadroom/A3/1hissuance unchanged,shared44pxdisclosure."
@@ -8220,16 +8636,20 @@
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/source-health",
@@ -8241,16 +8661,20 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "b566dc06bcc672a9dfdd8fc1b0b330e73e702f18e02ddaede45f502af8101923"
+          "response_sha256": "b566dc06bcc672a9dfdd8fc1b0b330e73e702f18e02ddaede45f502af8101923",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "cb32145946fe07e0c323643c7d2ef611208a10e9a9d36dfb441c53e61f0e4b45"
+          "response_sha256": "cb32145946fe07e0c323643c7d2ef611208a10e9a9d36dfb441c53e61f0e4b45",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -8262,9 +8686,11 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "8e5f70d5e2780c259f1d70622425a8d650c48bd0faed9d83465aa3a83b0ed38f",
           "response_status": 200,
-          "response_sha256": "baceef4e48ac2a296f95aa5d4e52c631aded82c1e3380da2ac254a1b8ab51df7"
+          "response_sha256": "baceef4e48ac2a296f95aa5d4e52c631aded82c1e3380da2ac254a1b8ab51df7",
+          "request_body_provenance": "resources/09086f68d248f1cb1c19a53f484ac637bef1d093.json",
+          "request_body_bytes": 1668
         }
       ],
       "reason": "Exact table agrees with coherent-snapshot source clock22:59:33UTC (oldcapture22:59:06);signed-916.8/460.1/-456.7values unchanged."
@@ -8301,16 +8727,20 @@
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/source-health",
@@ -8322,16 +8752,20 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -8357,9 +8791,11 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -8546,16 +8982,20 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "ecf8791ef54503c4ca458d39f15d08a7d1c2f36631b6d97b8866d4c28b9daafe",
           "response_status": 200,
-          "response_sha256": "dc5d74d165ceb688e3bc0637f588083aab4c15c9c8ff468a7b599ecbf6f863b9"
+          "response_sha256": "dc5d74d165ceb688e3bc0637f588083aab4c15c9c8ff468a7b599ecbf6f863b9",
+          "request_body_provenance": "resources/dad10b457c05b780412a9e39cb17b93cf8fab420.json",
+          "request_body_bytes": 1531
         }
       ],
       "reason": "GridSignals retains allthree44pxplaybackactions through headerwrapping and cardactions ontheir ownrow; PRC sourcecurve/1.2GWlatest unchanged, criticalOverview geometry not applied to specialist page. This lateframe is genuinely reached after correct specialistOutlook capture."
@@ -8592,16 +9032,20 @@
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "1b817cd1928de12574ee5b42899259e2f94fc35070647ba8b2f02dc542465970",
           "response_status": 200,
-          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61"
+          "response_sha256": "c9e3d028fc42c3728e57b98cdc9c5cf9ab67f73b99c38a29b538d54b63894f61",
+          "request_body_provenance": "resources/ab47d0de952d012eb61fbde4f7481ac0f0768fd7.json",
+          "request_body_bytes": 144
         },
         {
           "url": "http://127.0.0.1:4311/api/latest/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "9e5ce955243a0acd3256389a78bc3037ea9f7052b51b4d3f63560e6f71e23063",
           "response_status": 200,
-          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780"
+          "response_sha256": "5a302b5aaa6d69ef22f5cf4dbdb478b08a142cfc7704eca05c91207c35290780",
+          "request_body_provenance": "resources/afe5729af2d883dcf8cf400543e0111619c52ecb.json",
+          "request_body_bytes": 2375
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/source-health",
@@ -8613,16 +9057,20 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "f7ddbc02c62cdd395e9b5f9a9bc2202e706e0c4b13fa243510ebb5b43a98e785",
           "response_status": 200,
-          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44"
+          "response_sha256": "cff93b17f8620e43cb8be08bc5629292cfef593fd3ec3037204048c068125d44",
+          "request_body_provenance": "resources/bed4139f272a5721a482d1d2097369d6e44971e7.json",
+          "request_body_bytes": 650
         },
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aff38e2f5b9e6d654338c83d66bd5517d29f40c19cc9a161f38590b715129373",
           "response_status": 200,
-          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1"
+          "response_sha256": "abb15db0b73c0fe23065420d5b219dad82b4f685fb45613c83008a6aab7a2cd1",
+          "request_body_provenance": "resources/c2270641b69a4392ff16ec5e82c5cb45a548fa3c.json",
+          "request_body_bytes": 186
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/events?since=1784588400&until=1784674800&limit=500",
@@ -8648,9 +9096,11 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "3edcb307dda2c97c9f2fb60605bb2dfeb046df7dcfb33231f93bcfbed3c33d32",
           "response_status": 200,
-          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9"
+          "response_sha256": "a2535c5178a46de4fc0af6fa827362415da03ee1ddb1f82c1a341af571d457a9",
+          "request_body_provenance": "resources/402a4047d20f348aab3f5e0cd6a9ca373ec0232b.json",
+          "request_body_bytes": 561
         },
         {
           "url": "http://127.0.0.1:4311/api/v1/historical-forecast?start=1784588400&end=1784674801&as_of=1784674800&policy=issued_before_delivery",
@@ -8837,16 +9287,20 @@
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "aaa8dea86ffae0332b00351f6b339509696c44598279e859979ba7eb2691664b",
           "response_status": 200,
-          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573"
+          "response_sha256": "9c0388c31e694d0f10620262460cf1ca929f7e9d9d51d9fac4c87b0478039573",
+          "request_body_provenance": "resources/59a92e36b4e257a9a31d3ea682c6919e3257a769.json",
+          "request_body_bytes": 209
         },
         {
           "url": "http://127.0.0.1:4311/api/series/batch",
           "method": "POST",
-          "request_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "request_body_sha256": "ecf8791ef54503c4ca458d39f15d08a7d1c2f36631b6d97b8866d4c28b9daafe",
           "response_status": 200,
-          "response_sha256": "dc5d74d165ceb688e3bc0637f588083aab4c15c9c8ff468a7b599ecbf6f863b9"
+          "response_sha256": "dc5d74d165ceb688e3bc0637f588083aab4c15c9c8ff468a7b599ecbf6f863b9",
+          "request_body_provenance": "resources/dad10b457c05b780412a9e39cb17b93cf8fab420.json",
+          "request_body_bytes": 1531
         }
       ],
       "reason": "System Health wraps complete playback/header controls; all11 source health statuses and17:59observation clocks unchanged. Correct current defaultPast1Day replaces old6h capture, consistent with preceding explicitOverview navigation and captured request bounds."
@@ -8855,5 +9309,6 @@
   "excluded": "Operations timeline199px lazy-loading fallback is NOT an accepted populated baseline; test now waits for six real fixture events.",
   "network_scope": "Each preserved trace includes its complete test flow, not a fabricated per-frame request attribution. Direct frame JSON includes exact capture geometry and response/query hashes when instrumented; absent sidecars retain actual DOM error-context plus trace.",
   "repeat_status": "Owned product82624 + harness overlays797/622/dde: all9 affected mobile visual casesPASS20.4s with no-update, including every lateframe and original populated Operations timeline. Root final integrated102matrix and independent imagepeer remain pending.",
-  "repeat_log": "/tmp/ercot-post-release-2026-10/final-mobile-darwin-complete-green.log"
+  "repeat_log": "/tmp/ercot-post-release-2026-10/final-mobile-darwin-complete-green.log",
+  "request_body_hash_policy": "Resolve postData._sha1 from resources/<_sha1> before inline text. Hash exact recorded bytes; missing referenced resources or positive-size unrecorded bodies are UNKNOWN. Bodyless requests hash empty bytes only when trace declares no body."
 }
