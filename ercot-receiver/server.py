@@ -23,6 +23,14 @@ from tile_aggregates import (
     merge_aggregates,
     serialize_aggregate,
 )
+from paired_headroom import (
+    CONTRACT as HEADROOM_CONTRACT,
+    CONTRIBUTORS as HEADROOM_CONTRIBUTORS,
+    KEY as HEADROOM_KEY,
+    METRIC as HEADROOM_METRIC,
+    paired_points,
+)
+
 from forecast_vintages import (
     PRODUCT_NP3_565,
     PRODUCT_NP3_763,
@@ -545,7 +553,7 @@ def validate_tile_series_catalog(entries):
                 span % seconds != 0 for span in TILE_SPANS.values()
             ):
                 raise ValueError("invalid_tile_lod_cadence")
-        if entry.get("match") not in ("exact", "selector"):
+        if entry.get("match") not in ("exact", "selector", "paired"):
             raise ValueError("invalid_tile_match")
         if entry.get("rollup") not in (None, "sum"):
             raise ValueError("invalid_tile_rollup")
@@ -555,6 +563,18 @@ def validate_tile_series_catalog(entries):
             raise ValueError("tile_exact_disallows_rollup")
         if entry["match"] == "selector" and not tags:
             raise ValueError("tile_selector_requires_tags")
+        if entry["match"] == "paired" and (
+            entry.get("key") != HEADROOM_KEY or entry.get("metric") != HEADROOM_METRIC
+            or entry.get("pairing") != HEADROOM_CONTRACT
+            or entry.get("tags") != ["source:supply_demand"]
+            or entry.get("source") != "supply_demand"
+            or entry.get("statistic_policy") != "gauge"
+            or entry.get("unit") != "MW" or entry.get("rollup") is not None
+            or entry.get("native_interval_seconds") != 300
+        ):
+            raise ValueError("invalid_headroom_pairing_contract")
+        if entry["match"] != "paired" and "pairing" in entry:
+            raise ValueError("unexpected_pairing_contract")
         if entry.get("statistic_policy") not in ("power", "gauge"):
             raise ValueError("invalid_tile_statistic_policy")
         for field in ("unit", "statistic_policy", "source"):
@@ -563,6 +583,20 @@ def validate_tile_series_catalog(entries):
         validated[key] = entry
     return validated
 
+
+TILE_SERIES_CATALOG = (*TILE_SERIES_CATALOG, {
+    "key": HEADROOM_KEY,
+    "metric": HEADROOM_METRIC,
+    "tags": ["source:supply_demand"],
+    "source": "supply_demand",
+    "native_interval_seconds": 300,
+    "supported_lods": ["native", "5m", "15m", "1h"],
+    "rollup": None,
+    "unit": "MW",
+    "statistic_policy": "gauge",
+    "match": "paired",
+    "pairing": HEADROOM_CONTRACT,
+})
 
 TILE_CATALOG_BY_KEY = validate_tile_series_catalog(TILE_SERIES_CATALOG)
 
@@ -2586,6 +2620,12 @@ class Handler(BaseHTTPRequestHandler):
         return label + ":" + json.dumps(payload, sort_keys=True)
 
     def _tile_storage_points(self, conn, definition, start, end):
+        if definition["match"] == "paired":
+            for contributor in HEADROOM_CONTRIBUTORS:
+                if conn.execute("SELECT 1 FROM metrics WHERE metric_name=? AND series_id IS NULL LIMIT 1", (contributor["metric"],)).fetchone():
+                    raise TileBackfillIncomplete("tile_series_backfill_incomplete")
+            points, identities, _metadata = paired_points(conn, start, end, canonical_series_tags)
+            return points, identities
         metric = definition["metric"]
         if conn.execute(
             """
@@ -2634,9 +2674,14 @@ class Handler(BaseHTTPRequestHandler):
     def _generate_tile(self, definition, tile_span, tile_start, lod):
         tile_seconds = TILE_SPANS[tile_span]
         tile_end = tile_start + tile_seconds
-        points, series_ids = self._tile_storage_points(
-            get_db(), definition, tile_start, tile_end
-        )
+        pairing = None
+        if definition["match"] == "paired":
+            for contributor in HEADROOM_CONTRIBUTORS:
+                if get_db().execute("SELECT 1 FROM metrics WHERE metric_name=? AND series_id IS NULL LIMIT 1", (contributor["metric"],)).fetchone():
+                    raise TileBackfillIncomplete("tile_series_backfill_incomplete")
+            points, series_ids, pairing = paired_points(get_db(), tile_start, tile_end, canonical_series_tags)
+        else:
+            points, series_ids = self._tile_storage_points(get_db(), definition, tile_start, tile_end)
         buckets = []
         if lod == "native":
             for point in points:
@@ -2677,8 +2722,13 @@ class Handler(BaseHTTPRequestHandler):
             "boundary_policy": "native_edges_coarse_aligned_interiors",
             "buckets": buckets,
         }
+        if pairing is not None:
+            pairing["partial_buckets"] = [bucket["start"] for bucket in buckets if lod != "native" and bucket["state"]["count"] < TILE_LOD_SECONDS[lod] // 300]
+            payload["pairing"] = pairing
         dependencies = {f"series:{series_id}" for series_id in series_ids}
-        if definition["match"] == "exact":
+        if definition["match"] == "paired":
+            dependencies.update(series_identity_dependency(contributor["metric"], contributor["tags"]) for contributor in HEADROOM_CONTRIBUTORS)
+        elif definition["match"] == "exact":
             dependencies.add(
                 series_identity_dependency(definition["metric"], definition["tags"])
             )

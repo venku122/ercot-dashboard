@@ -42,6 +42,8 @@ import {
   type HistoricalContextResolver,
 } from "./historical-context";
 import {
+  HEADROOM_METRIC,
+  HEADROOM_PAIRING,
   parseTileCatalog,
   planTileRequests,
   resolveTileSeries,
@@ -101,7 +103,21 @@ type ChunkResult = {
   tags: string[];
 };
 
+type HeadroomCoverage = {
+  policy: string;
+  paired_count: number;
+  expected_count: number;
+  unpaired_count: number;
+  ambiguous_count: number;
+  first_observed_ts: number | null;
+  last_observed_ts: number | null;
+  collection_history: "first_collection_time_not_recorded";
+  reason: "missing_compatible_contributor" | "no_matching_native_epochs" | null;
+  partial_buckets: number[];
+};
+
 type TileResult = {
+  pairing?: HeadroomCoverage;
   boundary_policy: "native_edges_coarse_aligned_interiors";
   buckets: AggregateBucket[];
   lod: TileRequest["lod"];
@@ -183,7 +199,9 @@ function parseTileResult(
   const result = value as Partial<TileResult>;
   if (
     Object.keys(value).sort().join(",") !==
-      "boundary_policy,buckets,lod,native_interval_seconds,rollup,schema,series_key,statistic_policy,tile_end,tile_span,tile_start,unit" ||
+      (entry.match === "paired"
+        ? "boundary_policy,buckets,lod,native_interval_seconds,pairing,rollup,schema,series_key,statistic_policy,tile_end,tile_span,tile_start,unit"
+        : "boundary_policy,buckets,lod,native_interval_seconds,rollup,schema,series_key,statistic_policy,tile_end,tile_span,tile_start,unit") ||
     result.schema !== 2 ||
     result.series_key !== entry.key ||
     result.tile_span !== request.tileSpan ||
@@ -198,6 +216,26 @@ function parseTileResult(
     !Array.isArray(result.buckets)
   ) {
     throw new Error("invalid_tile_response_contract");
+  }
+  if (entry.match === "paired") {
+    const coverage = result.pairing;
+    if (
+      !coverage ||
+      coverage.policy !== HEADROOM_PAIRING.policy ||
+      coverage.collection_history !== "first_collection_time_not_recorded" ||
+      ![
+        coverage.paired_count,
+        coverage.expected_count,
+        coverage.unpaired_count,
+        coverage.ambiguous_count,
+      ].every((count) => Number.isSafeInteger(count) && count >= 0) ||
+      !Array.isArray(coverage.partial_buckets) ||
+      !coverage.partial_buckets.every(Number.isSafeInteger) ||
+      ![null, "missing_compatible_contributor", "no_matching_native_epochs"].includes(
+        coverage.reason,
+      )
+    )
+      throw new Error("invalid_headroom_coverage");
   }
   let priorKey: readonly [number, number] = [-Infinity, -Infinity];
   const buckets = result.buckets.map((raw) => {
@@ -637,22 +675,74 @@ async function loadFixedSeriesFromTiles(
           });
         };
         const projection = project(job.currentRequests, time);
+        const paired = job.entry.match === "paired";
+        const partial =
+          paired &&
+          job.currentRequests.some((request) => {
+            const tile = tileByUrl.get(request.url);
+            return (
+              tile &&
+              !(tile instanceof Error) &&
+              tile.pairing?.partial_buckets.some(
+                (start) => start <= time.end && start >= time.start,
+              )
+            );
+          });
         const comparisonProjection =
           compare === "none" ? null : project(job.comparisonRequests, comparisonTime);
+        const missingContributor =
+          paired &&
+          job.currentRequests.some((request) => {
+            const tile = tileByUrl.get(request.url);
+            return (
+              tile &&
+              !(tile instanceof Error) &&
+              tile.pairing?.reason === "missing_compatible_contributor"
+            );
+          });
         loaded = {
           compare: alignComparisonForMode(
             comparisonProjection?.points ?? [],
             compare,
             comparison.offset,
           ),
-          error: null,
+          error:
+            paired && projection.stats.count === 0
+              ? missingContributor
+                ? "paired_headroom_missing_compatible_contributor"
+                : "paired_headroom_no_matching_native_epochs"
+              : null,
           meta: {
-            bucket_seconds: null,
-            max_points: 1200,
-            partial_current_bucket: false,
+            bucket_seconds: paired
+              ? Math.max(
+                  ...job.currentRequests.map((request) =>
+                    request.lod === "native" ? 300 : catalog.lod_seconds[request.lod]!,
+                  ),
+                )
+              : null,
+            max_points: paired ? projection.points.length : 1200,
+            partial_current_bucket: partial,
             since: time.start,
-            stats: projection.stats,
+            stats: {
+              ...projection.stats,
+              ...(paired
+                ? {
+                    minimum_ts: projection.state.minimum_ts,
+                    maximum_ts: projection.state.maximum_ts,
+                  }
+                : {}),
+            },
             until: time.end,
+            ...(paired
+              ? {
+                  pairing: {
+                    policy: HEADROOM_PAIRING.policy,
+                    paired_count: projection.stats.count,
+                    expected_count: Math.floor((time.end - time.start) / 300) + 1,
+                    collection_history: "first_collection_time_not_recorded" as const,
+                  },
+                }
+              : {}),
           },
           points: projection.points,
         };
@@ -663,14 +753,16 @@ async function loadFixedSeriesFromTiles(
     output.set(
       job.key,
       loaded ??
-        (await loadFixedPhysicalSeriesFromChunks(
-          job.chart,
-          job.series,
-          time,
-          compare,
-          customCompareSeconds,
-          signal,
-        )),
+        (job.series.metric === HEADROOM_METRIC
+          ? { points: [], compare: [], meta: {}, error: "paired_headroom_unavailable" }
+          : await loadFixedPhysicalSeriesFromChunks(
+              job.chart,
+              job.series,
+              time,
+              compare,
+              customCompareSeconds,
+              signal,
+            )),
     );
   }
   for (const chart of charts) {
@@ -701,6 +793,44 @@ export async function loadSeries(
   signal: AbortSignal,
   previousData: Map<string, LoadedSeries> = new Map(),
 ): Promise<Map<string, LoadedSeries>> {
+  const pairedCharts = charts.filter((chart) =>
+    chart.series.some((series) => series.metric === HEADROOM_METRIC),
+  );
+  if (pairedCharts.length) {
+    const physicalCharts = charts.filter((chart) => !pairedCharts.includes(chart));
+    const pairedOnly = pairedCharts.map((chart) => ({
+      ...chart,
+      series: chart.series.filter((series) => series.metric === HEADROOM_METRIC),
+    }));
+    const pairedLoad = async () => {
+      try {
+        return await loadFixedSeriesFromTiles(
+          pairedOnly,
+          time,
+          compare,
+          customCompareSeconds,
+          signal,
+        );
+      } catch (error) {
+        if (isAbortError(error, signal)) throw error;
+        return new Map<string, LoadedSeries>(
+          pairedOnly.flatMap((chart) =>
+            chart.series.map((series) => [
+              seriesKey(chart.id, series.id),
+              { points: [], compare: [], meta: {}, error: "paired_headroom_unavailable" },
+            ]),
+          ),
+        );
+      }
+    };
+    const [pairedData, physicalData] = await Promise.all([
+      pairedLoad(),
+      physicalCharts.length
+        ? loadSeries(physicalCharts, time, compare, customCompareSeconds, signal, previousData)
+        : Promise.resolve(new Map<string, LoadedSeries>()),
+    ]);
+    return new Map([...physicalData, ...pairedData]);
+  }
   if (time.mode === "fixed") {
     try {
       return await loadFixedSeriesFromTiles(charts, time, compare, customCompareSeconds, signal);

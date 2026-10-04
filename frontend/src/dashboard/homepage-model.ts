@@ -4,6 +4,7 @@ import {
   observationAt,
   temporalPolicy,
 } from "./series-temporal-policy";
+import { HEADROOM_METRIC } from "./tile-planner";
 import { chartDefinitions } from "./chart-config";
 import type { ChartDefinition, LoadedSeries, Point, SeriesDefinition } from "./types";
 import type { RankingRow } from "./api";
@@ -29,11 +30,18 @@ export const headroomChart: ChartDefinition = {
   title: "Capacity headroom & PRC",
   unit: "MW",
   statisticPolicy: "gauge",
+  spikeCritical: true,
   description:
     "Derived capacity minus demand from matched Supply and Demand observations. PRC is separately reported—not added to headroom.",
   sourceUrl: chartDefinitions.find((chart) => chart.id === "supply-demand")!.sourceUrl,
   series: [
-    { id: "headroom", label: "Derived headroom", color: "#a78bfa" },
+    {
+      id: "headroom",
+      label: "Derived headroom",
+      color: "#a78bfa",
+      metric: HEADROOM_METRIC,
+      tags: ["source:supply_demand"],
+    },
     { id: "prc", label: "Reported PRC", color: "#22d3ee" },
   ],
 };
@@ -47,24 +55,13 @@ export function pairedDifference(capacity: Point[], demand: Point[]): Point[] {
 
 export function homepageSeries(data: Map<string, LoadedSeries>) {
   const result = new Map(data);
-  const capacity = data.get("supply-demand:available-capacity");
-  const demand = data.get("supply-demand:demand");
-  // Independent aggregate/envelope points do not prove paired observations.
-  const native =
-    capacity &&
-    demand &&
-    !capacity.error &&
-    !demand.error &&
-    typeof capacity.meta.bucket_seconds === "number" &&
-    capacity.meta.bucket_seconds > 0 &&
-    capacity.meta.bucket_seconds === demand.meta.bucket_seconds &&
-    capacity.meta.bucket_seconds <= 300;
-  result.set("overview-headroom:headroom", {
-    points: native ? pairedDifference(capacity.points, demand.points) : [],
-    compare: native ? pairedDifference(capacity.compare, demand.compare) : [],
-    meta: { bucket_seconds: native ? (capacity.meta.bucket_seconds ?? null) : null },
-    error: null,
-  });
+  if (!result.has("overview-headroom:headroom"))
+    result.set("overview-headroom:headroom", {
+      points: [],
+      compare: [],
+      meta: {},
+      error: "paired_headroom_unavailable",
+    });
   const prc = data.get("capacity-headroom:prc");
   if (prc) result.set("overview-headroom:prc", prc);
   return result;

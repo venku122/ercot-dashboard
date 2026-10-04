@@ -194,6 +194,7 @@ export function OverviewCharts({
   });
   const coherent = coherentPriceSnapshots(ranking ?? [], Date.now() / 1000);
   const newest = coherent[0]?.ts ?? 0;
+  const headroomCoverage = seriesData.get("overview-headroom:headroom")?.meta.pairing;
   const priceSeries = marketSeries[selected];
   const pricingChart = useMemo(
     () => ({
@@ -208,7 +209,17 @@ export function OverviewCharts({
       <TimeReadings seriesData={seriesData} time={time} selected={selected} />
       <div className="homepage-chart-grid">
         <div className="homepage-wide">{renderChart(definition("supply-demand"), "overview")}</div>
-        <div className="homepage-narrow">{renderChart(headroomChart, "overview")}</div>
+        <div className="homepage-narrow">
+          {renderChart(headroomChart, "overview")}
+          {headroomCoverage ? (
+            <p className="homepage-chart-note">
+              {headroomCoverage.paired_count} paired observations of{" "}
+              {headroomCoverage.expected_count} nominal sample slots at five-minute cadence. Missing
+              contributors remain gaps; first collection time is unavailable. Coverage describes
+              retained observations, not complete ERCOT history.
+            </p>
+          ) : null}
+        </div>
         <div className="homepage-wide">{renderChart(fuelChart, "overview")}</div>
         <div className="homepage-narrow">{renderChart(storageChart, "overview")}</div>
         <section className="homepage-narrow homepage-ranking" aria-label="Settlement price ranking">

@@ -99,7 +99,15 @@ export type SeriesMeta = {
   partial_current_bucket?: boolean;
   since?: number;
   until?: number | null;
+  pairing?: {
+    policy: string;
+    paired_count: number;
+    expected_count: number;
+    collection_history: "first_collection_time_not_recorded";
+  };
   stats?: {
+    minimum_ts?: number | null;
+    maximum_ts?: number | null;
     average: number | null;
     count: number;
     energy_mwh: number | null;

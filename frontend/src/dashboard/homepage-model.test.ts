@@ -43,7 +43,9 @@ describe("chart-first homepage contracts", () => {
       ["supply-demand:available-capacity", loaded([[0, 90]])],
       ["supply-demand:demand", loaded([[0, 70]])],
     ]);
-    expect(homepageSeries(source).get("overview-headroom:headroom")?.points).toEqual([[0, 20]]);
+    expect(homepageSeries(source).get("overview-headroom:headroom")?.error).toBe(
+      "paired_headroom_unavailable",
+    );
     expect(homepageSeries(source).has("overview-headroom:prc")).toBe(false);
     source.get("supply-demand:demand")!.meta.bucket_seconds = 3600;
     expect(homepageSeries(source).get("overview-headroom:headroom")?.points).toEqual([]);

@@ -22,7 +22,12 @@ import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
 import { chartCoordinator } from "./dashboard/chart-coordinator";
 import { OverviewCharts } from "./dashboard/OverviewCharts";
-import { homepageSeries, overviewChartIds, engineeringChartIds } from "./dashboard/homepage-model";
+import {
+  homepageSeries,
+  headroomChart,
+  overviewChartIds,
+  engineeringChartIds,
+} from "./dashboard/homepage-model";
 import { sortDiagnostics, summarizeDiagnostics } from "./dashboard/diagnostics";
 import {
   dataLifecycleCopy,
@@ -715,6 +720,12 @@ export function App() {
           ? { ...chart, series: chart.series.filter((series) => series.id === "prc") }
           : chart,
       );
+    if (selectedView === "overview" && !loadedChartIdsRef.current.has(loadKey(headroomChart))) {
+      requestedCharts.push({
+        ...headroomChart,
+        series: headroomChart.series.filter((series) => series.id === "headroom"),
+      });
+    }
     if (!requestedCharts.length) {
       setLoading(false);
       return;
