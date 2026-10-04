@@ -1,0 +1,31 @@
+{
+  "source_sha": "e3b1874854db81dc5251dc2f201a3df47cdba707",
+  "run": 37199671392,
+  "job": 111428585490,
+  "artifact": {
+    "head": "e3b1874854db81dc5251dc2f201a3df47cdba707",
+    "run": 37199671392,
+    "artifact": 11302613102,
+    "archive_sha256": "7fd1e81b394441e39c44e9a58dee83dc6f9637a5eec8cd963ab61aa94b12ca4f",
+    "scope": "Only Diagnostics triples/sourceJSON/DOM"
+  },
+  "target": "e2e/mobile.spec.ts-snapshots/progressive-diagnostics-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+  "sha256": {
+    "expected": "fedacc7031b5113ba82e7fea8b854df547f753834d8a1e355f7e1ece4758bc02",
+    "actual": "2ecd9574344d8186de552653d91431d742dde9140952cb00d4bf3f7e3d604639",
+    "diff": "6987f8925f5106ed206e8b0e9962691dbfced934d6bfbcc710bc12dd2d1f939b"
+  },
+  "paths": {
+    "expected": "/tmp/ercot-post-release-2026-10/ci10-e3b187-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-diagnostics-mobile-expected.png",
+    "actual": "/tmp/ercot-post-release-2026-10/ci10-e3b187-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-diagnostics-mobile-actual.png",
+    "diff": "/tmp/ercot-post-release-2026-10/ci10-e3b187-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-diagnostics-mobile-diff.png"
+  },
+  "source_path": "/tmp/ercot-post-release-2026-10/ci10-e3b187-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/progressive-diagnostics-mobile.json",
+  "source_sha256": "ff3396c176a6035dff261ba1ec67c1c57f17c3f37c9530848d1524aee392ddc0",
+  "viewed": ["expected", "actual", "diff"],
+  "capture_count": 1,
+  "matching_repeat": "PENDING_NEW_HEAD_CI",
+  "reason": "First newlyreached Diagnosticsframe afterAdvanced passes. Actual1d selection preserved acrossviewchanges,notstale6h baseline.44px picker/playback targets wrapresponsive.11healthy sources/sourceobservation5:59PM unchanged.39actualresponse records include2source-health payloads. No failuremasked; onlyimage changed.",
+  "scope": "One PNG plusdocs only; no source/fixture/test/tolerance/budget change.",
+  "capture_followup": "Only four progressive-disclosure image assertions use expect.soft. Each mismatch still fails testcase/run; hard source readiness, navigation, data/geometry assertions and all tolerances remain unchanged. Later frames and passive source records are now retained after an earlier image mismatch."
+}
