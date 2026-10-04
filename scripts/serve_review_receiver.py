@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -111,6 +112,13 @@ def main():
         manifest["seeded_at_utc"] = datetime.fromtimestamp(end, timezone.utc).isoformat()
         manifest["candidate_sha"] = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        build_revision = re.search(
+            r'<meta name="ercot-build-revision" content="([^"]+)"',
+            (frozen_web / "index.html").read_text(),
+        )
+        manifest["frontend_build_revision"] = build_revision.group(1) if build_revision else "UNKNOWN"
+        manifest["frontend_build_matches_candidate"] = manifest["frontend_build_revision"] == manifest["candidate_sha"]
+        manifest["receiver_revision"] = manifest["candidate_sha"]
         manifest["index_sha256"] = hashlib.sha256((frozen_web / "index.html").read_bytes()).hexdigest()
         manifest["collector_revision"] = None
         manifest["collector_state"] = "not running; local synthetic fixture only"
