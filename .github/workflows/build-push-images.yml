@@ -157,14 +157,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:performance
       - run: pnpm exec playwright install --with-deps chromium
+      - name: Enforce controlled populated homepage numeric budgets
+        run: pnpm exec playwright test e2e/homepage-performance.spec.ts --project=chromium
       - name: Verify browser performance budgets
         run: >-
           pnpm exec playwright test e2e/dashboard.spec.ts
           --grep "lazy mounting, browser long tasks, and heap remain bounded"
-      - if: ${{ failure() }}
+      - if: ${{ always() }}
         uses: actions/upload-artifact@v6
         with:
-          name: performance-failure-${{ github.run_id }}
+          name: performance-evidence-${{ github.run_id }}
           path: |
             artifacts/
             test-results/

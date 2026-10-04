@@ -87,6 +87,25 @@ type Props = {
   time: TimeState;
 };
 
+const tickDate = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  month: "short",
+  day: "numeric",
+});
+const tickHour = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric" });
+const tickTime = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  hour: "numeric",
+  minute: "2-digit",
+});
+const tickDateTime = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 const cursorByChart = new WeakMap<ChartJs<"line">, number | null>();
 function CursorLegendValue({
   loaded,
@@ -651,26 +670,11 @@ export function ChartCard({
             ticks: {
               callback: (value) => {
                 if (mobile && dynamic.current.time.rangeSeconds > 86400) {
-                  return [
-                    new Intl.DateTimeFormat("en-US", {
-                      timeZone: "America/Chicago",
-                      month: "short",
-                      day: "numeric",
-                    }).format(Number(value)),
-                    new Intl.DateTimeFormat("en-US", {
-                      timeZone: "America/Chicago",
-                      hour: "numeric",
-                    }).format(Number(value)),
-                  ];
+                  return [tickDate.format(Number(value)), tickHour.format(Number(value))];
                 }
-                return new Intl.DateTimeFormat("en-US", {
-                  timeZone: "America/Chicago",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  ...(dynamic.current.time.rangeSeconds > 86400
-                    ? ({ month: "short", day: "numeric" } as const)
-                    : {}),
-                }).format(Number(value));
+                return (dynamic.current.time.rangeSeconds > 86400 ? tickDateTime : tickTime).format(
+                  Number(value),
+                );
               },
               autoSkip: true,
               color: "#aebdd0",

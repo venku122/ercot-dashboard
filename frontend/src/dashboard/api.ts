@@ -3,45 +3,24 @@ import { CanonicalUrlCache } from "./canonical-url-cache";
 import { TileTransportLimiter } from "./tile-transport-limiter";
 import { alignComparisonForMode, compareWindow } from "./compare";
 import { deriveSeries } from "./derived";
-import {
-  parseExternalContextManifest,
-  parseExternalContextResource,
-  type ExternalContextManifest,
-  type ExternalContextResource,
-  type ExternalContextSelected,
-  type ExternalContextStream,
+import type {
+  ExternalContextManifest,
+  ExternalContextResource,
+  ExternalContextSelected,
+  ExternalContextStream,
 } from "./external-context";
-import { parseOutlookResponse, type OutlookResponse } from "./outlook";
-import {
-  parseForecastQualityManifest,
-  parseForecastQualityResource,
-  type ForecastQualityManifest,
-  type ForecastQualityResource,
-} from "./forecast-quality";
-import {
-  parseNetLoadDailyResource,
-  parseNetLoadManifest,
-  parseNetLoadResource,
-  type NetLoadDailyLink,
-  type NetLoadDailyResource,
-  type NetLoadManifest,
-  type NetLoadResource,
-  type NetLoadResourceLink,
+import type { OutlookResponse } from "./outlook";
+import type { ForecastQualityManifest, ForecastQualityResource } from "./forecast-quality";
+import type {
+  NetLoadDailyLink,
+  NetLoadDailyResource,
+  NetLoadManifest,
+  NetLoadResource,
+  NetLoadResourceLink,
 } from "./net-load";
-import {
-  parsePredictiveWeatherManifest,
-  type PredictiveWeatherManifest,
-} from "./predictive-weather";
-import {
-  gridEventRequestUrl,
-  parseGridEventTimeline,
-  type GridEventTimeline,
-} from "./grid-event-timeline";
-import {
-  historicalContextResolverUrl,
-  parseHistoricalContextResolver,
-  type HistoricalContextResolver,
-} from "./historical-context";
+import type { PredictiveWeatherManifest } from "./predictive-weather";
+import type { GridEventTimeline } from "./grid-event-timeline";
+import type { HistoricalContextResolver } from "./historical-context";
 import {
   HEADROOM_METRIC,
   HEADROOM_PAIRING,
@@ -52,12 +31,10 @@ import {
   type TileRequest,
 } from "./tile-planner";
 import { composeTileWindow, parseAggregateStateV2, type AggregateBucket } from "./tile-state";
-import {
-  parseTexasGridManifest,
-  parseTexasGridResource,
-  type TexasGridManifest,
-  type TexasGridResource,
-  type TexasGridSelectedResource,
+import type {
+  TexasGridManifest,
+  TexasGridResource,
+  TexasGridSelectedResource,
 } from "./texas-grid-long-horizon";
 import type {
   ChartDefinition,
@@ -1346,6 +1323,7 @@ export async function loadSourceHealth(signal?: AbortSignal): Promise<SourceHeal
 }
 
 export async function loadOutlook(signal?: AbortSignal): Promise<OutlookResponse> {
+  const { parseOutlookResponse } = await import("./outlook");
   const response = await fetchJson<unknown>("/api/v1/outlook", { method: "GET" }, signal);
   return parseOutlookResponse(response);
 }
@@ -1353,6 +1331,7 @@ export async function loadOutlook(signal?: AbortSignal): Promise<OutlookResponse
 export async function loadPredictiveWeather(
   signal?: AbortSignal,
 ): Promise<PredictiveWeatherManifest> {
+  const { parsePredictiveWeatherManifest } = await import("./predictive-weather");
   return parsePredictiveWeatherManifest(
     await fetchJson<unknown>("/api/v1/predictive-weather", { method: "GET" }, signal),
   );
@@ -1364,6 +1343,7 @@ export async function loadGridEventTimeline(
   signal?: AbortSignal,
   cursor?: string | null,
 ): Promise<GridEventTimeline> {
+  const { gridEventRequestUrl, parseGridEventTimeline } = await import("./grid-event-timeline");
   return parseGridEventTimeline(
     await fetchJson<unknown>(gridEventRequestUrl(from, to, cursor), { method: "GET" }, signal),
   );
@@ -1373,12 +1353,15 @@ export async function loadHistoricalContext(
   asOf: number,
   signal?: AbortSignal,
 ): Promise<HistoricalContextResolver> {
+  const { historicalContextResolverUrl, parseHistoricalContextResolver } =
+    await import("./historical-context");
   return parseHistoricalContextResolver(
     await fetchJson<unknown>(historicalContextResolverUrl(asOf), { method: "GET" }, signal),
   );
 }
 
 export async function loadTexasGridManifest(signal?: AbortSignal): Promise<TexasGridManifest> {
+  const { parseTexasGridManifest } = await import("./texas-grid-long-horizon");
   return parseTexasGridManifest(
     await fetchJson<unknown>("/api/v1/texas-grid", { method: "GET" }, signal),
   );
@@ -1388,6 +1371,7 @@ export async function loadTexasGridResource(
   resource: TexasGridSelectedResource,
   signal?: AbortSignal,
 ): Promise<TexasGridResource> {
+  const { parseTexasGridResource } = await import("./texas-grid-long-horizon");
   return parseTexasGridResource(
     await fetchJson<unknown>(resource.url, { method: "GET" }, signal),
     resource,
@@ -1397,6 +1381,7 @@ export async function loadTexasGridResource(
 export async function loadExternalContextManifest(
   signal?: AbortSignal,
 ): Promise<ExternalContextManifest> {
+  const { parseExternalContextManifest } = await import("./external-context");
   return parseExternalContextManifest(
     await fetchJson<unknown>("/api/v1/external-context", { method: "GET" }, signal),
   );
@@ -1407,6 +1392,7 @@ export async function loadExternalContextResource(
   selected: ExternalContextSelected,
   signal?: AbortSignal,
 ): Promise<ExternalContextResource> {
+  const { parseExternalContextResource } = await import("./external-context");
   return parseExternalContextResource(
     await fetchJson<unknown>(selected.url, { method: "GET" }, signal),
     stream,
@@ -1417,6 +1403,7 @@ export async function loadExternalContextResource(
 export async function loadForecastQualityManifest(
   signal?: AbortSignal,
 ): Promise<ForecastQualityManifest> {
+  const { parseForecastQualityManifest } = await import("./forecast-quality");
   const response = await fetchJson<unknown>("/api/v1/forecast-quality", { method: "GET" }, signal);
   return parseForecastQualityManifest(response);
 }
@@ -1425,11 +1412,13 @@ export async function loadForecastQualityResource(
   resource: ForecastQualityManifest["resources"][number],
   signal?: AbortSignal,
 ): Promise<ForecastQualityResource> {
+  const { parseForecastQualityResource } = await import("./forecast-quality");
   const response = await fetchJson<unknown>(resource.url, { method: "GET" }, signal);
   return parseForecastQualityResource(response, resource);
 }
 
 export async function loadNetLoadManifest(signal?: AbortSignal): Promise<NetLoadManifest> {
+  const { parseNetLoadManifest } = await import("./net-load");
   return parseNetLoadManifest(
     await fetchJson<unknown>("/api/v1/net-load", { method: "GET" }, signal),
   );
@@ -1439,6 +1428,7 @@ export async function loadNetLoadResource(
   resource: NetLoadResourceLink,
   signal?: AbortSignal,
 ): Promise<NetLoadResource> {
+  const { parseNetLoadResource } = await import("./net-load");
   return parseNetLoadResource(
     await fetchJson<unknown>(resource.url, { method: "GET" }, signal),
     resource,
@@ -1449,6 +1439,7 @@ export async function loadNetLoadDailyResource(
   resource: NetLoadDailyLink,
   signal?: AbortSignal,
 ): Promise<NetLoadDailyResource> {
+  const { parseNetLoadDailyResource } = await import("./net-load");
   return parseNetLoadDailyResource(
     await fetchJson<unknown>(resource.url, { method: "GET" }, signal),
     resource,

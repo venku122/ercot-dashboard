@@ -1,0 +1,48 @@
+{
+  "baselineRef": "55b20f29537163e3af308df5dd52727fc9247a2c",
+  "candidate": {
+    "fixtureHash": "b9691591726a174644e5857045cda2a1f7503003afcf9e0835cab4cfe9a5c36a",
+    "readiness": "both populated demand/capacity balance and paired headroom; expected native fixture last values 71.0/90.1/19.1 GW",
+    "browser": "149.0.7827.55",
+    "viewport": "1440x900",
+    "dpr": 1,
+    "build": "production vite preview",
+    "coldConditions": "4x CPU, 1.6 Mb/s, 150ms network latency; API route-fulfilled deterministic native-cadence fixture",
+    "coldMs": [2434.752916, 2381.7760000000003, 2382.470042, 2389.825332999999, 2489.324499999999],
+    "coldMedianMs": 2389.825332999999,
+    "pointerConditions": "unthrottled, event through two animation frames (conservative proxy; not a paint timestamp)",
+    "pointerSamples": 200,
+    "readoutChanges": 200,
+    "pointerP95Ms": 34,
+    "hoverHistoryRequests": 0,
+    "numericBudget": {
+      "pass": true,
+      "failures": [],
+      "coldMedianMs": 2389.825332999999,
+      "pointerP95Ms": 34
+    }
+  },
+  "environment": "macOS 26.6.2 arm64, Node25.8.2, pnpm10.30.3",
+  "baseline": {
+    "fixtureHash": "b9691591726a174644e5857045cda2a1f7503003afcf9e0835cab4cfe9a5c36a",
+    "readiness": "both populated demand/capacity balance and paired headroom; expected native fixture last values 71.0/90.1/19.1 GW",
+    "browser": "149.0.7827.55",
+    "viewport": "1440x900",
+    "dpr": 1,
+    "build": "production vite preview",
+    "coldConditions": "4x CPU, 1.6 Mb/s, 150ms network latency; API route-fulfilled deterministic native-cadence fixture",
+    "coldMs": [2886.370333, 2773.39275, 2751.3770000000004, 2754.8838339999984, 2787.4750840000015],
+    "coldMedianMs": 2773.39275,
+    "pointerConditions": "unthrottled, event through two animation frames (conservative proxy; not a paint timestamp)",
+    "pointerSamples": 200,
+    "readoutChanges": 200,
+    "pointerP95Ms": 34,
+    "hoverHistoryRequests": 0,
+    "numericBudget": {
+      "pass": false,
+      "failures": ["cold median exceeds 2500ms"],
+      "coldMedianMs": 2773.39275,
+      "pointerP95Ms": 34
+    }
+  }
+}

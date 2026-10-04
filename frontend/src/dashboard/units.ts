@@ -43,16 +43,24 @@ export function normalizeUnit(value: number, unit: string): NormalizedUnit {
   };
 }
 
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
 export function formatValue(value: number | null, unit: string): string {
   if (value === null || !Number.isFinite(value)) return "—";
   const normalized = normalizeUnit(value, unit);
   const absoluteValue =
     normalized.unit === "$ per MWh" ? Math.abs(normalized.value) : normalized.value;
-  const formatted = new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: normalized.maximumFractionDigits,
-    minimumFractionDigits: normalized.minimumFractionDigits,
-    useGrouping: true,
-  }).format(absoluteValue);
+  const precisionKey = `${normalized.minimumFractionDigits}:${normalized.maximumFractionDigits}`;
+  let formatter = numberFormats.get(precisionKey);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: normalized.maximumFractionDigits,
+      minimumFractionDigits: normalized.minimumFractionDigits,
+      useGrouping: true,
+    });
+    numberFormats.set(precisionKey, formatter);
+  }
+  const formatted = formatter.format(absoluteValue);
 
   if (normalized.unit === "$ per MWh") {
     return `${normalized.value < 0 ? "-" : ""}$${formatted}/MWh`;

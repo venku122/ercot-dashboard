@@ -7,6 +7,26 @@ export default defineConfig(({ mode }) => ({
   root: "frontend",
   publicDir: "public",
   plugins: [
+    {
+      name: "preload-first-useful-chart",
+      transformIndexHtml: {
+        order: "post",
+        handler(_html, context) {
+          const chunk = Object.values(context.bundle ?? {}).find(
+            (output) => output.type === "chunk" && output.name === "ChartCard",
+          );
+          return chunk
+            ? [
+                {
+                  tag: "link",
+                  attrs: { rel: "modulepreload", href: `/${chunk.fileName}` },
+                  injectTo: "head",
+                },
+              ]
+            : [];
+        },
+      },
+    },
     tailwindcss(),
     react(),
     {
