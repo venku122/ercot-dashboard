@@ -13,7 +13,13 @@ import {
   loadIntervalPriceHistory,
   MARKET_PRICE_POINTS,
 } from "./market-geography";
-import { engineeringChartIds, headroomChart, marketNames, marketTime } from "./homepage-model";
+import {
+  collectionPriceChart,
+  engineeringChartIds,
+  headroomChart,
+  marketNames,
+  marketTime,
+} from "./homepage-model";
 import { formatValue } from "./units";
 import type { ChartDefinition, LoadedSeries, TimeState } from "./types";
 import "./overview.css";
@@ -30,21 +36,6 @@ const fuelChart = {
     "Selected reported categories; not total system generation. Signed storage is shown separately. Missing observations remain gaps.",
   series: definition("fuel-mix").series.filter((series) => series.id !== "power-storage"),
 };
-// Keep collection history under a distinct display identity; never feed native selection.
-const collectionPriceChart: ChartDefinition = {
-  ...definition("pricing"),
-  id: "pricing-collection",
-  title: "Legacy core hub prices · collection history",
-  sourceId: "ercot_pricing",
-  description:
-    "Delivery interval unknown. Core ercot.pricing collection timestamps are preserved; these observations are independent of the selected NP6-905 delivery interval and point.",
-  series: definition("pricing").series.map((series) => ({
-    ...series,
-    temporal: temporalPolicy("pricing", series)!,
-  })),
-};
-delete collectionPriceChart.interpretation;
-
 const storageChart: ChartDefinition = { ...definition("storage"), zeroCentered: true };
 delete storageChart.interpretation;
 

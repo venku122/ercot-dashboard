@@ -9,6 +9,23 @@ import { chartDefinitions } from "./chart-config";
 import type { ChartDefinition, LoadedSeries, Point, SeriesDefinition } from "./types";
 import type { RankingRow } from "./api";
 
+// Keep collection history under a distinct display identity; never feed native selection.
+export const collectionPriceChart: ChartDefinition = {
+  ...chartDefinitions.find((chart) => chart.id === "pricing")!,
+  id: "pricing-collection",
+  title: "Legacy core hub prices · collection history",
+  sourceId: "ercot_pricing",
+  description:
+    "Delivery interval unknown. Core ercot.pricing collection timestamps are preserved; these observations are independent of the selected NP6-905 delivery interval and point.",
+  series: chartDefinitions
+    .find((chart) => chart.id === "pricing")!
+    .series.map((series) => ({
+      ...series,
+      temporal: temporalPolicy("pricing", series)!,
+    })),
+};
+delete collectionPriceChart.interpretation;
+
 export const overviewChartIds = new Set([
   "supply-demand",
   "fuel-mix",

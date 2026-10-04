@@ -24,6 +24,7 @@ import { chartCoordinator } from "./dashboard/chart-coordinator";
 import { OverviewCharts } from "./dashboard/OverviewCharts";
 import {
   homepageSeries,
+  collectionPriceChart,
   headroomChart,
   overviewChartIds,
   engineeringChartIds,
@@ -845,7 +846,9 @@ export function App() {
 
   const soloSeries = useCallback((chartId: string, key: string) => {
     setState((current) => {
-      const chart = chartDefinitions.find((definition) => definition.id === chartId);
+      const chart =
+        chartDefinitions.find((definition) => definition.id === chartId) ??
+        (chartId === collectionPriceChart.id ? collectionPriceChart : undefined);
       if (!chart) return current;
       const keys = chart.series.map((series) => seriesKey(chart.id, series.id));
       const alreadySolo = keys.every(
