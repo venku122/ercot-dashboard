@@ -22,3 +22,6 @@ analysis/local-data/
 test-results/
 playwright-report/
 artifacts/playwright-report/
+
+# post-release sanitized raw test artifacts
+artifacts/post-release/

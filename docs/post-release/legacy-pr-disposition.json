@@ -1,0 +1,123 @@
+[
+  {
+    "number": 13,
+    "head": "9c2944aa07657d34390d7a67c0ecfcc922d6c3c1",
+    "base": "93badf190dd3e80cab287366eeaecebd2c2d6d95",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Typed information hierarchy remains; the chart-first homepage intentionally promotes plots.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/13#issuecomment-5976050656",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:08.627829+00:00"
+  },
+  {
+    "number": 14,
+    "head": "75067946d085de0798d469e1b3e3487d5e85c7fa",
+    "base": "9c2944aa07657d34390d7a67c0ecfcc922d6c3c1",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Diagnostics summary/sorting remain, refined by later source lifecycle repair.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/14#issuecomment-5976051206",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:13.329221+00:00"
+  },
+  {
+    "number": 15,
+    "head": "fee47856d21e3d62c969271dd1b09cdab749908b",
+    "base": "75067946d085de0798d469e1b3e3487d5e85c7fa",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Alert severity/cause/impact/action remain; later filtering removes no-event false alarms.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/15#issuecomment-5976051675",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:17.848601+00:00"
+  },
+  {
+    "number": 16,
+    "head": "16919f3cb7ea5d472c314191ef7c72dbe1c5705f",
+    "base": "fee47856d21e3d62c969271dd1b09cdab749908b",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Hourly trends remain; chart-first Overview places readings in details.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/16#issuecomment-5976052125",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:22.316927+00:00"
+  },
+  {
+    "number": 17,
+    "head": "a88e45bba3752f12900ba67732c3b048d8ead9a7",
+    "base": "16919f3cb7ea5d472c314191ef7c72dbe1c5705f",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Derived metrics remain. Observed historical demand context intentionally supersedes older comparison cards.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/17#issuecomment-5976052572",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:27.622521+00:00"
+  },
+  {
+    "number": 18,
+    "head": "6eac39bafc3a0bde5a34a3d9f6f813f0b9cd6124",
+    "base": "a88e45bba3752f12900ba67732c3b048d8ead9a7",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Grid Health computation and contribution details remain in a secondary disclosure.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/18#issuecomment-5976053112",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:32.438903+00:00"
+  },
+  {
+    "number": 19,
+    "head": "742a494f51092e3fdd909c92bca07635aba0925c",
+    "base": "6eac39bafc3a0bde5a34a3d9f6f813f0b9cd6124",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Interpretation guides remain; historical ratio bands based on latest capacity were intentionally removed for correctness.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/19#issuecomment-5976053642",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:37.502057+00:00"
+  },
+  {
+    "number": 20,
+    "head": "9f92e72fc2a238c99bb6df8c1f6d1968127988ec",
+    "base": "742a494f51092e3fdd909c92bca07635aba0925c",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "OperationsTimeline remains in events; Reliability also gains a richer unified timeline.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/20#issuecomment-5976054192",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:42.412755+00:00"
+  },
+  {
+    "number": 21,
+    "head": "5a3d9f6de34447b0d64ce7642eac3d68ff013e32",
+    "base": "9f92e72fc2a238c99bb6df8c1f6d1968127988ec",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Primary/supporting metric metadata and collector Docker cache serialization remain; homepage layout is intentionally superseded.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/21#issuecomment-5976054699",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:48.279622+00:00"
+  },
+  {
+    "number": 22,
+    "head": "21af2be2d1c0c784868f51b913c34e0a43637bdd",
+    "base": "5a3d9f6de34447b0d64ce7642eac3d68ff013e32",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "URL-addressable views, navigation, request gating and diagnostics remain with added domain views.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/22#issuecomment-5976055257",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:52.905894+00:00"
+  },
+  {
+    "number": 23,
+    "head": "a7ab99af14ab988a8f46f38ae267d7d7caf1885f",
+    "base": "21af2be2d1c0c784868f51b913c34e0a43637bdd",
+    "main": "1dc9906ee73a97805d38561de7d79bf424592234",
+    "ancestry_exit": 0,
+    "disposition": "Data lifecycle states and mobile dialog remain; compact layout is intentionally superseded by chart-first Overview.",
+    "comment_url": "https://github.com/venku122/ercot-dashboard/pull/23#issuecomment-5976055703",
+    "state": "CLOSED_WITHOUT_MERGE",
+    "observed_at_utc": "2026-10-04T03:10:57.223930+00:00"
+  }
+]
