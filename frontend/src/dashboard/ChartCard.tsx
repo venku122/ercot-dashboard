@@ -1,3 +1,4 @@
+import { retainChartSeriesData } from "./chart-series-data";
 import { isPreviousSelection, selectionDescription } from "./history-selection";
 import { seriesIntervalLabel, intervalPlotPoints } from "./interval-price-series";
 import {
@@ -352,6 +353,10 @@ export function ChartCard({
   });
   const previousSelectionNote = [...new Set(previousSelections)].join("; ");
 
+  const plotSourceRef = useRef<Map<string, LoadedSeries> | undefined>(undefined);
+  const plotSeriesData = retainChartSeriesData(chart, seriesData, plotSourceRef.current);
+  plotSourceRef.current = plotSeriesData;
+
   const datasets = useMemo<Array<ChartDataset<"line", ScatterDataPoint[]>>>(() => {
     const output: Array<ChartDataset<"line", ScatterDataPoint[]>> = [];
     const stacked = chart.id === "fuel-mix" && presentation === "overview";
@@ -359,7 +364,7 @@ export function ChartCard({
       ? alignedGeneration(
           visibleSeries.map(
             (series) =>
-              seriesData.get(seriesKey(chart.id, series.id)) ?? {
+              plotSeriesData.get(seriesKey(chart.id, series.id)) ?? {
                 points: [],
                 compare: [],
                 meta: {},
@@ -370,7 +375,7 @@ export function ChartCard({
       : [];
     for (const series of visibleSeries) {
       const key = seriesKey(chart.id, series.id);
-      const loaded = seriesData.get(key);
+      const loaded = plotSeriesData.get(key);
       const hidden = hiddenSeries.has(key);
       output.push({
         label: series.label,
@@ -453,8 +458,9 @@ export function ChartCard({
     chart,
     compare,
     customCompareSeconds,
+    selectionTime,
     hiddenSeries,
-    seriesData,
+    plotSeriesData,
     visibleSeries,
     presentation,
     time,
@@ -907,7 +913,7 @@ export function ChartCard({
       : "false";
     window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
     window.__ercotChartLifecycle.updated += 1;
-  }, [datasets, events, seriesData, time.end, time.start, chart.zeroCentered]);
+  }, [datasets, events, time.end, time.start, chart.zeroCentered]);
 
   const allPoints = visibleSeries.flatMap(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.points ?? [],
