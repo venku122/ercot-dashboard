@@ -46,3 +46,43 @@ it("retrospective demand uses archived issued-before-delivery values and never l
     true,
   );
 });
+
+it("historical comparison selects its own allowed window and aligns calendar targets", async () => {
+  const end = Date.parse("2026-11-01T08:00:00Z") / 1000;
+  const start = end - 3600;
+  const requests: URL[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (!url.includes("historical-forecast")) return new Response(JSON.stringify({ series: [] }));
+      const request = new URL(url, "http://localhost");
+      requests.push(request);
+      const target = Number(request.searchParams.get("end")) - 1;
+      return new Response(
+        JSON.stringify({
+          product_id: "NP3-565-CD",
+          policy: "issued_before_delivery",
+          rows: [
+            {
+              target_ts: target,
+              interval_start: target - 3600,
+              issued_at: target - 7200,
+              value: requests.length === 1 ? 42 : 24,
+              unit: "MW",
+            },
+          ],
+        }),
+      );
+    }),
+  );
+  const result = await loadSeries(
+    [chartDefinitions.find((c) => c.id === "supply-demand")!],
+    { start, end, mode: "live", paused: false, rangeSeconds: 3600 },
+    "day",
+    0,
+    new AbortController().signal,
+  );
+  expect(requests).toHaveLength(2);
+  expect(Number(requests[1]!.searchParams.get("as_of"))).toBe(end - 90000);
+  expect(result.get("supply-demand:forecast-demand")?.compare).toEqual([[end, 24]]);
+});

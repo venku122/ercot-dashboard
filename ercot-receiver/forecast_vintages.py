@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo
 
 MAX_PUBLICATION_ROWS = 50_000
 MAX_QUERY_ROWS = 5_000
+# Separate hourly retrospective contract: a 366-day window plus an inclusive edge.
+MAX_HISTORICAL_FORECAST_ROWS = 366 * 24 + 1
 MAX_TARGET_SPAN = 366 * 86_400
 MAX_OUTLOOK_TARGETS = 193
 MAX_EPOCH_SECONDS = 32_503_680_000
@@ -1238,7 +1240,9 @@ def historical_forecast_rows(conn, start, end, as_of, policy="issued_before_deli
         )
         SELECT target_ts, system_total, issued_at, retrieved_at, created_at, vintage_key, model
         FROM eligible WHERE choice=1 ORDER BY target_ts LIMIT ?
-    """, (*params, MAX_QUERY_ROWS)).fetchall()
+    """, (*params, MAX_HISTORICAL_FORECAST_ROWS + 1)).fetchall()
+    if len(rows) > MAX_HISTORICAL_FORECAST_ROWS:
+        raise ValueError("historical_forecast_target_limit_exceeded")
     fields = ("target_ts", "value", "issued_at", "retrieved_at", "first_seen_at", "vintage_key", "model")
     output = [dict(zip(fields, row)) for row in rows]
     for row in output:
@@ -1246,4 +1250,11 @@ def historical_forecast_rows(conn, start, end, as_of, policy="issued_before_deli
     return {"product_id": PRODUCT_NP3_565, "measure": "systemTotal", "policy": policy,
             "as_of": as_of, "target_start": start, "target_end": end, "rows": output,
             "availability": "available" if output else "no_eligible_archived_vintage",
-            "system_knowledge_claim": policy == "system_known"}
+            "system_knowledge_claim": policy == "system_known",
+            "coverage": {
+                "expected_target_count": max(0, (end - 1) // 3600 - (start + 3599) // 3600 + 1),
+                "selected_target_count": len(output),
+                "available_value_count": sum(row["value"] is not None for row in output),
+                "missing_value_count": max(0, (end - 1) // 3600 - (start + 3599) // 3600 + 1 - sum(row["value"] is not None for row in output)),
+                "truncated": False,
+            }}

@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta
 from urllib.parse import quote, urlencode
 
@@ -163,6 +164,39 @@ class ForecastStorageTests(unittest.TestCase):
         self.assertEqual(fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 1, TARGET_1)["rows"], [])
         with self.assertRaises(ValueError):
             fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 367 * 86400, TARGET_1)
+
+    def test_historical_forecast_returns_complete_6001_and_year_hourly_archive(self):
+        for count in (6001, 8760):
+            with self.subTest(count=count):
+                self.conn.execute("DELETE FROM forecast_np3_565_rows")
+                self.conn.execute("DELETE FROM forecast_publications")
+                self.conn.commit()
+                rows = []
+                labels = {}
+                for index in range(count):
+                    target = TARGET_1 + index * 3600
+                    local_start = datetime.fromtimestamp(target - 3600, fv.CHICAGO)
+                    day = local_start.date().isoformat()
+                    if day not in labels:
+                        labels[day] = {}
+                        for hour in range(1, 25):
+                            for flag in (False, True):
+                                try:
+                                    labels[day][fv.market_hour_target(day, f"{hour}:00", flag)] = (f"{hour}:00", flag)
+                                except ValueError:
+                                    pass
+                    hour, flag = labels[day][target]
+                    rows.append(row_565(target=target, day=day, hour=hour, dst=flag))
+                self.ingest(fv.PRODUCT_NP3_565, "bounded-hourly-archive", rows, TARGET_1 - 7200, "MW")
+                result = fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + count * 3600, TARGET_1 + count * 3600)
+                self.assertEqual(len(result["rows"]), count)
+                self.assertEqual(result["rows"][-1]["target_ts"], TARGET_1 + (count - 1) * 3600)
+                self.assertEqual(result["coverage"]["expected_target_count"], count)
+                self.assertEqual(result["coverage"]["available_value_count"], count)
+                self.assertEqual(result["coverage"]["missing_value_count"], 0)
+                with patch.object(fv, "MAX_HISTORICAL_FORECAST_ROWS", count - 1):
+                    with self.assertRaisesRegex(ValueError, "historical_forecast_target_limit_exceeded"):
+                        fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + count * 3600, TARGET_1 + count * 3600)
 
     def test_migration_is_idempotent_and_builds_wide_target_indexes(self):
         fv.init_forecast_schema(self.conn)

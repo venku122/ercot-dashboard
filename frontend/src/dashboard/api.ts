@@ -895,17 +895,23 @@ export async function loadSeries(
           : chart,
       )
     : charts;
-  const forecast = async (): Promise<LoadedSeries> => {
+  const forecast = async (window: Pick<TimeState, "start" | "end">): Promise<LoadedSeries> => {
     const params = new URLSearchParams({
-      start: String(Math.round(time.start)),
-      end: String(Math.round(time.end) + 1),
-      as_of: String(Math.round(time.end)),
+      start: String(Math.round(window.start)),
+      end: String(Math.round(window.end) + 1),
+      as_of: String(Math.round(window.end)),
       policy: "issued_before_delivery",
     });
     try {
       const payload = await fetchJson<{
         product_id: string;
         policy: string;
+        coverage?: {
+          expected_target_count: number;
+          available_value_count: number;
+          missing_value_count: number;
+          truncated: boolean;
+        };
         rows: Array<{
           target_ts: number;
           interval_start: number;
@@ -920,21 +926,43 @@ export async function loadSeries(
         !Array.isArray(payload.rows)
       )
         throw new Error("Invalid historical forecast contract");
+      const coverage = payload.coverage;
+      if (
+        coverage &&
+        (coverage.truncated !== false ||
+          ![
+            coverage.expected_target_count,
+            coverage.available_value_count,
+            coverage.missing_value_count,
+          ].every((value) => Number.isSafeInteger(value) && value >= 0))
+      )
+        throw new Error("Invalid historical forecast coverage");
       const points: Point[] = payload.rows
         .filter(
           (row) =>
             Number.isFinite(row.value) &&
             row.unit === "MW" &&
-            row.target_ts >= time.start &&
-            row.target_ts <= time.end &&
+            row.target_ts >= window.start &&
+            row.target_ts <= window.end &&
             row.issued_at <= row.interval_start &&
-            row.issued_at <= time.end,
+            row.issued_at <= window.end,
         )
         .map((row) => [row.target_ts, row.value]);
+      if (coverage && coverage.available_value_count !== points.length)
+        throw new Error("Historical forecast value coverage mismatch");
       return {
         points,
         compare: [],
-        meta: { bucket_seconds: 3600, since: time.start, until: time.end },
+        meta: {
+          bucket_seconds: 3600,
+          since: window.start,
+          until: window.end,
+          coverage: coverage
+            ? coverage.missing_value_count === 0
+              ? "complete"
+              : "partial"
+            : "unknown",
+        },
         error: points.length ? null : "No eligible archived forecast issued before delivery",
       };
     } catch (error) {
@@ -947,9 +975,23 @@ export async function loadSeries(
       };
     }
   };
+  const historicalForecast = async () => {
+    const comparison = compareWindow(compare, time, customCompareSeconds);
+    const [current, prior] = await Promise.all([
+      forecast(time),
+      compare === "none" ? Promise.resolve(null) : forecast(comparison),
+    ]);
+    return {
+      ...current,
+      compare: alignComparisonForMode(prior?.points ?? [], compare, comparison.offset),
+      error:
+        current.error ??
+        (prior?.error ? `Historical forecast comparison unavailable: ${prior.error}` : null),
+    };
+  };
   const [result, historical] = await Promise.all([
     loadObservedSeries(observedCharts, time, compare, customCompareSeconds, signal, previousData),
-    wantsForecast ? forecast() : Promise.resolve(null),
+    wantsForecast ? historicalForecast() : Promise.resolve(null),
   ]);
   if (historical) result.set("supply-demand:forecast-demand", historical);
   return result;
