@@ -769,7 +769,29 @@ export function App() {
           !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
         )
           return;
-        setSeriesData((current) => new Map([...current, ...nextSeries]));
+        setSeriesData(
+          (current) =>
+            new Map([
+              ...current,
+              ...[...nextSeries].map(
+                ([key, loaded]) =>
+                  [
+                    key,
+                    {
+                      ...loaded,
+                      meta: {
+                        ...loaded.meta,
+                        completed_selection: {
+                          ...resolvedTime,
+                          compare: state.compare,
+                          customCompareSeconds: state.customCompareSeconds,
+                        },
+                      },
+                    },
+                  ] as const,
+              ),
+            ]),
+        );
         setSeriesTime(resolvedTime);
       })
       .catch((error: unknown) => {
@@ -1095,6 +1117,7 @@ export function App() {
       <ChartCard
         chart={chart}
         compare={state.compare}
+        customCompareSeconds={state.customCompareSeconds}
         events={state.events ? events : []}
         hiddenSeries={state.hiddenSeries}
         inspect={state.expandedChart === chart.id}

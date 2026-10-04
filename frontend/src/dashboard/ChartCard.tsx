@@ -1,3 +1,4 @@
+import { isPreviousSelection, selectionDescription } from "./history-selection";
 import { seriesIntervalLabel, intervalPlotPoints } from "./interval-price-series";
 import {
   observationAt,
@@ -68,6 +69,7 @@ ChartJs.register(
 type Props = {
   chart: ChartDefinition;
   compare: CompareMode;
+  customCompareSeconds?: number;
   events: EventRecord[];
   hiddenSeries: Set<string>;
   inspect: boolean;
@@ -113,11 +115,13 @@ function CursorLegendValue({
   unit,
   visible,
   policy,
+  previousSelection = false,
 }: {
   loaded: LoadedSeries | undefined;
   latest: number | null;
   unit: string;
   visible: boolean;
+  previousSelection?: boolean;
   policy: import("./types").SeriesTemporalPolicy | undefined;
 }) {
   const [cursor, setCursor] = useState(chartCoordinator.snapshot().timestamp);
@@ -136,9 +140,11 @@ function CursorLegendValue({
       data-value-scope={cursor === null ? "window-latest" : "cursor"}
       title={
         cursor === null
-          ? policy?.cursor.mode === "interval" && loaded?.points.length
-            ? `Latest interval in selected window · ${seriesIntervalLabel(loaded, loaded.points.at(-1)![0])}`
-            : "Latest value in selected window"
+          ? previousSelection
+            ? "Latest value from previous selection"
+            : policy?.cursor.mode === "interval" && loaded?.points.length
+              ? `Latest interval in selected window · ${seriesIntervalLabel(loaded, loaded.points.at(-1)![0])}`
+              : "Latest value in selected window"
           : sample
             ? policy?.cursor.mode === "interval"
               ? policy.kind === "forecast"
@@ -242,6 +248,7 @@ function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
 export function ChartCard({
   chart,
   compare,
+  customCompareSeconds = 0,
   events,
   hiddenSeries,
   inspect,
@@ -316,6 +323,17 @@ export function ChartCard({
     return () => onVisibilityChange(chart.id, false);
   }, [chart.id, onVisibilityChange, visible]);
 
+  const previousSelections = visibleSeries.flatMap((series) => {
+    const loaded = seriesData.get(seriesKey(chart.id, series.id));
+    const completed = loaded?.meta.completed_selection;
+    return loaded?.points.length &&
+      completed &&
+      isPreviousSelection(completed, time, compare, customCompareSeconds)
+      ? [selectionDescription(completed)]
+      : [];
+  });
+  const previousSelectionNote = [...new Set(previousSelections)].join("; ");
+
   const datasets = useMemo<Array<ChartDataset<"line", ScatterDataPoint[]>>>(() => {
     const output: Array<ChartDataset<"line", ScatterDataPoint[]>> = [];
     const stacked = chart.id === "fuel-mix" && presentation === "overview";
@@ -384,7 +402,7 @@ export function ChartCard({
       });
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
-          label: `${series.label} · ${compare.replace("_", " ")}`,
+          label: `${series.label} · ${(isPreviousSelection(loaded.meta.completed_selection, time, compare, customCompareSeconds) ? loaded.meta.completed_selection!.compare : compare).replace("_", " ")}`,
           data:
             temporalPolicy(chart.id, series)?.cursor.mode === "interval"
               ? intervalPlotPoints(loaded.compare, loaded.meta.comparison_intervals ?? [], {
@@ -413,7 +431,16 @@ export function ChartCard({
       }
     }
     return output;
-  }, [chart, compare, hiddenSeries, seriesData, visibleSeries, presentation, time.start, time.end]);
+  }, [
+    chart,
+    compare,
+    customCompareSeconds,
+    hiddenSeries,
+    seriesData,
+    visibleSeries,
+    presentation,
+    time,
+  ]);
   const hasData = visibleSeries.some(
     (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
   );
@@ -875,6 +902,12 @@ export function ChartCard({
           unit={chart.unit}
           visible={visible}
           policy={temporalPolicy(chart.id, series)}
+          previousSelection={isPreviousSelection(
+            loaded?.meta.completed_selection,
+            time,
+            compare,
+            customCompareSeconds,
+          )}
         />
       ) : (
         <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
@@ -1066,6 +1099,14 @@ export function ChartCard({
         </div>
       ) : null}
 
+      {previousSelectionNote ? (
+        <p className="homepage-chart-note" role="status">
+          Previous selection: {previousSelectionNote}. Displayed measurements and statistics are
+          retained from that selection until measurements for the selected context arrive. Any
+          retained comparison belongs to the previous comparison mode.
+        </p>
+      ) : null}
+
       {chart.id === "storage" && (presentation !== "overview" || inspect) ? (
         <StorageOperationsSummary seriesData={seriesData} sourceHealth={sourceHealth} time={time} />
       ) : null}
@@ -1189,7 +1230,10 @@ export function ChartCard({
       {hasData || (mobile && presentation === "overview") ? (
         <div className={`series-legend legend-${legendMode}`}>
           {legendMode === "expanded" ? (
-            <table className="legend-table" aria-label={`${chart.title} series statistics`}>
+            <table
+              className="legend-table"
+              aria-label={`${chart.title} ${previousSelectionNote ? "previous selection " : ""}series statistics`}
+            >
               <thead>
                 <tr>
                   <th scope="col">Series</th>
