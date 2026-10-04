@@ -430,31 +430,31 @@ function peak(rows: OutlookForecastRow[]) {
 
 export function buildGridOutlook(response: OutlookResponse, now: number): GridOutlook {
   if (!Number.isInteger(now) || now < 0) throw new Error("invalid_outlook_now");
-  const futureRows = response.forecast.rows.filter((row) => row.target_ts > now);
-  const next24Rows =
+  const futureRows =
     response.forecast.publication && response.forecast.publication.issued_at <= now
-      ? futureRows.filter((row) => row.target_ts <= now + 86_400)
+      ? response.forecast.rows.filter((row) => row.target_ts > now)
       : [];
+  const next24Rows = futureRows.filter((row) => row.target_ts <= now + 86_400);
   const next24Peak = peak(next24Rows);
-  const next24Adequacy =
+  // Compact and specialist views share the same publication/row eligibility.
+  // A reported reserve value without its own capacity basis stays unavailable.
+  const eligibleAdequacy =
     response.adequacy.publication && response.adequacy.publication.issued_at <= now
       ? response.adequacy.rows.filter(
           (row) =>
             row.target_ts > now &&
-            row.target_ts <= now + 86_400 &&
             row.projected_headroom_mw !== null &&
             row.available_generation_mw !== null,
         )
       : [];
+  const next24Adequacy = eligibleAdequacy.filter((row) => row.target_ts <= now + 86_400);
   const next24Tightest = next24Adequacy.reduce<OutlookAdequacyRow | null>(
     (best, row) =>
       best === null || row.projected_headroom_mw! < best.projected_headroom_mw! ? row : best,
     null,
   );
   const deliveryDates = [...new Set(futureRows.map((row) => row.delivery_date))].slice(0, 7);
-  const adequacyByTarget = new Map(
-    response.adequacy.rows.map((row) => [row.target_ts, row] as const),
-  );
+  const adequacyByTarget = new Map(eligibleAdequacy.map((row) => [row.target_ts, row] as const));
   const cards = deliveryDates.map((deliveryDate) => {
     const rows = futureRows.filter((row) => row.delivery_date === deliveryDate);
     const dayPeak = peak(rows);

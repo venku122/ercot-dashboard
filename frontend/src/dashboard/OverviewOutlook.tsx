@@ -24,6 +24,8 @@ export function OverviewOutlook({
   );
   const next = outlook?.next24;
   const health = outlook?.forecastSourceHealth;
+  const validEmptyRetained =
+    health?.availability_status === "empty" && (next?.observedCount ?? 0) > 0;
   const stale =
     health?.state === "stale" || health?.state === "failed" || health?.freshness_state === "stale";
   const state = request.error
@@ -38,11 +40,13 @@ export function OverviewOutlook({
           : request.data?.forecast.publication
             ? "incomplete"
             : "availability-unknown"
-        : stale
-          ? "stale"
-          : next.observedCount < next.expectedCount
-            ? "partial"
-            : "ready";
+        : validEmptyRetained
+          ? "valid-empty-retained"
+          : stale
+            ? "stale"
+            : next.observedCount < next.expectedCount
+              ? "partial"
+              : "ready";
   return (
     <section
       className="overview-outlook"
@@ -85,6 +89,20 @@ export function OverviewOutlook({
           {request.error ? (
             <p role="status">
               Refresh failed; showing the retained publication and its original issue time.
+            </p>
+          ) : null}
+          {validEmptyRetained ? (
+            <p role="status">
+              Load forecast: latest collection was valid-empty; showing the retained publication and
+              its original issue time.
+            </p>
+          ) : null}
+          {outlook.adequacySourceHealth?.availability_status === "empty" ? (
+            <p role="status">
+              System adequacy: latest collection was valid-empty
+              {next?.adequacyObservedCount
+                ? "; showing retained adequacy hours and their original publication time."
+                : "; no usable adequacy hours are available."}
             </p>
           ) : null}
           {stale ? (

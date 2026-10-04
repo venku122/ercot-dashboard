@@ -523,3 +523,11 @@
     overflow-wrap: anywhere;
   }
 }
+
+/* Reserve a compact picker basis so the adjacent compare control can share
+   an ordinary phone row. Narrow zoomed containers retain the wrapping rules. */
+@container dashboard-page (min-width: 251px) and (max-width: 450px) {
+  .dashboard-shell:has(.homepage-workspace) .compact-control-bar > .time-range-picker--mobile {
+    flex: 1 1 200px;
+  }
+}

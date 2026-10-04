@@ -234,3 +234,50 @@ test("ERP-09 retained regression: 320px viewport at CSS zoom 200 percent contain
   await page.screenshot({ path: "/tmp/ercot-post-release-2026-10/ERP-07-ERP09-320-zoom200.png" });
   expect(evidence.scrollWidth, JSON.stringify(evidence)).toBeLessThanOrEqual(evidence.viewport);
 });
+
+test("ERP-07 retained publications disclose latest valid-empty collection per product", async ({
+  page,
+}) => {
+  await installMobileApi(page, "normal");
+  const source = await installForecast(page);
+  source.fixture.forecast.source_health.availability_status = "empty";
+  source.fixture.adequacy.source_health.availability_status = "empty";
+  await page.goto("/?view=overview");
+  const surface = page.getByRole("region", { name: "Current next 24 hour Outlook" });
+  await expect(surface).toHaveAttribute("data-outlook-state", "valid-empty-retained");
+  await expect(surface).toContainText("Load forecast: latest collection was valid-empty");
+  await expect(surface).toContainText("System adequacy: latest collection was valid-empty");
+  await expect(surface).toContainText("showing the retained publication");
+  await expect(surface).toContainText("72.3 GW");
+  await expect(surface.locator("svg")).toHaveCount(1);
+  expect(source.count()).toBe(1);
+  await surface.getByRole("button", { name: "Open full Outlook", exact: true }).click();
+  await expect(page.getByLabel("Outlook source freshness")).toContainText(
+    "Load forecast: latest collection was valid-empty",
+  );
+  await expect(page.getByLabel("Outlook source freshness")).toContainText(
+    "System adequacy: latest collection was valid-empty",
+  );
+  expect(source.count()).toBe(1);
+});
+
+test("ERP-07 compact and specialist headroom require their own capacity basis", async ({
+  page,
+}) => {
+  await installMobileApi(page, "normal");
+  const source = await installForecast(page);
+  source.fixture.adequacy.rows.forEach((row) => (row.available_generation_mw = null as never));
+  await page.goto("/?view=overview");
+  const surface = page.getByRole("region", { name: "Current next 24 hour Outlook" });
+  await expect(surface).toContainText("72.3 GW");
+  await expect(surface.locator(".overview-outlook-summary dd").nth(1)).toHaveText("—");
+  await surface.getByRole("button", { name: "Open full Outlook", exact: true }).click();
+  const summary = page.getByLabel("Grid Outlook summary");
+  await expect(
+    summary
+      .getByText("Tightest projected headroom", { exact: true })
+      .locator("..")
+      .locator("strong"),
+  ).toHaveText("Not available");
+  expect(source.count()).toBe(1);
+});
