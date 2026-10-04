@@ -61,5 +61,8 @@ test("populated mobile fixture serves legacy and opted-in catalogs with complete
   ).toHaveLength(1);
   expect(evidence.oldEtag).not.toBe(evidence.newEtag);
   await card.getByRole("button", { name: /Open Capacity headroom/ }).click();
-  await expect(card).not.toContainText("paired_headroom_unavailable");
+  await expect(card).not.toContainText("Headroom unavailable at this resolution");
+  await card.getByText("Accessible data table", { exact: true }).click();
+  await expect(card.locator("tbody tr").filter({ hasText: "Derived headroom" })).toHaveCount(250);
+  await expect(page.getByText(/[1-9]\d* paired observations of/)).toBeVisible();
 });
