@@ -1,5 +1,6 @@
+import { canonicalDisplayPoints } from "./series-temporal-policy";
 import type { PriceRow } from "./market-geography";
-import type { LoadedSeries, SeriesTemporalPolicy } from "./types";
+import type { LoadedSeries, SeriesTemporalPolicy, Point } from "./types";
 import { marketTime } from "./homepage-model";
 
 export const intervalPriceTemporalPolicy: SeriesTemporalPolicy = {
@@ -42,4 +43,32 @@ export function seriesIntervalLabel(loaded: LoadedSeries | undefined, timestamp:
   return interval
     ? `Interval ending ${marketTime(interval.end)} · delivery [${marketTime(interval.start)}, ${marketTime(interval.end)})`
     : "Verified interval bounds unavailable";
+}
+
+// Display geometry represents verified held interval values; it is not a new observation array.
+export function intervalPlotPoints(
+  points: Point[],
+  bounds: NonNullable<LoadedSeries["meta"]["intervals"]>,
+) {
+  const values = new Map(canonicalDisplayPoints(points));
+  const intervals = bounds
+    .filter(
+      (item) =>
+        Number.isFinite(item.start) &&
+        Number.isFinite(item.end) &&
+        item.start < item.end &&
+        Number.isFinite(values.get(item.timestamp)),
+    )
+    .sort((a, b) => a.start - b.start);
+  const geometry: Array<{ x: number; y: number }> = [];
+  let priorEnd: number | null = null;
+  for (const interval of intervals) {
+    if (priorEnd !== null && interval.start < priorEnd) return [];
+    if (priorEnd !== null && interval.start !== priorEnd)
+      geometry.push({ x: priorEnd * 1000, y: Number.NaN });
+    const value = values.get(interval.timestamp)!;
+    geometry.push({ x: interval.start * 1000, y: value }, { x: interval.end * 1000, y: value });
+    priorEnd = interval.end;
+  }
+  return geometry;
 }

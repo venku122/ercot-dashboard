@@ -1,4 +1,4 @@
-import { seriesIntervalLabel } from "./interval-price-series";
+import { seriesIntervalLabel, intervalPlotPoints } from "./interval-price-series";
 import { observationAt, seriesResolution, temporalPolicy } from "./series-temporal-policy";
 import "chartjs-adapter-date-fns";
 
@@ -284,11 +284,13 @@ export function ChartCard({
         label: series.label,
         data: stacked
           ? aligned[visibleSeries.indexOf(series)]
-          : displayPoints(
-              loaded?.points ?? [],
-              seriesGapSeconds(chart.id, series, loaded),
-              loaded?.meta.observed_envelope_support,
-            ),
+          : temporalPolicy(chart.id, series)?.kind === "interval"
+            ? intervalPlotPoints(loaded?.points ?? [], loaded?.meta.intervals ?? [])
+            : displayPoints(
+                loaded?.points ?? [],
+                seriesGapSeconds(chart.id, series, loaded),
+                loaded?.meta.observed_envelope_support,
+              ),
         borderColor: series.color,
         ...(seriesResolution(loaded, temporalPolicy(chart.id, series)) !== "native"
           ? { borderDash: [4, 4] }
@@ -310,18 +312,25 @@ export function ChartCard({
         pointRadius: seriesGapSeconds(chart.id, series, loaded) === 0 ? 3 : 0,
         pointHitRadius: 12,
         tension: 0,
-        ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
+        ...(temporalPolicy(chart.id, series)?.kind === "interval"
+          ? { stepped: "before" as const, pointRadius: 0 }
+          : chart.id === "eea"
+            ? { stepped: "after" as const }
+            : {}),
         spanGaps: false,
         hidden,
       });
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
           label: `${series.label} · ${compare.replace("_", " ")}`,
-          data: displayPoints(
-            loaded.compare,
-            seriesGapSeconds(chart.id, series, loaded),
-            loaded.meta.comparison_observed_envelope_support,
-          ),
+          data:
+            temporalPolicy(chart.id, series)?.kind === "interval"
+              ? intervalPlotPoints(loaded.compare, loaded.meta.comparison_intervals ?? [])
+              : displayPoints(
+                  loaded.compare,
+                  seriesGapSeconds(chart.id, series, loaded),
+                  loaded.meta.comparison_observed_envelope_support,
+                ),
           stack: `comparison-${series.id}`,
           fill: false,
           borderColor: `${series.color}70`,
@@ -341,9 +350,9 @@ export function ChartCard({
     (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
   );
 
-  const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time });
+  const dynamic = useRef({ datasets, events, interactionPolicy, onZoom, seriesData, time, chart });
   const suppressZoomCommit = useRef(false);
-  dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time };
+  dynamic.current = { datasets, events, interactionPolicy, onZoom, seriesData, time, chart };
 
   useEffect(() => {
     if (!hasData || !mounted || !canvasRef.current) return;
@@ -494,13 +503,46 @@ export function ChartCard({
           tooltip: {
             enabled: true,
             callbacks: {
-              title: (items) =>
-                items.length && items[0].parsed.x !== null
-                  ? marketTime(items[0].parsed.x / 1000)
-                  : "",
+              title: (items) => {
+                if (!items.length || items[0].parsed.x === null) return "";
+                const series = dynamic.current.chart.series.find(
+                  (series) => series.label === items[0].dataset.label,
+                );
+                if (
+                  series &&
+                  temporalPolicy(dynamic.current.chart.id, series)?.kind === "interval"
+                ) {
+                  const loaded = dynamic.current.seriesData.get(
+                    seriesKey(dynamic.current.chart.id, series.id),
+                  );
+                  const at = cursorTimestamp.current ?? items[0].parsed.x / 1000;
+                  const sample = observationAt(
+                    loaded,
+                    at,
+                    temporalPolicy(dynamic.current.chart.id, series),
+                  );
+                  return sample
+                    ? seriesIntervalLabel(loaded, sample.ts)
+                    : "No containing delivery interval";
+                }
+                return marketTime(items[0].parsed.x / 1000);
+              },
               label(context) {
-                const value = context.parsed.y;
-                return `${context.dataset.label ?? "Series"}: ${formatValue(value, chart.unit)}`;
+                const series = dynamic.current.chart.series.find(
+                  (series) => series.label === context.dataset.label,
+                );
+                const interval =
+                  series && temporalPolicy(dynamic.current.chart.id, series)?.kind === "interval";
+                const value = interval
+                  ? (observationAt(
+                      dynamic.current.seriesData.get(
+                        seriesKey(dynamic.current.chart.id, series.id),
+                      ),
+                      cursorTimestamp.current ?? context.parsed.x! / 1000,
+                      temporalPolicy(dynamic.current.chart.id, series),
+                    )?.value ?? null)
+                  : context.parsed.y;
+                return `${context.dataset.label ?? "Series"}: ${formatValue(value, dynamic.current.chart.unit)}`;
               },
             },
           },
