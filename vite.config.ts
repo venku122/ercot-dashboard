@@ -14,7 +14,11 @@ export default defineConfig(({ mode }) => ({
       transformIndexHtml() {
         let revision = "unknown";
         try {
-          revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+          revision = execFileSync(
+            "git",
+            ["-c", `safe.directory=${process.cwd()}`, "rev-parse", "HEAD"],
+            { encoding: "utf8" },
+          ).trim();
         } catch {
           /* Source archives can be built without Git metadata. */
         }
