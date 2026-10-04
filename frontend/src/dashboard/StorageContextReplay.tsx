@@ -14,7 +14,7 @@ import type { ChartDefinition, LoadedSeries, SourceHealth, TimeState } from "./t
 
 const REPLAY_SECONDS = 2 * 60 * 60;
 const CAPABILITY_KEY = "market.sced.as-capability.regup-rrs-ecrs-nonspin" as const;
-const LAMBDA_KEY = "market.sced.system-lambda" as const;
+const LAMBDA_KEYS = ["market.sced.system-lambda", "market.sced.system-lambda.capped"] as const;
 
 const FREQUENCY_CHART: ChartDefinition = {
   description: "Collector-captured ERCOT system frequency context.",
@@ -63,7 +63,12 @@ function marketSnapshot(
     alignment: snapshot.alignment,
     readings: {
       [CAPABILITY_KEY]: snapshot.readings[CAPABILITY_KEY],
-      [LAMBDA_KEY]: snapshot.readings[LAMBDA_KEY],
+      ...Object.fromEntries(
+        LAMBDA_KEYS.filter((key) => snapshot.readings[key]).map((key) => [
+          key,
+          snapshot.readings[key],
+        ]),
+      ),
     },
     target_ts: snapshot.target_ts,
   };
@@ -72,6 +77,7 @@ function marketSnapshot(
 function laneTitle(id: StorageContextSeriesId) {
   if (id === "frequency") return "System frequency";
   if (id === "systemLambda") return "System Lambda";
+  if (id === "systemLambdaCapped") return "Capped System Lambda";
   if (id === "availableAsCapability") return "Available AS capability";
   return id === "netOutput" ? "Net output" : id[0].toUpperCase() + id.slice(1);
 }
@@ -85,7 +91,9 @@ function ReplayLane({
   replay: ReturnType<typeof deriveStorageContextReplay>;
   title: string;
 }) {
-  const selected = replay.series.filter((series) => ids.includes(series.id));
+  const selected = replay.series.filter(
+    (series) => ids.includes(series.id) && series.points.length > 0,
+  );
   const values = selected.flatMap((series) => series.points.map((point) => point[1]));
   if (!values.length) {
     return (
@@ -167,8 +175,10 @@ function exactRows(
   >();
   for (const snapshot of [manifest?.previous, manifest?.current]) {
     if (!snapshot) continue;
-    for (const key of [LAMBDA_KEY, CAPABILITY_KEY] as const) {
-      const source = snapshot.readings[key].source;
+    for (const key of [...LAMBDA_KEYS, CAPABILITY_KEY] as const) {
+      const reading = snapshot.readings[key];
+      if (!reading) continue;
+      const source = reading.source;
       marketSources.set(`${key}:${snapshot.target_ts}`, {
         document: source.document_id,
         issued: source.issued_at,
@@ -385,7 +395,19 @@ export function StorageContextReplay({
           replay={replay}
           title="Available AS capability (MW)"
         />
-        <ReplayLane ids={["systemLambda"]} replay={replay} title="System Lambda ($/MWh)" />
+        <ReplayLane
+          ids={["systemLambda", "systemLambdaCapped"]}
+          replay={replay}
+          title={
+            replay.series.some(
+              (series) => series.id === "systemLambdaCapped" && series.points.length,
+            )
+              ? replay.series.some((series) => series.id === "systemLambda" && series.points.length)
+                ? "System Lambda by price basis ($/MWh)"
+                : "Capped System Lambda ($/MWh)"
+              : "System Lambda ($/MWh)"
+          }
+        />
       </div>
       <p>
         Source observations and deterministic derived window extrema use separate annotation

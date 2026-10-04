@@ -187,6 +187,44 @@ describe("PR17 storage context replay browser acceptance", () => {
     );
   });
 
+  it("renders split capped Lambda with exact provenance without requiring the legacy reading", async () => {
+    const split = manifest();
+    const readings = split.current!.readings;
+    readings["market.sced.system-lambda.capped"] = readings["market.sced.system-lambda"];
+    readings["market.sced.system-lambda.uncapped"] = reading(
+      "ercot_mis_np6_322",
+      "NP6-322-CD",
+      999,
+    );
+    delete (readings as Partial<typeof readings>)["market.sced.system-lambda"];
+    split.current!.lambda_parity = {
+      delta: null,
+      state: "unavailable_unverified_basis",
+      tolerance: 0.00005,
+    };
+    mocks.loadMarketManifest.mockResolvedValue(split);
+    await act(async () =>
+      root.render(
+        <StorageContextReplay
+          seriesData={storageData()}
+          sourceHealth={sourceHealth()}
+          time={live}
+        />,
+      ),
+    );
+    await flush();
+    expect(container.textContent).toContain("Capped System Lambda ($/MWh)");
+    const exact = container.querySelector(
+      '[aria-label="Storage context replay exact observations"]',
+    );
+    expect(exact?.textContent).toContain("Capped System Lambda");
+    expect(exact?.textContent).toContain("-15.25");
+    expect(exact?.textContent).toContain("NP6-322-CD; document 322123");
+    expect(exact?.textContent).toContain("raw SCED 04/25/2026 11:50:00");
+    expect(exact?.textContent).not.toContain("999");
+    expect(container.textContent).not.toContain("Lambda parity: match");
+  });
+
   it("aborts replay-owned requests on collapse and unmount", async () => {
     const signals: AbortSignal[] = [];
     mocks.loadSeries.mockImplementation(

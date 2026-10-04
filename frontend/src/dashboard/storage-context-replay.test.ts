@@ -94,3 +94,47 @@ describe("storage context replay", () => {
     ).toThrow("unordered_storage_context_observation");
   });
 });
+
+describe("explicit replay Lambda bases", () => {
+  const snapshot = (target_ts: number, basis: "legacy" | "capped") => ({
+    alignment: "exact_same_sced_timestamp" as const,
+    readings: {
+      "market.sced.as-capability.regup-rrs-ecrs-nonspin": {
+        source: { product_id: "NP6-328-CD", source_id: "ercot_mis_np6_328" },
+        value: 4125,
+      },
+      [basis === "legacy" ? "market.sced.system-lambda" : "market.sced.system-lambda.capped"]: {
+        source: { product_id: "NP6-322-CD", source_id: "ercot_mis_np6_322" },
+        value: -18.75,
+      },
+      ...(basis === "capped"
+        ? {
+            "market.sced.system-lambda.uncapped": {
+              source: { product_id: "NP6-322-CD", source_id: "ercot_mis_np6_322" },
+              value: 999,
+            },
+          }
+        : {}),
+    },
+    target_ts,
+  });
+  it("keeps capped source values distinct from legacy and ignores uncapped parity", () => {
+    const replay = deriveStorageContextReplay({
+      ...base,
+      market: {
+        current: snapshot(607, "capped"),
+        previous: snapshot(302, "legacy"),
+      },
+    });
+    expect(replay.series.find(({ id }) => id === "systemLambda")?.points).toEqual([[302, -18.75]]);
+    expect(replay.series.find(({ id }) => id === "systemLambdaCapped")?.points).toEqual([
+      [607, -18.75],
+    ]);
+    expect(replay.series.find(({ id }) => id === "systemLambdaCapped")?.metric).toBe(
+      "market.sced.system-lambda.capped",
+    );
+    expect(replay.series.flatMap(({ points }) => points).some(([, value]) => value === 999)).toBe(
+      false,
+    );
+  });
+});
