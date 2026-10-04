@@ -92,16 +92,6 @@ function TimeReadings({
     </details>
   ) : (
     <>
-      <div className="homepage-cursor-strip">
-        <span>
-          {cursor.timestamp === null ? "Window end" : cursor.pinned ? "Pinned" : "Cursor"} ·{" "}
-          {marketTime(readingTime)}
-        </span>
-        {cursor.pinned ? (
-          <button onClick={() => chartCoordinator.clearPin()}>Clear pin</button>
-        ) : null}
-        <small>America/Chicago · * aggregate bucket · preceding observations only</small>
-      </div>
       <div className="homepage-readings" aria-label="Time-aligned grid readings">
         {readings.map(([label, key, unit, age]) => {
           const loaded = seriesData.get(key);
@@ -153,6 +143,11 @@ function TimeReadings({
           );
         })}
       </div>
+      {cursor.pinned ? (
+        <button className="homepage-clear-pin" onClick={() => chartCoordinator.clearPin()}>
+          Clear pin
+        </button>
+      ) : null}
     </>
   );
 }

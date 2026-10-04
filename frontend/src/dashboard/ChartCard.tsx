@@ -23,6 +23,7 @@ import { seriesKey } from "./chart-config";
 import {
   alignedGeneration,
   displayPoints,
+  seriesGapSeconds,
   marketTime,
   precedingObservation,
 } from "./homepage-model";
@@ -91,11 +92,13 @@ function CursorLegendValue({
   latest,
   unit,
   visible,
+  maxAge,
 }: {
   loaded: LoadedSeries | undefined;
   latest: number | null;
   unit: string;
   visible: boolean;
+  maxAge: number;
 }) {
   const [cursor, setCursor] = useState(chartCoordinator.snapshot().timestamp);
   useEffect(() => {
@@ -107,17 +110,7 @@ function CursorLegendValue({
     };
   }, [visible]);
   const sample =
-    cursor === null
-      ? null
-      : precedingObservation(
-          loaded,
-          cursor,
-          Math.max(
-            unit === "Hz" ? 60 : unit === "$/MWh" ? 1800 : 600,
-            (loaded?.meta.bucket_seconds ?? 0) * 2,
-          ),
-          unit === "Hz" ? 1 : 300,
-        );
+    cursor === null ? null : precedingObservation(loaded, cursor, maxAge, unit === "Hz" ? 1 : 300);
   return (
     <span
       className="legend-latest"
@@ -269,10 +262,7 @@ export function ChartCard({
         label: series.label,
         data: stacked
           ? aligned[visibleSeries.indexOf(series)]
-          : displayPoints(
-              loaded?.points ?? [],
-              Math.max(chart.id === "frequency" ? 60 : 600, (loaded?.meta.bucket_seconds ?? 0) * 2),
-            ),
+          : displayPoints(loaded?.points ?? [], seriesGapSeconds(chart.id, series, loaded)),
         borderColor: series.color,
         backgroundColor: stacked ? `${series.color}a0` : series.color,
         ...(stacked ? { fill: true, stack: "generation" } : {}),
@@ -298,7 +288,7 @@ export function ChartCard({
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
           label: `${series.label} · ${compare.replace("_", " ")}`,
-          data: displayPoints(loaded.compare, Math.max(600, (loaded.meta.bucket_seconds ?? 0) * 2)),
+          data: displayPoints(loaded.compare, seriesGapSeconds(chart.id, series, loaded)),
           stack: `comparison-${series.id}`,
           fill: false,
           borderColor: `${series.color}70`,
@@ -730,6 +720,74 @@ export function ChartCard({
     accessibleDataRef.current.querySelector("summary")?.focus();
   };
 
+  function renderLegend(series: (typeof visibleSeries)[number], expanded: boolean) {
+    const key = seriesKey(chart.id, series.id);
+    const loaded = seriesData.get(key);
+    const sampled = seriesStats(loaded?.points ?? []);
+    const stats = loaded?.meta.stats ?? { ...sampled, energy_mwh: null };
+    const hidden = hiddenSeries.has(key);
+    const selected =
+      !hidden &&
+      visibleSeries.length > 1 &&
+      visibleSeries.every(
+        (candidate) =>
+          candidate.id === series.id || hiddenSeries.has(seriesKey(chart.id, candidate.id)),
+      );
+    const legendValue =
+      presentation === "overview" ? (
+        <CursorLegendValue
+          loaded={loaded}
+          latest={stats.latest}
+          unit={chart.unit}
+          visible={visible}
+          maxAge={seriesGapSeconds(chart.id, series, loaded)}
+        />
+      ) : (
+        <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
+      );
+    const toggle = (
+      <button
+        key={key}
+        aria-label={series.label}
+        aria-pressed={selected}
+        className={
+          expanded ? "legend-table-toggle" : `legend-row ${hidden ? "legend-row-hidden" : ""}`
+        }
+        onClick={() => onSoloSeries(chart.id, key)}
+        title={selected ? "Restore all series" : `Focus ${series.label}`}
+      >
+        <span
+          className="legend-label"
+          style={
+            {
+              "--series-color": frequencyColor(chart, stats.latest, series.color),
+            } as React.CSSProperties
+          }
+        >
+          <span
+            className={`legend-swatch ${series.lineStyle === "dashed" ? "legend-swatch-dashed" : ""}`}
+          />
+          {series.label}
+        </span>
+        {!expanded ? legendValue : null}
+      </button>
+    );
+    return expanded ? (
+      <tr key={key} className={hidden ? "legend-row-hidden" : ""}>
+        <td>{toggle}</td>
+        <td>{legendValue}</td>
+        <td className="legend-stats">{formatValue(stats.minimum, chart.unit)}</td>
+        <td className="legend-stats">{formatValue(stats.maximum, chart.unit)}</td>
+        <td className="legend-stats">{formatValue(stats.average, chart.unit)}</td>
+        {chart.statisticPolicy === "power" ? (
+          <td className="legend-stats">{formatValue(stats.energy_mwh, "MWh")}</td>
+        ) : null}
+      </tr>
+    ) : (
+      toggle
+    );
+  }
+
   return (
     <article
       aria-label={inspect ? "Inspect " + chart.title : undefined}
@@ -992,71 +1050,23 @@ export function ChartCard({
 
       {hasData ? (
         <div className={`series-legend legend-${legendMode}`}>
-          {visibleSeries.map((series) => {
-            const key = seriesKey(chart.id, series.id);
-            const loaded = seriesData.get(key);
-            const sampledStats = seriesStats(loaded?.points ?? []);
-            const stats = loaded?.meta.stats ?? {
-              average: sampledStats.average,
-              count: loaded?.points.length ?? 0,
-              energy_mwh: null,
-              latest: sampledStats.latest,
-              maximum: sampledStats.maximum,
-              minimum: sampledStats.minimum,
-            };
-            const hidden = hiddenSeries.has(key);
-            const selected =
-              !hidden &&
-              visibleSeries.length > 1 &&
-              visibleSeries.every(
-                (candidate) =>
-                  candidate.id === series.id || hiddenSeries.has(seriesKey(chart.id, candidate.id)),
-              );
-            return (
-              <button
-                aria-label={series.label}
-                aria-pressed={selected}
-                className={`legend-row ${hidden ? "legend-row-hidden" : ""}`}
-                key={key}
-                onClick={() => onSoloSeries(chart.id, key)}
-                title={selected ? "Restore all series" : `Focus ${series.label}`}
-              >
-                <span
-                  className="legend-label"
-                  style={
-                    {
-                      "--series-color": frequencyColor(chart, stats.latest, series.color),
-                    } as React.CSSProperties
-                  }
-                >
-                  <span
-                    className={`legend-swatch ${series.lineStyle === "dashed" ? "legend-swatch-dashed" : ""}`}
-                  />
-                  {series.label}
-                </span>
-                {presentation === "overview" ? (
-                  <CursorLegendValue
-                    loaded={loaded}
-                    latest={stats.latest}
-                    unit={chart.unit}
-                    visible={visible}
-                  />
-                ) : (
-                  <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
-                )}
-                {legendMode === "expanded" ? (
-                  <span className="legend-stats">
-                    min {formatValue(stats.minimum, chart.unit)} · max{" "}
-                    {formatValue(stats.maximum, chart.unit)} · avg{" "}
-                    {formatValue(stats.average, chart.unit)}
-                    {chart.statisticPolicy === "power" && stats.energy_mwh !== null
-                      ? ` · energy ${formatValue(stats.energy_mwh, "MWh")}`
-                      : ""}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
+          {legendMode === "expanded" ? (
+            <table className="legend-table" aria-label={`${chart.title} series statistics`}>
+              <thead>
+                <tr>
+                  <th scope="col">Series</th>
+                  <th scope="col">Value</th>
+                  <th scope="col">Min</th>
+                  <th scope="col">Max</th>
+                  <th scope="col">Average</th>
+                  {chart.statisticPolicy === "power" ? <th scope="col">Energy</th> : null}
+                </tr>
+              </thead>
+              <tbody>{visibleSeries.map((series) => renderLegend(series, true))}</tbody>
+            </table>
+          ) : (
+            visibleSeries.map((series) => renderLegend(series, false))
+          )}
         </div>
       ) : null}
 
