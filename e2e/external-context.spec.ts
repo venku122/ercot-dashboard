@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 
 import { installExternalContextApi } from "./external-context-fixtures";
 import { installMobileApi } from "./mobile-fixtures";
@@ -22,6 +23,7 @@ test("External Context is lazy, no-key honest, selected-only, exact, and URL-res
   expect(requests.filter((path) => path.includes("external-context"))).toEqual([]);
 
   requests.length = 0;
+  const evidence = observeVisualSources(page, { contextOnly: true });
   await page.goto("/?view=external-context");
   const panel = page.getByRole("region", { name: "External energy and emissions context" });
   await expect(panel).toBeVisible();
@@ -43,7 +45,9 @@ test("External Context is lazy, no-key honest, selected-only, exact, and URL-res
     "/api/v1/external-context",
     expect.stringMatching(/^\/api\/v2\/external-context\/epa_egrid\/v1\/xc1-/),
   ]);
+  await evidence.capture("external-context-egrid-desktop", panel);
   await expect(panel).toHaveScreenshot("external-context-egrid-desktop.png");
+  await evidence.stop();
 
   await page.reload();
   await expect(panel).toContainText("818.7");

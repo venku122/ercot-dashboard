@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { expectNoHorizontalOverflow, installMobileApi } from "./mobile-fixtures";
@@ -42,6 +43,7 @@ test("Texas Grid navigation and exact evidence are contained on mobile @mobile-c
 
 test("Texas Grid has stable mobile evidence @mobile-vri", async ({ page }) => {
   const requests: string[] = [];
+  const evidence = observeVisualSources(page);
   await installMobileApi(page);
   await installTexasGridApi(page, requests);
   await page.goto("/?view=texas-grid&grid_resource=resource_capacity_trend");
@@ -51,6 +53,11 @@ test("Texas Grid has stable mobile evidence @mobile-vri", async ({ page }) => {
     (element as HTMLElement).style.visibility = "hidden";
   });
   await panel.scrollIntoViewIfNeeded();
+  const exact = panel.getByRole("region", { name: "Wind exact resource capacity trend evidence" });
+  await expect(exact.locator("tbody tr")).toHaveCount(2);
+  await expect(exact).toContainText("135 MW");
+  await evidence.capture("texas-grid-mobile", panel);
+  await evidence.capture("texas-grid-exact-mobile", exact);
   await expect(panel).toHaveScreenshot("texas-grid-mobile.png");
   await withCssPixelAlignment(
     panel.getByRole("region", { name: "Wind exact resource capacity trend evidence" }),

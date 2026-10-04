@@ -1,3 +1,4 @@
+import { EvidenceDisclosure } from "./EvidenceDisclosure";
 import { useEffect, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
@@ -71,9 +72,13 @@ function OutlookProfile({ outlook }: { outlook: GridOutlook }) {
         <span>Now</span>
         <span>Next 24 hours</span>
       </figcaption>
-      <details>
-        <summary>Hourly forecast values</summary>
-        <div className="table-scroll">
+      <EvidenceDisclosure title="Hourly forecast values">
+        <div
+          className="table-scroll ui-data-table"
+          role="region"
+          aria-label="Exact forecast evidence"
+          tabIndex={0}
+        >
           <table aria-label="Next 24 hour forecast values">
             <thead>
               <tr>
@@ -91,7 +96,7 @@ function OutlookProfile({ outlook }: { outlook: GridOutlook }) {
             </tbody>
           </table>
         </div>
-      </details>
+      </EvidenceDisclosure>
     </figure>
   );
 }
@@ -132,6 +137,7 @@ function DayCard({
         </div>
       </dl>
       <Button
+        variant="segmented"
         aria-controls={`outlook-day-detail-${card.deliveryDate}`}
         aria-pressed={selected}
         onClick={onSelect}
@@ -252,7 +258,12 @@ export function OutlookContent({ outlook }: { outlook: GridOutlook }) {
             key={day.card.deliveryDate}
           >
             <h4>{dayLabel(day.card.deliveryDate)} hourly detail</h4>
-            <div className="table-scroll">
+            <div
+              className="table-scroll ui-data-table"
+              role="region"
+              aria-label="Exact forecast evidence"
+              tabIndex={0}
+            >
               <table aria-label={`${dayLabel(day.card.deliveryDate)} hourly outlook`}>
                 <thead>
                   <tr>

@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "review_parent": "5d915ccbc110ba5f36a601af723c962ff73e03dc",
+  "production_requests": 0,
+  "product_changes": 0,
+  "snapshot_tolerance_changes": 0,
+  "preserved_evidence_directory": "/tmp/ercot-post-release-2026-10/ERP-09-reviewed-preserved",
+  "images": [
+    {
+      "target": "e2e/external-context.spec.ts-snapshots/external-context-egrid-desktop-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "36e7cdd08f9c1512345fc23414e9d298f7e3468bc4fbde619c7775f19df4419b",
+      "new_sha256": "f7203ad6f02c2f99064d3affea8ee5b66b48d869adaa03b485430591268a16e7",
+      "old_dimensions": [1204, 1114],
+      "new_dimensions": [1204, 1182],
+      "source_actual": "/tmp/ercot-post-release-2026-10/ERP-09-ci-targets/desktop/test-results/external-context-External--00006-ly-exact-and-URL-restorable-chromium/external-context-egrid-desktop-actual.png",
+      "capture_head": "59a60c5d85b1a10b4df4e347d70515ca6cf4dcd5",
+      "reviewed_product_and_context_fixture_diff_to_5d915cc": "empty",
+      "exact_head_linux_pass": "pending",
+      "historical_capture_normalization_changed": false
+    },
+    {
+      "target": "e2e/historical-context.spec.ts-snapshots/historical-context-desktop-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "b97a0c1bcb0529f8ebf96e974b863a34d8140fa14382839dfbe22076160ce72f",
+      "new_sha256": "0e291ce0065745171d782a64abcfd0b2d3e430a150a681664222dbb610a9dc8b",
+      "old_dimensions": [1204, 679],
+      "new_dimensions": [1204, 701],
+      "source_actual": "/tmp/ercot-post-release-2026-10/ERP-09-ci-targets/desktop/test-results/historical-context-histori-cd32e-le-exact-and-URL-restorable-chromium/historical-context-desktop-actual.png",
+      "capture_head": "59a60c5d85b1a10b4df4e347d70515ca6cf4dcd5",
+      "reviewed_product_and_context_fixture_diff_to_5d915cc": "empty",
+      "exact_head_linux_pass": "pending",
+      "historical_capture_normalization_changed": false
+    },
+    {
+      "target": "e2e/texas-grid.spec.ts-snapshots/texas-grid-capacity-desktop-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "c0ad1af3472b13d2f7fcbb40171d7ab6f7ede15db4c7a0aec1834ebf406b6832",
+      "new_sha256": "0754e5cf5f766e5450e847da48765c12be9757827270e8b1b25e7cb6a860454f",
+      "old_dimensions": [1204, 1173],
+      "new_dimensions": [1204, 1200],
+      "source_actual": "/tmp/ercot-post-release-2026-10/ERP-09-ci-targets/desktop/test-results/texas-grid-Texas-Grid-is-l-eee3e-ly-exact-and-URL-restorable-chromium/texas-grid-capacity-desktop-actual.png",
+      "capture_head": "59a60c5d85b1a10b4df4e347d70515ca6cf4dcd5",
+      "reviewed_product_and_context_fixture_diff_to_5d915cc": "empty",
+      "exact_head_linux_pass": "pending",
+      "historical_capture_normalization_changed": false
+    },
+    {
+      "target": "e2e/mobile-external-context.spec.ts-snapshots/external-context-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "d72e26fd5376f9ff64bbda6d4c76865468d3c8bf95cce7c2c27d70b5b154209a",
+      "new_sha256": "d86ebbbaef2b86f7b52fb683d97aab313e034f29e0c3f5c6cc8e55bb934c13e4",
+      "old_dimensions": [416, 1738],
+      "new_dimensions": [416, 1807],
+      "source_actual": "/tmp/ercot-post-release-2026-10/ERP-09-ci-targets/mobile/test-results/mobile-external-context-Ex-bf805-d-eGRID-evidence-mobile-vri-iphone-pro-max-webkit/external-context-mobile-actual.png",
+      "capture_head": "59a60c5d85b1a10b4df4e347d70515ca6cf4dcd5",
+      "reviewed_product_and_context_fixture_diff_to_5d915cc": "empty",
+      "exact_head_linux_pass": "pending",
+      "historical_capture_normalization_changed": false
+    },
+    {
+      "target": "e2e/mobile-historical-context.spec.ts-snapshots/historical-context-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "ff9cd4582f46716b0ffe833fb422c6c439ab29db125b8539a2ec1fb94dfb2622",
+      "new_sha256": "f6e9c3217b10a5e18fcf4073c8377fa8d155d173f031b6cd021c56798c682dc3",
+      "old_dimensions": [416, 989],
+      "new_dimensions": [416, 1013],
+      "source_actual": "/tmp/ercot-post-release-2026-10/ERP-09-ci-targets/mobile/test-results/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-mobile-actual.png",
+      "capture_head": "59a60c5d85b1a10b4df4e347d70515ca6cf4dcd5",
+      "reviewed_product_and_context_fixture_diff_to_5d915cc": "empty",
+      "exact_head_linux_pass": "pending",
+      "historical_capture_normalization_changed": true
+    },
+    {
+      "target": "e2e/mobile-texas-grid.spec.ts-snapshots/texas-grid-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "2208c30458725bd2ab92455f61e6597a27e749d95bef8debed3ab45f3cc36f51",
+      "new_sha256": "0ad5224037919201f9c669f0e148f1666227a1f208a96f6429cf0866a0fd465a",
+      "old_dimensions": [416, 1899],
+      "new_dimensions": [416, 1942],
+      "source_actual": "/tmp/ercot-post-release-2026-10/ERP-09-ci-targets/mobile/test-results/mobile-texas-grid-Texas-Gr-55efa--mobile-evidence-mobile-vri-iphone-pro-max-webkit/texas-grid-mobile-actual.png",
+      "capture_head": "59a60c5d85b1a10b4df4e347d70515ca6cf4dcd5",
+      "reviewed_product_and_context_fixture_diff_to_5d915cc": "empty",
+      "exact_head_linux_pass": "pending",
+      "historical_capture_normalization_changed": false
+    },
+    {
+      "target": "e2e/historical-context.spec.ts-snapshots/historical-context-desktop-chromium-darwin.png",
+      "old_sha256": "8dc0f944ddcce969a4070037688915a2c8cf991e6347d5d44cbe734d1f457db5",
+      "new_sha256": "3c289668efffca27b8b6b6c4c3dafec3af9b2fc1777be717460f94d7bb740073",
+      "old_dimensions": [1204, 701],
+      "new_dimensions": [1204, 701],
+      "capture_head": "5d915ccbc110ba5f36a601af723c962ff73e03dc",
+      "native_repeat_actual_bytes_identical": true
+    },
+    {
+      "target": "e2e/mobile-historical-context.spec.ts-snapshots/historical-context-mobile-iphone-pro-max-webkit-darwin.png",
+      "old_sha256": "ae270d6bf564fc08bda6b33dc9d8a4886a7fc3e8b73f215d54d21055b4f36e1d",
+      "new_sha256": "6793d7c2da152e5ebd6afb35975c603b50d8cd259c91eb0a773d9f2398bbdfa5",
+      "old_dimensions": [416, 1012],
+      "new_dimensions": [416, 1012],
+      "capture_head": "5d915ccbc110ba5f36a601af723c962ff73e03dc",
+      "native_repeat_actual_bytes_identical": true
+    }
+  ]
+}

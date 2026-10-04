@@ -1,5 +1,6 @@
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
-import { Button } from "../components/ui/button";
+import { DisclosureCard } from "../components/ui/disclosure-card";
+import { EvidenceDisclosure } from "./EvidenceDisclosure";
 import { useHistoricalContext } from "./data-hooks";
 import type {
   HistoricalComparison,
@@ -77,24 +78,16 @@ export function HistoricalContextPanel({
         : "unavailable";
 
   return (
-    <section
-      aria-labelledby="historical-context-title"
+    <DisclosureCard
+      title="Historical context and records"
+      titleId="historical-context-title"
+      expanded={expanded}
+      onExpandedChange={onExpandedChange}
       className="historical-context-panel"
       data-historical-context-state={lifecycle}
     >
-      <h2 id="historical-context-title">
-        <Button
-          className="historical-context-toggle"
-          aria-controls="historical-context-content"
-          aria-expanded={expanded}
-          onClick={() => onExpandedChange(!expanded)}
-        >
-          Historical context and records
-        </Button>
-      </h2>
-
       {expanded ? (
-        <div id="historical-context-content">
+        <div>
           <p>
             Demand context from dashboard observations by season and America/Chicago civil hour.
             This is not a forecast or an all-time ERCOT record.
@@ -117,7 +110,7 @@ export function HistoricalContextPanel({
           ) : null}
         </div>
       ) : null}
-    </section>
+    </DisclosureCard>
   );
 }
 
@@ -192,7 +185,7 @@ function HistoricalContextContent({
 
       <div
         aria-label="Exact historical demand evidence"
-        className="table-scroll historical-context-exact"
+        className="table-scroll ui-data-table historical-context-exact"
         role="region"
         tabIndex={0}
       >
@@ -260,8 +253,7 @@ function HistoricalContextContent({
         </table>
       </div>
 
-      <details className="historical-context-method">
-        <summary>Method and provenance</summary>
+      <EvidenceDisclosure title="Method and provenance" className="historical-context-method">
         <dl>
           <div>
             <dt>Series</dt>
@@ -297,7 +289,7 @@ function HistoricalContextContent({
           not filled or borrowed. The immutable resource identity is shown for evidence; this panel
           uses the resolver's embedded summary and makes no second resource request.
         </p>
-      </details>
+      </EvidenceDisclosure>
     </div>
   );
 }

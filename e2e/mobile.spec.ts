@@ -414,7 +414,10 @@ test("P0 Grid Outlook remains exact, accessible, and contained on mobile @mobile
   await expect(page.getByRole("heading", { name: "Outlook", exact: true })).toBeVisible();
   await expect(page.getByLabel("Grid Outlook summary")).toBeVisible();
   await expect(page.getByRole("button", { name: "Hourly detail shown" })).toBeVisible();
-  await page.getByText("Hourly forecast values", { exact: true }).click();
+  const forecastToggle = page.getByRole("button", { name: "Hourly forecast values", exact: true });
+  await expect(forecastToggle).toHaveAttribute("aria-expanded", "false");
+  await forecastToggle.click();
+  await expect(forecastToggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeVisible();
   await expect(page.getByText("Current observations only", { exact: true })).toBeVisible();
   await expect(
@@ -425,12 +428,28 @@ test("P0 Grid Outlook remains exact, accessible, and contained on mobile @mobile
   for (const target of [
     page.getByRole("button", { name: "Outlook view" }),
     page.getByRole("button", { name: "Hourly detail shown" }),
-    page.getByText("Hourly forecast values", { exact: true }),
+    forecastToggle,
   ]) {
     const bounds = await target.boundingBox();
     expect(bounds?.height ?? 0).toBeGreaterThanOrEqual(44);
     expect(bounds?.width ?? 0).toBeGreaterThanOrEqual(44);
   }
+  await test.info().attach("outlook-interactive-target-bounds", {
+    body: JSON.stringify({
+      button: await forecastToggle.boundingBox(),
+      label: await page.getByText("Hourly forecast values", { exact: true }).boundingBox(),
+    }),
+    contentType: "application/json",
+  });
+  await forecastToggle.focus();
+  await expect(forecastToggle).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(forecastToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeHidden();
+  await page.keyboard.press("Space");
+  await expect(forecastToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("table", { name: "Next 24 hour forecast values" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("outlook-semantic-target.png") });
 });
 
 test("P0 net-load disclosure is lazy, accessible, and contained on mobile @mobile-core", async ({

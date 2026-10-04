@@ -1,3 +1,4 @@
+import { EvidenceDisclosure } from "./EvidenceDisclosure";
 import { useEffect, useMemo, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
@@ -99,7 +100,7 @@ function GisEvidence({ resource }: { resource: TexasGridGisResource }) {
       </p>
       <div
         aria-label="Exact generator interconnection aggregate evidence"
-        className="table-scroll texas-grid-table"
+        className="table-scroll ui-data-table texas-grid-table"
         role="region"
         tabIndex={0}
       >
@@ -152,21 +153,26 @@ function TrendEvidence({ resource }: { resource: TexasGridTrendResource }) {
         Source period {resource.publication.source_period} · published{" "}
         {timestamp(resource.publication.published_at)}
       </p>
-      <div aria-label="Capacity trend series" className="texas-grid-series-picker">
+      <div
+        aria-label="Capacity trend series"
+        className="ui-segmented-control texas-grid-series-picker"
+        role="group"
+      >
         {resource.series.map((item) => (
-          <button
+          <Button
+            variant="segmented"
             aria-pressed={seriesId === item.series_id}
             key={item.series_id}
             onClick={() => setSeriesId(item.series_id)}
             type="button"
           >
             {item.label}
-          </button>
+          </Button>
         ))}
       </div>
       <div
         aria-label={`${series.label} exact resource capacity trend evidence`}
-        className="table-scroll texas-grid-table"
+        className="table-scroll ui-data-table texas-grid-table"
         role="region"
         tabIndex={0}
       >
@@ -240,21 +246,26 @@ function LtlfEvidence({ resource }: { resource: TexasGridLtlfResource }) {
         Source period {resource.publication.source_period} · published{" "}
         {timestamp(resource.publication.published_at)}
       </p>
-      <div aria-label="Long-term load forecast scenario" className="texas-grid-series-picker">
+      <div
+        aria-label="Long-term load forecast scenario"
+        className="ui-segmented-control texas-grid-series-picker"
+        role="group"
+      >
         {resource.scenarios.map((item) => (
-          <button
+          <Button
+            variant="segmented"
             aria-pressed={scenarioId === item.scenario_id}
             key={item.scenario_id}
             onClick={() => setScenarioId(item.scenario_id)}
             type="button"
           >
             {item.label}
-          </button>
+          </Button>
         ))}
       </div>
       <div
         aria-label={`${scenario.label} exact long-term load forecast evidence`}
-        className="table-scroll texas-grid-table"
+        className="table-scroll ui-data-table texas-grid-table"
         role="region"
         tabIndex={0}
       >
@@ -343,6 +354,7 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
               <h3>Generator interconnection status</h3>
               <p>Official study-phase and fuel aggregates. No project rows or identities.</p>
               <Button
+                variant="segmented"
                 aria-pressed={selectedStream === "gis"}
                 disabled={!manifest.data.generator_interconnection.selected}
                 onClick={() => choose(selectedStream === "gis" ? null : "gis")}
@@ -359,6 +371,7 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
               <h3>Resource capacity trend</h3>
               <p>Official total, operational, planned, studied, and small-generator values.</p>
               <Button
+                variant="segmented"
                 aria-pressed={selectedStream === "resource_capacity_trend"}
                 disabled={!manifest.data.resource_capacity_trend.selected}
                 onClick={() =>
@@ -379,6 +392,7 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
               <h3>Long-term load forecast</h3>
               <p>Official monthly peak MW and energy MWh for two documented forecast scenarios.</p>
               <Button
+                variant="segmented"
                 aria-pressed={selectedStream === "long_term_load_forecast"}
                 disabled={!manifest.data.long_term_load_forecast.selected}
                 onClick={() =>
@@ -426,11 +440,10 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
           ) : null}
           {resource.data ? <ResourceEvidence resource={resource.data} /> : null}
 
-          <details>
-            <summary>Source collection and materialization health</summary>
+          <EvidenceDisclosure title="Source collection and materialization health">
             <div
               aria-label="Exact Texas Grid source health"
-              className="table-scroll texas-grid-table"
+              className="table-scroll ui-data-table texas-grid-table"
               role="region"
               tabIndex={0}
             >
@@ -465,7 +478,7 @@ export function TexasGridView({ enabled }: { enabled: boolean }) {
                 </tbody>
               </table>
             </div>
-          </details>
+          </EvidenceDisclosure>
         </>
       ) : null}
     </section>

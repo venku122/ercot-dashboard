@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
+import { withCssPixelAlignment } from "./screenshot-alignment";
 
 import { installHistoricalContextApi } from "./historical-context-fixtures";
 import { FIXED_NOW_SECONDS, installMobileApi } from "./mobile-fixtures";
@@ -42,9 +44,23 @@ test("historical context is Overview-only, explicitly collapsible, exact, and UR
   await expect(panel.getByRole("button", { name: "Historical context and records" })).toBeVisible();
   await page.goForward();
   await expect(panel.getByRole("button", { name: "Historical context and records" })).toBeVisible();
+  await expect(panel).toContainText("75.3 GW");
+  const evidence = observeVisualSources(page, { contextOnly: true });
   await page.reload();
   await expect(panel).toContainText("75.3 GW");
-  await expect(panel).toHaveScreenshot("historical-context-desktop.png");
+  // Keep a retained pointer from hovering a disclosure after navigation/scroll.
+  await page.mouse.move(0, 0);
+  await evidence.capture("historical-context-desktop-raw", panel);
+  await withCssPixelAlignment(
+    panel,
+    async () => {
+      await evidence.capture("historical-context-desktop-aligned", panel);
+      await expect(panel).toHaveScreenshot("historical-context-desktop.png");
+    },
+    "floor",
+    "layout",
+  );
+  await evidence.stop();
 
   await page.goto("/?view=generation&history=1");
   await expect(panel).toHaveCount(0);

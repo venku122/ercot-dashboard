@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { observeVisualSources } from "./vri-source-evidence";
 
 import { installMobileApi } from "./mobile-fixtures";
 import { installTexasGridApi } from "./texas-grid-fixtures";
@@ -14,6 +15,7 @@ test("Texas Grid is lazy, selected-only, exact, and URL-restorable", async ({ pa
   );
   expect(requests).toEqual([]);
 
+  const evidence = observeVisualSources(page, { contextOnly: true });
   await page.goto("/?view=texas-grid");
   const panel = page.getByRole("region", { name: "Texas Grid long-horizon evidence" });
   await expect(panel).toBeVisible();
@@ -44,7 +46,9 @@ test("Texas Grid is lazy, selected-only, exact, and URL-restorable", async ({ pa
   });
   await expect(trendTable.locator("tbody tr")).toHaveCount(2);
   expect(requests.filter((request) => request.startsWith("/api/v2/"))).toHaveLength(2);
+  await evidence.capture("texas-grid-capacity-desktop", panel);
   await expect(panel).toHaveScreenshot("texas-grid-capacity-desktop.png");
+  await evidence.stop();
 
   await page.goBack();
   await expect(page).toHaveURL(/grid_resource=gis/);

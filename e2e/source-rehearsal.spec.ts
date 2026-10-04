@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { recordSourceContainment } from "./source-containment-evidence";
 import { installMobileApi } from "./mobile-fixtures";
 
 const origin = process.env["SOURCE_REHEARSAL_ORIGIN"];
@@ -13,7 +14,7 @@ for (const width of [390, 1440]) {
   test(`ERP-08 live publications match accessible tables at ${width}px`, async ({
     page,
     request,
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize({ width, height: 1000 });
     await installMobileApi(page, "normal", [], { nativeCadence: true });
     await page.route(
@@ -95,6 +96,7 @@ for (const width of [390, 1440]) {
       fullPage: true,
     });
     expect(errors).toEqual([]);
+    await recordSourceContainment(page, testInfo, "nws-source-containment");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
