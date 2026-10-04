@@ -49,7 +49,13 @@ export function seriesIntervalLabel(loaded: LoadedSeries | undefined, timestamp:
 export function intervalPlotPoints(
   points: Point[],
   bounds: NonNullable<LoadedSeries["meta"]["intervals"]>,
+  window?: { start: number; end: number },
 ) {
+  if (
+    window &&
+    (!Number.isFinite(window.start) || !Number.isFinite(window.end) || window.end <= window.start)
+  )
+    return [];
   const values = new Map(canonicalDisplayPoints(points));
   const intervals = bounds
     .filter(
@@ -63,12 +69,16 @@ export function intervalPlotPoints(
   const geometry: Array<{ x: number; y: number }> = [];
   let priorEnd: number | null = null;
   for (const interval of intervals) {
-    if (priorEnd !== null && interval.start < priorEnd) return [];
-    if (priorEnd !== null && interval.start !== priorEnd)
+    const start = Math.max(interval.start, window?.start ?? interval.start);
+    const end = Math.min(interval.end, window?.end ?? interval.end);
+    if (start >= end) continue;
+    if (priorEnd !== null && start < priorEnd) return [];
+    if (priorEnd !== null && start !== priorEnd)
       geometry.push({ x: priorEnd * 1000, y: Number.NaN });
     const value = values.get(interval.timestamp)!;
-    geometry.push({ x: interval.start * 1000, y: value }, { x: interval.end * 1000, y: value });
-    priorEnd = interval.end;
+    // Clipped drawing vertices describe held support, never canonical source observations.
+    geometry.push({ x: start * 1000, y: value }, { x: end * 1000, y: value });
+    priorEnd = end;
   }
   return geometry;
 }

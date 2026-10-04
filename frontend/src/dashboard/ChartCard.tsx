@@ -150,6 +150,38 @@ const interpretationFill = {
   watch: "rgba(251, 191, 36, 0.08)",
 } as const;
 
+function tooltipSeriesData(
+  chart: ChartDefinition,
+  data: Map<string, LoadedSeries>,
+  label: string | undefined,
+) {
+  const series = chart.series.find(
+    (series) => label === series.label || label?.startsWith(`${series.label} · `),
+  );
+  const base = series ? data.get(seriesKey(chart.id, series.id)) : undefined;
+  const comparison = series && label !== series.label;
+  const loaded =
+    base && comparison
+      ? {
+          ...base,
+          points: base.compare,
+          meta: { ...base.meta, intervals: base.meta.comparison_intervals ?? [] },
+        }
+      : base;
+  return { series, loaded };
+}
+function tooltipIntervalLabel(
+  loaded: LoadedSeries | undefined,
+  timestamp: number,
+  forecast: boolean,
+) {
+  if (!forecast) return seriesIntervalLabel(loaded, timestamp);
+  const interval = loaded?.meta.intervals?.find((item) => item.timestamp === timestamp);
+  return interval
+    ? `Delivery interval [${marketTime(interval.start)}, ${marketTime(interval.end)}) · hour ending ${marketTime(timestamp)}`
+    : "Delivery interval bounds unavailable";
+}
+
 function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
   const intervals = chart.series.some(
     (series) => temporalPolicy(chart.id, series)?.kind === "interval",
@@ -289,8 +321,11 @@ export function ChartCard({
         label: series.label,
         data: stacked
           ? aligned[visibleSeries.indexOf(series)]
-          : temporalPolicy(chart.id, series)?.kind === "interval"
-            ? intervalPlotPoints(loaded?.points ?? [], loaded?.meta.intervals ?? [])
+          : temporalPolicy(chart.id, series)?.cursor.mode === "interval"
+            ? intervalPlotPoints(loaded?.points ?? [], loaded?.meta.intervals ?? [], {
+                start: time.start,
+                end: time.end,
+              })
             : displayPoints(
                 loaded?.points ?? [],
                 seriesGapSeconds(chart.id, series, loaded),
@@ -320,7 +355,7 @@ export function ChartCard({
         ),
         pointHitRadius: 12,
         tension: 0,
-        ...(temporalPolicy(chart.id, series)?.kind === "interval"
+        ...(temporalPolicy(chart.id, series)?.cursor.mode === "interval"
           ? { stepped: "before" as const, pointRadius: 0 }
           : chart.id === "eea"
             ? { stepped: "after" as const }
@@ -332,8 +367,11 @@ export function ChartCard({
         output.push({
           label: `${series.label} · ${compare.replace("_", " ")}`,
           data:
-            temporalPolicy(chart.id, series)?.kind === "interval"
-              ? intervalPlotPoints(loaded.compare, loaded.meta.comparison_intervals ?? [])
+            temporalPolicy(chart.id, series)?.cursor.mode === "interval"
+              ? intervalPlotPoints(loaded.compare, loaded.meta.comparison_intervals ?? [], {
+                  start: time.start,
+                  end: time.end,
+                })
               : displayPoints(
                   loaded.compare,
                   seriesGapSeconds(chart.id, series, loaded),
@@ -356,7 +394,7 @@ export function ChartCard({
       }
     }
     return output;
-  }, [chart, compare, hiddenSeries, seriesData, visibleSeries, presentation]);
+  }, [chart, compare, hiddenSeries, seriesData, visibleSeries, presentation, time.start, time.end]);
   const hasData = visibleSeries.some(
     (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
   );
@@ -516,16 +554,15 @@ export function ChartCard({
             callbacks: {
               title: (items) => {
                 if (!items.length || items[0].parsed.x === null) return "";
-                const series = dynamic.current.chart.series.find(
-                  (series) => series.label === items[0].dataset.label,
+                const { series, loaded } = tooltipSeriesData(
+                  dynamic.current.chart,
+                  dynamic.current.seriesData,
+                  items[0].dataset.label,
                 );
                 if (
                   series &&
-                  temporalPolicy(dynamic.current.chart.id, series)?.kind === "interval"
+                  temporalPolicy(dynamic.current.chart.id, series)?.cursor.mode === "interval"
                 ) {
-                  const loaded = dynamic.current.seriesData.get(
-                    seriesKey(dynamic.current.chart.id, series.id),
-                  );
                   const at = cursorTimestamp.current ?? items[0].parsed.x / 1000;
                   const sample = observationAt(
                     loaded,
@@ -533,22 +570,27 @@ export function ChartCard({
                     temporalPolicy(dynamic.current.chart.id, series),
                   );
                   return sample
-                    ? seriesIntervalLabel(loaded, sample.ts)
+                    ? tooltipIntervalLabel(
+                        loaded,
+                        sample.ts,
+                        temporalPolicy(dynamic.current.chart.id, series)?.kind === "forecast",
+                      )
                     : "No containing delivery interval";
                 }
                 return marketTime(items[0].parsed.x / 1000);
               },
               label(context) {
-                const series = dynamic.current.chart.series.find(
-                  (series) => series.label === context.dataset.label,
+                const { series, loaded } = tooltipSeriesData(
+                  dynamic.current.chart,
+                  dynamic.current.seriesData,
+                  context.dataset.label,
                 );
                 const interval =
-                  series && temporalPolicy(dynamic.current.chart.id, series)?.kind === "interval";
+                  series &&
+                  temporalPolicy(dynamic.current.chart.id, series)?.cursor.mode === "interval";
                 const value = interval
                   ? (observationAt(
-                      dynamic.current.seriesData.get(
-                        seriesKey(dynamic.current.chart.id, series.id),
-                      ),
+                      loaded,
                       cursorTimestamp.current ?? context.parsed.x! / 1000,
                       temporalPolicy(dynamic.current.chart.id, series),
                     )?.value ?? null)

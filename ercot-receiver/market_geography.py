@@ -847,11 +847,12 @@ def _latest_publication(conn, product):
     ).fetchone()
 
 
-def _price_interval_rows(conn, start, end, identity=None):
+def _price_interval_rows(conn, start, end, identity=None, maximum_rows=None):
     point_clause = "AND r.settlement_point=? AND r.settlement_point_type=?" if identity else ""
     params = [start, end]
     if identity:
         params.extend(identity)
+    params.append(maximum_rows + 1 if maximum_rows is not None else 5000)
     rows = conn.execute(f"""
         WITH ranked AS (
           SELECT r.*, p.source_id,p.product_id,p.content_key,p.document_id,
@@ -865,8 +866,10 @@ def _price_interval_rows(conn, start, end, identity=None):
               JOIN market_geography_publications p2 ON p2.id=r2.publication_id
               WHERE r2.target_ts=r.target_ts AND p2.product_id='NP6-905-CD')
         ) SELECT * FROM ranked WHERE choice=1
-          ORDER BY target_ts,settlement_point,settlement_point_type LIMIT 5000
+          ORDER BY target_ts,settlement_point,settlement_point_type LIMIT ?
     """, params).fetchall()
+    if maximum_rows is not None and len(rows) > maximum_rows:
+        raise ValueError("market_price_row_overflow")
     output = []
     for row in rows:
         output.append({"target_ts": row[1], "interval_start": row[1]-900, "interval_end": row[1],
@@ -883,11 +886,15 @@ def market_price_history(conn, identity, start, end):
     point = tuple(identity.split("--"))
     if point not in DISPLAY_POINT_SET:
         raise ValueError("unsupported_market_price_identity")
-    if not isinstance(start, int) or not isinstance(end, int) or end <= start or end-start > 35*DAY+1:
+    if not isinstance(start, int) or not isinstance(end, int) or end <= start or end-start > 35*DAY+900:
+        raise ValueError("unsupported_market_price_window")
+    # Inclusive native ending slots in the half-open query, checked before SQL.
+    expected_targets = (end - 1) // 900 - (start + 899) // 900 + 1
+    if expected_targets > 3361:
         raise ValueError("unsupported_market_price_window")
     return {"product_id": "NP6-905-CD", "identity": identity, "interval_seconds": 900,
             "start": start, "end": end, "policy": "latest_published_corrections_not_as_known",
-            "rows": _price_interval_rows(conn, start, end, point)}
+            "rows": _price_interval_rows(conn, start, end, point, expected_targets)}
 
 
 def _current_price_snapshot(conn, now):

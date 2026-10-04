@@ -632,12 +632,19 @@ export async function loadIntervalPriceHistory(
   end: number,
   signal?: AbortSignal,
 ): Promise<PriceRow[]> {
-  if (!pointIdentities.has(identity) || end <= start || end - start > 35 * 86400)
+  if (
+    !pointIdentities.has(identity) ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    end <= start ||
+    end - start > 35 * 86400
+  )
     throw new Error("Unsupported interval price history window or point");
   const params = new URLSearchParams({
     identity,
-    start: String(Math.round(start)),
-    end: String(Math.round(end) + 1),
+    start: String(Math.ceil(start)),
+    // Targets are interval endings: retain the final overlapping delivery support.
+    end: String(Math.ceil(end / 900) * 900 + 1),
   });
   const response = await fetch(`/api/v1/market-price-history?${params}`, {
     signal: signal ?? null,
@@ -651,17 +658,22 @@ export async function loadIntervalPriceHistory(
     !Array.isArray(payload["rows"])
   )
     throw new Error("Invalid interval price history identity");
-  let previous = start - 1;
-  return payload["rows"].map((value) => {
-    const row = priceRow(value);
-    if (
-      pointIdentity(row.settlement_point, row.settlement_point_type) !== identity ||
-      row.target_ts < start ||
-      row.target_ts > end ||
-      row.target_ts <= previous
-    )
-      throw new Error("Invalid interval price history rows");
-    previous = row.target_ts;
-    return row;
-  });
+  const queryStart = Math.ceil(start);
+  const queryEnd = Math.ceil(end / 900) * 900 + 1;
+  if (payload["rows"].length > 3361) throw new Error("Invalid interval price history rows");
+  let previous = queryStart - 1;
+  return payload["rows"]
+    .map((value) => {
+      const row = priceRow(value);
+      if (
+        pointIdentity(row.settlement_point, row.settlement_point_type) !== identity ||
+        row.target_ts < queryStart ||
+        row.target_ts >= queryEnd ||
+        row.target_ts <= previous
+      )
+        throw new Error("Invalid interval price history rows");
+      previous = row.target_ts;
+      return row;
+    })
+    .filter((row) => row.interval_start! < end && row.interval_end! > start);
 }
