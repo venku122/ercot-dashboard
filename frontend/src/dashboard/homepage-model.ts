@@ -83,16 +83,27 @@ export function precedingObservation(
 }
 
 export function seriesGapSeconds(chartId: string, series: SeriesDefinition, loaded?: LoadedSeries) {
-  return connectionGap(temporalPolicy(chartId, series), loaded);
+  const source = temporalPolicy(chartId, series);
+  if (loaded?.meta.observed_envelope_support !== undefined)
+    return source?.connectionGapSeconds ?? 0;
+  return connectionGap(source, loaded);
 }
 
-export function displayPoints(points: Point[], gapSeconds: number) {
+export function displayPoints(
+  points: Point[],
+  gapSeconds: number,
+  support: Array<{ start: number; end: number }> = [],
+) {
   const output: Array<{ x: number; y: number }> = [];
   const canonical = canonicalDisplayPoints(points);
   const allowedGap = Number.isFinite(gapSeconds) && gapSeconds >= 0 ? gapSeconds : 0;
   canonical.forEach(([ts, value], index) => {
     const prior = canonical[index - 1];
-    if (prior && ts - prior[0] > allowedGap)
+    if (
+      prior &&
+      ts - prior[0] > allowedGap &&
+      !support.some((range) => range.start <= prior[0] && range.end >= ts)
+    )
       output.push({ x: (prior[0] + allowedGap) * 1000, y: Number.NaN });
     output.push({ x: ts * 1000, y: value });
   });

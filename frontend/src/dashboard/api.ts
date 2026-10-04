@@ -105,6 +105,7 @@ type ChunkResult = {
 };
 
 type HeadroomCoverage = {
+  continuous_buckets?: number[];
   policy: string;
   paired_count: number;
   expected_count: number;
@@ -231,6 +232,9 @@ function parseTileResult(
         coverage.unpaired_count,
         coverage.ambiguous_count,
       ].every((count) => Number.isSafeInteger(count) && count >= 0) ||
+      (coverage.continuous_buckets !== undefined &&
+        (!Array.isArray(coverage.continuous_buckets) ||
+          !coverage.continuous_buckets.every(Number.isSafeInteger))) ||
       !Array.isArray(coverage.partial_buckets) ||
       !coverage.partial_buckets.every(Number.isSafeInteger) ||
       ![null, "missing_compatible_contributor", "no_matching_native_epochs"].includes(
@@ -280,6 +284,31 @@ function parseTileResult(
     priorKey = key;
     return { end, start, state };
   });
+  if (entry.match === "paired" && result.pairing?.continuous_buckets) {
+    const width =
+      request.lod === "native"
+        ? 0
+        : request.lod === "5m"
+          ? 300
+          : request.lod === "15m"
+            ? 900
+            : 3600;
+    const anchors = result.pairing.continuous_buckets;
+    if (
+      new Set(anchors).size !== anchors.length ||
+      anchors.some(
+        (anchor) =>
+          !buckets.some(
+            (bucket) =>
+              bucket.start === anchor &&
+              width > 0 &&
+              bucket.state.count === width / 300 &&
+              bucket.state.last_ts! - bucket.state.first_ts! === width - 300,
+          ),
+      )
+    )
+      throw new Error("invalid_headroom_continuity_evidence");
+  }
   return { ...(result as TileResult), buckets };
 }
 
@@ -682,9 +711,37 @@ async function loadFixedSeriesFromTiles(
                 : [],
             ),
             power: job.entry!.statistic_policy === "power",
-            projection: job.chart.spikeCritical ? "spike-envelope" : "average",
+            projection:
+              job.entry!.match === "paired" || job.chart.spikeCritical
+                ? "spike-envelope"
+                : "average",
             start: Math.round(window.start),
           });
+        };
+        const support = (requests: TileRequest[], window: TimeState) => {
+          const ranges = requests
+            .flatMap((request) => {
+              const tile = tileByUrl.get(request.url);
+              if (!tile || tile instanceof Error) return [];
+              return tile.buckets
+                .filter(
+                  (bucket) =>
+                    bucket.state.first_ts !== null &&
+                    bucket.state.first_ts >= window.start &&
+                    bucket.state.last_ts! <= window.end &&
+                    (request.lod === "native" ||
+                      tile.pairing?.continuous_buckets?.includes(bucket.start)),
+                )
+                .map((bucket) => ({ start: bucket.state.first_ts!, end: bucket.state.last_ts! }));
+            })
+            .sort((left, right) => left.start - right.start);
+          const merged: Array<{ start: number; end: number }> = [];
+          for (const range of ranges) {
+            const prior = merged.at(-1);
+            if (prior && range.start - prior.end <= 300) prior.end = Math.max(prior.end, range.end);
+            else merged.push({ ...range });
+          }
+          return merged;
         };
         const projection = project(job.currentRequests, time);
         const paired = job.entry.match === "paired";
@@ -747,6 +804,21 @@ async function loadFixedSeriesFromTiles(
             until: time.end,
             ...(paired
               ? {
+                  observed_envelope_support: support(job.currentRequests, time),
+                  comparison_observed_envelope_support: support(
+                    job.comparisonRequests,
+                    comparisonTime,
+                  ).map((range) => {
+                    const aligned = alignComparisonForMode(
+                      [
+                        [range.start, 0],
+                        [range.end, 0],
+                      ],
+                      compare,
+                      comparison.offset,
+                    );
+                    return { start: aligned[0]![0], end: aligned[1]![0] };
+                  }),
                   pairing: {
                     policy: HEADROOM_PAIRING.policy,
                     paired_count: projection.stats.count,

@@ -2724,6 +2724,15 @@ class Handler(BaseHTTPRequestHandler):
         }
         if pairing is not None:
             pairing["partial_buckets"] = [bucket["start"] for bucket in buckets if lod != "native" and bucket["state"]["count"] < TILE_LOD_SECONDS[lod] // 300]
+            pairing["continuous_buckets"] = []
+            if lod != "native":
+                width = TILE_LOD_SECONDS[lod]
+                epochs = {}
+                for point in points:
+                    anchor = (point[0] // width) * width
+                    epochs.setdefault(anchor, []).append(point[0])
+                pairing["continuous_buckets"] = [anchor for anchor, values in epochs.items()
+                    if len(values) == width // 300 and all(right - left == 300 for left, right in zip(values, values[1:]))]
             payload["pairing"] = pairing
         dependencies = {f"series:{series_id}" for series_id in series_ids}
         if definition["match"] == "paired":

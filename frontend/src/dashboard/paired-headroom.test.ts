@@ -91,15 +91,18 @@ describe("paired headroom semantic identity", () => {
   );
 });
 
-function headroomTile(url: string) {
-  const match = /\/tiles\/[^/]+\/(1h|1d)\/(\d+)\/(native|5m|15m|1h)$/.exec(url)!;
-  const start = Number(match[2]);
-  const end = start + (match[1] === "1d" ? 86400 : 3600);
-  const points = [
+function headroomTile(
+  url: string,
+  raw = [
     [90000, 10],
     [90300, 5],
     [90600, -10],
-  ].filter(([ts]) => ts >= start && ts < end);
+  ],
+) {
+  const match = /\/tiles\/[^/]+\/(1h|1d)\/(\d+)\/(native|5m|15m|1h)$/.exec(url)!;
+  const start = Number(match[2]);
+  const end = start + (match[1] === "1d" ? 86400 : 3600);
+  const points = raw.filter(([ts]) => ts >= start && ts < end);
   const width =
     match[3] === "native" ? 0 : match[3] === "1h" ? 3600 : match[3] === "15m" ? 900 : 300;
   const groups = new Map<number, number[][]>();
@@ -283,4 +286,46 @@ it("preserves an explicit unavailable reason for a window without matching nativ
     "paired_headroom_no_matching_native_epochs",
   );
   expect(result.get("overview-headroom:headroom")?.points).toEqual([]);
+});
+
+it("retains current and comparison non-extreme final observations with coarse labels", async () => {
+  const raw = [
+    [694800, 10],
+    [695100, 5],
+    [695400, 7],
+    [90000, 20],
+    [90300, 15],
+    [90600, 17],
+  ];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url: string) =>
+        new Response(
+          JSON.stringify(url.includes("tile-catalog") ? catalog : headroomTile(url, raw)),
+        ),
+    ),
+  );
+  const result = await loadSeries(
+    [
+      {
+        ...headroomChart,
+        series: headroomChart.series.filter((series) => series.id === "headroom"),
+      },
+    ],
+    { mode: "fixed", start: 691200, end: 1296000, rangeSeconds: 604800, paused: true },
+    "custom",
+    604800,
+    new AbortController().signal,
+  );
+  const loaded = result.get("overview-headroom:headroom")!;
+  expect(loaded.points).toEqual(raw.slice(0, 3));
+  expect(loaded.compare).toEqual([
+    [694800, 20],
+    [695100, 15],
+    [695400, 17],
+  ]);
+  expect(loaded.meta.stats?.latest).toBe(7);
+  expect(loaded.meta.bucket_seconds).toBeGreaterThan(300);
+  expect(loaded.meta.observed_envelope_support).toEqual([]);
 });

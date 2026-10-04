@@ -39,6 +39,18 @@ class PairedHeadroomTests(unittest.TestCase):
         for query in ("include=other", "include=paired-headroom&include=paired-headroom", "include=", "unknown=1"):
             self.invoke("GET", "/api/v2/tile-catalog?" + query, expected_status=400)
 
+    def test_continuous_bucket_evidence_requires_regular_raw_native_epochs(self):
+        regular = [(90000 + index * 300, 100 + index) for index in range(12)]
+        clustered = [(93600 + index * 10, 200 + index) for index in range(12)]
+        missing = [(97200 + index * 300, 300 + index) for index in range(12) if index != 6]
+        capacity = regular + clustered + missing
+        self.contributor("available_capacity", capacity)
+        self.contributor("demand", [(ts, value - 7) for ts, value in capacity])
+        payload, _ = self.invoke("GET", self.path)
+        self.assertEqual(payload["pairing"]["continuous_buckets"], [90000])
+        self.assertIn(97200, payload["pairing"]["partial_buckets"])
+        self.assertNotIn(93600, payload["pairing"]["continuous_buckets"])
+
     def contributor(self, side, values, source="supply_demand"):
         metric = f"ercot.supply_demand.{side}_mw"
         points = [{"timestamp": ts, "value": value, "dedupe_key": f"{side}:{source}:{ts}"} for ts, value in values]

@@ -136,6 +136,12 @@ export function observedTileFixture(
             last_observed_ts: rows.at(-1)?.[0] ?? null,
             collection_history: "first_collection_time_not_recorded",
             reason: rows.length ? null : "no_matching_native_epochs",
+            continuous_buckets:
+              lod === "native"
+                ? []
+                : buckets
+                    .filter((bucket) => bucket.state.count === step / 300)
+                    .map((bucket) => bucket.start),
             partial_buckets:
               lod === "native"
                 ? []
