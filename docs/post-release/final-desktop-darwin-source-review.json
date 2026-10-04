@@ -8871,7 +8871,7 @@
         "sha256": "93a98d1ea6b26df49a2cab681ea510baad7144db0ca3889dfe94c4c9c3f526c0"
       },
       "preserved_full_response_provenance": "/tmp/ercot-post-release-2026-10/final-dc3063-desktop-red/source-verified-frames.json",
-      "reason": "Five native regions,coastal keyboard focus/1GW/51MW/11% and exact sixhour rows including realmissing23:00 preserved;fractional raster. Existing long desktopprovenance clipping remains,not claimedfixed."
+      "reason": "Five native regions, coastal keyboard focus/1GW/51MW/11% and sixhour rows including realmissing23:00 preserved;fractional raster. Actual followup1280/390/320 text rectangles show full source provenance is contained; earlier clipping caveat was incorrect, no CSS/PNG repair."
     },
     {
       "frame": "review-forecast-quality-populated",
@@ -22588,5 +22588,12 @@
   "verification_log_sha256": {
     "final-dc3063-desktop-green.log": "382373b8816e22e018974c694a34f195bbb61b2c5b5e07359beaafa38e04717c",
     "final-dc3063-mobile-matrix.log": "694272ef324ae6a01a6b5978318f7c097ace2e9a7a706ce24a1d88d44bb37154"
+  },
+  "regional_provenance_followup": {
+    "result": "3 PASS on first run;no reproduced defect,no product CSS or PNG edits",
+    "measurements": "/tmp/ercot-post-release-2026-10/regional-provenance-visible-geometry.json",
+    "log": "/tmp/ercot-post-release-2026-10/regional-provenance-containment-first.log",
+    "viewport_widths": [1280, 390, 320],
+    "test": "e2e/regional-provenance.spec.ts"
   }
 }
