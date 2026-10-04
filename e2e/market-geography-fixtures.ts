@@ -108,10 +108,62 @@ function resourceLink(kind: "prices" | "constraints", identity: string) {
   };
 }
 
+function unavailableMarketManifest(asOf: number) {
+  return {
+    schema_version: 1,
+    kind: "market_geography_manifest",
+    methodology: "market-geography-v1",
+    as_of: asOf,
+    visualization_policy: "settlement_price_matrix_not_geographic_boundaries",
+    attribution_status: "unavailable_without_shift_factors",
+    attribution_policy: "coincident_constraint_not_point_price_attribution",
+    settlement_interval: {
+      state: "unavailable",
+      target_ts: null,
+      rows: [],
+      reference_prices: [],
+      missing: POINTS.map(([point, type]) => `${point}--${type}`),
+    },
+    lmp_snapshot: {
+      state: "unavailable",
+      target_ts: null,
+      rows: [],
+      missing: POINTS.map(([point]) => point),
+    },
+    constraints: {
+      state: "unavailable",
+      target_ts: null,
+      rows: [],
+      total_count: 0,
+      truncated: false,
+    },
+    source_health: ["ercot_mis_np6_788", "ercot_mis_np6_86", "ercot_mis_np6_905"].map(
+      (source_id) => ({
+        source_id,
+        state: "unavailable",
+        availability_status: "source_disabled",
+        last_success_ts: null,
+        data_timestamp_ts: null,
+        data_age_seconds: null,
+        gap_count: 0,
+        consecutive_failures: 0,
+        last_error: null,
+      }),
+    ),
+    materialization_health: { state: "unavailable" },
+    resources: [],
+    deferred: {
+      nodal_map: "no_reviewed_node_geometry",
+      constraint_lines: "no_reviewed_station_geometry",
+    },
+  };
+}
+
 export async function installMarketGeographyApi(
   page: Page,
   requests: string[],
   options: {
+    disabled?: boolean;
     gapCount?: number;
     historyError?: boolean;
     manifestError?: boolean;
@@ -126,6 +178,7 @@ export async function installMarketGeographyApi(
       return route.fulfill({ status: 503, json: { error: "temporarily_unavailable" } });
     }
     const priceTarget = options.priceTarget ?? PRICE_TARGET;
+    if (options.disabled) return route.fulfill({ json: unavailableMarketManifest(priceTarget) });
     const prices = priceRows(priceTarget);
     const scedTarget = options.priceTarget === undefined ? SCED_TARGET : priceTarget - 42;
     const constraint = {
@@ -234,7 +287,7 @@ export async function installMarketGeographyApi(
         product_id: "NP6-905-CD",
         identity,
         interval_seconds: 900,
-        rows: priceRows(options.priceTarget ?? PRICE_TARGET).filter(
+        rows: (options.disabled ? [] : priceRows(options.priceTarget ?? PRICE_TARGET)).filter(
           (row) =>
             row.settlement_point === point &&
             row.settlement_point_type === type &&

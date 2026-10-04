@@ -703,13 +703,14 @@ export function App() {
     const requestedCharts = chartDefinitions
       .filter(
         (chart) =>
-          !(selectedView === "overview" && chart.id === "pricing") &&
           (selectedView === "overview"
             ? overviewChartIds.has(chart.id) || engineeringChartIds.has(chart.id)
             : dashboardViewForGroup(chart.group) === selectedView) &&
-          (activeChartIds.has(chart.id) ||
+          ((selectedView === "overview" && chart.id === "pricing"
+            ? activeChartIds.has("pricing-collection")
+            : activeChartIds.has(chart.id)) ||
             (selectedView === "overview" &&
-              ["supply-demand", "capacity-headroom", "pricing", "frequency"].includes(chart.id)) ||
+              ["supply-demand", "capacity-headroom", "frequency"].includes(chart.id)) ||
             (selectedView === "overview" &&
               chart.id === "capacity-headroom" &&
               activeChartIds.has("overview-headroom"))) &&

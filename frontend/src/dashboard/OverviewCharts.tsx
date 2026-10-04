@@ -30,6 +30,21 @@ const fuelChart = {
     "Selected reported categories; not total system generation. Signed storage is shown separately. Missing observations remain gaps.",
   series: definition("fuel-mix").series.filter((series) => series.id !== "power-storage"),
 };
+// Keep collection history under a distinct display identity; never feed native selection.
+const collectionPriceChart: ChartDefinition = {
+  ...definition("pricing"),
+  id: "pricing-collection",
+  title: "Legacy core hub prices · collection history",
+  sourceId: "ercot_pricing",
+  description:
+    "Delivery interval unknown. Core ercot.pricing collection timestamps are preserved; these observations are independent of the selected NP6-905 delivery interval and point.",
+  series: definition("pricing").series.map((series) => ({
+    ...series,
+    temporal: temporalPolicy("pricing", series)!,
+  })),
+};
+delete collectionPriceChart.interpretation;
+
 const storageChart: ChartDefinition = { ...definition("storage"), zeroCentered: true };
 delete storageChart.interpretation;
 
@@ -241,6 +256,11 @@ export function OverviewCharts({
     }),
     [selected],
   );
+  const collectionSeries = new Map(seriesData);
+  for (const series of collectionPriceChart.series) {
+    const loaded = seriesData.get(`pricing:${series.id}`);
+    if (loaded) collectionSeries.set(`pricing-collection:${series.id}`, loaded);
+  }
   const displaySeries = new Map(seriesData);
   displaySeries.set(
     "pricing:interval",
@@ -335,8 +355,8 @@ export function OverviewCharts({
             <p role="status">
               {isLoading
                 ? "Loading price points…"
-                : rankingError
-                  ? "Price ranking unavailable. Historical series remain independent."
+                : rankingError || ranking?.settlement_interval.state === "unavailable"
+                  ? "Settlement source unavailable. Core collection history remains independent."
                   : "No settlement prices reported."}
             </p>
           )}
@@ -352,6 +372,9 @@ export function OverviewCharts({
               </p>
             </section>
           )}
+        </div>
+        <div className="homepage-full">
+          {renderChart(collectionPriceChart, "overview", collectionSeries)}
         </div>
         <div className="homepage-full homepage-frequency">
           {renderChart(definition("frequency"), "overview")}
