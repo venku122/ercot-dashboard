@@ -1195,6 +1195,7 @@ test("visual regression progressive-disclosure desktop views", async ({ page }) 
 
 for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
   test(`visual regression ${scenario}`, async ({ page }) => {
+    const evidence = observeVisualSources(page);
     await installApi(page, scenario);
     await page.goto("/");
     if (scenario === "stale") await page.getByRole("button", { name: "Generation view" }).click();
@@ -1211,6 +1212,7 @@ for (const scenario of ["normal", "spike", "negative", "stale"] as const) {
       await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
       await page.waitForLoadState("networkidle");
     }
+    await evidence.capture(`${scenario}-${chartId}`, card);
     const maxDiffPixelRatio = scenario === "negative" ? 0.025 : scenario === "stale" ? 0.02 : 0.005;
     const capture = () =>
       expect(card).toHaveScreenshot(`${scenario}-${chartId}.png`, { maxDiffPixelRatio });
