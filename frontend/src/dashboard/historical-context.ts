@@ -390,10 +390,7 @@ function parseExtrema(
   };
 }
 
-export function historicalContextAsOf(end: number): number {
-  if (!Number.isFinite(end) || end < 0) throw new Error("invalid_historical_context_as_of");
-  return Math.floor(end / 3_600) * 3_600;
-}
+export { historicalContextAsOf } from "./historical-context-clock";
 
 export function historicalContextResolverUrl(asOf: number): string {
   if (!Number.isSafeInteger(asOf) || asOf < 0 || asOf % 3_600 !== 0) {

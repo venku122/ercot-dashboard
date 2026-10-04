@@ -170,12 +170,12 @@ export const marketSeries: Record<string, string> = {
   HB_NORTH: "north",
   HB_WEST: "west",
 };
-export const marketTime = (ts: number) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(ts * 1000);
+const marketDateFormat = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
+export const marketTime = (ts: number) => marketDateFormat.format(ts * 1000);

@@ -1,3 +1,5 @@
+import { retainChartSeriesData } from "./chart-series-data";
+import { isPreviousSelection, selectionDescription } from "./history-selection";
 import { seriesIntervalLabel, intervalPlotPoints } from "./interval-price-series";
 import {
   observationAt,
@@ -8,10 +10,8 @@ import {
 import "chartjs-adapter-date-fns";
 
 import {
-  CategoryScale,
   Chart as ChartJs,
   Filler,
-  Legend,
   LineController,
   LineElement,
   LinearScale,
@@ -23,7 +23,7 @@ import {
   type ScatterDataPoint,
 } from "chart.js";
 import zoomPlugin from "chartjs-plugin-zoom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { seriesKey } from "./chart-config";
@@ -39,7 +39,6 @@ import { chartGroupDisplayLabel } from "./information-architecture";
 import { chartInteractionPolicy } from "./interaction-policy";
 import { resolveDataLifecycleState } from "./data-lifecycle";
 import { seriesStats } from "./stats";
-import { StorageOperationsSummary } from "./StorageOperationsSummary";
 import type {
   ChartDefinition,
   CompareMode,
@@ -52,15 +51,19 @@ import type {
 import { formatAge, formatValue } from "./units";
 import { useVisible } from "./use-visible";
 
+const StorageOperationsSummary = lazy(() =>
+  import("./StorageOperationsSummary").then((module) => ({
+    default: module.StorageOperationsSummary,
+  })),
+);
+
 ChartJs.register(
-  CategoryScale,
   LinearScale,
   TimeScale,
   LineController,
   LineElement,
   PointElement,
   Tooltip,
-  Legend,
   Filler,
   zoomPlugin,
 );
@@ -68,6 +71,7 @@ ChartJs.register(
 type Props = {
   chart: ChartDefinition;
   compare: CompareMode;
+  customCompareSeconds?: number;
   events: EventRecord[];
   hiddenSeries: Set<string>;
   inspect: boolean;
@@ -85,7 +89,27 @@ type Props = {
   seriesData: Map<string, LoadedSeries>;
   sourceHealth: SourceHealth | null;
   time: TimeState;
+  selectionTime?: TimeState;
 };
+
+const tickDate = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  month: "short",
+  day: "numeric",
+});
+const tickHour = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric" });
+const tickTime = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  hour: "numeric",
+  minute: "2-digit",
+});
+const tickDateTime = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Chicago",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 const cursorByChart = new WeakMap<ChartJs<"line">, number | null>();
 function CursorLegendValue({
@@ -94,11 +118,13 @@ function CursorLegendValue({
   unit,
   visible,
   policy,
+  previousSelection = false,
 }: {
   loaded: LoadedSeries | undefined;
   latest: number | null;
   unit: string;
   visible: boolean;
+  previousSelection?: boolean;
   policy: import("./types").SeriesTemporalPolicy | undefined;
 }) {
   const [cursor, setCursor] = useState(chartCoordinator.snapshot().timestamp);
@@ -117,9 +143,11 @@ function CursorLegendValue({
       data-value-scope={cursor === null ? "window-latest" : "cursor"}
       title={
         cursor === null
-          ? policy?.cursor.mode === "interval" && loaded?.points.length
-            ? `Latest interval in selected window · ${seriesIntervalLabel(loaded, loaded.points.at(-1)![0])}`
-            : "Latest value in selected window"
+          ? previousSelection
+            ? "Latest value from previous selection"
+            : policy?.cursor.mode === "interval" && loaded?.points.length
+              ? `Latest interval in selected window · ${seriesIntervalLabel(loaded, loaded.points.at(-1)![0])}`
+              : "Latest value in selected window"
           : sample
             ? policy?.cursor.mode === "interval"
               ? policy.kind === "forecast"
@@ -223,6 +251,7 @@ function downloadCsv(chart: ChartDefinition, data: Map<string, LoadedSeries>) {
 export function ChartCard({
   chart,
   compare,
+  customCompareSeconds = 0,
   events,
   hiddenSeries,
   inspect,
@@ -240,11 +269,27 @@ export function ChartCard({
   seriesData,
   sourceHealth,
   time,
+  selectionTime = time,
 }: Props) {
+  const appliedData = useRef<{
+    instance: ChartJs<"line">;
+    datasets: Array<ChartDataset<"line", ScatterDataPoint[]>>;
+    events: EventRecord[];
+    start: number;
+    end: number;
+    zeroCentered: boolean | undefined;
+  } | null>(null);
+  const appliedInteraction = useRef<{
+    instance: ChartJs<"line">;
+    policy: ReturnType<typeof chartInteractionPolicy>;
+    inspect: boolean;
+    presentation: Props["presentation"];
+  } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorLineRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartJs<"line"> | null>(null);
   const accessibleDataRef = useRef<HTMLDetailsElement>(null);
+  const [dataTableOpen, setDataTableOpen] = useState(false);
   const inspectTriggerRef = useRef<HTMLButtonElement>(null);
   const cursorTimestamp = useRef<number | null>(null);
   const pointerDown = useRef<{ x: number; y: number } | null>(null);
@@ -297,6 +342,21 @@ export function ChartCard({
     return () => onVisibilityChange(chart.id, false);
   }, [chart.id, onVisibilityChange, visible]);
 
+  const previousSelections = visibleSeries.flatMap((series) => {
+    const loaded = seriesData.get(seriesKey(chart.id, series.id));
+    const completed = loaded?.meta.completed_selection;
+    return loaded?.points.length &&
+      completed &&
+      isPreviousSelection(completed, selectionTime, compare, customCompareSeconds)
+      ? [selectionDescription(completed)]
+      : [];
+  });
+  const previousSelectionNote = [...new Set(previousSelections)].join("; ");
+
+  const plotSourceRef = useRef<Map<string, LoadedSeries> | undefined>(undefined);
+  const plotSeriesData = retainChartSeriesData(chart, seriesData, plotSourceRef.current);
+  plotSourceRef.current = plotSeriesData;
+
   const datasets = useMemo<Array<ChartDataset<"line", ScatterDataPoint[]>>>(() => {
     const output: Array<ChartDataset<"line", ScatterDataPoint[]>> = [];
     const stacked = chart.id === "fuel-mix" && presentation === "overview";
@@ -304,7 +364,7 @@ export function ChartCard({
       ? alignedGeneration(
           visibleSeries.map(
             (series) =>
-              seriesData.get(seriesKey(chart.id, series.id)) ?? {
+              plotSeriesData.get(seriesKey(chart.id, series.id)) ?? {
                 points: [],
                 compare: [],
                 meta: {},
@@ -315,7 +375,7 @@ export function ChartCard({
       : [];
     for (const series of visibleSeries) {
       const key = seriesKey(chart.id, series.id);
-      const loaded = seriesData.get(key);
+      const loaded = plotSeriesData.get(key);
       const hidden = hiddenSeries.has(key);
       output.push({
         label: series.label,
@@ -365,7 +425,7 @@ export function ChartCard({
       });
       if (compare !== "none" && loaded?.compare.length) {
         output.push({
-          label: `${series.label} · ${compare.replace("_", " ")}`,
+          label: `${series.label} · ${(isPreviousSelection(loaded.meta.completed_selection, selectionTime, compare, customCompareSeconds) ? loaded.meta.completed_selection!.compare : compare).replace("_", " ")}`,
           data:
             temporalPolicy(chart.id, series)?.cursor.mode === "interval"
               ? intervalPlotPoints(loaded.compare, loaded.meta.comparison_intervals ?? [], {
@@ -394,7 +454,17 @@ export function ChartCard({
       }
     }
     return output;
-  }, [chart, compare, hiddenSeries, seriesData, visibleSeries, presentation, time.start, time.end]);
+  }, [
+    chart,
+    compare,
+    customCompareSeconds,
+    selectionTime,
+    hiddenSeries,
+    plotSeriesData,
+    visibleSeries,
+    presentation,
+    time,
+  ]);
   const hasData = visibleSeries.some(
     (series) => (seriesData.get(seriesKey(chart.id, series.id))?.points.length ?? 0) > 0,
   );
@@ -651,26 +721,11 @@ export function ChartCard({
             ticks: {
               callback: (value) => {
                 if (mobile && dynamic.current.time.rangeSeconds > 86400) {
-                  return [
-                    new Intl.DateTimeFormat("en-US", {
-                      timeZone: "America/Chicago",
-                      month: "short",
-                      day: "numeric",
-                    }).format(Number(value)),
-                    new Intl.DateTimeFormat("en-US", {
-                      timeZone: "America/Chicago",
-                      hour: "numeric",
-                    }).format(Number(value)),
-                  ];
+                  return [tickDate.format(Number(value)), tickHour.format(Number(value))];
                 }
-                return new Intl.DateTimeFormat("en-US", {
-                  timeZone: "America/Chicago",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  ...(dynamic.current.time.rangeSeconds > 86400
-                    ? ({ month: "short", day: "numeric" } as const)
-                    : {}),
-                }).format(Number(value));
+                return (dynamic.current.time.rangeSeconds > 86400 ? tickDateTime : tickTime).format(
+                  Number(value),
+                );
               },
               autoSkip: true,
               color: "#aebdd0",
@@ -716,6 +771,20 @@ export function ChartCard({
         },
       },
     });
+    appliedData.current = {
+      instance,
+      datasets: dynamic.current.datasets,
+      events: dynamic.current.events,
+      start: dynamic.current.time.start,
+      end: dynamic.current.time.end,
+      zeroCentered: chart.zeroCentered,
+    };
+    appliedInteraction.current = {
+      instance,
+      policy: dynamic.current.interactionPolicy,
+      inspect,
+      presentation,
+    };
     window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
     window.__ercotChartLifecycle.constructed += 1;
     chartRef.current = instance;
@@ -727,6 +796,7 @@ export function ChartCard({
     cursorByChart.set(instance, initialCursor.timestamp);
     pinnedByChart.set(instance, initialCursor.pinned);
     setPinned(initialCursor.pinned);
+    if (initialCursor.timestamp !== null) instance.draw();
     const unsubscribe = chartCoordinator.subscribe((timestamp, isPinned) => {
       if (!cursorActive.current) return;
       cursorTimestamp.current = timestamp;
@@ -753,6 +823,14 @@ export function ChartCard({
     const instance = chartRef.current;
     const zoomOptions = instance?.options.plugins?.zoom;
     if (!instance || !zoomOptions) return;
+    const previous = appliedInteraction.current;
+    if (
+      previous?.instance === instance &&
+      previous.policy === interactionPolicy &&
+      previous.inspect === inspect &&
+      previous.presentation === presentation
+    )
+      return;
     instance.options.events =
       inspect || presentation !== "overview"
         ? ["mousemove", "mouseout", "click", "touchstart", "touchmove"]
@@ -779,11 +857,37 @@ export function ChartCard({
       },
     };
     instance.update("none");
+    appliedInteraction.current = { instance, policy: interactionPolicy, inspect, presentation };
   }, [interactionPolicy, inspect, presentation]);
 
   useEffect(() => {
     const instance = chartRef.current;
     if (!instance) return;
+    const maximum = chart.zeroCentered
+      ? Math.max(
+          1,
+          ...datasets.flatMap((dataset) =>
+            dataset.data
+              .filter((point) => Number.isFinite(point.y))
+              .map((point) => Math.abs(point.y ?? 0)),
+          ),
+        )
+      : null;
+    const previous = appliedData.current;
+    const currentY = instance.options.scales?.["y"];
+    const domainMatches =
+      maximum === null ||
+      (currentY?.suggestedMin === -maximum && currentY?.suggestedMax === maximum);
+    if (
+      previous?.instance === instance &&
+      previous.datasets === datasets &&
+      previous.events === events &&
+      previous.start === time.start &&
+      previous.end === time.end &&
+      previous.zeroCentered === chart.zeroCentered &&
+      domainMatches
+    )
+      return;
     instance.data.datasets = datasets;
     const xScale = instance.options.scales?.["x"];
     if (xScale) {
@@ -791,25 +895,25 @@ export function ChartCard({
       xScale.max = time.end * 1000;
     }
     const yScale = instance.options.scales?.["y"];
-    if (chart.zeroCentered && yScale) {
-      const maximum = Math.max(
-        1,
-        ...datasets.flatMap((dataset) =>
-          dataset.data
-            .filter((point) => Number.isFinite(point.y))
-            .map((point) => Math.abs(point.y ?? 0)),
-        ),
-      );
+    if (maximum !== null && yScale) {
       yScale.suggestedMin = -maximum;
       yScale.suggestedMax = maximum;
     }
     instance.update("none");
+    appliedData.current = {
+      instance,
+      datasets,
+      events,
+      start: time.start,
+      end: time.end,
+      zeroCentered: chart.zeroCentered,
+    };
     instance.canvas.dataset["chartReady"] = datasets.some((dataset) => dataset.data.length)
       ? "true"
       : "false";
     window.__ercotChartLifecycle ??= { constructed: 0, destroyed: 0, updated: 0 };
     window.__ercotChartLifecycle.updated += 1;
-  }, [datasets, events, seriesData, time.end, time.start, chart.zeroCentered]);
+  }, [datasets, events, time.end, time.start, chart.zeroCentered]);
 
   const allPoints = visibleSeries.flatMap(
     (series) => seriesData.get(seriesKey(chart.id, series.id))?.points ?? [],
@@ -871,6 +975,12 @@ export function ChartCard({
           unit={chart.unit}
           visible={visible}
           policy={temporalPolicy(chart.id, series)}
+          previousSelection={isPreviousSelection(
+            loaded?.meta.completed_selection,
+            selectionTime,
+            compare,
+            customCompareSeconds,
+          )}
         />
       ) : (
         <span className="legend-latest">{formatValue(stats.latest, chart.unit)}</span>
@@ -1062,8 +1172,22 @@ export function ChartCard({
         </div>
       ) : null}
 
+      {previousSelectionNote ? (
+        <p className="homepage-chart-note" role="status">
+          Previous selection: {previousSelectionNote}. Displayed measurements and statistics are
+          retained from that selection until measurements for the selected context arrive. Any
+          retained comparison belongs to the previous comparison mode.
+        </p>
+      ) : null}
+
       {chart.id === "storage" && (presentation !== "overview" || inspect) ? (
-        <StorageOperationsSummary seriesData={seriesData} sourceHealth={sourceHealth} time={time} />
+        <Suspense fallback={<p role="status">Loading storage operations interface…</p>}>
+          <StorageOperationsSummary
+            seriesData={seriesData}
+            sourceHealth={sourceHealth}
+            time={time}
+          />
+        </Suspense>
       ) : null}
 
       {inspect && mobile ? (
@@ -1185,7 +1309,10 @@ export function ChartCard({
       {hasData || (mobile && presentation === "overview") ? (
         <div className={`series-legend legend-${legendMode}`}>
           {legendMode === "expanded" ? (
-            <table className="legend-table" aria-label={`${chart.title} series statistics`}>
+            <table
+              className="legend-table"
+              aria-label={`${chart.title} ${previousSelectionNote ? "previous selection " : ""}series statistics`}
+            >
               <thead>
                 <tr>
                   <th scope="col">Series</th>
@@ -1213,7 +1340,12 @@ export function ChartCard({
         </p>
       ) : null}
       {hasData ? (
-        <details className="accessible-data" ref={accessibleDataRef}>
+        <details
+          className="accessible-data"
+          ref={accessibleDataRef}
+          open={dataTableOpen}
+          onToggle={(event) => setDataTableOpen(event.currentTarget.open)}
+        >
           <summary>Accessible data table</summary>
           <p>
             Displayed source values. Dashed lines and * readouts indicate aggregate or unknown
@@ -1239,17 +1371,19 @@ export function ChartCard({
                 </tr>
               </thead>
               <tbody>
-                {visibleSeries.flatMap((series) =>
-                  (seriesData.get(seriesKey(chart.id, series.id))?.points ?? [])
-                    .slice(-250)
-                    .map(([timestamp, value]) => (
-                      <tr key={`${series.id}:${timestamp}`}>
-                        <td>{series.label}</td>
-                        <td>{new Date(timestamp * 1000).toISOString()}</td>
-                        <td>{formatValue(value, chart.unit)}</td>
-                      </tr>
-                    )),
-                )}
+                {dataTableOpen
+                  ? visibleSeries.flatMap((series) =>
+                      (seriesData.get(seriesKey(chart.id, series.id))?.points ?? [])
+                        .slice(-250)
+                        .map(([timestamp, value]) => (
+                          <tr key={`${series.id}:${timestamp}`}>
+                            <td>{series.label}</td>
+                            <td>{new Date(timestamp * 1000).toISOString()}</td>
+                            <td>{formatValue(value, chart.unit)}</td>
+                          </tr>
+                        )),
+                    )
+                  : null}
               </tbody>
             </table>
           </div>

@@ -1,0 +1,11 @@
+# Cold startup and warm selection follow-up
+
+Remote head82624 measured five cold runs with median3015.401138ms, a genuine FAIL against2500ms; head625bb measured3929.036916ms. Their pointer/source-count/zero-interaction-history gates passed. The earlier controlled Mac9fc result2480.138167ms remains a separate historical PASS. None is a final result for the repairs below.
+
+The remote profile reports557.653ms of DevTools command time. The measurement observer issued a browser evaluation for every partially collected hourly tile. It now reads and retains every response but publishes only when demand, capacity and paired headroom have matching source epochs, and only when that coherent oracle changes. This strengthens readiness rather than accepting partial tiles. A genuine unit RED→GREEN covers a missing pair, mismatched pair clock, coherent actual pair, legacy compatible subtraction and mismatched actual clocks. Five-run median, numerical limits, changed-readout count, real GET/POST history accounting and the four native fixture files are unchanged. Baseline and candidate require the identical updated observer before comparing results; the old measurements are preserved.
+
+The production Overview preloads its stable opt-in catalog while the entry script transfers. It uses the browser's existing fetch preload and the existing canonical loader; it introduces no persistence or request cache framework. Other specialist deep links do not speculate an Overview catalog request. Real browser checks hold the entry script until the catalog is observed, then confirm populated source-matching plots and one request to that canonical catalog URL.
+
+The startup scheduler's first-plot split now applies only before the first completed core selection. Warm range changes batch eligible histories together. The existing twenty rapid commits test previously reproduced40 requests against its unchanged30-request ceiling; it now passes. A separate delayed-frequency test preserves the cold first-plot behavior. Obsolete work, source gates, historical windows and concurrency limits are unchanged.
+
+Final strict numerical measurement, final cumulative reruns and exact-head Linux corroboration are required; this document does not declare them complete.

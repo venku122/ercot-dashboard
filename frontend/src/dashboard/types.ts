@@ -92,6 +92,8 @@ export type ChartDefinition = {
 };
 
 export type SeriesMeta = {
+  // Actual completed frontend request context; source metadata remains unchanged.
+  completed_selection?: TimeState & { compare: CompareMode; customCompareSeconds: number };
   observed_envelope_support?: Array<{ start: number; end: number }>;
   comparison_observed_envelope_support?: Array<{ start: number; end: number }>;
   coverage?: "complete" | "partial" | "unknown";

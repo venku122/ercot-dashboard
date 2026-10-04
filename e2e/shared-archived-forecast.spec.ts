@@ -57,7 +57,7 @@ for (const width of [320, 390, 768, 1440]) {
         .filter({ hasText: "Forecast issued before delivery" });
       // The source target-window contract includes the left ending-hour edge.
       // Rendering may remove that non-overlapping edge under delivery-interval policy.
-      expect(await rows.count()).toBeGreaterThanOrEqual(hours);
+      await expect.poll(() => rows.count()).toBeGreaterThanOrEqual(hours);
       expect(await rows.count()).toBeLessThanOrEqual(hours + 1);
       const payload = await archives[0]!.json();
       expect(payload.coverage.expected_target_count).toBe(hours + 1);

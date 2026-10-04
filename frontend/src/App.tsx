@@ -17,6 +17,12 @@ import { MobileDialog } from "./components/MobileDialog";
 import { DataLifecycleMessage } from "./components/DataLifecycleMessage";
 import { Button } from "./components/ui/button";
 import { loadSeries } from "./dashboard/api";
+import {
+  chartRequestError,
+  updateChartRequestErrors,
+  type ChartRequestErrors,
+} from "./dashboard/chart-request-errors";
+import { afterColdHistoryPaint } from "./dashboard/cold-history-handoff";
 import { shouldCommitRequest } from "./dashboard/request-generation";
 import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
@@ -35,7 +41,6 @@ import {
   resolveDataLifecycleState,
   type DataLifecycleState,
 } from "./dashboard/data-lifecycle";
-import { OperationsTimeline } from "./dashboard/OperationsTimeline";
 import { buildDerivedMetrics } from "./dashboard/derived-metrics";
 import { useOverviewData, useOutlookData } from "./dashboard/data-hooks";
 import { OverviewOutlook } from "./dashboard/OverviewOutlook";
@@ -55,7 +60,7 @@ import {
 } from "./dashboard/information-architecture";
 import { buildHeroTrend, unavailableHeroTrend, type HeroTrend } from "./dashboard/hero-trends";
 import { buildGridHealthScore } from "./dashboard/grid-health-score";
-import { historicalContextAsOf } from "./dashboard/historical-context";
+import { historicalContextAsOf } from "./dashboard/historical-context-clock";
 import { buildOperatingSummary } from "./dashboard/operating-summary";
 import {
   ERCOT_CALENDAR_PRESETS,
@@ -67,6 +72,7 @@ import { formatWindCondition, weatherStations } from "./dashboard/weather";
 import type {
   CompareMode,
   DashboardState,
+  EventRecord,
   LegendMode,
   LoadedSeries,
   SourceHealth,
@@ -86,6 +92,11 @@ import {
   TimeRangePicker,
 } from "./time-range";
 
+const OperationsTimeline = lazy(() =>
+  import("./dashboard/OperationsTimeline").then((module) => ({
+    default: module.OperationsTimeline,
+  })),
+);
 const ChartCard = lazy(() =>
   import("./dashboard/ChartCard").then((module) => ({ default: module.ChartCard })),
 );
@@ -128,6 +139,8 @@ const ExternalContextView = lazy(() =>
     default: module.ExternalContextView,
   })),
 );
+
+const EMPTY_EVENTS: EventRecord[] = [];
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -564,9 +577,16 @@ export function App() {
   const seriesDataRef = useRef(seriesData);
   const requestGenerationRef = useRef(0);
   const historyControllers = useRef(new Set<AbortController>());
+  const coldHandoff = useRef<{
+    controller: AbortController;
+    cancel: () => void;
+    view: DashboardViewId;
+  } | null>(null);
   const [historyQueueRevision, setHistoryQueueRevision] = useState(0);
   useEffect(
     () => () => {
+      coldHandoff.current?.cancel();
+      coldHandoff.current = null;
       for (const controller of historyControllers.current) controller.abort();
       historyControllers.current.clear();
       loadedChartIdsRef.current.clear();
@@ -578,6 +598,7 @@ export function App() {
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [chartRequestErrors, setChartRequestErrors] = useState<ChartRequestErrors>(() => new Map());
   const [requestRevision, setRequestRevision] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const collapsed = initiallyCollapsedGroups(initialMobile);
@@ -591,6 +612,8 @@ export function App() {
   const loadedChartIdsRef = useRef<Set<string>>(new Set());
   const [mobileDialog, setMobileDialog] = useState<MobileDialogName>(null);
   const [selectedView, setSelectedView] = useState<DashboardViewId>(initialView);
+  const selectedViewRef = useRef(selectedView);
+  selectedViewRef.current = selectedView;
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const controlsTriggerRef = useRef<HTMLButtonElement>(null);
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
@@ -643,7 +666,11 @@ export function App() {
     overviewQueries,
     time: resolvedTime,
   });
-  const effectiveRequestError = overviewError ?? requestError;
+  const effectiveRequestError =
+    overviewError ??
+    requestError ??
+    [...chartRequestErrors.values()].flatMap((cohort) => [...cohort.values()])[0] ??
+    null;
 
   useEffect(() => {
     seriesDataRef.current = seriesData;
@@ -701,6 +728,8 @@ export function App() {
     ]);
     const priorSeriesData = seriesDataRef.current;
     if (loadedChartContextRef.current !== loadContext) {
+      coldHandoff.current?.cancel();
+      coldHandoff.current = null;
       for (const pending of historyControllers.current) pending.abort();
       historyControllers.current.clear();
       requestGenerationRef.current += 1;
@@ -708,10 +737,15 @@ export function App() {
       loadedChartIdsRef.current.clear();
     }
     const requestGeneration = requestGenerationRef.current;
+    if (coldHandoff.current && coldHandoff.current.view !== selectedView) {
+      coldHandoff.current.cancel();
+      historyControllers.current.delete(coldHandoff.current.controller);
+      coldHandoff.current = null;
+    }
     // Serialize visibility batches. New placements reuse completed data and wait
     // for the current batch instead of aborting and duplicating its requests.
     if (historyControllers.current.size) return;
-    const requestedCharts = chartDefinitions
+    let requestedCharts = chartDefinitions
       .filter(
         (chart) =>
           (selectedView === "overview"
@@ -739,6 +773,22 @@ export function App() {
         series: headroomChart.series.filter((series) => series.id === "headroom"),
       });
     }
+    let coldPriorityBatch = false;
+    // Prioritize the cold first useful plots. Once a core request has completed,
+    // batch warm selection changes together instead of doubling their requests.
+    // Every cold deferred key remains unmarked for the serialized queue.
+    if (
+      selectedView === "overview" &&
+      !priorSeriesData.get("supply-demand:demand")?.meta.completed_selection
+    ) {
+      const firstPlots = requestedCharts.filter((chart) =>
+        ["supply-demand", "capacity-headroom", "overview-headroom"].includes(chart.id),
+      );
+      if (firstPlots.length) {
+        requestedCharts = firstPlots;
+        coldPriorityBatch = true;
+      }
+    }
     if (!requestedCharts.length) {
       setLoading(false);
       return;
@@ -760,7 +810,32 @@ export function App() {
           !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
         )
           return;
-        setSeriesData((current) => new Map([...current, ...nextSeries]));
+        setChartRequestErrors((current) =>
+          updateChartRequestErrors(current, requestedCharts, null),
+        );
+        setSeriesData(
+          (current) =>
+            new Map([
+              ...current,
+              ...[...nextSeries].map(
+                ([key, loaded]) =>
+                  [
+                    key,
+                    {
+                      ...loaded,
+                      meta: {
+                        ...loaded.meta,
+                        completed_selection: {
+                          ...resolvedTime,
+                          compare: state.compare,
+                          customCompareSeconds: state.customCompareSeconds,
+                        },
+                      },
+                    },
+                  ] as const,
+              ),
+            ]),
+        );
         setSeriesTime(resolvedTime);
       })
       .catch((error: unknown) => {
@@ -770,16 +845,33 @@ export function App() {
           return;
         // Keep failed keys attempted for this generation. Explicit retry or a
         // new window invalidates them; the visibility queue must not hot-loop.
-        setRequestError(error instanceof Error ? error.message : String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        setChartRequestErrors((current) =>
+          updateChartRequestErrors(current, requestedCharts, message),
+        );
+        setRequestError(message);
       })
       .finally(() => {
-        historyControllers.current.delete(controller);
+        const release = () => {
+          historyControllers.current.delete(controller);
+          if (coldHandoff.current?.controller === controller) coldHandoff.current = null;
+          if (
+            shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+          ) {
+            setLoading(false);
+            setHistoryQueueRevision((value) => value + 1);
+          }
+        };
         if (
+          coldPriorityBatch &&
+          selectedViewRef.current === selectedView &&
           shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
         ) {
-          setLoading(false);
-          setHistoryQueueRevision((value) => value + 1);
-        }
+          // Reserve this controller through the paint opportunity so visibility
+          // changes cannot start another batch early. Warm batches release now.
+          const cancel = afterColdHistoryPaint(controller.signal, release);
+          coldHandoff.current = { controller, cancel, view: selectedView };
+        } else release();
       });
   }, [
     historyQueueRevision,
@@ -1086,7 +1178,8 @@ export function App() {
       <ChartCard
         chart={chart}
         compare={state.compare}
-        events={state.events ? events : []}
+        customCompareSeconds={state.customCompareSeconds}
+        events={state.events ? events : EMPTY_EVENTS}
         hiddenSeries={state.hiddenSeries}
         inspect={state.expandedChart === chart.id}
         legendMode={state.legendMode}
@@ -1112,12 +1205,13 @@ export function App() {
         onVisibilityChange={setChartVisible}
         onZoom={onZoom}
         presentation={presentation}
-        requestError={effectiveRequestError}
+        requestError={chartRequestError(chartRequestErrors, chart) ?? overviewError}
         seriesData={
           overrideSeriesData ?? (selectedView === "overview" ? overviewSeriesData : seriesData)
         }
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
         time={seriesTime}
+        selectionTime={resolvedTime}
       />
     </Suspense>
   );
@@ -1600,11 +1694,13 @@ export function App() {
         returnFocusRef={eventsTriggerRef}
         title="Operations timeline"
       >
-        <OperationsTimeline
-          events={events}
-          loading={eventsLoading}
-          unavailable={eventsUnavailable}
-        />
+        <Suspense fallback={<p role="status">Loading operations interface…</p>}>
+          <OperationsTimeline
+            events={events}
+            loading={eventsLoading}
+            unavailable={eventsUnavailable}
+          />
+        </Suspense>
       </MobileDialog>
 
       <footer>
