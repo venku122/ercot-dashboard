@@ -20,7 +20,7 @@ test("Texas Grid navigation and exact evidence are contained on mobile @mobile-c
   await expect(page).toHaveURL(/view=texas-grid/);
   const panel = page.getByRole("region", { name: "Texas Grid long-horizon evidence" });
   await expect(panel).toBeVisible();
-  expect(requests).toEqual(["/api/v1/texas-grid"]);
+  await expect.poll(() => requests).toEqual(["/api/v1/texas-grid"]);
 
   const open = panel.getByRole("button", { name: "Open capacity history" });
   const openBox = await open.boundingBox();
@@ -38,6 +38,8 @@ test("Texas Grid navigation and exact evidence are contained on mobile @mobile-c
     /auto|scroll/,
   );
   await expectNoHorizontalOverflow(page);
+  await expect(exact.getByRole("table")).toBeVisible();
+  expect(requests.filter((request) => request === "/api/v1/texas-grid")).toHaveLength(1);
   expect(requests.filter((request) => request.startsWith("/api/v2/"))).toHaveLength(1);
 });
 

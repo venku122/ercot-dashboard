@@ -7,10 +7,14 @@ test("mobile picker is an opaque focus-trapped sheet without overflow @mobile-co
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await installMobileApi(page);
-  await page.goto("/");
+  // Overview has intentionally hidden playback since the original homepage layout.
+  // Exercise all real playback targets on the complete Generation controls.
+  await page.goto("/?view=generation");
   const trigger = page.locator(".time-range-picker__cluster .time-range-picker__input");
   for (const name of ["Step back", "Pause", "Step forward"]) {
     const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   }
