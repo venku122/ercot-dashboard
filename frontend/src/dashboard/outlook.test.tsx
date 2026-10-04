@@ -150,6 +150,53 @@ describe("Grid Outlook contract", () => {
     expect(outlook.weather.driver).toBeNull();
   });
 
+  it("keeps the next-24 peak separate from the seven-day peak and preserves missing hours", () => {
+    const input = fixture();
+    input.forecast.rows[1]!.demand_mw = null as never;
+    const outlook = buildGridOutlook(parseOutlookResponse(input), NOW);
+    expect(outlook.projectedPeakMw).toBe(70_167);
+    expect(
+      (
+        outlook as unknown as {
+          next24: {
+            peakDemandMw: number;
+            rows: Array<{ demand_mw: number | null }>;
+            observedCount: number;
+            expectedCount: number;
+          };
+        }
+      ).next24,
+    ).toMatchObject({ peakDemandMw: 70_023, observedCount: 23, expectedCount: 24 });
+    expect(
+      (outlook as unknown as { next24: { rows: Array<{ demand_mw: number | null }> } }).next24
+        .rows[1]!.demand_mw,
+    ).toBeNull();
+  });
+
+  it("does not visually join across an omitted hour", () => {
+    const input = fixture();
+    input.forecast.rows = [
+      input.forecast.rows[0]!,
+      input.forecast.rows[1]!,
+      input.forecast.rows[3]!,
+      input.forecast.rows[4]!,
+    ];
+    const html = renderToStaticMarkup(
+      <OutlookContent outlook={buildGridOutlook(parseOutlookResponse(input), NOW)} />,
+    );
+    expect((html.match(/<polyline/g) ?? []).length).toBe(2);
+  });
+
+  it("does not show projected headroom without its product's own compatible capacity input", () => {
+    const input = fixture();
+    input.adequacy.rows.forEach((row) => {
+      row.available_generation_mw = null as never;
+    });
+    const outlook = buildGridOutlook(parseOutlookResponse(input), NOW);
+    expect(outlook.next24.peakDemandMw).toBe(70_023);
+    expect(outlook.next24.projectedHeadroomMw).toBeNull();
+  });
+
   it("groups 23-hour and 25-hour delivery days without UTC calendar inference", () => {
     const input = fixture();
     input.forecast.rows = input.forecast.rows.slice(0, 48);

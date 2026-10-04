@@ -5174,3 +5174,43 @@ body {
 .legend-table:has(th:nth-child(6)) th:last-child {
   width: 130px;
 }
+
+.overview-outlook {
+  min-width: 0;
+  margin-top: 16px;
+  padding: var(--ui-panel-padding);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #0e1728;
+}
+.overview-outlook header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ui-content-gap);
+}
+.overview-outlook header :is(p, h2) {
+  margin: 0;
+}
+.overview-outlook p {
+  overflow-wrap: anywhere;
+}
+.overview-outlook-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--ui-content-gap);
+}
+.overview-outlook-summary dd {
+  margin: 4px 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.overview-outlook .outlook-profile svg {
+  height: 100px;
+}
+.overview-outlook-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-content-gap);
+}

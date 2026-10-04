@@ -68,6 +68,26 @@ describe("Outlook request lifecycle", () => {
       tightestTargetTs: 1_800_003_600 + index * 86_400,
     }));
     const outlook: GridOutlook = {
+      next24: {
+        from: 1_800_000_000,
+        to: 1_800_086_400,
+        rows: [3600, 7200].map((offset, index) => ({
+          target_ts: 1_800_000_000 + offset,
+          demand_mw: 70_000 + index * 100,
+          delivery_date: "2027-01-15",
+          hour_ending: String(index + 1),
+          model: "A3",
+          dst_flag: false,
+          revision_mw: null,
+        })),
+        peakDemandMw: 70_100,
+        peakTargetTs: 1_800_007_200,
+        projectedHeadroomMw: 10_000,
+        tightestTargetTs: 1_800_003_600,
+        observedCount: 2,
+        expectedCount: 24,
+        adequacyObservedCount: 0,
+      },
       cards,
       days: cards.map((card) => ({
         card,

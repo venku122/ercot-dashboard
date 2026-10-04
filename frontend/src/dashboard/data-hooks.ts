@@ -72,6 +72,8 @@ export function useOutlookData(enabled: boolean) {
   });
 }
 
+export type OutlookDataRequest = ReturnType<typeof useOutlookData>;
+
 export function usePredictiveWeather(enabled: boolean) {
   const loader = useCallback((signal: AbortSignal) => loadPredictiveWeather(signal), []);
   return useAbortableResource(enabled, ["predictive-weather", "current"], loader);

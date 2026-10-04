@@ -100,7 +100,21 @@ export type OutlookDayDetail = {
   }>;
 };
 
+export type Next24Outlook = {
+  from: number;
+  to: number;
+  rows: OutlookForecastRow[];
+  peakDemandMw: number | null;
+  peakTargetTs: number | null;
+  projectedHeadroomMw: number | null;
+  tightestTargetTs: number | null;
+  observedCount: number;
+  expectedCount: number;
+  adequacyObservedCount: number;
+};
+
 export type GridOutlook = {
+  next24: Next24Outlook;
   cards: OutlookDayCard[];
   days: OutlookDayDetail[];
   forecastAgeSeconds: number | null;
@@ -417,7 +431,26 @@ function peak(rows: OutlookForecastRow[]) {
 export function buildGridOutlook(response: OutlookResponse, now: number): GridOutlook {
   if (!Number.isInteger(now) || now < 0) throw new Error("invalid_outlook_now");
   const futureRows = response.forecast.rows.filter((row) => row.target_ts > now);
-  const next24Rows = futureRows.filter((row) => row.target_ts <= now + 86_400);
+  const next24Rows =
+    response.forecast.publication && response.forecast.publication.issued_at <= now
+      ? futureRows.filter((row) => row.target_ts <= now + 86_400)
+      : [];
+  const next24Peak = peak(next24Rows);
+  const next24Adequacy =
+    response.adequacy.publication && response.adequacy.publication.issued_at <= now
+      ? response.adequacy.rows.filter(
+          (row) =>
+            row.target_ts > now &&
+            row.target_ts <= now + 86_400 &&
+            row.projected_headroom_mw !== null &&
+            row.available_generation_mw !== null,
+        )
+      : [];
+  const next24Tightest = next24Adequacy.reduce<OutlookAdequacyRow | null>(
+    (best, row) =>
+      best === null || row.projected_headroom_mw! < best.projected_headroom_mw! ? row : best,
+    null,
+  );
   const deliveryDates = [...new Set(futureRows.map((row) => row.delivery_date))].slice(0, 7);
   const adequacyByTarget = new Map(
     response.adequacy.rows.map((row) => [row.target_ts, row] as const),
@@ -469,6 +502,18 @@ export function buildGridOutlook(response: OutlookResponse, now: number): GridOu
   const models = new Set(sevenDayRows.map((row) => row.model));
   const publication = response.forecast.publication;
   return {
+    next24: {
+      from: now,
+      to: now + 86_400,
+      rows: next24Rows,
+      peakDemandMw: next24Peak?.demand_mw ?? null,
+      peakTargetTs: next24Peak?.target_ts ?? null,
+      projectedHeadroomMw: next24Tightest?.projected_headroom_mw ?? null,
+      tightestTargetTs: next24Tightest?.target_ts ?? null,
+      observedCount: next24Rows.filter((row) => row.demand_mw !== null).length,
+      expectedCount: 24,
+      adequacyObservedCount: next24Adequacy.length,
+    },
     cards,
     days,
     next24Hours: next24Rows.flatMap((row) =>
