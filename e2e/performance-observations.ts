@@ -1,5 +1,16 @@
 import type { Page } from "@playwright/test";
-import { formatValue } from "../frontend/src/dashboard/units";
+// Fixed test oracle shared byte-for-byte by baseline and candidate. It must
+// not execute either product's formatter/cache implementation outside the page.
+const oracleNumber = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 1,
+  useGrouping: true,
+});
+function formatObservedPower(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  const giga = Math.abs(value) >= 1000;
+  return `${oracleNumber.format(giga ? value / 1000 : value)} ${giga ? "GW" : "MW"}`;
+}
 
 export function isHistoryDataRequest(method: string, url: string): boolean {
   if (method !== "GET" && method !== "POST") return false;
@@ -93,9 +104,9 @@ export function observeHistory(page: Page, publishColdOracle = false) {
             ? capacity.value - demand.value
             : undefined;
         const oracle = {
-          demand: formatValue(demand?.value ?? null, "MW"),
-          capacity: formatValue(capacity?.value ?? null, "MW"),
-          headroom: formatValue(headroom ?? null, "MW"),
+          demand: formatObservedPower(demand?.value ?? null),
+          capacity: formatObservedPower(capacity?.value ?? null),
+          headroom: formatObservedPower(headroom ?? null),
         };
         await page.evaluate(
           (value) => Object.assign(window, { __performanceExpectedReadings: value }),
