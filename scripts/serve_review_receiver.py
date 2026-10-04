@@ -38,6 +38,19 @@ def seed_review_data(receiver, conn, end, days):
              "fuel-mix.nuclear": 5100, "fuel-mix.power-storage": 900,
              "storage.charging": -800, "storage.discharging": 1000,
              "storage.net-output": 200}
+    def value_at(key, ts, unit):
+        # The supported storage source reports all three values at the same epoch.
+        # Preserve its signed balance even though these review values are artificial.
+        if key == "storage.net-output":
+            return value_at("storage.charging", ts, "MW") + value_at("storage.discharging", ts, "MW")
+        base = bases.get(key, 8000 if unit == "MW" else 38)
+        if unit == "Hz":
+            base, amplitude = 60, 0.025
+        else:
+            amplitude = abs(base) * 0.1
+        phase = int(hashlib.sha256(key.encode()).hexdigest()[:4], 16) / 65535
+        return base + amplitude * math.sin((ts - start) / 43200 * math.pi + phase)
+
     rows = 0
     sources = {}
     for item in definitions:
@@ -46,13 +59,7 @@ def seed_review_data(receiver, conn, end, days):
         first = start // cadence * cadence
         metric, tags = item["metric"], item["tags"]
         series_id = receiver.resolve_series_id(conn, metric, tags)
-        base = bases.get(item["key"], 8000 if item["unit"] == "MW" else 38)
-        if item["unit"] == "Hz":
-            base, amplitude = 60, 0.025
-        else:
-            amplitude = abs(base) * 0.1
-        phase = int(hashlib.sha256(item["key"].encode()).hexdigest()[:4], 16) / 65535
-        values = [(metric, ts, base + amplitude * math.sin((ts - start) / 43200 * math.pi + phase),
+        values = [(metric, ts, value_at(item["key"], ts, item["unit"]),
                    cadence, "gauge", json.dumps(tags), series_id)
                   for ts in range(first, last + 1, cadence)]
         conn.executemany("INSERT INTO metrics(metric_name,ts,value,interval,metric_type,tags,series_id) VALUES(?,?,?,?,?,?,?)", values)
@@ -75,8 +82,10 @@ def seed_review_data(receiver, conn, end, days):
             "provenance": {"mode": "synthetic_local_review", "production": False},
             "availability_status": "available",
         }, current_ts=end)
+    first_raw, last_raw = conn.execute("SELECT min(ts),max(ts) FROM metrics").fetchone()
     return {"mode": "synthetic_local_review", "production": False,
-            "first_ts": start, "last_ts": end, "days": days, "metric_rows": rows,
+            "first_ts": first_raw, "last_ts": last_raw,
+            "requested_start_ts": start, "requested_end_ts": end, "days": days, "metric_rows": rows,
             "physical_series": len(definitions),
             "optional_domains": "not collected; genuine empty/unavailable receiver states",
             "database": "disposable process-owned SQLite; deleted on shutdown"}
