@@ -1,0 +1,152 @@
+{
+  "source_sha": "5b81f3dfe4b9ebd62003761ad2a0f72b6afb856e",
+  "run_id": 37196273260,
+  "desktop_job_id": 111418703975,
+  "artifact_id": 11301262624,
+  "artifact_archive_sha256": "2a47f242aef8df601af5cab6cd4f05d1aa61c366ac1a3ded9a0ff73955efbbc8",
+  "scope": "Six actual Linux frames at earliest slot09; no product,fixture,tolerance or assertion change.",
+  "frames": [
+    {
+      "name": "analytical-dashboard",
+      "target": "e2e/dashboard.spec.ts-snapshots/analytical-dashboard-chromium-linux-ubuntu-24.04.png",
+      "reason": "Only bottom historical-context/formula/footer layout moves by eight pixels; all upper charts, missing settlement source, independent legacy collection prices, source epochs and caveats stay visible.",
+      "viewed": ["expected", "actual", "diff"],
+      "captures": 1,
+      "matching_new_head_repeat": "PENDING_CI",
+      "sha256": {
+        "expected": "e85805772c9c61c6295376afecb7665bd3043a341895df8e94ba3ccb14379b79",
+        "actual": "81d3575071e1ee9f2e9ebc66cea5d5f8614aed4496581d27c679e22f1dab5616",
+        "diff": "a4d286e846530bccba98510f480e12b0fc32c34bfbf51354cf27cadb90fe7677"
+      },
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/dashboard-visual-regression-analytical-dashboard-chromium/analytical-dashboard-diff.png"
+      },
+      "before_matches_expected": true,
+      "after_matches_actual": true,
+      "dom_context": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/dashboard-visual-regression-analytical-dashboard-chromium/error-context.md"
+    },
+    {
+      "name": "predictive-weather-exact",
+      "target": "e2e/predictive-weather.spec.ts-snapshots/predictive-weather-exact-chromium-linux-ubuntu-24.04.png",
+      "reason": "One-pixel bottom crop changes 281 to 280 high; six exact NWS rows, valid dates, units, provenance and Missing heat index remain unchanged.",
+      "viewed": ["expected", "actual", "diff"],
+      "captures": 1,
+      "matching_new_head_repeat": "PENDING_CI",
+      "sha256": {
+        "expected": "2061040d9521e93db52712c53eed614d6032d0834980788d1fb7cb69bbbdef12",
+        "actual": "554604d227caf825273f44793efeb9eb6429ed0abbd813f9b108d6619e4c27eb",
+        "diff": "761ca3637b57ee036f9638398d592415061e9de53db7db6c75595193ddf6d242"
+      },
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/predictive-weather-predict-96abf-es-exact-noncausal-evidence-chromium/predictive-weather-exact-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/predictive-weather-predict-96abf-es-exact-noncausal-evidence-chromium/predictive-weather-exact-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/predictive-weather-predict-96abf-es-exact-noncausal-evidence-chromium/predictive-weather-exact-diff.png"
+      },
+      "before_matches_expected": true,
+      "after_matches_actual": true,
+      "dom_context": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/predictive-weather-predict-96abf-es-exact-noncausal-evidence-chromium/error-context.md"
+    },
+    {
+      "name": "review-forecast-quality-populated",
+      "target": "e2e/review-evidence.spec.ts-snapshots/review-forecast-quality-populated-chromium-linux-ubuntu-24.04.png",
+      "reason": "Separated 44px quality control targets and spacing increase height595 to607; 500 MW MAE/bias,0.7% MAPE,24/24 pairs and insufficient-history caveat remain unchanged.",
+      "viewed": ["expected", "actual", "diff"],
+      "captures": 1,
+      "matching_new_head_repeat": "PENDING_CI",
+      "sha256": {
+        "expected": "35835e89e209a2e344dd2d49086761bcba315d7e510fdd5d5573b28dd6c72484",
+        "actual": "ebfeb617aa872a89f814269a86c8c8ff2adf5dc691381cc82abb243c2ffe360b",
+        "diff": "e3d1700c004ef161d4fd9ffacf2f4025899ba8d190e2f532e777a041bc971443"
+      },
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/review-evidence-populated-forecast-quality-review-evidence-chromium/review-forecast-quality-populated-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/review-evidence-populated-forecast-quality-review-evidence-chromium/review-forecast-quality-populated-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/review-evidence-populated-forecast-quality-review-evidence-chromium/review-forecast-quality-populated-diff.png"
+      },
+      "before_matches_expected": true,
+      "after_matches_actual": true,
+      "dom_context": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/test-results/review-evidence-populated-forecast-quality-review-evidence-chromium/error-context.md"
+    },
+    {
+      "name": "historical-context-exact-mobile",
+      "target": "e2e/mobile-historical-context.spec.ts-snapshots/historical-context-exact-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "reason": "Shared table typography/borders appear; qualified/available/partial/unavailable/available five source states unchanged.",
+      "viewed": ["expected", "actual", "diff"],
+      "captures": 1,
+      "matching_new_head_repeat": "PENDING_CI",
+      "sha256": {
+        "expected": "c4665052f0ce88d95a2337fdc92209a0aad8a98b37feff52ccc395bf6e60fa3e",
+        "actual": "c224e3c2bdb2d8bb5934ff56b3b1fac6ef456f3ba6b2e9d5778b5b88426f7f1c",
+        "diff": "1c1adda42331f6a80dccc7b3e049e84b00766a98647663300c9d89ae3d23b09c"
+      },
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-exact-mobile-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-exact-mobile-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-exact-mobile-diff.png"
+      },
+      "before_matches_expected": true,
+      "after_matches_actual": true
+    },
+    {
+      "name": "predictive-weather-exact-mobile",
+      "target": "e2e/mobile-predictive-weather.spec.ts-snapshots/predictive-weather-exact-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "reason": "Contained386px scroll region replaces913px overflowing crop with black unused area; six official rows unchanged and remaining columns available by focused horizontal scrolling.",
+      "viewed": ["expected", "actual", "diff"],
+      "captures": 1,
+      "matching_new_head_repeat": "PENDING_CI",
+      "sha256": {
+        "expected": "9d58785de2379a34ca6806189fa600cfc55e27790b67a2ace0c8b4e525d8a0e3",
+        "actual": "f4dcb298f699d0d9e1f6078f9f7d17150327a3db007189a7fa7e2a7595b701b2",
+        "diff": "e91fcaaadb85157c2108ec1ca4a995d49e0426f6076eba42cf7bba08cfdee4bc"
+      },
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-predictive-weather--4eaf0--mobile-evidence-mobile-vri-iphone-pro-max-webkit/predictive-weather-exact-mobile-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-predictive-weather--4eaf0--mobile-evidence-mobile-vri-iphone-pro-max-webkit/predictive-weather-exact-mobile-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-predictive-weather--4eaf0--mobile-evidence-mobile-vri-iphone-pro-max-webkit/predictive-weather-exact-mobile-diff.png"
+      },
+      "before_matches_expected": true,
+      "after_matches_actual": true
+    },
+    {
+      "name": "review-forecast-quality-populated-mobile",
+      "target": "e2e/mobile-review-evidence.spec.ts-snapshots/review-forecast-quality-populated-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "reason": "Separated44px control targets increase height1055 to1067; exact diagnostic scores,pair count,source labels and insufficient-history note remain unchanged. Fixed navigation remains at viewport bottom; scroll-to-footer availability is a distinct behavioral gate.",
+      "viewed": ["expected", "actual", "diff"],
+      "captures": 1,
+      "matching_new_head_repeat": "PENDING_CI",
+      "sha256": {
+        "expected": "17d275d018919b750ab192bf64bb157efe6972f074bf3af9dff06b3d5b263145",
+        "actual": "fd7848d0474b97d9f1785ea0ae676eb2ec234c4cf8e6a82d52f8c6f439f907d1",
+        "diff": "4f3b108f688c28ea74e2372c1bf505f0ff48e69d705ee6f29f9cd083d7ff931b"
+      },
+      "paths": {
+        "expected": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-review-evidence-pop-f8398-idence-on-mobile-mobile-vri-iphone-pro-max-webkit/review-forecast-quality-populated-mobile-expected.png",
+        "actual": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-review-evidence-pop-f8398-idence-on-mobile-mobile-vri-iphone-pro-max-webkit/review-forecast-quality-populated-mobile-actual.png",
+        "diff": "/tmp/ercot-post-release-2026-10/ci09-5b81-mobile/test-results/mobile-review-evidence-pop-f8398-idence-on-mobile-mobile-vri-iphone-pro-max-webkit/review-forecast-quality-populated-mobile-diff.png"
+      },
+      "before_matches_expected": true,
+      "after_matches_actual": true
+    }
+  ],
+  "fixture_sha256": {
+    "e2e/mobile-fixtures.ts": "7f8b6db246426b13ccb3207a4c31ae037c88b460d0967d8c81682819ca124276",
+    "e2e/paired-headroom-fixtures.ts": "41e8bee4d6d4fa3414a6f2be0779b52590b89c322b268758f24f1156dddaf71d",
+    "e2e/archived-forecast-fixtures.ts": "1191792f4fb8027065f4204915f1453f5e41ca3d3ab8f794d8fed66ab1d59091",
+    "e2e/market-geography-fixtures.ts": "7a79e923485f33e61f50c45fd3b9c702779ddae52b65f5ceb805d1cb9a42e789",
+    "e2e/predictive-weather-fixtures.ts": "1f954a685e19f7102f0e0d81e6b4642b21e1e989a4c5da3ed80cfada4df6d5fd",
+    "e2e/review-evidence-fixtures.ts": "6ad7245f0c8394246900f8d90a7bd02f19e7bf202443aa417a36295cdb3d4774"
+  },
+  "analytical_source_evidence": "/tmp/ercot-post-release-2026-10/ci09-5b81-desktop/artifacts/post-release/vri-review/linux/chromium/analytical-dashboard.json",
+  "analytical_source_evidence_sha256": "d04a094859696994775950df85789ef7c38ad3fb4d8d0286782716db674f78e2",
+  "source_limit": "Analytical source response records contain actual epochs and 35 responses. NWS/quality tests provide fixture plus actual DOM/assertions; no dedicated raw-response capture was produced for those frames. Single genuine capture per frame, matching new-head CI repeats pending.",
+  "mobile_job_id": 111418704090,
+  "mobile_artifact": {
+    "artifact": 11301307471,
+    "run": 37196273260,
+    "head": "5b81f3dfe4b9ebd62003761ad2a0f72b6afb856e",
+    "archive_sha256": "d23c66726ad086681333364cc5aa390148fe52ff39ce6ebdb0c7d978723b899c",
+    "scope": "Only three required frame triples/source JSON/DOM context"
+  }
+}
