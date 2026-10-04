@@ -44,6 +44,7 @@
     "@playwright/test": "1.61.1",
     "@tailwindcss/vite": "^4.1.13",
     "@types/hammerjs": "2.0.46",
+    "@types/node": "^24.19.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@typescript/native-preview": "^7.0.0-dev.20260301.1",
