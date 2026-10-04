@@ -702,7 +702,7 @@ export function ChartCard({
   );
   const errors = chart.series
     .map((series) => seriesData.get(seriesKey(chart.id, series.id)))
-    .filter((loaded) => loaded?.errorKind !== "no-eligible-vintage")
+    .filter((loaded) => !loaded?.errorKind)
     .map((loaded) => loaded?.error)
     .filter((value): value is string => Boolean(value));
   const updateUnavailable = !loading && Boolean(errors.length || requestError);

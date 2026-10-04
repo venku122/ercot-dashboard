@@ -919,7 +919,7 @@ export async function loadSeries(
           interval_start: number;
           interval_end: number;
           issued_at: number;
-          value: number;
+          value: number | null;
           unit: string;
         }>;
       }>(`/api/v1/historical-forecast?${params}`, { method: "GET" }, signal);
@@ -941,9 +941,9 @@ export async function loadSeries(
       )
         throw new Error("Invalid historical forecast coverage");
       if (payload.rows.length > 8785) throw new Error("Historical forecast row bound exceeded");
-      const eligible = payload.rows.filter(
+      const sourceRows = payload.rows.filter(
         (row) =>
-          Number.isFinite(row.value) &&
+          (row.value === null || Number.isFinite(row.value)) &&
           row.unit === "MW" &&
           [row.target_ts, row.interval_start, row.interval_end, row.issued_at].every(
             Number.isSafeInteger,
@@ -952,6 +952,13 @@ export async function loadSeries(
           row.interval_end - row.interval_start === 3600 &&
           row.issued_at <= row.interval_start &&
           row.issued_at <= window.end,
+      );
+      const eligible = sourceRows.filter(
+        (row): row is typeof row & { value: number } => row.value !== null,
+      );
+      const hasMissingValues = sourceRows.some(
+        (row) =>
+          row.value === null && row.interval_end > window.start && row.interval_start < window.end,
       );
       if (coverage && coverage.available_value_count !== eligible.length)
         throw new Error("Historical forecast value coverage mismatch");
@@ -979,12 +986,18 @@ export async function loadSeries(
               : "partial"
             : "unknown",
         },
-        error: points.length ? null : "No eligible archived forecast issued before delivery",
+        error: points.length
+          ? null
+          : hasMissingValues
+            ? "Archived pre-delivery forecast has missing reported values"
+            : "No eligible archived forecast issued before delivery",
         // Only a structurally valid source result can be informationally empty.
         // Invalid rows filtered above retain the existing unavailable lifecycle.
         errorKind:
-          !points.length && eligible.length === payload.rows.length
-            ? "no-eligible-vintage"
+          !points.length && sourceRows.length === payload.rows.length
+            ? hasMissingValues
+              ? "missing-forecast-values"
+              : "no-eligible-vintage"
             : undefined,
       };
     } catch (error) {
@@ -1026,12 +1039,12 @@ export async function loadSeries(
       },
       errorKind:
         (current.error || prior?.error) &&
-        (!current.error || current.errorKind === "no-eligible-vintage") &&
-        (!prior?.error || prior.errorKind === "no-eligible-vintage")
-          ? "no-eligible-vintage"
+        (!current.error || current.errorKind) &&
+        (!prior?.error || prior.errorKind)
+          ? (current.errorKind ?? prior?.errorKind)
           : undefined,
       error:
-        current.errorKind === "no-eligible-vintage" && prior?.error && !prior.errorKind
+        current.errorKind && prior?.error && !prior.errorKind
           ? `Historical forecast comparison unavailable: ${prior.error}`
           : (current.error ??
             (prior?.error ? `Historical forecast comparison unavailable: ${prior.error}` : null)),

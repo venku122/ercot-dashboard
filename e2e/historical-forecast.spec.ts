@@ -1,3 +1,4 @@
+import missingHour from "../frontend/test-fixtures/forecast/valid-missing-hour.json" with { type: "json" };
 import { expect, test } from "@playwright/test";
 import { nativeFixtureIndex } from "./paired-headroom-fixtures";
 import { FIXED_NOW_SECONDS, installMobileApi } from "./mobile-fixtures";
@@ -111,3 +112,29 @@ for (const width of [390, 1440]) {
     ).toHaveText("—");
   });
 }
+
+test("ERP-04 valid missing reported forecast leaves observed core readable", async ({ page }) => {
+  await installMobileApi(page, "normal", [], { nativeCadence: true });
+  await page.route("**/api/v1/historical-forecast?**", (route) =>
+    route.fulfill({ json: missingHour.response }),
+  );
+  const { start, end } = missingHour.selected_time;
+  await page.goto(`/?range=3600&live=0&from=${start}&to=${end}&legend=compact`);
+  const card = page.locator('[data-chart-id="supply-demand"]');
+  await expect(card.locator("canvas")).toHaveAttribute("data-chart-ready", "true");
+  await expect(
+    card.locator(".legend-row").filter({ hasText: "Actual demand" }).locator(".legend-latest"),
+  ).toContainText("GW");
+  await expect(
+    page.getByText("Archived pre-delivery forecast has missing reported values", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    card.getByText("Temporarily unavailable… Existing observations remain visible."),
+  ).toHaveCount(0);
+  await expect(
+    card
+      .locator(".legend-row")
+      .filter({ hasText: "Forecast issued before delivery" })
+      .locator(".legend-latest"),
+  ).toHaveText("—");
+});

@@ -1,3 +1,4 @@
+import missingHour from "../../test-fixtures/forecast/valid-missing-hour.json";
 import { afterEach, expect, it, vi } from "vitest";
 import { loadSeries } from "./api";
 import { chartDefinitions } from "./chart-config";
@@ -136,7 +137,7 @@ for (const variant of [
   "wrong-unit",
   "wrong-duration",
   "invalid-issue",
-  "nonfinite",
+  "nonnumeric",
   "left-touching",
 ] as const) {
   it(`empty selected forecast retains source validity for ${variant}`, async () => {
@@ -145,13 +146,13 @@ for (const variant of [
       interval_start: 0,
       interval_end: 3600,
       issued_at: -7200,
-      value: 42,
+      value: 42 as number | string,
       unit: "MW",
     };
     if (variant === "wrong-unit") row.unit = "GW";
     if (variant === "wrong-duration") row.interval_start = 300;
     if (variant === "invalid-issue") row.issued_at = 1;
-    if (variant === "nonfinite") row.value = NaN;
+    if (variant === "nonnumeric") row.value = "NaN";
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -178,5 +179,88 @@ for (const variant of [
       variant === "left-touching" ? "no-eligible-vintage" : undefined,
     );
     expect(forecast.error).not.toBeNull();
+  });
+}
+
+it("normal receiver null-value archive is successful missingness with no invented zero", async () => {
+  expect(missingHour.response.rows[0]!.value).toBeNull();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url: string) =>
+        new Response(
+          JSON.stringify(
+            url.includes("historical-forecast") ? missingHour.response : { series: [] },
+          ),
+        ),
+    ),
+  );
+  const result = await loadSeries(
+    [chartDefinitions.find((chart) => chart.id === "supply-demand")!],
+    { ...missingHour.selected_time, mode: "live" },
+    "none",
+    0,
+    new AbortController().signal,
+  );
+  const loaded = result.get("supply-demand:forecast-demand")!;
+  expect(loaded.points).toEqual([]);
+  expect(loaded.errorKind).toBe("missing-forecast-values");
+  expect(loaded.error).toBe("Archived pre-delivery forecast has missing reported values");
+  expect(missingHour.response.coverage.available_value_count).toBe(0);
+  expect(missingHour.response.coverage.selected_target_count).toBe(1);
+});
+
+it("a valid missing-value current archive cannot hide a comparison transport failure", async () => {
+  let selections = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (!url.includes("historical-forecast")) return new Response(JSON.stringify({ series: [] }));
+      selections += 1;
+      return selections === 1
+        ? new Response(JSON.stringify(missingHour.response))
+        : new Response("upstream unavailable", { status: 503 });
+    }),
+  );
+  const result = await loadSeries(
+    [chartDefinitions.find((chart) => chart.id === "supply-demand")!],
+    { ...missingHour.selected_time, mode: "live" },
+    "previous_period",
+    0,
+    new AbortController().signal,
+  );
+  const loaded = result.get("supply-demand:forecast-demand")!;
+  expect(loaded.points).toEqual([]);
+  expect(loaded.errorKind).toBeUndefined();
+  expect(loaded.error).toContain("comparison unavailable");
+});
+
+for (const field of ["unit", "interval_start", "issued_at"] as const) {
+  it(`null source value cannot excuse malformed ${field}`, async () => {
+    const row = {
+      ...missingHour.response.rows[0]!,
+      [field]: field === "unit" ? "GW" : missingHour.selected_time.end + 1,
+    };
+    const payload = { ...missingHour.response, rows: [row] };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify(url.includes("historical-forecast") ? payload : { series: [] }),
+          ),
+      ),
+    );
+    const result = await loadSeries(
+      [chartDefinitions.find((chart) => chart.id === "supply-demand")!],
+      { ...missingHour.selected_time, mode: "live" },
+      "none",
+      0,
+      new AbortController().signal,
+    );
+    const loaded = result.get("supply-demand:forecast-demand")!;
+    expect(loaded.points).toEqual([]);
+    expect(loaded.errorKind).toBeUndefined();
+    expect(loaded.error).not.toBeNull();
   });
 }

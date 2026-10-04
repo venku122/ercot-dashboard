@@ -122,8 +122,8 @@ export type SeriesMeta = {
 
 export type LoadedSeries = {
   compare: Point[];
-  /** A successful archive selection with no eligible vintage is an empty result, not a request failure. */
-  errorKind?: "no-eligible-vintage" | undefined;
+  /** A source-valid archive selection with no numeric value is informational, not a request failure. */
+  errorKind?: "no-eligible-vintage" | "missing-forecast-values" | undefined;
   error: string | null;
   meta: SeriesMeta;
   points: Point[];
