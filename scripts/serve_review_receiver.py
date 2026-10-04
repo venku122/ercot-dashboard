@@ -11,7 +11,9 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import shutil
 import sqlite3
+import subprocess
 import tempfile
 import time
 from urllib.parse import urlsplit
@@ -57,14 +59,19 @@ def seed_review_data(receiver, conn, end, days):
         for tag in tags:
             conn.execute("INSERT INTO metric_tags(metric_id,tag) SELECT id,? FROM metrics WHERE series_id=?", (tag, series_id))
         rows += len(values)
-        sources[item["source"]] = max(cadence, sources.get(item["source"], 0))
+        source = sources.setdefault(item["source"], {
+            "cadence": cadence, "rows": 0, "last_ts": last,
+        })
+        source["cadence"] = min(cadence, source["cadence"])
+        source["rows"] += len(values)
+        source["last_ts"] = max(last, source["last_ts"])
     conn.commit()
-    for source, cadence in sources.items():
+    for source, evidence in sources.items():
         receiver.update_source_health(conn, {
             "source_id": source, "display_name": f"SYNTHETIC REVIEW: {source}",
-            "expected_interval_seconds": cadence, "attempted_at": end,
-            "success": True, "source_timestamp_ts": end,
-            "data_timestamp_ts": end, "row_count": rows,
+            "expected_interval_seconds": evidence["cadence"], "attempted_at": end,
+            "success": True, "source_timestamp_ts": evidence["last_ts"],
+            "data_timestamp_ts": evidence["last_ts"], "row_count": evidence["rows"],
             "provenance": {"mode": "synthetic_local_review", "production": False},
             "availability_status": "available",
         }, current_ts=end)
@@ -84,12 +91,20 @@ def main():
     if not (Path(receiver.WEB_DIR) / "assets").is_dir():
         parser.error("Build candidate assets first: pnpm run build")
     with tempfile.TemporaryDirectory(prefix="ercot-local-review-") as directory:
+        frozen_web = Path(directory) / "web"
+        shutil.copytree(receiver.WEB_DIR, frozen_web)
+        receiver.WEB_DIR = str(frozen_web)
         receiver.DB_PATH = str(Path(directory) / "metrics.db")
         conn = sqlite3.connect(receiver.DB_PATH)
         receiver.init_db(conn)
         end = int(time.time()) // 300 * 300
         manifest = seed_review_data(receiver, conn, end, args.days)
         manifest["seeded_at_utc"] = datetime.fromtimestamp(end, timezone.utc).isoformat()
+        manifest["candidate_sha"] = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        manifest["index_sha256"] = hashlib.sha256((frozen_web / "index.html").read_bytes()).hexdigest()
+        manifest["collector_revision"] = None
+        manifest["collector_state"] = "not running; local synthetic fixture only"
         conn.close()
         original_handler = receiver.Handler
 
