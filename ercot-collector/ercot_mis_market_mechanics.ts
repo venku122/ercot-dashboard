@@ -56,6 +56,28 @@ export const MARKET_PRODUCTS = {
     fingerprint: "64f337f48540aa3d10a80c884eaa7514e94ed72c965cbc63390cac59bff5a8f7",
   },
 } as const;
+export const MARKET_SPLIT_CONTRACTS = {
+  "NP6-322-CD": {
+    fields: ["CappedSystemLambda", "UncappedSystemLambda"],
+    fingerprint: "4fc27af4f517fec6a81e3f2a280330e78a87eb9befae022842784df38090c583",
+  },
+  "NP6-332-CD": {
+    fields: ["CappedMCPC", "UncappedMCPC"],
+    fingerprint: "762059006d9754916ddc2c4c91a7a26c05d9cbfae9574e4dacfe2421e5763a28",
+  },
+} as const;
+function valueContract(product: MarketProductId, fields: string[]) {
+  const split =
+    product === "NP6-322-CD" || product === "NP6-332-CD"
+      ? MARKET_SPLIT_CONTRACTS[product]
+      : undefined;
+  if (split && JSON.stringify([...fields].sort()) === JSON.stringify([...split.fields].sort()))
+    return split;
+  const legacy = MARKET_PRODUCTS[product];
+  if (JSON.stringify([...fields].sort()) === JSON.stringify([...legacy.fields].sort()))
+    return legacy;
+  throw new Error("market_csv_contract");
+}
 export type MarketProductId = keyof typeof MARKET_PRODUCTS;
 const AS_TYPES = ["ECRS", "NSPIN", "REGDN", "REGUP", "RRS"];
 export type MarketMechanicsRow = ReturnType<typeof parseMarketMechanicsCsv>[number];
@@ -124,11 +146,13 @@ export function parseMarketMechanicsCsv(product: MarketProductId, text: string) 
     .trimEnd()
     .split(/\r?\n/)
     .map((line) => line.split(","));
+  const offset = product === "NP6-332-CD" ? 3 : 2;
+  const selected = valueContract(product, (lines[0] ?? []).slice(offset));
   const headers = [
     config.timestamp,
     "RepeatedHourFlag",
     ...(product === "NP6-332-CD" ? ["ASType"] : []),
-    ...config.fields,
+    ...selected.fields,
   ];
   if (
     JSON.stringify(lines[0]) !== JSON.stringify(headers) ||
@@ -155,7 +179,7 @@ export function parseMarketMechanicsCsv(product: MarketProductId, text: string) 
       repeated_hour_flag: repeated,
       ...(product === "NP6-332-CD" ? { as_type: asType } : {}),
       values: Object.fromEntries(
-        config.fields.map((field, index) => [field, numberValue(cells[offset + index]!)]),
+        selected.fields.map((field, index) => [field, numberValue(cells[offset + index]!)]),
       ),
     };
   });
@@ -197,6 +221,10 @@ export function buildMarketMechanicsPublicationPayload(
   )
     throw new Error("ercot_mis_market_publication_invalid");
   const config = MARKET_PRODUCTS[product];
+  const selected = valueContract(product, Object.keys(rows[0]!.values));
+  for (const row of rows)
+    if (valueContract(product, Object.keys(row.values)).fingerprint !== selected.fingerprint)
+      throw new Error("market_csv_contract");
   return {
     publication: {
       source_id: config.sourceId,
@@ -209,7 +237,7 @@ export function buildMarketMechanicsPublicationPayload(
       document_id: document.docId,
       constructed_name: document.constructedName,
       artifact_href: `https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=${document.docId}`,
-      schema_fingerprint: config.fingerprint,
+      schema_fingerprint: selected.fingerprint,
       parser_schema_version: "ercot-mis-market-v1",
     },
     rows,

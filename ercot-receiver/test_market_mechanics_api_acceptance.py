@@ -242,6 +242,30 @@ class MarketMechanicsApiAcceptanceTests(unittest.TestCase):
             status, _headers, body = self.post(payload)
             self.assertEqual(200, status, body)
 
+    def test_live_split_header_delivery_keeps_distinct_basis_and_immutable_units(self):
+        for index, product in enumerate(market_mechanics.CONTRACTS):
+            issued = NOW - 600 + index
+            payload = self.payload(product, document_id=str(900 + index), issued_at=issued,
+                raw_publish_datetime=datetime.fromtimestamp(issued, timezone.utc).astimezone(market_mechanics.CHICAGO).isoformat(timespec="seconds"), target=PRIOR_TARGET)
+            split = market_mechanics.SPLIT_CONTRACTS.get(product)
+            if split:
+                payload["publication"]["schema_fingerprint"] = split["fingerprint"]
+                for row in payload["rows"]:
+                    row["values"] = dict(zip(split["fields"], (1.25, 2.5)))
+            self.assertEqual(200, self.post(payload)[0])
+        _, manifest = self.manifest_response()
+        self.assertEqual(37, len(manifest["current"]["readings"]))
+        self.assertEqual("unavailable_unverified_basis", manifest["current"]["lambda_parity"]["state"])
+        basis_links = [link for link in manifest["resources"] if link["series_key"].endswith((".capped", ".uncapped"))]
+        self.assertEqual(12, len(basis_links))
+        for link in basis_links:
+            status, headers, body = self.get(link["url"])
+            self.assertEqual(200, status)
+            payload = json.loads(body)
+            self.assertEqual(2.5 if link["series_key"].endswith(".uncapped") else 1.25, payload["rows"][0]["value"])
+            self.assertEqual("$/MWh" if "system-lambda" in link["series_key"] else "$/MW", payload["unit"])
+            self.assertEqual(304, self.get(link["url"], {"If-None-Match": headers["ETag"]})[0])
+
     def test_exact_scalar_catalog_cardinality_units_and_canonical_lambda(self):
         self.assertEqual(31, len(SCALAR_SERIES))
         self.seed_coherent_snapshot()

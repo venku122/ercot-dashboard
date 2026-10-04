@@ -51,6 +51,11 @@ CONTRACTS = {
     "NP6-332-CD": {"source": "ercot_mis_np6_332", "kind": "mcpc", "report": "24891", "fields": ("MCPC",), "fingerprint": "64f337f48540aa3d10a80c884eaa7514e94ed72c965cbc63390cac59bff5a8f7"},
 }
 
+SPLIT_CONTRACTS = {
+    "NP6-322-CD": {**CONTRACTS["NP6-322-CD"], "fields": ("CappedSystemLambda", "UncappedSystemLambda"), "fingerprint": "4fc27af4f517fec6a81e3f2a280330e78a87eb9befae022842784df38090c583"},
+    "NP6-332-CD": {**CONTRACTS["NP6-332-CD"], "fields": ("CappedMCPC", "UncappedMCPC"), "fingerprint": "762059006d9754916ddc2c4c91a7a26c05d9cbfae9574e4dacfe2421e5763a28"},
+}
+
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -138,6 +143,9 @@ def _publication(payload, now):
         raise ValueError("invalid_market_publication_fields")
     product = pub.get("product_id")
     contract = CONTRACTS.get(product)
+    split = SPLIT_CONTRACTS.get(product)
+    if split and pub.get("schema_fingerprint") == split["fingerprint"]:
+        contract = split
     if contract is None or pub.get("source_id") != contract["source"] or pub.get("schema_fingerprint") != contract["fingerprint"]:
         raise ValueError("invalid_market_contract")
     doc = pub.get("document_id")
@@ -212,7 +220,10 @@ def _publication(payload, now):
 
 def _series(contract, row):
     if contract["kind"] == "lambda":
-        return [("market.sced.system-lambda", row["values"]["SystemLambda"], "$/MWh")]
+        if "SystemLambda" in row["values"]:
+            return [("market.sced.system-lambda", row["values"]["SystemLambda"], "$/MWh")]
+        return [("market.sced.system-lambda." + basis, row["values"][field], "$/MWh")
+                for basis, field in (("capped", "CappedSystemLambda"), ("uncapped", "UncappedSystemLambda"))]
     if contract["kind"] == "adders":
         return [
             (ADDER_SERIES[key][0], row["values"][key], ADDER_SERIES[key][1])
@@ -226,7 +237,20 @@ def _series(contract, row):
             (f"market.sced.as-capability.{name}", row["values"][key], "MW")
             for key, name in CAPABILITY_SERIES.items()
         ]
-    return [(f"market.sced.as-mcpc.{row['as_type'].lower().replace('nspin', 'nonspin').replace('regdn', 'regdown')}", row["values"]["MCPC"], "$/MW")]
+    name = row['as_type'].lower().replace('nspin', 'nonspin').replace('regdn', 'regdown')
+    if "MCPC" in row["values"]:
+        return [(f"market.sced.as-mcpc.{name}", row["values"]["MCPC"], "$/MW")]
+    return [(f"market.sced.as-mcpc.{name}.{basis}", row["values"][field], "$/MW")
+            for basis, field in (("capped", "CappedMCPC"), ("uncapped", "UncappedMCPC"))]
+
+
+def _day_rows(conn, product_id, day):
+    return conn.execute("""SELECT target_ts,as_type,values_json,vintage_key,issued_at,raw_publish_datetime,document_id,raw_sced_timestamp,repeated_hour_flag FROM (
+          SELECT r.target_ts,r.as_type,r.values_json,p.vintage_key,p.issued_at,p.raw_publish_datetime,p.document_id,r.raw_sced_timestamp,r.repeated_hour_flag,
+            ROW_NUMBER() OVER(PARTITION BY r.target_ts,r.as_type ORDER BY p.issued_at DESC,LENGTH(p.document_id) DESC,p.document_id DESC) rank
+          FROM market_mechanics_rows r JOIN market_mechanics_publications p ON p.id=r.publication_id
+          WHERE p.product_id=? AND r.target_ts>=? AND r.target_ts<?) WHERE rank=1 ORDER BY target_ts,as_type""",
+          (product_id, day, day + DAY)).fetchall()
 
 
 def _materialize(conn, publication_id, pub, rows, contract, now):
@@ -234,12 +258,7 @@ def _materialize(conn, publication_id, pub, rows, contract, now):
     current_day = now // DAY * DAY
     for day in sorted({row["target_ts"] // DAY * DAY for row in rows if row["target_ts"] // DAY * DAY < current_day}):
         grouped = {}
-        stored = conn.execute("""SELECT target_ts,as_type,values_json,vintage_key,issued_at,raw_publish_datetime,document_id,raw_sced_timestamp,repeated_hour_flag FROM (
-          SELECT r.target_ts,r.as_type,r.values_json,p.vintage_key,p.issued_at,p.raw_publish_datetime,p.document_id,r.raw_sced_timestamp,r.repeated_hour_flag,
-            ROW_NUMBER() OVER(PARTITION BY r.target_ts,r.as_type ORDER BY p.issued_at DESC,LENGTH(p.document_id) DESC,p.document_id DESC) rank
-          FROM market_mechanics_rows r JOIN market_mechanics_publications p ON p.id=r.publication_id
-          WHERE p.product_id=? AND r.target_ts>=? AND r.target_ts<?) WHERE rank=1 ORDER BY target_ts,as_type""",
-          (pub["product_id"], day, day + DAY)).fetchall()
+        stored = _day_rows(conn, pub["product_id"], day)
         contributors = {}
         units = {}
         pointer = None
@@ -262,6 +281,18 @@ def _materialize(conn, publication_id, pub, rows, contract, now):
             for key, value, unit in _series(contract, row):
                 units[key] = unit
                 grouped.setdefault(key, []).append({"target_ts": row["target_ts"], "value": value, "source": source})
+        possible = set()
+        for variant in (CONTRACTS[pub["product_id"]], SPLIT_CONTRACTS.get(pub["product_id"])):
+            if variant is None:
+                continue
+            for as_type in (AS_TYPES if variant["kind"] == "mcpc" else ("",)):
+                possible.update(key for key, _, _ in _series(variant, {"as_type": as_type, "values": {field: 0 for field in variant["fields"]}}))
+        for obsolete in possible - grouped.keys():
+            conn.execute("""UPDATE market_mechanics_resources SET retired_at=COALESCE(retired_at,?)
+              WHERE series_key=? AND day_start=? AND content_version IN
+              (SELECT content_version FROM market_mechanics_current WHERE series_key=? AND day_start=?)""",
+              (now, obsolete, day, obsolete, day))
+            conn.execute("DELETE FROM market_mechanics_current WHERE series_key=? AND day_start=?", (obsolete, day))
         for key, values in grouped.items():
             payload = {"schema_version": 1, "methodology": METHODOLOGY, "series_key": key,
                        "tile_span": "1d", "tile_start": day, "tile_end": day + DAY,
@@ -290,10 +321,11 @@ def _seal_previous_day(conn, now):
     day = (now // DAY - 1) * DAY
     outputs = []
     for product_id, contract in CONTRACTS.items():
-        if contract["kind"] == "mcpc":
-            expected_keys = [f"market.sced.as-mcpc.{value.lower().replace('nspin', 'nonspin').replace('regdn', 'regdown')}" for value in AS_TYPES]
-        else:
-            expected_keys = [item[0] for item in _series(contract, {"as_type": "", "values": {field: 0.0 for field in contract["fields"]}})]
+        stored = _day_rows(conn, product_id, day)
+        if not stored:
+            continue
+        expected_keys = sorted({key for row in stored for key, _, _ in
+                                _series(contract, {"as_type": row[1], "values": json.loads(row[2])})})
         placeholders = ",".join("?" for _ in expected_keys)
         pointer_count = conn.execute(
             f"SELECT COUNT(*) FROM market_mechanics_current WHERE day_start=? AND series_key IN ({placeholders})",
@@ -405,16 +437,16 @@ def _coherent_snapshots(conn):
                     readings[key] = {"value": value, "unit": unit, "source": source}
         lambda_322 = selected["NP6-322-CD"][0]
         lambda_323 = selected["NP6-323-CD"][0]
-        lhs = json.loads(lambda_322[1])["SystemLambda"]
+        lhs = json.loads(lambda_322[1]).get("SystemLambda")
         rhs = json.loads(lambda_323[1])["SystemLambda"]
-        delta = rhs - lhs
+        delta = None if lhs is None else rhs - lhs
         snapshots.append({
             "target_ts": target,
             "alignment": "exact_same_sced_timestamp",
             "readings": readings,
             "sources": sources,
             "lambda_parity": {
-                "state": "match" if abs(delta) <= LAMBDA_PARITY_TOLERANCE else "mismatch",
+                "state": "unavailable_unverified_basis" if delta is None else ("match" if abs(delta) <= LAMBDA_PARITY_TOLERANCE else "mismatch"),
                 "np6_322_value": lhs,
                 "np6_323_value": rhs,
                 "delta": delta,
@@ -496,7 +528,7 @@ def market_mechanics_manifest(conn, now=None):
     snapshots = _coherent_snapshots(conn)
     coherent = snapshots[0] if snapshots else None
     previous = snapshots[1] if len(snapshots) > 1 else None
-    changes = ({key: {"delta": None if previous is None else reading["value"] - previous["readings"][key]["value"],
+    changes = ({key: {"delta": None if previous is None or key not in previous["readings"] else reading["value"] - previous["readings"][key]["value"],
                       "unit": reading["unit"]}
                 for key, reading in coherent["readings"].items()} if coherent else {})
     elapsed = None if previous is None else coherent["target_ts"] - previous["target_ts"]
@@ -507,7 +539,9 @@ def market_mechanics_manifest(conn, now=None):
                 "active_price_adder_series": [], "target_ts": None,
                 "binding_constraints": {"status": "unavailable_deferred_np6_86"}}
                if coherent is None else
-               {"status": "aligned", "energy_signal": coherent_readings["market.sced.system-lambda"],
+               {"status": "aligned", "energy_signal": coherent_readings.get("market.sced.system-lambda"),
+                "capped_energy_signal": coherent_readings.get("market.sced.system-lambda.capped"),
+                "uncapped_energy_signal": coherent_readings.get("market.sced.system-lambda.uncapped"),
                 "active_price_adder_series": active_adders, "target_ts": coherent["target_ts"],
                 "binding_constraints": {"status": "unavailable_deferred_np6_86"}})
     return {"schema_version": 1, "kind": "market_mechanics_manifest", "methodology": METHODOLOGY,

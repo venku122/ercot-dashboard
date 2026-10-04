@@ -4,15 +4,12 @@ import useSWR from "swr";
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { DisclosureCard } from "../components/ui/disclosure-card";
 import { formatValue } from "./units";
-import {
-  loadMarketManifest,
-  loadMarketResource,
-  MARKET_SERIES,
-  type MarketSeriesKey,
-} from "./market-mechanics";
+import { loadMarketManifest, loadMarketResource, type MarketSeriesKey } from "./market-mechanics";
 
 const LABELS: Partial<Record<MarketSeriesKey, string>> = {
   "market.sced.system-lambda": "System Lambda",
+  "market.sced.system-lambda.capped": "Capped System Lambda",
+  "market.sced.system-lambda.uncapped": "Uncapped System Lambda",
   "market.sced.price-adder.energy": "Energy reliability adder",
   "market.sced.price-adder.regup": "Reg-Up adder",
   "market.sced.price-adder.regdown": "Reg-Down adder",
@@ -24,10 +21,12 @@ const LABELS: Partial<Record<MarketSeriesKey, string>> = {
   "market.sced.adder-input.rtblt-export": "RTBLT export (source field)",
 };
 function label(key: MarketSeriesKey) {
+  if (key.includes("as-mcpc"))
+    return key.split(".").slice(3).join(" ").replaceAll("-", " ") + " MCPC";
   return LABELS[key] ?? key.split(".").at(-1)!.replaceAll("-", " ");
 }
 function group(key: MarketSeriesKey) {
-  if (key === "market.sced.system-lambda") return "Energy signal";
+  if (key.startsWith("market.sced.system-lambda")) return "Energy signal";
   if (key.includes("price-adder")) return "Reliability adders";
   if (key.includes("as-mcpc")) return "AS clearing prices";
   if (key.includes("as-capability")) return "Available AS capability";
@@ -86,10 +85,17 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
       if (manifestController.current === owned) owned?.abort();
     };
   }, [enabled, expanded]);
+  const effectiveSelected: MarketSeriesKey =
+    manifest.data?.current &&
+    !manifest.data.current.readings[selected] &&
+    manifest.data.current.readings["market.sced.system-lambda.capped"]
+      ? "market.sced.system-lambda.capped"
+      : selected;
   const historyLink = useMemo(() => {
-    const links = manifest.data?.resources.filter((item) => item.series_key === selected) ?? [];
+    const links =
+      manifest.data?.resources.filter((item) => item.series_key === effectiveSelected) ?? [];
     return links.sort((left, right) => right.tile_start - left.tile_start)[0] ?? null;
-  }, [manifest.data, selected]);
+  }, [manifest.data, effectiveSelected]);
   const historyController = useRef<AbortController | null>(null);
   const history = useSWR(
     enabled && expanded && historyLink ? ["market-mechanics", historyLink.url] : null,
@@ -118,7 +124,7 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
   const grouped = useMemo(() => {
     if (!current) return [];
     const result = new Map<string, MarketSeriesKey[]>();
-    for (const key of Object.keys(MARKET_SERIES) as MarketSeriesKey[]) {
+    for (const key of Object.keys(current.readings) as MarketSeriesKey[]) {
       const name = group(key);
       result.set(name, [...(result.get(name) ?? []), key]);
     }
@@ -161,9 +167,15 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
             <>
               <p>
                 Exact SCED alignment at {new Date(current.target_ts * 1000).toLocaleString()}.
-                Lambda parity: {current.lambda_parity.state} (NP6-323 minus NP6-322{" "}
-                {formatValue(current.lambda_parity.delta, "$/MWh")}; tolerance{" "}
-                {current.lambda_parity.tolerance}).
+                {current.lambda_parity.state === "unavailable_unverified_basis" ? (
+                  "Lambda parity unavailable: NP6-323 SystemLambda has no verified capped/uncapped basis match. Source values remain separate."
+                ) : (
+                  <>
+                    Lambda parity: {current.lambda_parity.state} (NP6-323 minus NP6-322{" "}
+                    {formatValue(current.lambda_parity.delta, "$/MWh")}; tolerance{" "}
+                    {current.lambda_parity.tolerance}).
+                  </>
+                )}
               </p>
               {grouped.map(([name, keys]) => (
                 <section aria-labelledby={`market-group-${name.replaceAll(" ", "-")}`} key={name}>
@@ -174,7 +186,7 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
                       const change = manifest.data!.changes[key];
                       return (
                         <button
-                          aria-pressed={selected === key}
+                          aria-pressed={effectiveSelected === key}
                           key={key}
                           onClick={() => setSelected(key)}
                           type="button"
@@ -199,7 +211,9 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
             </>
           )}
           <section aria-labelledby="market-history-title">
-            <h3 id="market-history-title">Selected completed-day history: {label(selected)}</h3>
+            <h3 id="market-history-title">
+              Selected completed-day history: {label(effectiveSelected)}
+            </h3>
             {!historyLink ? (
               <p>
                 Completed-day immutable history is not available yet; collection begins at
@@ -219,7 +233,7 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
                   <p>Only one exact SCED sample is available; a trend line needs at least two.</p>
                 ) : (
                   <svg
-                    aria-label={`${label(selected)} completed-day profile`}
+                    aria-label={`${label(effectiveSelected)} completed-day profile`}
                     className="market-mechanics-profile"
                     role="img"
                     viewBox="0 0 100 40"
@@ -237,7 +251,7 @@ export function MarketMechanicsPanel({ enabled }: { enabled: boolean }) {
                   </svg>
                 )}
                 <div
-                  aria-label={`${label(selected)} exact values`}
+                  aria-label={`${label(effectiveSelected)} exact values`}
                   className="table-scroll ui-data-table"
                   role="region"
                   tabIndex={0}
