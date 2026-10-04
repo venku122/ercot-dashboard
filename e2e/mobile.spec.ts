@@ -616,7 +616,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
         });
     },
     "floor",
-    "layout",
+    "settled-layout",
   );
   await supportingReadings.locator("summary").click();
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -669,7 +669,7 @@ test("mobile visual evidence states @mobile-vri", async ({ page }) => {
       });
     },
     "floor",
-    "layout",
+    "settled-layout",
   );
   await mobileNavigation.evaluate((element) => {
     element.style.display = "";

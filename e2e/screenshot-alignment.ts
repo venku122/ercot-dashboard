@@ -6,10 +6,10 @@ export async function withCssPixelAlignment(
   target: Locator,
   capture: () => Promise<void>,
   alignment: "nearest" | "floor" = "nearest",
-  positioning: "transform" | "layout" = "transform",
+  positioning: "transform" | "layout" | "settled-layout" = "transform",
 ) {
   await target.scrollIntoViewIfNeeded();
-  if (positioning === "layout") {
+  if (positioning === "layout" || positioning === "settled-layout") {
     const original = await target.evaluate((element, mode) => {
       const node = element as HTMLElement;
       const computed = getComputedStyle(node);
@@ -51,6 +51,53 @@ export async function withCssPixelAlignment(
               requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
             ),
         );
+      // Lazy content and scroll anchoring can move the target while its blur layer
+      // rebuilds. Align the settled box, then require two frames with an integer
+      // crop origin and unchanged dimensions before recording source evidence.
+      if (positioning === "settled-layout") {
+        let settled = false;
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          const aligned = await target.evaluate((element, mode) => {
+            const node = element as HTMLElement;
+            const box = node.getBoundingClientRect();
+            const align = mode === "floor" ? Math.floor : Math.round;
+            node.style.setProperty(
+              "left",
+              `${(parseFloat(node.style.left) || 0) + align(box.x) - box.x}px`,
+              "important",
+            );
+            node.style.setProperty(
+              "top",
+              `${(parseFloat(node.style.top) || 0) + align(box.y) - box.y}px`,
+              "important",
+            );
+            const final = node.getBoundingClientRect();
+            return { x: final.x, y: final.y, width: final.width, height: final.height };
+          }, alignment);
+          await target
+            .page()
+            .evaluate(
+              () =>
+                new Promise<void>((resolve) =>
+                  requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+                ),
+            );
+          settled = await target.evaluate((element, box) => {
+            const final = element.getBoundingClientRect();
+            return (
+              Number.isInteger(final.x) &&
+              Number.isInteger(final.y) &&
+              final.x === box.x &&
+              final.y === box.y &&
+              final.width === box.width &&
+              final.height === box.height
+            );
+          }, aligned);
+          if (settled) break;
+        }
+        if (!settled)
+          throw new Error("Screenshot target did not settle at an integer CSS-pixel origin");
+      }
       await capture();
     } finally {
       await target.evaluate((element, previous) => {

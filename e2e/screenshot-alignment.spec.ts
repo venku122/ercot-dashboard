@@ -117,3 +117,37 @@ test("screenshot alignment makes fractional scroll-equivalent crops pixel-identi
   }
   expect(new Set(hashes).size).toBe(1);
 });
+
+test("layout screenshot alignment settles late fractional layout and restores styles", async ({
+  page,
+}) => {
+  await page.setContent(
+    '<div id="spacer" style="height:100px"></div><section style="margin-left:0.390625px;backdrop-filter:blur(2px)">Source values unchanged</section>',
+  );
+  const target = page.locator("section");
+  await target.evaluate((element) => {
+    const shiftAfterAlignment = () => {
+      if ((element as HTMLElement).style.getPropertyValue("backdrop-filter") === "none") {
+        requestAnimationFrame(() => {
+          document.querySelector<HTMLElement>("#spacer")!.style.height = "100.796875px";
+        });
+      } else requestAnimationFrame(shiftAfterAlignment);
+    };
+    requestAnimationFrame(shiftAfterAlignment);
+  });
+  await withCssPixelAlignment(
+    target,
+    async () => {
+      const box = await target.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBe(Math.round(box!.x));
+      expect(box!.y).toBe(Math.round(box!.y));
+      await expect(target).toHaveText("Source values unchanged");
+    },
+    "floor",
+    "settled-layout",
+  );
+  expect(await target.getAttribute("style")).toBe(
+    "margin-left: 0.390625px; backdrop-filter: blur(2px);",
+  );
+});

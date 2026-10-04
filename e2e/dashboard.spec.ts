@@ -1331,7 +1331,7 @@ test("visual regression structured operational alert", async ({ page }) => {
       await expect(alert).toHaveScreenshot("structured-operational-alert.png");
     },
     "floor",
-    "layout",
+    "settled-layout",
   );
 });
 
@@ -1353,7 +1353,7 @@ test("visual regression Grid Health Score", async ({ page }) => {
       await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
     },
     "floor",
-    "layout",
+    "settled-layout",
   );
 });
 
