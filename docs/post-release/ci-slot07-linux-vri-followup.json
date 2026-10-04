@@ -1,0 +1,455 @@
+{
+  "source_head": "b8a6b9d74fdff47c0cf11ac0efdb8c07f1f1a22f",
+  "ci_run": 37191064368,
+  "jobs": {
+    "desktop": 111403156950,
+    "mobile": 111403156822
+  },
+  "scope": "Five Linux actual capture images only; no code, fixture, source values, assertions, tolerance, or baseline dimensions changed.",
+  "capture_count_per_image": 1,
+  "repeat_status": "PENDING_NEW_EXACT_HEAD_CI; only genuine failing CI capture currently saved. No claimed repeated pixel identity.",
+  "source_contract": "NP3-565-CD MW issued_before_delivery/as_of1784674800;25 reported targets. Core Houston quote38.74 remains enabled on slot07. Slot08 native price unavailable rendering must remain distinct.",
+  "records": [
+    {
+      "target": "e2e/dashboard.spec.ts-snapshots/normal-supply-demand-chromium-linux-ubuntu-24.04.png",
+      "expected": "/tmp/ercot-post-release-2026-10/ci07-b8a6-desktop/test-results/dashboard-visual-regression-normal-chromium/normal-supply-demand-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci07-b8a6-desktop/test-results/dashboard-visual-regression-normal-chromium/normal-supply-demand-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci07-b8a6-desktop/test-results/dashboard-visual-regression-normal-chromium/normal-supply-demand-diff.png",
+      "source_capture": "/tmp/ercot-post-release-2026-10/ci07-b8a6-desktop/artifacts/post-release/vri-review/linux/chromium/normal-supply-demand.json",
+      "old_sha256": "0aefeeafd345a28c35603447428c56e636e15558fbb4d1ced80f4e25a03492a2",
+      "new_sha256": "dbea3d4f6cb4a3079e6ca1d7acfdeafba52b6815904274dce979d5044cb5b50b",
+      "source_capture_sha256": "28695de084916cb510d39301f81a96048af090ad7594588cc209040b220c2f1d",
+      "fonts": "loaded",
+      "dpr": 1,
+      "rect": {
+        "x": 38.390625,
+        "y": 168.21875,
+        "width": 798.140625,
+        "height": 437.640625
+      },
+      "forecast": [
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        }
+      ],
+      "review": "Viewed expected, actual, and diff individually. Archived forecast71.4GW/pre-delivery label replaces observed forecast alias; truthful coarse dashed physical series; actual demand/capacity/paired headroom/core quote unchanged; controls readable."
+    },
+    {
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-after-first-viewport-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "expected": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-after-first-viewport-diff.png",
+      "source_capture": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-after-first-viewport.json",
+      "old_sha256": "f3c545867a89cb3251a02404748391a34eec695668eebffb01e8e7f8b5b79a31",
+      "new_sha256": "66742e9c0a7d97cddc00d2520ee5d9fd3a32ae63c961650b729228500891cf3b",
+      "source_capture_sha256": "e6ce1a176a127b099f26df584d85dd728fde950d37533679f8379ca3b3b6f0cc",
+      "fonts": "loaded",
+      "dpr": 3,
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 440,
+        "height": 4400.203125
+      },
+      "forecast": [
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        }
+      ],
+      "review": "Viewed expected, actual, and diff individually. Archived forecast71.4GW/pre-delivery label replaces observed forecast alias; truthful coarse dashed physical series; actual demand/capacity/paired headroom/core quote unchanged; controls readable."
+    },
+    {
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-compact-legend-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "expected": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-compact-legend-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-compact-legend-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-compact-legend-diff.png",
+      "source_capture": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-compact-legend.json",
+      "old_sha256": "bce513d92b9796371aab13778f0d2336c299f3aa54fb624aec3055e7a73aabf8",
+      "new_sha256": "cb21d5a42dd2f42acc709f30124123bb3bc837f85c89c9296de273273525cd19",
+      "source_capture_sha256": "b6752fa857712373d25c28571ebed91ffb9eb8169635fb355f4e8f625ce34135",
+      "fonts": "loaded",
+      "dpr": 3,
+      "rect": {
+        "x": 12,
+        "y": 178.171875,
+        "width": 416,
+        "height": 524.84375
+      },
+      "forecast": [
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        }
+      ],
+      "review": "Viewed expected, actual, and diff individually. Archived forecast71.4GW/pre-delivery label replaces observed forecast alias; truthful coarse dashed physical series; actual demand/capacity/paired headroom/core quote unchanged; controls readable."
+    },
+    {
+      "target": "e2e/mobile.spec.ts-snapshots/mobile-inspect-portrait-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "expected": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-diff.png",
+      "source_capture": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/mobile-inspect-portrait.json",
+      "old_sha256": "97def6e342595aebc422105d4b8aa3539da0cc421c9aab06226c61b2ef845a9d",
+      "new_sha256": "1ffd9d8ed72f6cd127a74c989124fc7061070e2a99685c27ef00b25d78dfb246",
+      "source_capture_sha256": "047be74b1a9924a069098e262cf54d85ef9d4846cdb35304179d92f1d66f3096",
+      "fonts": "loaded",
+      "dpr": 3,
+      "rect": {
+        "x": 8,
+        "y": 8,
+        "width": 424,
+        "height": 940
+      },
+      "forecast": [
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        },
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        },
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        },
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        }
+      ],
+      "review": "Viewed expected, actual, and diff individually. Archived forecast71.4GW/pre-delivery label replaces observed forecast alias; truthful coarse dashed physical series; actual demand/capacity/paired headroom/core quote unchanged; controls readable."
+    },
+    {
+      "target": "e2e/mobile.spec.ts-snapshots/progressive-overview-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "expected": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/test-results/mobile-progressive-disclos-60a93-le-visual-states-mobile-vri-iphone-pro-max-webkit/progressive-overview-mobile-diff.png",
+      "source_capture": "/tmp/ercot-post-release-2026-10/ci07-b8a6-mobile/artifacts/post-release/vri-review/linux/iphone-pro-max-webkit/progressive-overview-mobile.json",
+      "old_sha256": "f3c545867a89cb3251a02404748391a34eec695668eebffb01e8e7f8b5b79a31",
+      "new_sha256": "613edf91d35b6fcf7093589b8866f32944916ef47055f7771bc0fd0f0bd9d5d6",
+      "source_capture_sha256": "e6ce1a176a127b099f26df584d85dd728fde950d37533679f8379ca3b3b6f0cc",
+      "fonts": "loaded",
+      "dpr": 3,
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 440,
+        "height": 4400.203125
+      },
+      "forecast": [
+        {
+          "product_id": "NP3-565-CD",
+          "measure": "systemTotal",
+          "policy": "issued_before_delivery",
+          "as_of": 1784674800,
+          "target_start": 1784588400,
+          "target_end": 1784674801,
+          "availability": "available",
+          "system_knowledge_claim": false,
+          "coverage": {
+            "expected_target_count": 25,
+            "selected_target_count": 25,
+            "available_value_count": 25,
+            "missing_value_count": 0,
+            "truncated": false
+          },
+          "row_count": 25,
+          "first_row": {
+            "target_ts": 1784588400,
+            "interval_start": 1784584800,
+            "interval_end": 1784588400,
+            "issued_at": 1784581200,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784581200",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          },
+          "last_row": {
+            "target_ts": 1784674800,
+            "interval_start": 1784671200,
+            "interval_end": 1784674800,
+            "issued_at": 1784667600,
+            "retrieved_at": 1784674663,
+            "first_seen_at": 1784674687,
+            "vintage_key": "synthetic-np3-565-pre-delivery-1784667600",
+            "model": "SYNTHETIC_FIXTURE_MODEL",
+            "value": 71351,
+            "unit": "MW"
+          }
+        }
+      ],
+      "review": "Viewed expected, actual, and diff individually. Archived forecast71.4GW/pre-delivery label replaces observed forecast alias; truthful coarse dashed physical series; actual demand/capacity/paired headroom/core quote unchanged; controls readable."
+    }
+  ]
+}
