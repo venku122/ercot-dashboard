@@ -70,7 +70,10 @@ export function ForecastQualityPanel({ enabled }: { enabled: boolean }) {
   );
 
   return (
-    <section aria-labelledby="forecast-quality-title" className="outlook-days-panel">
+    <section
+      aria-labelledby="forecast-quality-title"
+      className="outlook-days-panel forecast-quality-panel"
+    >
       <div className="section-heading">
         <div>
           <p className="eyebrow">Historical diagnostics</p>
@@ -198,7 +201,12 @@ export function ForecastQualityPanel({ enabled }: { enabled: boolean }) {
               ) : resource.data ? (
                 <div className="outlook-hourly-detail">
                   <h4>Latest materialized UTC day</h4>
-                  <div className="outlook-table-wrap">
+                  <div
+                    aria-label={`${SERIES_LABELS[seriesKey]} ${HORIZON_LABELS[horizon]} scrollable quality evidence`}
+                    className="table-scroll ui-data-table forecast-quality-table"
+                    role="region"
+                    tabIndex={0}
+                  >
                     <table
                       aria-label={`${SERIES_LABELS[seriesKey]} ${HORIZON_LABELS[horizon]} exact forecast quality`}
                     >

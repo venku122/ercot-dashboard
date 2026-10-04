@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { recordSourceContainment } from "./source-containment-evidence";
 import { installMobileApi } from "./mobile-fixtures";
 import { readSourceCapture, replaySourceCapture, sourceDisplay } from "./source-capture-replay";
 
@@ -190,7 +191,7 @@ for (const width of [390, 1440]) {
 for (const width of [390, 1440]) {
   test(`ERP-08 captured live renewable publication quality tables at ${width}px`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     test.skip(
       !capture?.responses["/api/v1/forecast-quality"],
       "Requires SOURCE_RENEWABLE_CAPTURE from a bounded live renewables one-shot",
@@ -258,6 +259,28 @@ for (const width of [390, 1440]) {
           await expect(
             page.getByText(/Insufficient history for an empirical interval:/),
           ).toBeVisible();
+        const scroll = page.getByRole("region", {
+          name: `${name} ${label} scrollable quality evidence`,
+          exact: true,
+        });
+        await expect(scroll).toHaveAttribute("tabindex", "0");
+        expect(await scroll.evaluate((node) => getComputedStyle(node).overflowX)).toMatch(
+          /auto|scroll/,
+        );
+        await scroll.focus();
+        await expect(scroll).toBeFocused();
+        await page.mouse.move(0, 0);
+        for (const buttonName of [name, label]) {
+          const button = page.getByRole("button", { name: buttonName, exact: true });
+          await expect(button).toBeVisible();
+          await expect(button).toHaveCSS("translate", "none");
+          // DOMRect.height measures the layout target directly; protocol quads can
+          // lose precision when subtracting large scrolled document coordinates.
+          expect(
+            await button.evaluate((node) => node.getBoundingClientRect().height),
+          ).toBeGreaterThanOrEqual(44);
+        }
+        await recordSourceContainment(page, testInfo, "quality-source-containment");
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
         );

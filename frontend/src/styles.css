@@ -674,6 +674,21 @@ main {
   line-height: 1.45;
 }
 
+.forecast-quality-panel > div {
+  min-width: 0;
+}
+
+.forecast-quality-panel fieldset {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.forecast-quality-panel fieldset button {
+  min-height: 44px;
+}
+
 .outlook-profile {
   min-width: 0;
   margin: 0;
@@ -878,6 +893,10 @@ main {
   color: #bae6fd;
   font-size: 0.7rem;
   font-style: normal;
+}
+
+.predictive-weather-panel details {
+  min-width: 0;
 }
 
 .predictive-weather-panel details > summary {
