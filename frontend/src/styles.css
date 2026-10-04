@@ -5334,3 +5334,11 @@ body {
     flex-wrap: wrap;
   }
 }
+
+/* Critical controls retain a full keyboard/touch target on desktop as well. */
+.dashboard-header button,
+.chart-card button,
+.chart-card summary {
+  min-height: 44px;
+  min-width: 44px;
+}
