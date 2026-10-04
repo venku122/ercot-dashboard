@@ -274,3 +274,74 @@ test("native power energy uses every signed raw interval and nonpower has no MWh
   );
   expect(JSON.stringify(pair)).not.toContain('"energy_mwh"');
 });
+
+for (const days of [90, 365]) {
+  test(`native ${days}d frequency and storage preserve full raw statistics without argument overflow`, async ({
+    page,
+  }) => {
+    test.setTimeout(15000);
+    await installMobileApi(page, "normal", [], { nativeCadence: true });
+    await page.goto("/");
+    const results = await page.evaluate(
+      async ({ now, days }) => {
+        const response = await fetch("/api/series/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            queries: [
+              {
+                id: "frequency",
+                metric: "ercot.Frequency.Current_Frequency",
+                tags: [],
+                since: now - days * 86400,
+                until: now,
+                max_points: 1200,
+                aggregation: "minmax",
+              },
+              {
+                id: "charging",
+                metric: "ercot.storage.charging_mw",
+                tags: [],
+                since: now - days * 86400,
+                until: now,
+                max_points: 1200,
+                aggregation: "minmax",
+              },
+            ],
+          }),
+        });
+        return (await response.json()).series;
+      },
+      { now: FIXED_NOW_SECONDS, days },
+    );
+    for (const [index, cadence] of [60, 300].entries()) {
+      let sum = 0,
+        minimum = Infinity,
+        maximum = -Infinity,
+        area = 0,
+        previous: number | undefined;
+      const count = (days * 86400) / cadence + 1;
+      for (let slot = 0; slot < count; slot++) {
+        const ts = FIXED_NOW_SECONDS - days * 86400 + slot * cadence;
+        const nativeIndex =
+          63 + (ts - Math.floor((FIXED_NOW_SECONDS - 30) / cadence) * cadence) / cadence;
+        const wave = Math.sin(nativeIndex / 5),
+          value = index === 0 ? 60.001 + wave * 0.018 : -900 - wave * 500;
+        sum += value;
+        minimum = Math.min(minimum, value);
+        maximum = Math.max(maximum, value);
+        if (previous !== undefined) area += (((previous + value) / 2) * cadence) / 3600;
+        previous = value;
+      }
+      const series = results[index];
+      expect(series.points.length).toBeLessThanOrEqual(1200);
+      expect(series.meta.stats.count).toBe(count);
+      expect(series.meta.stats.average).toBeCloseTo(sum / count, 10);
+      expect(series.meta.stats.minimum).toBe(minimum);
+      expect(series.meta.stats.maximum).toBe(maximum);
+      expect(series.meta.stats.latest).toBe(previous);
+      if (index === 0) expect(series.meta.stats).not.toHaveProperty("energy_mwh");
+      else expect(series.meta.stats.energy_mwh).toBeCloseTo(area, 6);
+    }
+  });
+}

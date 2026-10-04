@@ -502,8 +502,12 @@ export async function installMobileApi(
                 : {}
               : { energy_mwh: query.metric.endsWith("_mw") && points.length ? 412.5 : null }),
             latest: points.length ? Number(points.at(-1)?.[1]) : null,
-            maximum: points.length ? Math.max(...points.map((point) => Number(point[1]))) : null,
-            minimum: points.length ? Math.min(...points.map((point) => Number(point[1]))) : null,
+            maximum: points.length
+              ? points.reduce((maximum, point) => Math.max(maximum, Number(point[1])), -Infinity)
+              : null,
+            minimum: points.length
+              ? points.reduce((minimum, point) => Math.min(minimum, Number(point[1])), Infinity)
+              : null,
           },
         },
       };
