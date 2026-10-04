@@ -3,9 +3,7 @@ import { installMobileApi } from "./mobile-fixtures";
 import { installMarketGeographyApi } from "./market-geography-fixtures";
 const target = Date.parse("2026-08-20T17:15:00Z") / 1000;
 
-test("NP6-905 actual cursor, table and export preserve interval ending and halfopen lookup", async ({
-  page,
-}) => {
+async function intervalPage(page: import("@playwright/test").Page) {
   await installMobileApi(page, "normal", [], { nativeCadence: true });
   await page.clock.setFixedTime(new Date((target + 60) * 1000));
   await installMarketGeographyApi(page, []);
@@ -40,6 +38,13 @@ test("NP6-905 actual cursor, table and export preserve interval ending and halfo
   await chart.scrollIntoViewIfNeeded();
   const canvas = chart.locator("canvas");
   await expect(canvas).toHaveAttribute("data-chart-ready", "true");
+  return { chart, canvas };
+}
+
+test("NP6-905 actual cursor, table and export preserve interval ending and halfopen lookup", async ({
+  page,
+}) => {
+  const { chart, canvas } = await intervalPage(page);
   await canvas.focus();
   await page.keyboard.press("ArrowLeft");
   const price = page.locator(".homepage-readings > div").filter({ hasText: "Houston Hub" });
@@ -49,6 +54,11 @@ test("NP6-905 actual cursor, table and export preserve interval ending and halfo
   await page.keyboard.press("ArrowRight");
   await expect(price).toContainText("—");
   await page.keyboard.press("Escape");
+  await expect(chart.locator(".legend-latest")).toHaveAttribute(
+    "data-value-scope",
+    "window-latest",
+  );
+  await expect(chart.locator(".legend-latest")).toContainText("-$42.16/MWh");
   await chart.locator("summary").filter({ hasText: "Accessible data table" }).click();
   await expect(chart.getByRole("columnheader", { name: "Interval ending (UTC)" })).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
@@ -61,4 +71,46 @@ test("NP6-905 actual cursor, table and export preserve interval ending and halfo
   expect(csv).toContain("interval_ending_epoch,value,unit,interval_start_epoch,interval_end_epoch");
   expect(csv).toContain(`${target},-42.16,"$/MWh",${target - 900},${target}`);
   await chart.screenshot({ path: "/tmp/ercot-post-release-2026-10/ERP05-followup-interval.png" });
+});
+
+test("ERP02 a singleton instantaneous source observation has a visible marker", async ({
+  page,
+}) => {
+  await installMobileApi(page, "normal", [], { nativeCadence: true });
+  await page.clock.setFixedTime(new Date((target + 60) * 1000));
+  await page.route("**/api/series/batch", async (route) => {
+    const body = route.request().postDataJSON() as { queries: Array<{ id: string }> };
+    if (!body.queries.some((series) => series.id === "supply-demand:demand:current"))
+      return route.fallback();
+    return route.fulfill({
+      json: {
+        series: body.queries.map((series) => ({
+          id: series.id,
+          points: series.id === "supply-demand:demand:current" ? [[target, 70000]] : [],
+          meta: { bucket_seconds: 300 },
+        })),
+      },
+    });
+  });
+  await page.goto("/?range=1200&live=1");
+  const chart = page.locator('[data-chart-id="supply-demand"]');
+  const canvas = chart.locator("canvas");
+  await expect(canvas).toHaveAttribute("data-chart-ready", "true");
+  const pixels = await canvas.evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      if (
+        data[index] === 96 &&
+        data[index + 1] === 165 &&
+        data[index + 2] === 250 &&
+        data[index + 3]! > 200
+      )
+        count++;
+    }
+    return count;
+  });
+  expect(pixels).toBeGreaterThanOrEqual(4);
+  await chart.screenshot({ path: "/tmp/ercot-post-release-2026-10/ERP02-followup-singleton.png" });
 });

@@ -1,5 +1,10 @@
 import { seriesIntervalLabel, intervalPlotPoints } from "./interval-price-series";
-import { observationAt, seriesResolution, temporalPolicy } from "./series-temporal-policy";
+import {
+  observationAt,
+  seriesResolution,
+  temporalPolicy,
+  seriesMarkerRadius,
+} from "./series-temporal-policy";
 import "chartjs-adapter-date-fns";
 
 import {
@@ -309,7 +314,10 @@ export function ChartCard({
           : {}),
         ...(series.lineStyle === "dashed" ? { borderDash: [5, 4] } : {}),
         borderWidth: 1.6,
-        pointRadius: seriesGapSeconds(chart.id, series, loaded) === 0 ? 3 : 0,
+        pointRadius: seriesMarkerRadius(
+          loaded?.points ?? [],
+          seriesGapSeconds(chart.id, series, loaded),
+        ),
         pointHitRadius: 12,
         tension: 0,
         ...(temporalPolicy(chart.id, series)?.kind === "interval"
@@ -337,7 +345,10 @@ export function ChartCard({
           backgroundColor: `${series.color}70`,
           borderWidth: 1.2,
           borderDash: [6, 5],
-          pointRadius: seriesGapSeconds(chart.id, series, loaded) === 0 ? 3 : 0,
+          pointRadius: seriesMarkerRadius(
+            loaded.compare,
+            seriesGapSeconds(chart.id, series, loaded),
+          ),
           tension: 0,
           ...(chart.id === "eea" ? { stepped: "after" as const } : {}),
           hidden,

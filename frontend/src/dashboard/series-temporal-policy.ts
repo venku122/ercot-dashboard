@@ -229,3 +229,13 @@ export function observationAt(
     coverage: resolution === "native" ? "source observations" : (loaded.meta.coverage ?? "unknown"),
   };
 }
+
+// A singleton has no line segment; render its real source observation as a marker.
+export function seriesMarkerRadius(points: Point[], connectionGapSeconds: number): number {
+  if (connectionGapSeconds === 0) return 3;
+  let count = 0;
+  for (const point of canonicalDisplayPoints(points)) {
+    if (Number.isFinite(point[1]) && ++count > 1) return 0;
+  }
+  return count === 1 ? 3 : 0;
+}
