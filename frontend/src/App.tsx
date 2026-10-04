@@ -703,6 +703,7 @@ export function App() {
     const requestedCharts = chartDefinitions
       .filter(
         (chart) =>
+          !(selectedView === "overview" && chart.id === "pricing") &&
           (selectedView === "overview"
             ? overviewChartIds.has(chart.id) || engineeringChartIds.has(chart.id)
             : dashboardViewForGroup(chart.group) === selectedView) &&
@@ -1062,6 +1063,7 @@ export function App() {
   const renderChart = (
     chart: (typeof chartDefinitions)[number],
     presentation: "featured" | "standard" | "overview" = "standard",
+    overrideSeriesData?: Map<string, LoadedSeries>,
   ) => (
     <Suspense
       fallback={<article className="chart-card chart-card-lazy">Loading chart workspace…</article>}
@@ -1097,7 +1099,9 @@ export function App() {
         onZoom={onZoom}
         presentation={presentation}
         requestError={effectiveRequestError}
-        seriesData={selectedView === "overview" ? overviewSeriesData : seriesData}
+        seriesData={
+          overrideSeriesData ?? (selectedView === "overview" ? overviewSeriesData : seriesData)
+        }
         sourceHealth={chart.sourceId ? (healthById.get(chart.sourceId) ?? null) : null}
         time={seriesTime}
       />

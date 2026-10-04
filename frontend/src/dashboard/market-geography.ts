@@ -32,6 +32,9 @@ export type MarketGeographySource = {
   raw_publish_datetime: string;
 };
 export type PriceRow = {
+  interval_start?: number;
+  interval_end?: number;
+  publication?: MarketGeographySource;
   target_ts: number;
   raw_delivery_date: string;
   delivery_hour: number;
@@ -250,10 +253,10 @@ function priceRow(value: unknown): PriceRow {
   if (!dateMatch) throw new Error("invalid_market_geography_price");
   const [, month, day, year] = dateMatch.map(Number);
   const wall = new Date(
-    Date.UTC(year!, month! - 1, day!, 0, (deliveryHour - 1) * 60 + deliveryInterval * 15),
+    Date.UTC(year!, month! - 1, day!, 0, (deliveryHour - 1) * 60 + (deliveryInterval - 1) * 15),
   );
   const rawEnd = `${String(wall.getUTCMonth() + 1).padStart(2, "0")}/${String(wall.getUTCDate()).padStart(2, "0")}/${wall.getUTCFullYear()} ${String(wall.getUTCHours()).padStart(2, "0")}:${String(wall.getUTCMinutes()).padStart(2, "0")}:00`;
-  validateFold(target, rawEnd, item["repeated_hour_flag"]);
+  validateFold(target - 900, rawEnd, item["repeated_hour_flag"]);
   return {
     target_ts: target,
     raw_delivery_date: text(item["raw_delivery_date"], 16),
@@ -265,6 +268,9 @@ function priceRow(value: unknown): PriceRow {
     settlement_point_type: pointType,
     value: finite(item["value"]),
     unit: "$/MWh",
+    interval_start: target - 900,
+    interval_end: target,
+    ...(item["publication"] ? { publication: source(item["publication"], "NP6-905-CD") } : {}),
   };
 }
 
@@ -618,4 +624,44 @@ export async function loadMarketGeographyResource(link: MarketGeographyLink, sig
   const response = await fetch(link.url, signal ? { signal } : {});
   if (!response.ok) throw new Error(`market_geography_resource_${response.status}`);
   return parseMarketGeographyResource(await response.json(), link);
+}
+
+export async function loadIntervalPriceHistory(
+  identity: string,
+  start: number,
+  end: number,
+  signal?: AbortSignal,
+): Promise<PriceRow[]> {
+  if (!pointIdentities.has(identity) || end <= start || end - start > 35 * 86400)
+    throw new Error("Unsupported interval price history window or point");
+  const params = new URLSearchParams({
+    identity,
+    start: String(Math.round(start)),
+    end: String(Math.round(end) + 1),
+  });
+  const response = await fetch(`/api/v1/market-price-history?${params}`, {
+    signal: signal ?? null,
+  });
+  if (!response.ok) throw new Error("Interval price history unavailable");
+  const payload = object(await response.json());
+  if (
+    payload["product_id"] !== "NP6-905-CD" ||
+    payload["identity"] !== identity ||
+    payload["interval_seconds"] !== 900 ||
+    !Array.isArray(payload["rows"])
+  )
+    throw new Error("Invalid interval price history identity");
+  let previous = start - 1;
+  return payload["rows"].map((value) => {
+    const row = priceRow(value);
+    if (
+      pointIdentity(row.settlement_point, row.settlement_point_type) !== identity ||
+      row.target_ts < start ||
+      row.target_ts > end ||
+      row.target_ts <= previous
+    )
+      throw new Error("Invalid interval price history rows");
+    previous = row.target_ts;
+    return row;
+  });
 }
