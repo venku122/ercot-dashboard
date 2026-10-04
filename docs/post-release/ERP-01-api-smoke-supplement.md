@@ -26,3 +26,5 @@ remain enforced before networking and again in the worker.
 All supplemental tests use loopback fixtures. Existing production 403 evidence
 is unchanged: denied transport leaves application schemas unobserved, rather
 than proving application outage. No production requests were made for this fix.
+
+Independent follow-up found a stale cached health snapshot could retain healthy classification when ages were computed at its old `as_of`. A real-loopback regression reproduces this false release PASS. Source and collection ages now use the current observation clock; original reported ages and `as_of` remain visible evidence. An old snapshot cannot establish fresh collection.

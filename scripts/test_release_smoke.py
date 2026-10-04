@@ -129,6 +129,24 @@ class ReleaseSmokeSemanticAcceptance(unittest.TestCase):
                 self.assertEqual(state, health['sources'][0]['reported_state'])
                 self.assertNotEqual(0,health['sources'][0]['data_age_seconds'])
 
+    def test_old_healthy_snapshot_is_stale_at_current_observation(self):
+        def old_health(path):
+            payload = fixture(path)
+            if path == '/api/v1/source-health':
+                payload['as_of'] -= 86400
+                for source in payload['sources']:
+                    for field in ('last_attempt_ts', 'last_success_ts', 'source_timestamp_ts', 'data_timestamp_ts'):
+                        source[field] -= 86400
+            return payload
+        with local_server(old_health) as (base, _):
+            result = observe(base, production=False, max_seconds=5)
+        health = next(row for row in result['checks'] if row['path']=='/api/v1/source-health')['assessment']
+        self.assertEqual('PASS', result['schema_acceptance'])
+        self.assertNotEqual('PASS', result['release_acceptance'])
+        self.assertEqual('DEGRADED', health['core_state'])
+        self.assertGreaterEqual(health['sources'][0]['data_age_seconds'], 86400)
+        self.assertGreaterEqual(health['sources'][0]['collection_age_seconds'], 86400)
+
     def test_real_regular_trickle_stops_at_absolute_campaign_deadline(self):
         with local_server(trickle=0.35) as (base, requests):
             started=time.monotonic()

@@ -80,9 +80,9 @@ def _source_assessment(payload, now):
             _require(key in item and _integer(item[key], nullable=True))
         counts[state] += 1
         timestamp = item['data_timestamp_ts'] if item['data_timestamp_ts'] is not None else item['source_timestamp_ts']
-        age = None if timestamp is None else as_of - timestamp
+        age = None if timestamp is None else now - timestamp
         success = item['last_success_ts']
-        collection_age = None if success is None else as_of - success
+        collection_age = None if success is None else now - success
         future = as_of > now or any(item[key] is not None and item[key] > as_of for key in ('last_attempt_ts', 'last_success_ts', 'source_timestamp_ts', 'data_timestamp_ts'))
         if future:
             observed = 'INVALID_FUTURE_TIMESTAMP'
@@ -107,7 +107,7 @@ def _source_assessment(payload, now):
     core_state = 'HEALTH_NOT_OBSERVED' if missing else ('HEALTHY' if all(source['assessment']=='HEALTHY' for source in core) else 'DEGRADED')
     all_healthy = bool(sources) and all(source['assessment']=='HEALTHY' for source in sources)
     state = 'HEALTH_NOT_OBSERVED' if not sources else 'HEALTHY' if all_healthy else 'DEGRADED'
-    return {'state':state,'core_state':core_state,'all_reported_sources_healthy':all_healthy,'as_of':as_of,'required_source_ids':sorted(CORE_SOURCE_IDS),'missing_required_source_ids':missing,'reported_counts':dict(counts),'sources':sources}
+    return {'state':state,'core_state':core_state,'all_reported_sources_healthy':all_healthy,'as_of':as_of,'observed_at_ts':now,'required_source_ids':sorted(CORE_SOURCE_IDS),'missing_required_source_ids':missing,'reported_counts':dict(counts),'sources':sources}
 
 
 def assess_endpoint(path, payload, now):
