@@ -980,7 +980,12 @@ export async function loadSeries(
             : "unknown",
         },
         error: points.length ? null : "No eligible archived forecast issued before delivery",
-        errorKind: points.length ? undefined : "no-eligible-vintage",
+        // Only a structurally valid source result can be informationally empty.
+        // Invalid rows filtered above retain the existing unavailable lifecycle.
+        errorKind:
+          !points.length && eligible.length === payload.rows.length
+            ? "no-eligible-vintage"
+            : undefined,
       };
     } catch (error) {
       if (isAbortError(error, signal)) throw error;

@@ -131,3 +131,52 @@ for (const comparisonFailure of [false, true]) {
     );
   });
 }
+
+for (const variant of [
+  "wrong-unit",
+  "wrong-duration",
+  "invalid-issue",
+  "nonfinite",
+  "left-touching",
+] as const) {
+  it(`empty selected forecast retains source validity for ${variant}`, async () => {
+    const row = {
+      target_ts: 3600,
+      interval_start: 0,
+      interval_end: 3600,
+      issued_at: -7200,
+      value: 42,
+      unit: "MW",
+    };
+    if (variant === "wrong-unit") row.unit = "GW";
+    if (variant === "wrong-duration") row.interval_start = 300;
+    if (variant === "invalid-issue") row.issued_at = 1;
+    if (variant === "nonfinite") row.value = NaN;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify(
+              url.includes("historical-forecast")
+                ? { product_id: "NP3-565-CD", policy: "issued_before_delivery", rows: [row] }
+                : { series: [] },
+            ),
+          ),
+      ),
+    );
+    const result = await loadSeries(
+      [chartDefinitions.find((chart) => chart.id === "supply-demand")!],
+      { start: 3600, end: 7200, mode: "live", paused: false, rangeSeconds: 3600 },
+      "none",
+      0,
+      new AbortController().signal,
+    );
+    const forecast = result.get("supply-demand:forecast-demand")!;
+    expect(forecast.points).toEqual([]);
+    expect(forecast.errorKind).toBe(
+      variant === "left-touching" ? "no-eligible-vintage" : undefined,
+    );
+    expect(forecast.error).not.toBeNull();
+  });
+}
