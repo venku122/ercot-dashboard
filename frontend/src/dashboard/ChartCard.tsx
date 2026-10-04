@@ -22,7 +22,7 @@ import {
   type ScatterDataPoint,
 } from "chart.js";
 import zoomPlugin from "chartjs-plugin-zoom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { DataLifecycleMessage } from "../components/DataLifecycleMessage";
 import { seriesKey } from "./chart-config";
@@ -38,7 +38,6 @@ import { chartGroupDisplayLabel } from "./information-architecture";
 import { chartInteractionPolicy } from "./interaction-policy";
 import { resolveDataLifecycleState } from "./data-lifecycle";
 import { seriesStats } from "./stats";
-import { StorageOperationsSummary } from "./StorageOperationsSummary";
 import type {
   ChartDefinition,
   CompareMode,
@@ -50,6 +49,12 @@ import type {
 } from "./types";
 import { formatAge, formatValue } from "./units";
 import { useVisible } from "./use-visible";
+
+const StorageOperationsSummary = lazy(() =>
+  import("./StorageOperationsSummary").then((module) => ({
+    default: module.StorageOperationsSummary,
+  })),
+);
 
 ChartJs.register(
   LinearScale,
@@ -1104,7 +1109,13 @@ export function ChartCard({
       ) : null}
 
       {chart.id === "storage" && (presentation !== "overview" || inspect) ? (
-        <StorageOperationsSummary seriesData={seriesData} sourceHealth={sourceHealth} time={time} />
+        <Suspense fallback={<p role="status">Loading storage operations interface…</p>}>
+          <StorageOperationsSummary
+            seriesData={seriesData}
+            sourceHealth={sourceHealth}
+            time={time}
+          />
+        </Suspense>
       ) : null}
 
       {inspect && mobile ? (

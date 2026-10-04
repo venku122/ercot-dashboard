@@ -1,0 +1,5 @@
+# Optional interface code deferral
+
+Storage fleet operating summary code loads only under the existing storage summary condition (Generation or storage Inspect); Operations timeline code loads only when its existing dialog opens. Both use a meaningful interface-loading status rather than invented measurements. Source requests, visibility gating, completed metadata, plot data, stored statistics and interactive behavior are unchanged. The initial Overview retains all first-useful plots and populated inline Outlook.
+
+The actual browser regression verifies no optional interface chunk before the core plot is ready, a single chunk after deliberate opening, populated source-distinct storage evidence with exactly the existing three storage queries, keyboard Inspect open/close, operations filtering controls and keyboard close/reopen with focus restoration. Reopening reuses loaded code. The previous bundled implementation fails the deferred-chunk checks; the lazy implementation passes. No image baselines, tolerances or numeric gates change. A final integrated controlled performance run must establish the budget result; this deferral alone is not timing proof.

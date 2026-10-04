@@ -35,7 +35,6 @@ import {
   resolveDataLifecycleState,
   type DataLifecycleState,
 } from "./dashboard/data-lifecycle";
-import { OperationsTimeline } from "./dashboard/OperationsTimeline";
 import { buildDerivedMetrics } from "./dashboard/derived-metrics";
 import { useOverviewData, useOutlookData } from "./dashboard/data-hooks";
 import { OverviewOutlook } from "./dashboard/OverviewOutlook";
@@ -86,6 +85,11 @@ import {
   TimeRangePicker,
 } from "./time-range";
 
+const OperationsTimeline = lazy(() =>
+  import("./dashboard/OperationsTimeline").then((module) => ({
+    default: module.OperationsTimeline,
+  })),
+);
 const ChartCard = lazy(() =>
   import("./dashboard/ChartCard").then((module) => ({ default: module.ChartCard })),
 );
@@ -1632,11 +1636,13 @@ export function App() {
         returnFocusRef={eventsTriggerRef}
         title="Operations timeline"
       >
-        <OperationsTimeline
-          events={events}
-          loading={eventsLoading}
-          unavailable={eventsUnavailable}
-        />
+        <Suspense fallback={<p role="status">Loading operations interface…</p>}>
+          <OperationsTimeline
+            events={events}
+            loading={eventsLoading}
+            unavailable={eventsUnavailable}
+          />
+        </Suspense>
       </MobileDialog>
 
       <footer>
