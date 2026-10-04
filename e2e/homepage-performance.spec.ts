@@ -5,7 +5,7 @@ import { installMobileApi } from "./mobile-fixtures";
 test("PERF-01 production homepage cold-load and cursor evidence", async ({ browser, baseURL }) => {
   test.setTimeout(120_000);
   const baseline = process.env.HOME_PERFORMANCE_BASELINE === "1";
-  await mkdir("docs/overview-chart-first", { recursive: true });
+  await mkdir("artifacts/post-release", { recursive: true });
   const coldMs: number[] = [];
   for (let run = 0; run < 5; run++) {
     const context = await browser.newContext({
@@ -86,7 +86,7 @@ test("PERF-01 production homepage cold-load and cursor evidence", async ({ brows
     hoverHistoryRequests: requests.length - before,
   };
   await writeFile(
-    `docs/overview-chart-first/performance${baseline ? "-baseline" : ""}.json`,
+    `artifacts/post-release/performance${baseline ? "-baseline" : ""}.json`,
     JSON.stringify(result, null, 2) + "\n",
   );
   console.log(JSON.stringify(result));

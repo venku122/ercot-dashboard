@@ -22,11 +22,12 @@
       "branch": "ercot-post-release/02-current-status",
       "base_branch": "ercot-post-release/01-tracking-reconciliation",
       "logical_dependency_ids": [],
-      "pr_number": null,
-      "pr_url": null,
-      "head_sha": null,
-      "tested_sha": null,
-      "status": "PLANNED_NOT_CREATED"
+      "pr_number": 74,
+      "pr_url": "https://github.com/venku122/ercot-dashboard/pull/74",
+      "head_sha": "5560c81c655ef3d3afe97b6f04ae9359c2268b93",
+      "tested_sha": "5560c81c655ef3d3afe97b6f04ae9359c2268b93",
+      "status": "DRAFT_LOCALLY_VALIDATED",
+      "observed_at_utc": "2026-10-04T03:21:51.744158+00:00"
     },
     {
       "slot": 3,
