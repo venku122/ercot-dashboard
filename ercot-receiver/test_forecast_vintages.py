@@ -165,8 +165,26 @@ class ForecastStorageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + 367 * 86400, TARGET_1)
 
+    def test_historical_forecast_accepts_bounded_366_day_delivery_edge(self):
+        # The UI selects a partial delivery hour; its ending epoch must be included.
+        start = TARGET_1 + 900
+        selected_end = start + 366 * 86400
+        query_end = ((selected_end + 3599) // 3600) * 3600 + 1
+        result = fv.historical_forecast_rows(self.conn, start, query_end, selected_end)
+        self.assertEqual(result["coverage"]["expected_target_count"], 8785)
+        self.assertEqual(result["as_of"], selected_end)
+        self.assertEqual(result["target_end"], query_end)
+        with patch.object(fv, "MAX_HISTORICAL_FORECAST_ROWS", 8784):
+            with self.assertRaisesRegex(ValueError, "historical_forecast_target_limit_exceeded"):
+                fv.historical_forecast_rows(self.conn, start, query_end, selected_end)
+        with self.assertRaisesRegex(ValueError, "invalid_target_window"):
+            fv.historical_forecast_rows(self.conn, start, start + 366 * 86400 + 3601, selected_end)
+        # The larger delivery-edge allowance does not widen ordinary vintage reads.
+        with self.assertRaisesRegex(ValueError, "invalid_target_window"):
+            fv._target_window(start, query_end)
+
     def test_historical_forecast_returns_complete_6001_and_year_hourly_archive(self):
-        for count in (6001, 8760):
+        for count in (6001, 8760, 8785):
             with self.subTest(count=count):
                 self.conn.execute("DELETE FROM forecast_np3_565_rows")
                 self.conn.execute("DELETE FROM forecast_publications")
@@ -194,6 +212,33 @@ class ForecastStorageTests(unittest.TestCase):
                 self.assertEqual(result["coverage"]["expected_target_count"], count)
                 self.assertEqual(result["coverage"]["available_value_count"], count)
                 self.assertEqual(result["coverage"]["missing_value_count"], 0)
+                if count == 8785:
+                    for selected_start in (TARGET_1, TARGET_1 - 2700):
+                        selected_end = selected_start + 366 * 86400
+                        query_end = ((selected_end + 3599) // 3600) * 3600 + 1
+                        full = fv.historical_forecast_rows(self.conn, selected_start, query_end, selected_end)
+                        self.assertEqual(len(full["rows"]), 8785)
+                        self.assertEqual(full["coverage"]["expected_target_count"], 8785)
+                        self.assertEqual(full["coverage"]["missing_value_count"], 0)
+                        self.assertEqual(full["rows"][-1]["target_ts"], TARGET_1 + 8784 * 3600)
+                        self.assertEqual(full["as_of"], selected_end)
+                        http = ForecastHttpTests()
+                        http.setUp()
+                        try:
+                            http_db = sqlite3.connect(server.DB_PATH)
+                            try:
+                                self.conn.backup(http_db)
+                            finally:
+                                http_db.close()
+                            payload, headers, _ = http.invoke("GET", "/api/v1/historical-forecast?" + urlencode({
+                                "start": selected_start, "end": query_end, "as_of": selected_end,
+                            }))
+                            self.assertEqual(len(payload["rows"]), 8785)
+                            self.assertEqual(payload["coverage"]["missing_value_count"], 0)
+                            self.assertEqual(payload["as_of"], selected_end)
+                            self.assertEqual(headers["Cache-Control"], "no-store")
+                        finally:
+                            http.tearDown()
                 with patch.object(fv, "MAX_HISTORICAL_FORECAST_ROWS", count - 1):
                     with self.assertRaisesRegex(ValueError, "historical_forecast_target_limit_exceeded"):
                         fv.historical_forecast_rows(self.conn, TARGET_1, TARGET_1 + count * 3600, TARGET_1 + count * 3600)

@@ -1018,10 +1018,10 @@ def resolve_publication(conn, source_id, product_id, vintage_key):
     return row
 
 
-def _target_window(start, end):
+def _target_window(start, end, *, max_span=MAX_TARGET_SPAN):
     start = _epoch(start, "target_start")
     end = _epoch(end, "target_end")
-    if end <= start or end - start > MAX_TARGET_SPAN:
+    if end <= start or end - start > max_span:
         raise ValueError("invalid_target_window")
     return start, end
 
@@ -1217,7 +1217,13 @@ def historical_forecast_rows(conn, start, end, as_of, policy="issued_before_deli
     Official issue time is not system knowledge. The optional system_known
     policy additionally bounds first ingestion and retrieval at the as-of clock.
     """
-    start, end = _target_window(start, end)
+    # Ending epochs need up to one hour of right-edge query padding for a
+    # selected 366-day delivery window. This allowance is endpoint-specific;
+    # the independent hourly target ceiling still bounds reads before SQL.
+    start, end = _target_window(start, end, max_span=MAX_TARGET_SPAN + 3600)
+    expected_targets = max(0, (end - 1) // 3600 - (start + 3599) // 3600 + 1)
+    if expected_targets > MAX_HISTORICAL_FORECAST_ROWS:
+        raise ValueError("historical_forecast_target_limit_exceeded")
     as_of = _epoch(as_of, "as_of")
     if policy not in ("issued_before_delivery", "system_known"):
         raise ValueError("invalid_historical_forecast_policy")
@@ -1252,7 +1258,7 @@ def historical_forecast_rows(conn, start, end, as_of, policy="issued_before_deli
             "availability": "available" if output else "no_eligible_archived_vintage",
             "system_knowledge_claim": policy == "system_known",
             "coverage": {
-                "expected_target_count": max(0, (end - 1) // 3600 - (start + 3599) // 3600 + 1),
+                "expected_target_count": expected_targets,
                 "selected_target_count": len(output),
                 "available_value_count": sum(row["value"] is not None for row in output),
                 "missing_value_count": max(0, (end - 1) // 3600 - (start + 3599) // 3600 + 1 - sum(row["value"] is not None for row in output)),
