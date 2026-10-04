@@ -1,0 +1,65 @@
+{
+  "authoring_head": "649a0c3633872aa12f39ecba66ae57f28300b634",
+  "scope": "Only two platform Inspect portraits; product/fixtures/tolerances unchanged",
+  "frames": [
+    {
+      "platform": "darwin",
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-inspect-portrait-iphone-pro-max-webkit-darwin.png",
+      "source_head": "649a0c3633872aa12f39ecba66ae57f28300b634",
+      "run": null,
+      "original": "/tmp/ercot-post-release-2026-10/inspect-stage11-649a-repeats/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/inspect-stage11-649a-repeats/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/inspect-stage11-649a-repeats/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-diff.png",
+      "original_sha256": "98bb98eb9c6e8dd6dbdb1cf630ab83869de7dfa899e6162a6bec4ccf66c085ae",
+      "candidate_sha256": "285fec7ceb836da29fa8a2f41f0900ab7b81bcc52299b1a2a2cfcaa1b1e98bf1",
+      "diff_sha256": "657a18a8d6ed6111919f782c6e4aa8b499a9bba8cdbbb570e0a005e0063fc471",
+      "review": "Original/actual/diff individually viewed",
+      "reason": "Deterministic Chart.js converged plot-right padding392\u2192391.2px; noon tick309.227\u2192308.627px; source/domain/controls unchanged.",
+      "capture_count": 2,
+      "matching_new_head_ci": "PENDING",
+      "repeat_actual": "/tmp/ercot-post-release-2026-10/inspect-stage11-649a-repeats/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit-repeat1/mobile-inspect-portrait-actual.png",
+      "repeat_sha256": "285fec7ceb836da29fa8a2f41f0900ab7b81bcc52299b1a2a2cfcaa1b1e98bf1",
+      "additional_native_baseline_delta": "Owning11 original native baseline also lacks first verified forecast delivery interval support at window-left. Genuine current24overlapping hours/48supportpoints extend firsthour from23:00UTC, not its00:00ending; earlier interval repair already shipped. Root97af nativeoriginal already corrects this source boundary; its currentactual bytes exactlyequal thisown649candidate."
+    },
+    {
+      "platform": "linux-ubuntu-24.04",
+      "snapshot": "e2e/mobile.spec.ts-snapshots/mobile-inspect-portrait-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "source_head": "649a0c3633872aa12f39ecba66ae57f28300b634",
+      "run": 37201225151,
+      "original": "/tmp/ercot-post-release-2026-10/ci11-649a-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-expected.png",
+      "actual": "/tmp/ercot-post-release-2026-10/ci11-649a-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/ci11-649a-mobile/test-results/mobile-mobile-visual-evidence-states-mobile-vri-iphone-pro-max-webkit/mobile-inspect-portrait-diff.png",
+      "original_sha256": "3ccc9300bd894d6c8b16c9a9f044b29e569297e62a3eb1aac013c13dd17f7516",
+      "candidate_sha256": "a51441c4fbb78c3409dfdf60ed4b33468092b83de452d487ad87ed2468d74f75",
+      "diff_sha256": "c21273aa1d493159dba1226467d0f5eba2a32414f194a0d81e6bd65921dad2c5",
+      "review": "Original/actual/diff individually viewed",
+      "reason": "Deterministic Chart.js converged plot-right padding392\u2192391.2px; noon tick309.227\u2192308.627px; source/domain/controls unchanged.",
+      "capture_count": 1,
+      "matching_new_head_ci": "PENDING"
+    }
+  ],
+  "axis_proof_dirs": [
+    "/tmp/ercot-post-release-2026-10/inspect-axis-183fd-native",
+    "/tmp/ercot-post-release-2026-10/inspect-axis-649a-native",
+    "/tmp/ercot-post-release-2026-10/inspect-axis-97af-native"
+  ],
+  "canonical_dataset_sha256": "6097ecf7b4167ad3526de8fa2d612c9a1189b2af39aa601effbc2563c68069fd",
+  "canvas_rect": {
+    "x": 24,
+    "y": 314.1875,
+    "width": 392,
+    "height": 616
+  },
+  "domain_ms": [1784588400000, 1784674800000],
+  "axis_finding": "183fd ready/idle right392 becomes391.2 after explicit update1; pixels then exactlyequal649/97af ready/idle/update1/update2. No fontdelay/crop explanation claimed.",
+  "source_csv_cursor_proof": "/tmp/ercot-post-release-2026-10/inspect-cursor-csv-649a",
+  "source_csv_assertions": [
+    "64demand rows exactlymatch64actualplottedsourcepoints",
+    "24forecast CSV ending tuples retainedin48halfopen deliverysupportpoints; onelefttouch APIrow is excluded",
+    "Keyboardcursor truthfulphysicalexpiry and retainedforecast71.4GW",
+    "Visible yellow DOMoverlay pin holds onpointermove; CSVbytesunchanged"
+  ],
+  "browser_repeats": "2PASS6.4s",
+  "limitations": "Linux onegenuineCIcapture; noLinuxaxis rerun. Device-scale diagnosticPNGnotused asbaseline. Root97af suite corroboratesDarwinactualbytes. Numeric2785/2731FAILs retained unwaived.",
+  "later12_candidate_equivalence": "Darwin candidatebyteequal97afactual285fec7ceb836da29fa8a2f41f0900ab7b81bcc52299b1a2a2cfcaa1b1e98bf1; Linux97afactual equivalence notyetchecked"
+}
