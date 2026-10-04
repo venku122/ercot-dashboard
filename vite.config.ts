@@ -8,6 +8,28 @@ export default defineConfig(({ mode }) => ({
   publicDir: "public",
   plugins: [
     {
+      name: "preload-overview-catalog",
+      transformIndexHtml: {
+        order: "post",
+        handler() {
+          return [
+            {
+              tag: "script",
+              children: `if ((new URLSearchParams(location.search).get("view") || "overview") === "overview") {
+              const catalog = document.createElement("link");
+              catalog.rel = "preload";
+              catalog.as = "fetch";
+              catalog.crossOrigin = "anonymous";
+              catalog.href = "/api/v2/tile-catalog?include=paired-headroom";
+              document.head.append(catalog);
+            }`,
+              injectTo: "head-prepend",
+            },
+          ];
+        },
+      },
+    },
+    {
       name: "preload-first-useful-chart",
       transformIndexHtml: {
         order: "post",

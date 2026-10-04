@@ -12,6 +12,27 @@ function formatObservedPower(value: number | null): string {
   return `${oracleNumber.format(giga ? value / 1000 : value)} ${giga ? "GW" : "MW"}`;
 }
 
+export function coherentColdOracle(
+  sources: Map<string, { timestamp: number; value: number }>,
+  paired: boolean,
+) {
+  const demand = sources.get("demand"),
+    capacity = sources.get("capacity");
+  const headroom = sources.get("headroom");
+  if (
+    !demand ||
+    !capacity ||
+    demand.timestamp !== capacity.timestamp ||
+    (paired && (!headroom || headroom.timestamp !== demand.timestamp))
+  )
+    return null;
+  return {
+    demand: formatObservedPower(demand.value),
+    capacity: formatObservedPower(capacity.value),
+    headroom: formatObservedPower(paired ? headroom!.value : capacity.value - demand.value),
+  };
+}
+
 export function isHistoryDataRequest(method: string, url: string): boolean {
   if (method !== "GET" && method !== "POST") return false;
   const path = new URL(url).pathname;
@@ -54,6 +75,7 @@ export function observeHistory(page: Page, publishColdOracle = false) {
   const pending: Promise<void>[] = [];
   const latest = new Map<string, { timestamp: number; value: number }>();
   let pairedRequested = false;
+  let publishedOracle = "";
   const retain = (id: string, timestamp: number, value: number) => {
     if (Number.isFinite(value) && timestamp >= (latest.get(id)?.timestamp ?? -Infinity))
       latest.set(id, { timestamp, value });
@@ -96,18 +118,14 @@ export function observeHistory(page: Page, publishColdOracle = false) {
         if (id && point) retain(id, point[0], series.meta?.stats?.latest ?? point[1]);
       }
       if (publishColdOracle) {
-        const demand = latest.get("demand"),
-          capacity = latest.get("capacity");
-        const headroom = pairedRequested
-          ? latest.get("headroom")?.value
-          : demand && capacity && demand.timestamp === capacity.timestamp
-            ? capacity.value - demand.value
-            : undefined;
-        const oracle = {
-          demand: formatObservedPower(demand?.value ?? null),
-          capacity: formatObservedPower(capacity?.value ?? null),
-          headroom: formatObservedPower(headroom ?? null),
-        };
+        // Each hourly tile is still read and retained. Publish only a coherent
+        // source-clock oracle, rather than forcing a browser round trip for
+        // every incomplete tile. Those diagnostic commands polluted cold CPU.
+        const oracle = coherentColdOracle(latest, pairedRequested);
+        if (!oracle) return;
+        const signature = JSON.stringify([latest.get("demand")!.timestamp, oracle]);
+        if (signature === publishedOracle) return;
+        publishedOracle = signature;
         await page.evaluate(
           (value) => Object.assign(window, { __performanceExpectedReadings: value }),
           oracle,
