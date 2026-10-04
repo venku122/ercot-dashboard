@@ -13,7 +13,7 @@ describe("declared series temporal contracts", () => {
     const chart = chartDefinitions.find((item) => item.id === "renewables")!;
     for (const id of ["wind-forecast", "solar-forecast"]) {
       const series = chart.series.find((item) => item.id === id)!;
-      const gap = seriesGapSeconds(chart.id, series, loaded());
+      const gap = seriesGapSeconds(chart.id, series, loaded(3600));
       for (const origin of [0, 86400]) {
         const points = displayPoints(
           [

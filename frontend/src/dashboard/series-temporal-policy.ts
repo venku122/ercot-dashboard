@@ -165,7 +165,14 @@ export function connectionGap(
     return 0;
   // Coarse plots represent aggregates, not proof of native continuity or cursor persistence.
   if (source.connectionGapSeconds === 0) return 0;
-  return Math.max(source.connectionGapSeconds, typeof bucket === "number" ? bucket * 2 : 0);
+  // A declared native bucket cannot widen the source gap contract: a missing
+  // whole hourly observation must still break the line. Coarse aggregates have
+  // their own bucket spacing, never native-observation semantics.
+  return source.nativeCadenceSeconds !== null &&
+    typeof bucket === "number" &&
+    bucket > source.nativeCadenceSeconds
+    ? Math.max(source.connectionGapSeconds, bucket * 2)
+    : source.connectionGapSeconds;
 }
 export function observationAt(
   loaded: LoadedSeries | undefined,
