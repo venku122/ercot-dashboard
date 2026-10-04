@@ -17,6 +17,12 @@ import { MobileDialog } from "./components/MobileDialog";
 import { DataLifecycleMessage } from "./components/DataLifecycleMessage";
 import { Button } from "./components/ui/button";
 import { loadSeries } from "./dashboard/api";
+import {
+  chartRequestError,
+  updateChartRequestErrors,
+  type ChartRequestErrors,
+} from "./dashboard/chart-request-errors";
+import { afterColdHistoryPaint } from "./dashboard/cold-history-handoff";
 import { shouldCommitRequest } from "./dashboard/request-generation";
 import { rationalizeAlerts, type PublicAlert } from "./dashboard/alert-policy";
 import { chartDefinitions, chartGroups, seriesKey } from "./dashboard/chart-config";
@@ -571,9 +577,16 @@ export function App() {
   const seriesDataRef = useRef(seriesData);
   const requestGenerationRef = useRef(0);
   const historyControllers = useRef(new Set<AbortController>());
+  const coldHandoff = useRef<{
+    controller: AbortController;
+    cancel: () => void;
+    view: DashboardViewId;
+  } | null>(null);
   const [historyQueueRevision, setHistoryQueueRevision] = useState(0);
   useEffect(
     () => () => {
+      coldHandoff.current?.cancel();
+      coldHandoff.current = null;
       for (const controller of historyControllers.current) controller.abort();
       historyControllers.current.clear();
       loadedChartIdsRef.current.clear();
@@ -585,6 +598,7 @@ export function App() {
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [chartRequestErrors, setChartRequestErrors] = useState<ChartRequestErrors>(() => new Map());
   const [requestRevision, setRequestRevision] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const collapsed = initiallyCollapsedGroups(initialMobile);
@@ -598,6 +612,8 @@ export function App() {
   const loadedChartIdsRef = useRef<Set<string>>(new Set());
   const [mobileDialog, setMobileDialog] = useState<MobileDialogName>(null);
   const [selectedView, setSelectedView] = useState<DashboardViewId>(initialView);
+  const selectedViewRef = useRef(selectedView);
+  selectedViewRef.current = selectedView;
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const controlsTriggerRef = useRef<HTMLButtonElement>(null);
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
@@ -650,7 +666,11 @@ export function App() {
     overviewQueries,
     time: resolvedTime,
   });
-  const effectiveRequestError = overviewError ?? requestError;
+  const effectiveRequestError =
+    overviewError ??
+    requestError ??
+    [...chartRequestErrors.values()].flatMap((cohort) => [...cohort.values()])[0] ??
+    null;
 
   useEffect(() => {
     seriesDataRef.current = seriesData;
@@ -708,6 +728,8 @@ export function App() {
     ]);
     const priorSeriesData = seriesDataRef.current;
     if (loadedChartContextRef.current !== loadContext) {
+      coldHandoff.current?.cancel();
+      coldHandoff.current = null;
       for (const pending of historyControllers.current) pending.abort();
       historyControllers.current.clear();
       requestGenerationRef.current += 1;
@@ -715,6 +737,11 @@ export function App() {
       loadedChartIdsRef.current.clear();
     }
     const requestGeneration = requestGenerationRef.current;
+    if (coldHandoff.current && coldHandoff.current.view !== selectedView) {
+      coldHandoff.current.cancel();
+      historyControllers.current.delete(coldHandoff.current.controller);
+      coldHandoff.current = null;
+    }
     // Serialize visibility batches. New placements reuse completed data and wait
     // for the current batch instead of aborting and duplicating its requests.
     if (historyControllers.current.size) return;
@@ -746,6 +773,7 @@ export function App() {
         series: headroomChart.series.filter((series) => series.id === "headroom"),
       });
     }
+    let coldPriorityBatch = false;
     // Prioritize the cold first useful plots. Once a core request has completed,
     // batch warm selection changes together instead of doubling their requests.
     // Every cold deferred key remains unmarked for the serialized queue.
@@ -756,7 +784,10 @@ export function App() {
       const firstPlots = requestedCharts.filter((chart) =>
         ["supply-demand", "capacity-headroom", "overview-headroom"].includes(chart.id),
       );
-      if (firstPlots.length) requestedCharts = firstPlots;
+      if (firstPlots.length) {
+        requestedCharts = firstPlots;
+        coldPriorityBatch = true;
+      }
     }
     if (!requestedCharts.length) {
       setLoading(false);
@@ -779,6 +810,9 @@ export function App() {
           !shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
         )
           return;
+        setChartRequestErrors((current) =>
+          updateChartRequestErrors(current, requestedCharts, null),
+        );
         setSeriesData(
           (current) =>
             new Map([
@@ -811,16 +845,33 @@ export function App() {
           return;
         // Keep failed keys attempted for this generation. Explicit retry or a
         // new window invalidates them; the visibility queue must not hot-loop.
-        setRequestError(error instanceof Error ? error.message : String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        setChartRequestErrors((current) =>
+          updateChartRequestErrors(current, requestedCharts, message),
+        );
+        setRequestError(message);
       })
       .finally(() => {
-        historyControllers.current.delete(controller);
+        const release = () => {
+          historyControllers.current.delete(controller);
+          if (coldHandoff.current?.controller === controller) coldHandoff.current = null;
+          if (
+            shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
+          ) {
+            setLoading(false);
+            setHistoryQueueRevision((value) => value + 1);
+          }
+        };
         if (
+          coldPriorityBatch &&
+          selectedViewRef.current === selectedView &&
           shouldCommitRequest(requestGeneration, requestGenerationRef.current, controller.signal)
         ) {
-          setLoading(false);
-          setHistoryQueueRevision((value) => value + 1);
-        }
+          // Reserve this controller through the paint opportunity so visibility
+          // changes cannot start another batch early. Warm batches release now.
+          const cancel = afterColdHistoryPaint(controller.signal, release);
+          coldHandoff.current = { controller, cancel, view: selectedView };
+        } else release();
       });
   }, [
     historyQueueRevision,
@@ -1154,7 +1205,7 @@ export function App() {
         onVisibilityChange={setChartVisible}
         onZoom={onZoom}
         presentation={presentation}
-        requestError={effectiveRequestError}
+        requestError={chartRequestError(chartRequestErrors, chart) ?? overviewError}
         seriesData={
           overrideSeriesData ?? (selectedView === "overview" ? overviewSeriesData : seriesData)
         }
