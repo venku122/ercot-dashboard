@@ -4877,7 +4877,7 @@ body {
   }
 
   .dashboard-shell {
-    padding-top: 10px;
+    padding-top: max(10px, env(safe-area-inset-top));
   }
 
   .dashboard-header {
