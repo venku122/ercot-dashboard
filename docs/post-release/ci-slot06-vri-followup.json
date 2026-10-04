@@ -1,0 +1,170 @@
+{
+  "renderer_source": "20d7db3998a914fa1156de094f11177756874b4c",
+  "scope": "Test evidence only; no product CSS, source fixture, request budget or pixel tolerance changes.",
+  "images": [
+    {
+      "file": "e2e/dashboard.spec.ts-snapshots/grid-health-score-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "baf6b1d8da7039d3ce922054f6567142430cc82cbc017b47e784dd7ebee7960f",
+      "new_sha256": "ee234e8a404024a7f6d88cdae5c44385486ed08ad3658e4e9ab072432ac68cd3",
+      "old_dimensions": [1204, 705],
+      "new_dimensions": [1204, 705],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/dashboard-visual-regression-Grid-Health-Score-chromium/grid-health-score-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/dashboard-visual-regression-Grid-Health-Score-chromium-repeat1/grid-health-score-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/grid-health-score-chromium-linux-ubuntu-24.04.png",
+      "individual_review": "Same 99/100 NORMAL and eight current inputs; canonical floor/layout origin gives identical repeated glyph/crop phase."
+    },
+    {
+      "file": "e2e/grid-event-timeline.spec.ts-snapshots/grid-event-timeline-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "df1dfedbf8c00dc2d9557c29f0070d301a0ab056e780a726d92cfec9482a4837",
+      "new_sha256": "d0b645d35c43c87982d0a8aba2180e349d639a8ec722111ad8b7ce6d3932df03",
+      "old_dimensions": [1204, 1188],
+      "new_dimensions": [1204, 1188],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium/grid-event-timeline-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium-repeat1/grid-event-timeline-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/grid-event-timeline-chromium-linux-ubuntu-24.04.png",
+      "individual_review": "Same source events, exact timestamps, repeated-hour ambiguity, focus, coverage and noncausal caveats; canonical floor/layout crop."
+    },
+    {
+      "file": "e2e/mobile-historical-context.spec.ts-snapshots/historical-context-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "13e631ac1910367bb6d9d9f95995fc64ac1096e0e2553132b72a5342b859ac81",
+      "new_sha256": "ff9cd4582f46716b0ffe833fb422c6c439ab29db125b8539a2ec1fb94dfb2622",
+      "old_dimensions": [416, 990],
+      "new_dimensions": [416, 989],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit-repeat1/historical-context-mobile-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/historical-context-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "individual_review": "Same75.3GW,12/12,61.5\u201379.1GW,3of120 and available/partial/unavailable evidence; canonical floor/layout crop."
+    },
+    {
+      "file": "e2e/mobile.spec.ts-snapshots/empty-lifecycle-chart-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "2f6cad50ac88a3f1292a539e981893f06375af03049e2405997c88787e288e0c",
+      "new_sha256": "369d9cbdb59d40039bf8bf7e51ed03fbabac2e350a77b438f00379442a5db619",
+      "old_dimensions": [416, 334],
+      "new_dimensions": [416, 474],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/mobile-visual-regression-empty-lifecycle-state-mobile-vri-iphone-pro-max-webkit/empty-lifecycle-chart-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-repeat-tests/mobile-visual-regression-empty-lifecycle-state-mobile-vri-iphone-pro-max-webkit-repeat1/empty-lifecycle-chart-mobile-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/empty-lifecycle-chart-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "individual_review": "Known three source names retain lazy geometry with dash values; waiting state, no canvas/table, no samples invented."
+    },
+    {
+      "file": "e2e/dashboard.spec.ts-snapshots/grid-health-score-chromium-darwin.png",
+      "old_sha256": "4feb8096858e76721974bb9ee3b195348751b296e0b51abf932dde65b72a1a35",
+      "new_sha256": "c339a54e6ecf2ea785ab02d0e07aed29d93792345a03a3e08ee0b5f729c54881",
+      "old_dimensions": [1204, 723],
+      "new_dimensions": [1204, 723],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/dashboard-visual-regression-Grid-Health-Score-chromium/grid-health-score-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/dashboard-visual-regression-Grid-Health-Score-chromium-repeat1/grid-health-score-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/grid-health-score-chromium-darwin.png",
+      "individual_review": "Same 99/100 NORMAL and eight current inputs; canonical floor/layout origin gives identical repeated glyph/crop phase."
+    },
+    {
+      "file": "e2e/grid-event-timeline.spec.ts-snapshots/grid-event-timeline-chromium-darwin.png",
+      "old_sha256": "af353e3401f22f94cb02f60967ed5d4760c742cda9ca13d944efb13774f25a98",
+      "new_sha256": "8bf91397b56ed5842ad2b3c4fdfe142cf81922f5b8ea5cc77eee4baa01528672",
+      "old_dimensions": [1204, 1188],
+      "new_dimensions": [1204, 1188],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium/grid-event-timeline-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium-repeat1/grid-event-timeline-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/grid-event-timeline-chromium-darwin.png",
+      "individual_review": "Same source events, exact timestamps, repeated-hour ambiguity, focus, coverage and noncausal caveats; canonical floor/layout crop."
+    },
+    {
+      "file": "e2e/mobile-historical-context.spec.ts-snapshots/historical-context-mobile-iphone-pro-max-webkit-darwin.png",
+      "old_sha256": "07899ebf9f7239fbb6ead85f150b292b36051c0b43f25e2fb678d0411f417a39",
+      "new_sha256": "518402cfdc812539f44d4038abd5bd35a31a544bc5ebc448f82b9f2188dfc059",
+      "old_dimensions": [416, 990],
+      "new_dimensions": [416, 989],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit-repeat1/historical-context-mobile-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/historical-context-mobile-iphone-pro-max-webkit-darwin.png",
+      "individual_review": "Same75.3GW,12/12,61.5\u201379.1GW,3of120 and available/partial/unavailable evidence; canonical floor/layout crop. Native evidence table right-column overflow is identically contained in original and current capture; keyboard/scroll containment test is retained, no new clipped labels accepted as a semantic change."
+    },
+    {
+      "file": "e2e/mobile.spec.ts-snapshots/empty-lifecycle-chart-mobile-iphone-pro-max-webkit-darwin.png",
+      "old_sha256": "5eb7154ccfc4cdfb6475549e70950e05b73a2f5aee2d9b4be36e126400a82e30",
+      "new_sha256": "c0c69fdb4fe38c8861983a6c3c5cd488dca752f505235e16abfd6d7aeb54ec6b",
+      "old_dimensions": [416, 312],
+      "new_dimensions": [416, 474],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/mobile-visual-regression-empty-lifecycle-state-mobile-vri-iphone-pro-max-webkit/empty-lifecycle-chart-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-red-tests/mobile-visual-regression-empty-lifecycle-state-mobile-vri-iphone-pro-max-webkit-repeat1/empty-lifecycle-chart-mobile-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/empty-lifecycle-chart-mobile-iphone-pro-max-webkit-darwin.png",
+      "individual_review": "Known three source names retain lazy geometry with dash values; waiting state, no canvas/table, no samples invented. Darwin original also predates existing compact card padding and explanatory caption; source renderer/styles are unchanged by this supplement."
+    },
+    {
+      "file": "e2e/grid-event-timeline.spec.ts-snapshots/grid-event-timeline-exact-chromium-darwin.png",
+      "old_sha256": "3c30ca5b8f2d33c7a8ec2e5f839e0918e7fa00e42c55fb155ba6f250285a2a39",
+      "new_sha256": "3bae1f1410244e2506d29a92dc0607589281c02cc66d78b2eacbd93391d1d339",
+      "old_dimensions": [1166, 247],
+      "new_dimensions": [1166, 246],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-exact-repeat-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium/grid-event-timeline-exact-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-exact-repeat-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium-repeat1/grid-event-timeline-exact-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/grid-event-timeline-exact-chromium-darwin.png",
+      "individual_review": "Same five event IDs/evidence classes/source IDs/exact and repeated UTC times; canonical crop preserves horizontal containment."
+    },
+    {
+      "file": "e2e/mobile-historical-context.spec.ts-snapshots/historical-context-exact-mobile-iphone-pro-max-webkit-darwin.png",
+      "old_sha256": "a93bb3808f506ea6cbd34ad31d28765c28b75981464a69be67eee1e2db075f31",
+      "new_sha256": "00466fa5ab92eb7fd075278b9c435a91761a4a8d6a6c370dccb3f044fb328d47",
+      "old_dimensions": [382, 301],
+      "new_dimensions": [382, 300],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-exact-repeat-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-exact-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-exact-repeat-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit-repeat1/historical-context-exact-mobile-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/historical-context-exact-mobile-iphone-pro-max-webkit-darwin.png",
+      "individual_review": "Same ten DOM evidence rows and qualification/availability states; first five rows visible in existing contained scroll region, unchanged keyboard/scroll access. Canonical crop only."
+    },
+    {
+      "file": "e2e/grid-event-timeline.spec.ts-snapshots/grid-event-timeline-exact-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "78ae1792ae9005e52025a294968686f939b6ec8e5ca7d4086e15a56bae30cd37",
+      "new_sha256": "6eb6aa421faf145c0960818cae217df55ab51957fb3e756a46280fc275229d33",
+      "old_dimensions": [1166, 246],
+      "new_dimensions": [1166, 246],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-exact-repeat-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium/grid-event-timeline-exact-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-exact-repeat-tests/grid-event-timeline-grid-e-65c73-ict-shareable-and-noncausal-chromium-repeat1/grid-event-timeline-exact-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/grid-event-timeline-exact-chromium-linux-ubuntu-24.04.png",
+      "individual_review": "Same five event IDs/evidence classes/source IDs/exact and repeated UTC times; canonical crop preserves horizontal containment."
+    },
+    {
+      "file": "e2e/mobile-historical-context.spec.ts-snapshots/historical-context-exact-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "old_sha256": "2d98b12a14a3682e89a2574fbaad849facd22cd88289f0f89695cb30a5c61cdc",
+      "new_sha256": "c4665052f0ce88d95a2337fdc92209a0aad8a98b37feff52ccc395bf6e60fa3e",
+      "old_dimensions": [382, 300],
+      "new_dimensions": [382, 300],
+      "actual": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-exact-repeat-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit/historical-context-exact-mobile-actual.png",
+      "repeat": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-exact-repeat-tests/mobile-historical-context--dd80b--mobile-evidence-mobile-vri-iphone-pro-max-webkit-repeat1/historical-context-exact-mobile-actual.png",
+      "repeat_byte_identical": true,
+      "preserved_original": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/preserved/historical-context-exact-mobile-iphone-pro-max-webkit-linux-ubuntu-24.04.png",
+      "individual_review": "Same ten DOM evidence rows and qualification/availability states; first five rows visible in existing contained scroll region, unchanged keyboard/scroll access. Canonical crop only."
+    }
+  ],
+  "historical_rows": "All10 historical DOM rows asserted; onlyfirst5 visible in existing contained scroll crop.",
+  "event_rows": "All5 event identities/source classes retained and UTC/shareable evidence assertions retained.",
+  "native_verification": {
+    "log": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/native-verified.log",
+    "result": "26PASS",
+    "repeat_each": 2
+  },
+  "linux_verification": {
+    "log": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/linux-verified.log",
+    "result": "38PASS",
+    "repeat_each": 2
+  },
+  "live_production_evidence": "NOT_RUN",
+  "static_verification": {
+    "result": "PASS",
+    "frontend": 485,
+    "receiver": 284,
+    "contracts": 41,
+    "log": "/tmp/ercot-post-release-2026-10/slot06-ci-test-repair/validation.log"
+  }
+}

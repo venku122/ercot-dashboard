@@ -1235,12 +1235,25 @@ test("visual regression structured operational alert", async ({ page }) => {
 });
 
 test("visual regression Grid Health Score", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installApi(page);
   await page.goto("/");
   const scoreDetails = page.locator(".grid-health-details");
   await scoreDetails.getByText("Grid Health inputs and scoring", { exact: true }).click();
   await expect(page.getByLabel("Grid Health Score factors").getByRole("listitem")).toHaveCount(8);
-  await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
+  await expect(scoreDetails).toContainText("99 / 100");
+  await expect(scoreDetails).toContainText("8 of 8");
+  await expect(scoreDetails).toContainText("All eight weighted factors are current and included.");
+  await evidence.capture("grid-health-score-raw", scoreDetails);
+  await withCssPixelAlignment(
+    scoreDetails,
+    async () => {
+      await evidence.capture("grid-health-score-aligned", scoreDetails);
+      await expect(scoreDetails).toHaveScreenshot("grid-health-score.png");
+    },
+    "floor",
+    "layout",
+  );
 });
 
 test("visual regression analytical dashboard", async ({ page }) => {

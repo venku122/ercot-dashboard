@@ -20,6 +20,19 @@ async function openPopulated(
   await expect(page.getByRole("heading", { name: "ERCOT Grid Dashboard" })).toBeVisible();
 }
 
+async function expectKnownUnavailableSupplyLegends(card: import("@playwright/test").Locator) {
+  const legends = card.locator(".series-legend");
+  await expect(legends).toHaveCount(1);
+  await expect(legends.locator(".legend-label")).toHaveText([
+    "Actual demand",
+    "Forecast demand",
+    "Available capacity",
+  ]);
+  await expect(legends.locator(".legend-latest")).toHaveText(["—", "—", "—"]);
+  await expect(card.locator("canvas")).toHaveCount(0);
+  await expect(card.locator(".accessible-data")).toHaveCount(0);
+}
+
 async function openMoreView(
   page: Parameters<typeof installMobileApi>[0],
   name: "Advanced" | "Diagnostics" | "Weather",
@@ -319,6 +332,7 @@ test("P0 API failure remains distinct from an empty selected window @mobile-core
   await expect(errorAlert).not.toContainText("fixture upstream unavailable");
   await expect(card.getByText("Temporarily unavailable…")).toBeVisible();
   await expect(card.getByText("Waiting for first sample…")).toBeHidden();
+  await expectKnownUnavailableSupplyLegends(card);
 
   await page.unrouteAll({ behavior: "wait" });
   await installMobileApi(page, "empty");
@@ -327,15 +341,19 @@ test("P0 API failure remains distinct from an empty selected window @mobile-core
   await expect(card.getByText("Waiting for first sample…")).toBeVisible();
   await expect(card.getByText("Temporarily unavailable…")).toBeHidden();
   await expect(card.locator(".chart-interpretation")).toHaveCount(0);
-  await expect(card.locator(".series-legend")).toHaveCount(0);
-  await expect(card.locator(".accessible-data")).toHaveCount(0);
+  await expectKnownUnavailableSupplyLegends(card);
 });
 
 test("visual regression empty lifecycle state @mobile-vri", async ({ page }) => {
+  const evidence = observeVisualSources(page);
   await installMobileApi(page, "empty");
   await page.goto("/");
   const card = page.locator('[data-chart-id="supply-demand"]');
   await card.scrollIntoViewIfNeeded();
+  await expect(card.getByText("Waiting for first sample…")).toBeVisible();
+  await expect(card.getByText("Temporarily unavailable…")).toBeHidden();
+  await expectKnownUnavailableSupplyLegends(card);
+  await evidence.capture("empty-lifecycle-chart-mobile", card);
   await expect(card).toHaveScreenshot("empty-lifecycle-chart-mobile.png");
 });
 

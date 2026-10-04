@@ -1,4 +1,11 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+} from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -8,10 +15,10 @@ export function observeVisualSources(page: Page) {
   const responses: unknown[] = [];
   const failures: string[] = [];
   const pending = new Set<Promise<void>>();
-  page.on("requestfailed", (request) => {
+  const onRequestFailed = (request: Request) => {
     if (request.url().includes("/api/")) failures.push(request.url());
-  });
-  page.on("response", (response) => {
+  };
+  const onResponse = (response: Response) => {
     const path = new URL(response.url()).pathname;
     if (
       !/^\/api\/(series\/batch|latest\/batch|v[12]\/(source-health|tile-catalog|tiles\/|series\/chunk))/.test(
@@ -61,8 +68,17 @@ export function observeVisualSources(page: Page) {
     })();
     pending.add(task);
     void task.finally(() => pending.delete(task));
-  });
+  };
+  page.on("requestfailed", onRequestFailed);
+  page.on("response", onResponse);
   return {
+    async stop() {
+      // Finish source evidence before an intentional navigation invalidates response bodies.
+      page.off("requestfailed", onRequestFailed);
+      page.off("response", onResponse);
+      await Promise.all(pending);
+      expect(failures, "Visual evidence must finish without fixture escapes").toEqual([]);
+    },
     async capture(name: string, target: Locator) {
       await page.evaluate(async () => {
         await document.fonts.ready;
