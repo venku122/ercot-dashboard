@@ -329,3 +329,41 @@ it("retains current and comparison non-extreme final observations with coarse la
   expect(loaded.meta.bucket_seconds).toBeGreaterThan(300);
   expect(loaded.meta.observed_envelope_support).toEqual([]);
 });
+
+it("does not invent comparison continuity across the Chicago fall-back calendar gap", async () => {
+  const start = Date.parse("2026-11-01T05:00:00Z") / 1000;
+  const end = Date.parse("2026-11-01T10:00:00Z") / 1000;
+  const sourceStart = Date.parse("2026-10-31T05:00:00Z") / 1000;
+  const raw = Array.from({ length: 48 }, (_, index) => [sourceStart + index * 300, 7]);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url: string) =>
+        new Response(
+          JSON.stringify(url.includes("tile-catalog") ? catalog : headroomTile(url, raw)),
+        ),
+    ),
+  );
+  const result = await loadSeries(
+    [
+      {
+        ...headroomChart,
+        series: headroomChart.series.filter((series) => series.id === "headroom"),
+      },
+    ],
+    { mode: "fixed", start, end, rangeSeconds: end - start, paused: true },
+    "day",
+    0,
+    new AbortController().signal,
+  );
+  const loaded = result.get("overview-headroom:headroom")!;
+  const gapStart = Date.parse("2026-11-01T06:55:00Z") / 1000;
+  const gapEnd = Date.parse("2026-11-01T08:00:00Z") / 1000;
+  expect(loaded.compare).toContainEqual([gapStart, 7]);
+  expect(loaded.compare).toContainEqual([gapEnd, 7]);
+  expect(
+    loaded.meta.comparison_observed_envelope_support?.some(
+      (range) => range.start <= gapStart && range.end >= gapEnd,
+    ),
+  ).toBe(false);
+});

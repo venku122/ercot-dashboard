@@ -718,7 +718,7 @@ async function loadFixedSeriesFromTiles(
             start: Math.round(window.start),
           });
         };
-        const support = (requests: TileRequest[], window: TimeState) => {
+        const support = (requests: TileRequest[], window: TimeState, align = false) => {
           const ranges = requests
             .flatMap((request) => {
               const tile = tileByUrl.get(request.url);
@@ -733,6 +733,18 @@ async function loadFixedSeriesFromTiles(
                       tile.pairing?.continuous_buckets?.includes(bucket.start)),
                 )
                 .map((bucket) => ({ start: bucket.state.first_ts!, end: bucket.state.last_ts! }));
+            })
+            .map((range) => {
+              if (!align) return range;
+              const aligned = alignComparisonForMode(
+                [
+                  [range.start, 0],
+                  [range.end, 0],
+                ],
+                compare,
+                comparison.offset,
+              );
+              return { start: aligned[0]![0], end: aligned[1]![0] };
             })
             .sort((left, right) => left.start - right.start);
           const merged: Array<{ start: number; end: number }> = [];
@@ -808,17 +820,8 @@ async function loadFixedSeriesFromTiles(
                   comparison_observed_envelope_support: support(
                     job.comparisonRequests,
                     comparisonTime,
-                  ).map((range) => {
-                    const aligned = alignComparisonForMode(
-                      [
-                        [range.start, 0],
-                        [range.end, 0],
-                      ],
-                      compare,
-                      comparison.offset,
-                    );
-                    return { start: aligned[0]![0], end: aligned[1]![0] };
-                  }),
+                    true,
+                  ),
                   pairing: {
                     policy: HEADROOM_PAIRING.policy,
                     paired_count: projection.stats.count,
