@@ -133,6 +133,20 @@
       "old_dimensions": [440, 956],
       "new_dimensions": [440, 956],
       "reason": "Container reflow places critical readouts into three then two columns, preserving their text; optional native price remains unavailable independently of legacy collection prices."
+    },
+    {
+      "frame": "progressive-outlook-desktop",
+      "path": "e2e/dashboard.spec.ts-snapshots/progressive-outlook-desktop-chromium-linux-ubuntu-24.04.png",
+      "old_sha256": "1e3b29bb63afe9e8ed8cd64829ce763e1b274a568403b6ef3ac78671fd8c99e8",
+      "new_sha256": "a613f465de5c9f3e5885bb23c56c6926b2b93324c9f08d1c07bbf43111d6d8bf",
+      "original": "/tmp/ercot-post-release-2026-10/slot10-own-ci-repair/preserved-slot10-originals/progressive-outlook-desktop-chromium-linux-ubuntu-24.04.png",
+      "actual": "/tmp/ercot-post-release-2026-10/slot10-own-ci-repair/desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-outlook-desktop-actual.png",
+      "diff": "/tmp/ercot-post-release-2026-10/slot10-own-ci-repair/desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/progressive-outlook-desktop-diff.png",
+      "source_evidence": "/tmp/ercot-post-release-2026-10/slot10-own-ci-repair/desktop/test-results/dashboard-visual-regressio-1d304-ve-disclosure-desktop-views-chromium/error-context.md",
+      "source_evidence_sha256": "55749f7a48c6d46dbe17969d092c376c6771d24c0fa0371b270029925e33fc2a",
+      "old_dimensions": [1280, 960],
+      "new_dimensions": [1280, 960],
+      "reason": "Specialist Outlook uses the same timestamp-based next24 profile as inline Overview: the two real +1h/+2h values occupy4.17%/8.33% of the24h domain, not a stretched full-domain segment. Peak75.5GW/headroom11.8GW/modelA3/issuance1h unchanged. Evidence disclosure remains keyboard-accessible. Independent review caught this distinct10 frame omitted from the first nine-image supplement."
     }
   ]
 }
