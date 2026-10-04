@@ -20,7 +20,9 @@ export function isPreviousSelection(
     !completed.paused &&
     time.mode === "live" &&
     !time.paused &&
-    completed.rangeSeconds === time.rangeSeconds;
+    completed.rangeSeconds === time.rangeSeconds &&
+    completed.start < time.end &&
+    time.start < completed.end;
   return !sameComparison || !(sameBounds || sameRunningSelection);
 }
 

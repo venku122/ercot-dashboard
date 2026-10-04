@@ -51,6 +51,12 @@ describe("completed historical request selection", () => {
       ),
     ).toBe(true);
   });
+  it("identifies a disjoint live window after a long suspended-tab clock jump", () => {
+    for (const shift of [completed.rangeSeconds, 86400, -86400]) {
+      const shifted = { ...completed, start: completed.start + shift, end: completed.end + shift };
+      expect(isPreviousSelection(completed, shifted, "previous_period", 0)).toBe(true);
+    }
+  });
   it("does not invent request provenance and renders the exact completed UTC bounds", () => {
     expect(isPreviousSelection(undefined, completed, "day", 0)).toBe(false);
     expect(selectionDescription(completed)).toBe(
