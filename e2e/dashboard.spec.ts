@@ -745,7 +745,13 @@ async function installApi(
 test("net-load details remain lazy and accessible in Chromium", async ({ page }) => {
   const netLoadRequests: string[] = [];
   page.on("request", (request) => {
-    if (new URL(request.url()).pathname.includes("net-load")) netLoadRequests.push(request.url());
+    const path = new URL(request.url()).pathname;
+    if (
+      path === "/api/v1/net-load" ||
+      path.startsWith("/api/v2/net-load/") ||
+      path.startsWith("/api/v2/net-load-daily/")
+    )
+      netLoadRequests.push(request.url());
   });
   await installApi(page);
   await page.goto("/?view=generation");

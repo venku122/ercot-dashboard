@@ -457,7 +457,13 @@ test("P0 net-load disclosure is lazy, accessible, and contained on mobile @mobil
 }) => {
   const netLoadRequests: string[] = [];
   page.on("request", (request) => {
-    if (new URL(request.url()).pathname.includes("net-load")) netLoadRequests.push(request.url());
+    const path = new URL(request.url()).pathname;
+    if (
+      path === "/api/v1/net-load" ||
+      path.startsWith("/api/v2/net-load/") ||
+      path.startsWith("/api/v2/net-load-daily/")
+    )
+      netLoadRequests.push(request.url());
   });
   await openPopulated(page, "normal", "/?view=generation");
   await expect(page.getByRole("heading", { name: "Net load and ramp" })).toBeVisible();
