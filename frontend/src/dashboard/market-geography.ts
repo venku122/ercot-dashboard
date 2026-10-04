@@ -289,6 +289,13 @@ function lmpRow(value: unknown): LmpRow {
   };
 }
 
+function reportedStation(value: unknown): string {
+  if (value === "") return "";
+  const station = text(value, 256);
+  if (station.trim() !== station) throw new Error("invalid_market_geography_station");
+  return station;
+}
+
 function constraintRow(value: unknown): ConstraintRow {
   const item = object(value);
   if (
@@ -311,8 +318,8 @@ function constraintRow(value: unknown): ConstraintRow {
     limit_mw: finite(item["limit_mw"]),
     value_mw: finite(item["value_mw"]),
     violated_mw: finite(item["violated_mw"]),
-    from_station: text(item["from_station"], 256),
-    to_station: text(item["to_station"], 256),
+    from_station: reportedStation(item["from_station"]),
+    to_station: reportedStation(item["to_station"]),
     from_station_kv: finite(item["from_station_kv"]),
     to_station_kv: finite(item["to_station_kv"]),
     cct_status: item["cct_status"] as "COMP" | "NONCOMP",

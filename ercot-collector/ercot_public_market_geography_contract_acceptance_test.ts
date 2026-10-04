@@ -295,3 +295,25 @@ Deno.test("collector publication payload retains official provenance and exact r
     );
   }
 });
+
+Deno.test("ERP-08 official LMP padding and non-station interface constraints remain source values", () => {
+  const lmps = parse(
+    "NP6-788-CD",
+    "SCEDTimestamp,RepeatedHourFlag,SettlementPoint,LMP\n10/03/2026 22:45:20,N,HB_HOUSTON,       31.14\n",
+  );
+  equal(lmps[0]?.lmp, 31.14);
+  throws(() =>
+    parse(
+      "NP6-788-CD",
+      "SCEDTimestamp,RepeatedHourFlag,SettlementPoint,LMP\n10/03/2026 22:45:20,N,HB_HOUSTON,       \n",
+    ),
+  );
+  const header = adapter.MARKET_GEOGRAPHY_PRODUCTS["NP6-86-CD"].headers.join(",");
+  const rows = parse(
+    "NP6-86-CD",
+    header + "\n10/03/2026 21:55:20,N,10,NELRIO,BASE CASE,0,5251,867,744.2,-122.8,,,0,0,NONCOMP\n",
+  );
+  equal(rows[0]?.from_station, "");
+  equal(rows[0]?.to_station, "");
+  equal(rows[0]?.violated_mw, -122.8);
+});

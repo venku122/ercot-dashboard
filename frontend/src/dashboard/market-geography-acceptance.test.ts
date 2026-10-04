@@ -278,3 +278,12 @@ describe("PR15 market geography independent wire acceptance", () => {
     ).toThrow();
   });
 });
+
+it("ERP-08 preserves source-unreported constraint endpoint names without fabricating stations", () => {
+  const value = manifest();
+  value.constraints.rows[0]!.from_station = "";
+  value.constraints.rows[0]!.to_station = "";
+  expect(parseMarketGeographyManifest(value).constraints.rows[0]!.from_station).toBe("");
+  value.constraints.rows[0]!.from_station = " ";
+  expect(() => parseMarketGeographyManifest(value)).toThrow();
+});

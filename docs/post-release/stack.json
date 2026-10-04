@@ -48,11 +48,12 @@
       "branch": "ercot-post-release/04-temporal-policies",
       "base_branch": "ercot-post-release/03-release-smoke",
       "logical_dependency_ids": ["ERP-01"],
-      "pr_number": null,
-      "pr_url": null,
-      "head_sha": null,
-      "tested_sha": null,
-      "status": "PLANNED_NOT_CREATED"
+      "pr_number": 76,
+      "pr_url": "https://github.com/venku122/ercot-dashboard/pull/76",
+      "head_sha": "e64ebc41a308019a05ab445f9f4ed20c98e65eda",
+      "tested_sha": "e64ebc41a308019a05ab445f9f4ed20c98e65eda",
+      "status": "DRAFT_LOCALLY_VALIDATED",
+      "observed_at_utc": "2026-10-04T03:37:38.050949+00:00"
     },
     {
       "slot": 5,

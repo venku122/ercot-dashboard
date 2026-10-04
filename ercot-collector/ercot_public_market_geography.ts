@@ -267,7 +267,8 @@ export function parsePublicMarketGeographyCsv(
         repeated_hour_flag: repeated,
         target_ts: centralTarget(raw, repeated),
         settlement_point: bounded(row.SettlementPoint!, "settlement_point", 256),
-        lmp: finite(row.LMP!),
+        // Official NP6-788 CSV pads its numeric LMP cells with spaces.
+        lmp: finite(row.LMP!.trim()),
       };
     }
     if (product === "NP6-905-CD") {
@@ -310,8 +311,8 @@ export function parsePublicMarketGeographyCsv(
       limit_mw: finite(row.Limit!),
       value_mw: finite(row.Value!),
       violated_mw: finite(row.ViolatedMW!),
-      from_station: bounded(row.FromStation!, "from_station", 256),
-      to_station: bounded(row.ToStation!, "to_station", 256),
+      from_station: row.FromStation === "" ? "" : bounded(row.FromStation!, "from_station", 256),
+      to_station: row.ToStation === "" ? "" : bounded(row.ToStation!, "to_station", 256),
       from_station_kv: finite(row.FromStationkV!),
       to_station_kv: finite(row.ToStationkV!),
       cct_status: cctStatus,

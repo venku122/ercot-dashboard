@@ -176,6 +176,17 @@ class MarketGeographyTest(unittest.TestCase):
             before,
         )
 
+    def test_official_interface_constraint_retains_unreported_stations(self):
+        rows = constraint_rows()
+        rows[0]["from_station"] = ""
+        rows[0]["to_station"] = ""
+        rows[0]["from_station_kv"] = 0
+        rows[0]["to_station_kv"] = 0
+        result = ingest_market_geography_publication(self.conn, payload("NP6-86-CD", "1009", rows, 1787074560))
+        self.assertIsNotNone(result)
+        stored = self.conn.execute("SELECT from_station,to_station FROM market_geography_constraint_rows").fetchone()
+        self.assertEqual(stored, ("", ""))
+
     def test_nearest_constraint_timestamp_is_not_joined(self):
         self.ingest_all()
         self.conn.execute("DELETE FROM market_geography_constraint_rows")

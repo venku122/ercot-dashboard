@@ -1,0 +1,2204 @@
+{
+  "schema": 1,
+  "observed_at_utc": "2026-10-04T03:58:41.935329+00:00",
+  "candidate_revision": "967a3f16914988ef6ef9502b7281b74de51dd7de",
+  "environment": "isolated local review; no production environment access",
+  "credential_presence_only": {
+    "ERCOT_API_USERNAME": false,
+    "ERCOT_API_PASSWORD": false,
+    "ERCOT_PUBLIC_API_SUBSCRIPTION_KEY": false,
+    "ERCOT_ESR_API_SUBSCRIPTION_KEY": false,
+    "EIA_API_KEY": false
+  },
+  "families": [
+    {
+      "family": "ercot_realtime",
+      "adapter": "ercot-collector/grid.ts",
+      "schema_reference": "ercot-collector/grid.ts",
+      "consumer": "Frequency, PRC",
+      "units_and_basis": "Hz / MW; collection-time legacy history",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 60,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "ercot_ancillary",
+      "adapter": "ercot-collector/ancillary.ts",
+      "schema_reference": "ercot-collector/ancillary.ts",
+      "consumer": "Ancillary services",
+      "units_and_basis": "MW; collection-time legacy history",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "ercot_eea",
+      "adapter": "ercot-collector/eea.ts",
+      "schema_reference": "ercot-collector/eea.ts",
+      "consumer": "EEA and timeline",
+      "units_and_basis": "discrete official status",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 600,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "metar",
+      "adapter": "ercot-collector/metar.ts",
+      "schema_reference": "ercot-collector/metar.ts",
+      "consumer": "Weather observations and Outlook context",
+      "units_and_basis": "degrees C; observed airport weather",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 1800,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "ercot_pricing",
+      "adapter": "ercot-collector/prices.ts",
+      "schema_reference": "ercot-collector/prices.ts",
+      "consumer": "Legacy pricing",
+      "units_and_basis": "USD/MWh; collection-time snapshot",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 900,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "fuel_mix",
+      "adapter": "ercot-collector/fuel_mix.ts",
+      "schema_reference": "ercot-collector/fuel_mix.ts",
+      "consumer": "Generation mix and Overview",
+      "units_and_basis": "MW; observed generation",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "energy_storage",
+      "adapter": "ercot-collector/storage.ts",
+      "schema_reference": "ercot-collector/storage.ts",
+      "consumer": "Storage and Overview",
+      "units_and_basis": "MW; aggregate charge/discharge, no resource SOC",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "supply_demand",
+      "adapter": "ercot-collector/supply_demand.ts",
+      "schema_reference": "ercot-collector/supply_demand.ts",
+      "consumer": "Supply/demand and paired headroom",
+      "units_and_basis": "MW; compatible source-observation pairs",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "generation_outages",
+      "adapter": "ercot-collector/generation_outages.ts",
+      "schema_reference": "ercot-collector/generation_outages.ts",
+      "consumer": "Outages",
+      "units_and_basis": "MW; reported outage snapshot",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "operations_messages",
+      "adapter": "ercot-collector/operations_messages.ts",
+      "schema_reference": "ercot-collector/operations_messages.ts",
+      "consumer": "Operations and timeline",
+      "units_and_basis": "official event text; not complete TXANS history",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 180,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "wind_solar",
+      "adapter": "ercot-collector/wind_solar.ts",
+      "schema_reference": "ercot-collector/wind_solar.ts",
+      "consumer": "Legacy renewable forecasts",
+      "units_and_basis": "MW; latest forecast publication",
+      "code_capability": "supported",
+      "feature_flag": null,
+      "default_enablement": true,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "forecast_publications",
+      "adapter": "ercot-collector/ercot_public_load_collector.ts",
+      "schema_reference": "ercot-collector/ercot_public_load_collector.ts",
+      "consumer": "Outlook, historical forecast, Forecast Quality",
+      "units_and_basis": "MW; issue/target/retrieval separately; real pair coverage required",
+      "code_capability": "supported",
+      "feature_flag": "ERCOT_FORECAST_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": "not_started_by_this_audit"
+    },
+    {
+      "family": "renewable_publications",
+      "adapter": "ercot-collector/ercot_mis_renewable_runner.ts",
+      "schema_reference": "ercot-collector/ercot_mis_renewable_runner.ts",
+      "consumer": "Renewable publications",
+      "units_and_basis": "MW; hourly immutable publication",
+      "code_capability": "supported",
+      "feature_flag": "ERCOT_RENEWABLE_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": null,
+      "local_manifest_evidence": {
+        "catalog": [
+          {
+            "display_name": "Dashboard-derived actual net load",
+            "horizon": "actual",
+            "native_interval_seconds": 300,
+            "selection_policy": null,
+            "series_key": "net-load.actual",
+            "supported_lods": ["native"]
+          },
+          {
+            "display_name": "Latest coherent forecast capped 1h before UTC day",
+            "horizon": "1h",
+            "native_interval_seconds": 3600,
+            "selection_policy": "coherent_whole_curve_latest_capped_before_utc_day",
+            "series_key": "net-load.forecast.latest-capped-1h-before-utc-day",
+            "supported_lods": ["native"]
+          },
+          {
+            "display_name": "Latest coherent forecast capped 6h before UTC day",
+            "horizon": "6h",
+            "native_interval_seconds": 3600,
+            "selection_policy": "coherent_whole_curve_latest_capped_before_utc_day",
+            "series_key": "net-load.forecast.latest-capped-6h-before-utc-day",
+            "supported_lods": ["native"]
+          },
+          {
+            "display_name": "Latest coherent forecast capped 24h before UTC day",
+            "horizon": "24h",
+            "native_interval_seconds": 3600,
+            "selection_policy": "coherent_whole_curve_latest_capped_before_utc_day",
+            "series_key": "net-load.forecast.latest-capped-24h-before-utc-day",
+            "supported_lods": ["native"]
+          }
+        ],
+        "daily_resources": [],
+        "formula": "demand_mw - wind_mw - solar_mw",
+        "kind": "net_load_manifest",
+        "materialization_health": [],
+        "methodology_version": "v1",
+        "official_ercot_net_load": false,
+        "resources": [],
+        "schema_version": 1,
+        "storage_policy": "context_only_not_in_formula",
+        "window_days": 90
+      }
+    },
+    {
+      "family": "regional_renewable_publications",
+      "adapter": "ercot-collector/ercot_mis_regional_runner.ts",
+      "schema_reference": "ercot-collector/ercot_mis_regional_runner.ts",
+      "consumer": "Regional renewables",
+      "units_and_basis": "MW; hourly regional publication",
+      "code_capability": "supported",
+      "feature_flag": "ERCOT_REGIONAL_RENEWABLE_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": null,
+      "local_manifest_evidence": {
+        "current": {
+          "load": {
+            "availability": "unavailable",
+            "regions": [],
+            "unavailable_reason": "no_data"
+          },
+          "solar": {
+            "availability": "unavailable",
+            "regions": [],
+            "unavailable_reason": "no_data"
+          },
+          "wind": {
+            "availability": "unavailable",
+            "regions": [],
+            "unavailable_reason": "no_data"
+          }
+        },
+        "deferred_products": ["NP4-743-CD", "NP4-746-CD"],
+        "kind": "regional_geography_manifest",
+        "materialization_health": {
+          "consecutive_failures": 0,
+          "last_attempt_ts": null,
+          "last_error": null,
+          "last_success_ts": null,
+          "pipeline": "load",
+          "state": "unknown"
+        },
+        "methodology": "v1",
+        "resources": [],
+        "schema_version": 1,
+        "source_health": [],
+        "taxonomies": {
+          "load": [
+            "coast",
+            "east",
+            "far-west",
+            "north",
+            "north-central",
+            "south-central",
+            "southern",
+            "west"
+          ],
+          "solar": [
+            "center-west",
+            "north-west",
+            "far-west",
+            "far-east",
+            "south-east",
+            "center-east"
+          ],
+          "wind": ["panhandle", "coastal", "south", "west", "north"]
+        },
+        "title": "ERCOT region schematic \u2014 not geographic boundaries"
+      }
+    },
+    {
+      "family": "market_mechanics",
+      "adapter": "ercot-collector/ercot_mis_market_runner.ts",
+      "schema_reference": "ercot-collector/ercot_mis_market_runner.ts",
+      "consumer": "Market Mechanics",
+      "units_and_basis": "product-specific MW / USD/MW-hour; not energy price",
+      "code_capability": "supported",
+      "feature_flag": "ERCOT_MARKET_MECHANICS_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "static_inventory",
+      "local_rehearsal": null,
+      "local_manifest_evidence": {
+        "changes": {},
+        "current": null,
+        "deferred_products": ["NP6-331-CD", "NP6-86-CD"],
+        "elapsed_seconds": null,
+        "explanation_policy": "time_adjacent_context_not_causal_decomposition",
+        "factors": {
+          "active_price_adder_series": [],
+          "binding_constraints": {
+            "status": "unavailable_deferred_np6_86"
+          },
+          "energy_signal": null,
+          "status": "unavailable_unaligned",
+          "target_ts": null
+        },
+        "kind": "market_mechanics_manifest",
+        "latest": {},
+        "materialization_health": {
+          "consecutive_failures": null,
+          "last_attempt_ts": null,
+          "last_error": "never_run",
+          "last_success_ts": null,
+          "state": "unavailable"
+        },
+        "methodology": "market-context-v1",
+        "previous": null,
+        "resources": [],
+        "schema_version": 1,
+        "source_health": [
+          {
+            "availability_status": "unavailable",
+            "collection_age_seconds": null,
+            "collection_state": "failed",
+            "consecutive_failures": null,
+            "data_age_seconds": null,
+            "data_timestamp_ts": null,
+            "expected_interval_seconds": 300,
+            "freshness_state": "unknown",
+            "gap_count": 0,
+            "last_attempt_ts": null,
+            "last_error": "never_reported",
+            "last_success_ts": null,
+            "source_id": "ercot_mis_np6_322",
+            "source_timestamp_ts": null,
+            "state": "unavailable"
+          },
+          {
+            "availability_status": "unavailable",
+            "collection_age_seconds": null,
+            "collection_state": "failed",
+            "consecutive_failures": null,
+            "data_age_seconds": null,
+            "data_timestamp_ts": null,
+            "expected_interval_seconds": 300,
+            "freshness_state": "unknown",
+            "gap_count": 0,
+            "last_attempt_ts": null,
+            "last_error": "never_reported",
+            "last_success_ts": null,
+            "source_id": "ercot_mis_np6_323",
+            "source_timestamp_ts": null,
+            "state": "unavailable"
+          },
+          {
+            "availability_status": "unavailable",
+            "collection_age_seconds": null,
+            "collection_state": "failed",
+            "consecutive_failures": null,
+            "data_age_seconds": null,
+            "data_timestamp_ts": null,
+            "expected_interval_seconds": 300,
+            "freshness_state": "unknown",
+            "gap_count": 0,
+            "last_attempt_ts": null,
+            "last_error": "never_reported",
+            "last_success_ts": null,
+            "source_id": "ercot_mis_np6_328",
+            "source_timestamp_ts": null,
+            "state": "unavailable"
+          },
+          {
+            "availability_status": "unavailable",
+            "collection_age_seconds": null,
+            "collection_state": "failed",
+            "consecutive_failures": null,
+            "data_age_seconds": null,
+            "data_timestamp_ts": null,
+            "expected_interval_seconds": 300,
+            "freshness_state": "unknown",
+            "gap_count": 0,
+            "last_attempt_ts": null,
+            "last_error": "never_reported",
+            "last_success_ts": null,
+            "source_id": "ercot_mis_np6_332",
+            "source_timestamp_ts": null,
+            "state": "unavailable"
+          }
+        ]
+      }
+    },
+    {
+      "family": "market_geography",
+      "adapter": "ercot-collector/ercot_public_market_geography_runner.ts",
+      "schema_reference": "ercot-collector/ercot_public_market_geography_runner.ts",
+      "consumer": "Market Geography and settlement Overview",
+      "units_and_basis": "USD/MWh; authoritative settlement intervals",
+      "code_capability": "supported",
+      "feature_flag": "ERCOT_MARKET_GEOGRAPHY_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "isolated_live_source",
+      "local_rehearsal": {
+        "family": "geography",
+        "exit_code": 0,
+        "elapsed_seconds": 45.388,
+        "mode": "ISOLATED_LOCAL_LIVE_SOURCE",
+        "receiver": "loopback/new-tmpfs-db",
+        "production_delivery": false
+      },
+      "local_manifest_evidence": {
+        "as_of": 1791086260,
+        "attribution_policy": "coincident_constraint_not_point_price_attribution",
+        "attribution_status": "unavailable_without_shift_factors",
+        "constraints": {
+          "rows_coverage": {
+            "row_count": 0,
+            "first_target_or_observation": null,
+            "last_target_or_observation": null
+          },
+          "state": "unavailable_no_exact_sced",
+          "target_ts": 1791086120,
+          "total_count": 0,
+          "truncated": false
+        },
+        "deferred": {
+          "constraint_lines": "no_reviewed_station_geometry",
+          "nodal_map": "no_reviewed_node_geometry"
+        },
+        "kind": "market_geography_manifest",
+        "lmp_snapshot": {
+          "coherence": "single_np6_788_publication_sced",
+          "missing": [],
+          "rows_coverage": {
+            "row_count": 15,
+            "first_target_or_observation": 1791086120,
+            "last_target_or_observation": 1791086120
+          },
+          "source": {
+            "content_key": "mgp1-ac0c34b308ff507cf9e17bf9d052d34a8c03ce0e5a78f05e03440a45e00d3dd6",
+            "document_id": "1282212906",
+            "issued_at": 1791086123,
+            "product_id": "NP6-788-CD",
+            "raw_publish_datetime": "2026-10-03T22:55:23-05:00",
+            "retrieved_at": 1791086215,
+            "source_id": "ercot_mis_np6_788"
+          },
+          "state": "available",
+          "target_ts": 1791086120
+        },
+        "materialization_health": {
+          "consecutive_failures": 0,
+          "last_attempt_ts": 1791086260,
+          "last_error": null,
+          "last_success_ts": 1791086260,
+          "state": "healthy"
+        },
+        "methodology": "market-geography-v1",
+        "resources": [
+          {
+            "content_version": "mgr1-835bf3886d1c63da14d926ceb0a6c4b2a5244e98258040162c677c3baf9825e1",
+            "identity": "0048cf77d1c5a505986700c7",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/0048cf77d1c5a505986700c7/v1/mgr1-835bf3886d1c63da14d926ceb0a6c4b2a5244e98258040162c677c3baf9825e1/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-1e9faa2c1c1bf744e0a3c545647fb619898d71d456c529fd751856f6e24e700c",
+            "identity": "03962ba0a37e26a89d19e76b",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/03962ba0a37e26a89d19e76b/v1/mgr1-1e9faa2c1c1bf744e0a3c545647fb619898d71d456c529fd751856f6e24e700c/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-084e527caca83e1cbe81755a04be9e98bcc9477c8b85de0f6f63acbc3d8d27dc",
+            "identity": "086bae82fe66133fae282604",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/086bae82fe66133fae282604/v1/mgr1-084e527caca83e1cbe81755a04be9e98bcc9477c8b85de0f6f63acbc3d8d27dc/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-be62507e17b9c3958a169c3e18ec6597c5ebd6c4817957bdfbb552d8c85026cc",
+            "identity": "0c27e22eb87a4dab54610b45",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/0c27e22eb87a4dab54610b45/v1/mgr1-be62507e17b9c3958a169c3e18ec6597c5ebd6c4817957bdfbb552d8c85026cc/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-8a3b5291d0432f49791506ab23008c8d4fd4c4142ab90ac86384ba0b73e8d852",
+            "identity": "0e65888a40b9843e5f93fa19",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/0e65888a40b9843e5f93fa19/v1/mgr1-8a3b5291d0432f49791506ab23008c8d4fd4c4142ab90ac86384ba0b73e8d852/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-58b7e723b12f950080028140c06debfcd84b91182babc005e5ff40f6f70e5fb3",
+            "identity": "0f6fed04d01de07ed6d943e4",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/0f6fed04d01de07ed6d943e4/v1/mgr1-58b7e723b12f950080028140c06debfcd84b91182babc005e5ff40f6f70e5fb3/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-79bedc23c1acbf2ddac75085376ab4dcff4a653cc60315a599df0dba981de7b3",
+            "identity": "1076f134927705e9cb3aef7c",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/1076f134927705e9cb3aef7c/v1/mgr1-79bedc23c1acbf2ddac75085376ab4dcff4a653cc60315a599df0dba981de7b3/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-7baa7d448595572d721f4550f2cecf222991b0613928314aa5088ff0e907e238",
+            "identity": "11ccdc596c166f6d95f05158",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/11ccdc596c166f6d95f05158/v1/mgr1-7baa7d448595572d721f4550f2cecf222991b0613928314aa5088ff0e907e238/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-5a46706d683f504e6d1fd153b3d16cfb2f438dff80b14794e12537d770b017af",
+            "identity": "1865c2bbd4827ca63e120253",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/1865c2bbd4827ca63e120253/v1/mgr1-5a46706d683f504e6d1fd153b3d16cfb2f438dff80b14794e12537d770b017af/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-1dc3f252680365f37e4183abc2024966f1ae8964398fcf4645af4015c96ef3ec",
+            "identity": "197f4ce00299a78033b5b545",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/197f4ce00299a78033b5b545/v1/mgr1-1dc3f252680365f37e4183abc2024966f1ae8964398fcf4645af4015c96ef3ec/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-f2bc6b4c7b891829042678b412ab8459c47ed5181af8e09fed3eae5daa94a391",
+            "identity": "29c6e537a24f2e3cc4e219ad",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/29c6e537a24f2e3cc4e219ad/v1/mgr1-f2bc6b4c7b891829042678b412ab8459c47ed5181af8e09fed3eae5daa94a391/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-aeec3c550da3b20a16f66111252522e7bcf5591d94e1c3da8cee2c20aff6302c",
+            "identity": "2c8ebd0f5b92f406ca69d849",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/2c8ebd0f5b92f406ca69d849/v1/mgr1-aeec3c550da3b20a16f66111252522e7bcf5591d94e1c3da8cee2c20aff6302c/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-ca930339840bf0b45b033b1848a6e5bd3c308099851b825daa7049d25925ea0e",
+            "identity": "321d952bb5a499608e186e3c",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/321d952bb5a499608e186e3c/v1/mgr1-ca930339840bf0b45b033b1848a6e5bd3c308099851b825daa7049d25925ea0e/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-03bacdabd4d8699043f136cca98ed08fe29c48a219d5f2f58c648100066ff320",
+            "identity": "3664e8570c0caa0b2620e2b9",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/3664e8570c0caa0b2620e2b9/v1/mgr1-03bacdabd4d8699043f136cca98ed08fe29c48a219d5f2f58c648100066ff320/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-fb2aabd96fa3a143865abd201296618ba8f59b284ce2ff4b5fe79dd7f6cdd5eb",
+            "identity": "377d686c1a832ae84e09de68",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/377d686c1a832ae84e09de68/v1/mgr1-fb2aabd96fa3a143865abd201296618ba8f59b284ce2ff4b5fe79dd7f6cdd5eb/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-98a4aaa57dacf20bd76a511a31a1adc2550d15d3618fd28737977cbce524415d",
+            "identity": "3ab5776f6065be17381a9eef",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/3ab5776f6065be17381a9eef/v1/mgr1-98a4aaa57dacf20bd76a511a31a1adc2550d15d3618fd28737977cbce524415d/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-07b65f86ef7bf47c356fc26219abe9a59ac11c055cb5f253dbaaa182a100b549",
+            "identity": "3d48f915fb0390df36ae10ac",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/3d48f915fb0390df36ae10ac/v1/mgr1-07b65f86ef7bf47c356fc26219abe9a59ac11c055cb5f253dbaaa182a100b549/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-3c975ac8359631ca40256dff0ea43d6bf1114eb7fc59254ad0f3961328e48dbf",
+            "identity": "418197fbbd0aa18c3d5d8e9d",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/418197fbbd0aa18c3d5d8e9d/v1/mgr1-3c975ac8359631ca40256dff0ea43d6bf1114eb7fc59254ad0f3961328e48dbf/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-3c3ca4db46f2d261fc143faa735bea3a52388ff7491d389869d484ad993be00e",
+            "identity": "41953a7d09cb18e71c4b18f4",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/41953a7d09cb18e71c4b18f4/v1/mgr1-3c3ca4db46f2d261fc143faa735bea3a52388ff7491d389869d484ad993be00e/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-d5848fb9027f3c608274eb440672e05de4b77b5d1e5b96702bdcd8beb7b193ad",
+            "identity": "42c41412c46098e1210bbffe",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/42c41412c46098e1210bbffe/v1/mgr1-d5848fb9027f3c608274eb440672e05de4b77b5d1e5b96702bdcd8beb7b193ad/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-c9e8e8ee0359f2b67907ff530168788679bc731ef63d6a3270e5b8d4482fbe84",
+            "identity": "5302e1907a2775347d6e66a0",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/5302e1907a2775347d6e66a0/v1/mgr1-c9e8e8ee0359f2b67907ff530168788679bc731ef63d6a3270e5b8d4482fbe84/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-5a5f0207e172889c52996d23954efe8191831b8e2f75cd505a2ae37afe4aabb2",
+            "identity": "5717af94d259c139d7f3d3da",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/5717af94d259c139d7f3d3da/v1/mgr1-5a5f0207e172889c52996d23954efe8191831b8e2f75cd505a2ae37afe4aabb2/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-e1e7f8816bacfb0919354408bdf1a3a041ac90fcbffb3a8c26d8639f7a30c4e4",
+            "identity": "573376574c10e4cae058d43b",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/573376574c10e4cae058d43b/v1/mgr1-e1e7f8816bacfb0919354408bdf1a3a041ac90fcbffb3a8c26d8639f7a30c4e4/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-fd9127d1e2437b86996216b064e79349a07dc586778ea7e393f8d312b0a72d08",
+            "identity": "57488e3ffaf73da4889f4105",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/57488e3ffaf73da4889f4105/v1/mgr1-fd9127d1e2437b86996216b064e79349a07dc586778ea7e393f8d312b0a72d08/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-a04065341b2301e4f4a0f0a9623c53e9d8328c9650423df949268b9b5dafdfc9",
+            "identity": "5aa308970822c3fee3a64596",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/5aa308970822c3fee3a64596/v1/mgr1-a04065341b2301e4f4a0f0a9623c53e9d8328c9650423df949268b9b5dafdfc9/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-568eb7bd4de40ea7e162f9dec78ad30ff46e6b721bef5c5016fa9473c7246ffd",
+            "identity": "5be244a9c1ec8c8eabe4f79f",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/5be244a9c1ec8c8eabe4f79f/v1/mgr1-568eb7bd4de40ea7e162f9dec78ad30ff46e6b721bef5c5016fa9473c7246ffd/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-4d2c257534f165cf0c635a4cbb37000a6f6d9fa59a1ae2d6ff0e5cb5839e4029",
+            "identity": "5ef7696743db44b68d2a1796",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/5ef7696743db44b68d2a1796/v1/mgr1-4d2c257534f165cf0c635a4cbb37000a6f6d9fa59a1ae2d6ff0e5cb5839e4029/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-9586ce965775ba09faa8639dd95d7c319e69aa80cb6095abef27d49a027a2e6d",
+            "identity": "621c340730523f9b14b89295",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/621c340730523f9b14b89295/v1/mgr1-9586ce965775ba09faa8639dd95d7c319e69aa80cb6095abef27d49a027a2e6d/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-c9cb942326769a337ce3de78b2f6421a1780e41cf8244ad273242223450273a7",
+            "identity": "634dace90e41434ade91ff55",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/634dace90e41434ade91ff55/v1/mgr1-c9cb942326769a337ce3de78b2f6421a1780e41cf8244ad273242223450273a7/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-be48a04f85e4ebc79fcbac3e27964f62249d5ee1315c706be34bcf3534225131",
+            "identity": "66088e3f1a3c1ab97331243f",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/66088e3f1a3c1ab97331243f/v1/mgr1-be48a04f85e4ebc79fcbac3e27964f62249d5ee1315c706be34bcf3534225131/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-268abe5e2fff659778ce995a16a8b09b5bff7c925ef80cd99f00d10e431d2dc0",
+            "identity": "66088e3f1a3c1ab97331243f",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/66088e3f1a3c1ab97331243f/v1/mgr1-268abe5e2fff659778ce995a16a8b09b5bff7c925ef80cd99f00d10e431d2dc0/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-340d1a894ec2888632131b6b57d9bbea07af881eedebc37afbb8724fa8a5a5a8",
+            "identity": "6744494e1825b3a26eb7c658",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/6744494e1825b3a26eb7c658/v1/mgr1-340d1a894ec2888632131b6b57d9bbea07af881eedebc37afbb8724fa8a5a5a8/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-446825aeb5196997948728c13cd06a518ae5beeb1d0c79c0e5f777f0ae12e820",
+            "identity": "6d73906179ca3d5f3406dc64",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/6d73906179ca3d5f3406dc64/v1/mgr1-446825aeb5196997948728c13cd06a518ae5beeb1d0c79c0e5f777f0ae12e820/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-2cc700153f3be51707cf7e099d6dae775fb89d67f86de1274aedad30171ef10e",
+            "identity": "76175aee1a82078f68cc352b",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/76175aee1a82078f68cc352b/v1/mgr1-2cc700153f3be51707cf7e099d6dae775fb89d67f86de1274aedad30171ef10e/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-da6990427c0c0d60ff0d9bd966faf40c47f592d06caa4f41e2b6dae934f9a438",
+            "identity": "76876642fdeb1be8a241653f",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/76876642fdeb1be8a241653f/v1/mgr1-da6990427c0c0d60ff0d9bd966faf40c47f592d06caa4f41e2b6dae934f9a438/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-44364b327bf0ca32f813b38177745eebc93183aef01f9dc1c86841d1bcb4365e",
+            "identity": "76c31312139a8f8251c100da",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/76c31312139a8f8251c100da/v1/mgr1-44364b327bf0ca32f813b38177745eebc93183aef01f9dc1c86841d1bcb4365e/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-4105e2e6c7156b7525898291b36de456ef56e2b16b9b4a10b434f62f1890e43e",
+            "identity": "79c1424c6f804c5088dfffb0",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/79c1424c6f804c5088dfffb0/v1/mgr1-4105e2e6c7156b7525898291b36de456ef56e2b16b9b4a10b434f62f1890e43e/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-58b98ff237522bf7ece0e09c9dfa6f54670d4a2af61a508f5d58c84a5696b535",
+            "identity": "7cab35e3ad12a8912182ff30",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/7cab35e3ad12a8912182ff30/v1/mgr1-58b98ff237522bf7ece0e09c9dfa6f54670d4a2af61a508f5d58c84a5696b535/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-f91e738cf54c2a1b8d035ef8b347d5fefb5fa45318a579b9b4f5ff2e2e8adb9b",
+            "identity": "7eb6fada9290aeba90a44f90",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/7eb6fada9290aeba90a44f90/v1/mgr1-f91e738cf54c2a1b8d035ef8b347d5fefb5fa45318a579b9b4f5ff2e2e8adb9b/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-6a58f48a782398f23e0d123a640cc818b2a0b3198e092ff475f2bc667717c9d3",
+            "identity": "8160de7f736044759b2e3ccd",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/8160de7f736044759b2e3ccd/v1/mgr1-6a58f48a782398f23e0d123a640cc818b2a0b3198e092ff475f2bc667717c9d3/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-88d78e3272cec1adb195952749ac9557447aeaa05dae292e778527b7a8573c33",
+            "identity": "8421acf7a936cabaeb1d86ed",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/8421acf7a936cabaeb1d86ed/v1/mgr1-88d78e3272cec1adb195952749ac9557447aeaa05dae292e778527b7a8573c33/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-f5d5f7ff2f3a337b827ab1cfc3d2fcf72df02816ab139af63c8f130b61f99051",
+            "identity": "84b6759fbb7f890a2daf0ca3",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/84b6759fbb7f890a2daf0ca3/v1/mgr1-f5d5f7ff2f3a337b827ab1cfc3d2fcf72df02816ab139af63c8f130b61f99051/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-1d10dc7320f0ddb6cd2a1e73fa001b66cfd64bdcdf587173caf430c7f387557f",
+            "identity": "86868dc943bb18caaeb31e37",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/86868dc943bb18caaeb31e37/v1/mgr1-1d10dc7320f0ddb6cd2a1e73fa001b66cfd64bdcdf587173caf430c7f387557f/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-d2ef120ae5395753a5afaa879a007478604acc9a9ce32e788200fb05b3cdb6be",
+            "identity": "896ad0ae7cd2f8ae76839932",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/896ad0ae7cd2f8ae76839932/v1/mgr1-d2ef120ae5395753a5afaa879a007478604acc9a9ce32e788200fb05b3cdb6be/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-0e448e097fc530a7a152eff4f3b68d5f5ce3a35ed879375fe2d58620b5965ca2",
+            "identity": "8adeef74ebae228f14d8592c",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/8adeef74ebae228f14d8592c/v1/mgr1-0e448e097fc530a7a152eff4f3b68d5f5ce3a35ed879375fe2d58620b5965ca2/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-161e4432fd846953f162fa40574fe25076ad10a6dbe25f90faa9402362c9e1b2",
+            "identity": "8adeef74ebae228f14d8592c",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/8adeef74ebae228f14d8592c/v1/mgr1-161e4432fd846953f162fa40574fe25076ad10a6dbe25f90faa9402362c9e1b2/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-263027a11e506dbd4441d7880d7d3d77ec63761eefcc149ce1ddcd7c5115bdf5",
+            "identity": "8da0a94035f91b072c57d38f",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/8da0a94035f91b072c57d38f/v1/mgr1-263027a11e506dbd4441d7880d7d3d77ec63761eefcc149ce1ddcd7c5115bdf5/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-6dad11fc78ee89f602ff4ea19e3646d41f6f5bfb1db7c9a33a7aa486f2f708cc",
+            "identity": "97f8fd833efa165840a29438",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/97f8fd833efa165840a29438/v1/mgr1-6dad11fc78ee89f602ff4ea19e3646d41f6f5bfb1db7c9a33a7aa486f2f708cc/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-049954aa1fc2ee6614dfacb0a15ee96bc991437a4802c04bf414666cbd7ce532",
+            "identity": "99b866c0df657c54a14e26b4",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/99b866c0df657c54a14e26b4/v1/mgr1-049954aa1fc2ee6614dfacb0a15ee96bc991437a4802c04bf414666cbd7ce532/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-57f48dded4c6f2defcb49a7aeee822149bbf8611f31ed8db5711ddef72e8444b",
+            "identity": "9d858514e60961dcb09ae824",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/9d858514e60961dcb09ae824/v1/mgr1-57f48dded4c6f2defcb49a7aeee822149bbf8611f31ed8db5711ddef72e8444b/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-fbc204a3966a9a2e48c3b40dd0215a38c490b619e6323911fe6e47f94acbc6d8",
+            "identity": "9f7abbbe63d9b54458393fc4",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/9f7abbbe63d9b54458393fc4/v1/mgr1-fbc204a3966a9a2e48c3b40dd0215a38c490b619e6323911fe6e47f94acbc6d8/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-6358c7444982b08448b93617d4f97503e3b52cf168797ae87fe43e6e7cf2c50b",
+            "identity": "9f7abbbe63d9b54458393fc4",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/9f7abbbe63d9b54458393fc4/v1/mgr1-6358c7444982b08448b93617d4f97503e3b52cf168797ae87fe43e6e7cf2c50b/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-8cbfc14d6ffed2646780dab996f56ad441993a6b879075be15950dd61c16b7c6",
+            "identity": "a4018b9b42d8b3e4db54b440",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/a4018b9b42d8b3e4db54b440/v1/mgr1-8cbfc14d6ffed2646780dab996f56ad441993a6b879075be15950dd61c16b7c6/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-2050758d8c8a641f03966064dc94e4412528c23447a1a79c8ebcacc37b0ad4d8",
+            "identity": "a4018b9b42d8b3e4db54b440",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/a4018b9b42d8b3e4db54b440/v1/mgr1-2050758d8c8a641f03966064dc94e4412528c23447a1a79c8ebcacc37b0ad4d8/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-0fea9a340be88d886cdf8ed2d4425c299a23839dc4c1fc3fc0be2cdc5078d68f",
+            "identity": "b08400e91d4a7a61b5bf7f1a",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/b08400e91d4a7a61b5bf7f1a/v1/mgr1-0fea9a340be88d886cdf8ed2d4425c299a23839dc4c1fc3fc0be2cdc5078d68f/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-8b8948d0564ad4c00b3d69355474a6094d713e37dbc1eba1983c9e9c05cfd71e",
+            "identity": "b0940d543e8bd0d48c5f305c",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/b0940d543e8bd0d48c5f305c/v1/mgr1-8b8948d0564ad4c00b3d69355474a6094d713e37dbc1eba1983c9e9c05cfd71e/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-6e19fa52bb1ffbb16e13dbabeb70280b332924f58056d2ebfa5b1cb197a9ebab",
+            "identity": "b2543545fc650801d9239b22",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/b2543545fc650801d9239b22/v1/mgr1-6e19fa52bb1ffbb16e13dbabeb70280b332924f58056d2ebfa5b1cb197a9ebab/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-f066d7f3a3f9f3ae8e06e2de11c69bceee820b707353d21b1221640e2bd6701d",
+            "identity": "b3abc62bc41e6bfb839800cf",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/b3abc62bc41e6bfb839800cf/v1/mgr1-f066d7f3a3f9f3ae8e06e2de11c69bceee820b707353d21b1221640e2bd6701d/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-f5b80a662f9adba30d15ee1dfbde6301cd89490ca735da5376fd73549414a9e0",
+            "identity": "b44534b00ebff678745eb176",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/b44534b00ebff678745eb176/v1/mgr1-f5b80a662f9adba30d15ee1dfbde6301cd89490ca735da5376fd73549414a9e0/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-5da22b245afbc5afd9f3e1cac03dc988268a51e4081c48960a219445f725f5cb",
+            "identity": "b6a53bb795eb41b0900621b3",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/b6a53bb795eb41b0900621b3/v1/mgr1-5da22b245afbc5afd9f3e1cac03dc988268a51e4081c48960a219445f725f5cb/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-7cbdae2b6962082d56c88cbf979768c519b25e7f3cd378de6222b79566a8af58",
+            "identity": "b7e7b71daee1c9390aead509",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/b7e7b71daee1c9390aead509/v1/mgr1-7cbdae2b6962082d56c88cbf979768c519b25e7f3cd378de6222b79566a8af58/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-4b26a090340c49a2147a43e98e548022122247d0575b561c66e6a5229f0f1d40",
+            "identity": "ba5e2f182c5a357bc4611d3e",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/ba5e2f182c5a357bc4611d3e/v1/mgr1-4b26a090340c49a2147a43e98e548022122247d0575b561c66e6a5229f0f1d40/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-fad4f61e66c29580cf40bb67506c53a3c64c65b0495f1bbbf16779b5fd3e2f74",
+            "identity": "bc3e34fb1db42101179ceead",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/bc3e34fb1db42101179ceead/v1/mgr1-fad4f61e66c29580cf40bb67506c53a3c64c65b0495f1bbbf16779b5fd3e2f74/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-6bb5e54331c8a6747ba4b5db4229c8cfa041d2b0a64e6bc9d2bd365d32991234",
+            "identity": "c583b81642b0cdd6d74ffebf",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/c583b81642b0cdd6d74ffebf/v1/mgr1-6bb5e54331c8a6747ba4b5db4229c8cfa041d2b0a64e6bc9d2bd365d32991234/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-594a6b5e0e56cd86ef68f294629c3b5d81fd42e95042620b64ac80fa17283f07",
+            "identity": "cb98e47bbc6e56567a61f625",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/cb98e47bbc6e56567a61f625/v1/mgr1-594a6b5e0e56cd86ef68f294629c3b5d81fd42e95042620b64ac80fa17283f07/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-dd563d2646748d43f2d275f9e5303d423362cc2f15c93cadc2ab8fc2b3e31b1d",
+            "identity": "cd25f8b1739149ef48900ca7",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/cd25f8b1739149ef48900ca7/v1/mgr1-dd563d2646748d43f2d275f9e5303d423362cc2f15c93cadc2ab8fc2b3e31b1d/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-a905053269bf38be02ceb99662c3bcfec2f207731700e19c68dd6006c3eae7d6",
+            "identity": "d3ad2fbf15177a29f3d59797",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/d3ad2fbf15177a29f3d59797/v1/mgr1-a905053269bf38be02ceb99662c3bcfec2f207731700e19c68dd6006c3eae7d6/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-0790d6433b0c00b6c1309238aac857ec032d96e162ce952f10376088e73fbafc",
+            "identity": "d3f9f1ff8b980f4f38906569",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/d3f9f1ff8b980f4f38906569/v1/mgr1-0790d6433b0c00b6c1309238aac857ec032d96e162ce952f10376088e73fbafc/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-20a6c2eed7b3378c66c17957b559609a8b754c708536e0089236e53790def43f",
+            "identity": "d64e4bdd1d46873249613325",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/d64e4bdd1d46873249613325/v1/mgr1-20a6c2eed7b3378c66c17957b559609a8b754c708536e0089236e53790def43f/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-3a8561c29218c4d01a1f9cb057c402f9ca8371f182912944eb5dc4500219ba38",
+            "identity": "d6ad59a1f0810ffc073c48ea",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/d6ad59a1f0810ffc073c48ea/v1/mgr1-3a8561c29218c4d01a1f9cb057c402f9ca8371f182912944eb5dc4500219ba38/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-b244e5c99a366786732d76e74301a1a7e1b5d290a9dea8e96770b1e3a25fe920",
+            "identity": "d7501078725ceb8f1794a332",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/d7501078725ceb8f1794a332/v1/mgr1-b244e5c99a366786732d76e74301a1a7e1b5d290a9dea8e96770b1e3a25fe920/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-606d08dc1c37aa090b0d30e2a79350ba8ef8f4b3228b84dc0fe19fdece71e616",
+            "identity": "da146275a2ef0e33f0ca752a",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/da146275a2ef0e33f0ca752a/v1/mgr1-606d08dc1c37aa090b0d30e2a79350ba8ef8f4b3228b84dc0fe19fdece71e616/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-e7a692c5fc584b567ab4d71daa7f8d6cd3d494e40b3f5f737d8b4c20376b7480",
+            "identity": "e15d3be7ae3c5d1861d773e2",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/e15d3be7ae3c5d1861d773e2/v1/mgr1-e7a692c5fc584b567ab4d71daa7f8d6cd3d494e40b3f5f737d8b4c20376b7480/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-83295c2a27a74229c31f2d2d71b6abcae59a9240b9fcdaa38f00d341a50bdd77",
+            "identity": "e2d22af06849c8e30be8d8be",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/e2d22af06849c8e30be8d8be/v1/mgr1-83295c2a27a74229c31f2d2d71b6abcae59a9240b9fcdaa38f00d341a50bdd77/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-608f64904717507899f424d98fa79ae8e1763afa8ca3030f867baf72887c9e26",
+            "identity": "e2d22af06849c8e30be8d8be",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/e2d22af06849c8e30be8d8be/v1/mgr1-608f64904717507899f424d98fa79ae8e1763afa8ca3030f867baf72887c9e26/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-a2d6d41cbc3abdc951a4492704b21747ce040752e854d6461f607eecd9f6b65d",
+            "identity": "e57421a187a735ce764bc156",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/e57421a187a735ce764bc156/v1/mgr1-a2d6d41cbc3abdc951a4492704b21747ce040752e854d6461f607eecd9f6b65d/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-a12cec72ab93d824b5eeec7aa748a984238122d40e680bef1e3301b5d1978b74",
+            "identity": "e648b625bd75b9f94cc533bb",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/e648b625bd75b9f94cc533bb/v1/mgr1-a12cec72ab93d824b5eeec7aa748a984238122d40e680bef1e3301b5d1978b74/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-dea113a17e9362dcb0b658a69fba0a7b431ff735b785820b6d3e9fe6eb1abfc5",
+            "identity": "e8fdf4acda486988ab3ad148",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/e8fdf4acda486988ab3ad148/v1/mgr1-dea113a17e9362dcb0b658a69fba0a7b431ff735b785820b6d3e9fe6eb1abfc5/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-7da72902622e51d07c69b30502b4056a6ffc182807a53d792cbade86b7856b1e",
+            "identity": "ec066bc40acb2c5e032e6fe1",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/ec066bc40acb2c5e032e6fe1/v1/mgr1-7da72902622e51d07c69b30502b4056a6ffc182807a53d792cbade86b7856b1e/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-6e4d646f35e0609620f3c0673dc5e62d2ff4b259a5ad35c3038d84955b484af5",
+            "identity": "ec066bc40acb2c5e032e6fe1",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/ec066bc40acb2c5e032e6fe1/v1/mgr1-6e4d646f35e0609620f3c0673dc5e62d2ff4b259a5ad35c3038d84955b484af5/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-a550e790a0e2d0cb693ea847b9f1ab5f1b310ddf53535a714acf7d7f6fd95b45",
+            "identity": "ede97a54dd79460653275173",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/ede97a54dd79460653275173/v1/mgr1-a550e790a0e2d0cb693ea847b9f1ab5f1b310ddf53535a714acf7d7f6fd95b45/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-57e4d3f41e7faabdc04e507fee5085993798b28ee739bab68cc393e7c23062fa",
+            "identity": "ede97a54dd79460653275173",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/ede97a54dd79460653275173/v1/mgr1-57e4d3f41e7faabdc04e507fee5085993798b28ee739bab68cc393e7c23062fa/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-81f67503335caf965817cbfc625945d4aa77a07e92f4e40a445fec48c4abed53",
+            "identity": "f077972a51df811b2e382e39",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/f077972a51df811b2e382e39/v1/mgr1-81f67503335caf965817cbfc625945d4aa77a07e92f4e40a445fec48c4abed53/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-81fe8abd8b41ac6e8b04a72713baeaafdd2699b9d4c6544a89d6245d2189a19b",
+            "identity": "f1265b82916cd15de3820c3c",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/constraints/f1265b82916cd15de3820c3c/v1/mgr1-81fe8abd8b41ac6e8b04a72713baeaafdd2699b9d4c6544a89d6245d2189a19b/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-3fce99caee573e967fd785580711cd6381733463ff24752932d06b480affd0a1",
+            "identity": "fd176c90d64818e3cfa5cef9",
+            "kind": "constraints",
+            "lod": "native",
+            "tile_start": 1790899200,
+            "url": "/api/v2/market-geography/constraints/fd176c90d64818e3cfa5cef9/v1/mgr1-3fce99caee573e967fd785580711cd6381733463ff24752932d06b480affd0a1/1d/1790899200/native"
+          },
+          {
+            "content_version": "mgr1-c7a32f28670dcc3c33b4cd0b187fc5699fad8ad43245e4d340a9bf5bebd52f25",
+            "identity": "HB_BUSAVG--SH",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/HB_BUSAVG--SH/v1/mgr1-c7a32f28670dcc3c33b4cd0b187fc5699fad8ad43245e4d340a9bf5bebd52f25/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-61320e3c927769610ee3045ac91ad5cbbb4b76d428b110680da18db92df0417f",
+            "identity": "HB_HOUSTON--HU",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/HB_HOUSTON--HU/v1/mgr1-61320e3c927769610ee3045ac91ad5cbbb4b76d428b110680da18db92df0417f/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-638c0241647e4e6a8ee3b8c38c525b47ab115b6636db76fd790d2aef75ed1ad1",
+            "identity": "HB_HUBAVG--AH",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/HB_HUBAVG--AH/v1/mgr1-638c0241647e4e6a8ee3b8c38c525b47ab115b6636db76fd790d2aef75ed1ad1/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-2cdebe60e37822d18653e87285bdcd215a8b062199bd5b79260e679dc12b8efe",
+            "identity": "HB_NORTH--HU",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/HB_NORTH--HU/v1/mgr1-2cdebe60e37822d18653e87285bdcd215a8b062199bd5b79260e679dc12b8efe/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-f70b5d1a7240d815f8e35560d73788b731f80c28c8dc6bbd6bab17badfafe0f6",
+            "identity": "HB_PAN--HU",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/HB_PAN--HU/v1/mgr1-f70b5d1a7240d815f8e35560d73788b731f80c28c8dc6bbd6bab17badfafe0f6/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-f40336f01c95b933e67cc30bf58e39c5acd33115f470fa47df9af5b4c60de994",
+            "identity": "HB_SOUTH--HU",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/HB_SOUTH--HU/v1/mgr1-f40336f01c95b933e67cc30bf58e39c5acd33115f470fa47df9af5b4c60de994/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-4191aa45fd559e597ea38ba19bb8ad14d3dc310d6e132dcd46da84626c94b6d4",
+            "identity": "HB_WEST--HU",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/HB_WEST--HU/v1/mgr1-4191aa45fd559e597ea38ba19bb8ad14d3dc310d6e132dcd46da84626c94b6d4/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-5f662bee16e7842570104e2c79cd5fa21f9726b8b276b8a504a564bf14261c4f",
+            "identity": "LZ_AEN--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_AEN--LZ/v1/mgr1-5f662bee16e7842570104e2c79cd5fa21f9726b8b276b8a504a564bf14261c4f/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-51f070f9c2ed0f683cdddf904579da7d6ddc8c9686f9382fb68aac4ae61a7b93",
+            "identity": "LZ_CPS--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_CPS--LZ/v1/mgr1-51f070f9c2ed0f683cdddf904579da7d6ddc8c9686f9382fb68aac4ae61a7b93/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-23345672bea2eb7170d5349541ba242c4b1d12a1a104c46a71a224224548c973",
+            "identity": "LZ_HOUSTON--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_HOUSTON--LZ/v1/mgr1-23345672bea2eb7170d5349541ba242c4b1d12a1a104c46a71a224224548c973/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-0df7d55441c7fe4b7749878c5065dad755641a734decba6207ff716909fdedcb",
+            "identity": "LZ_LCRA--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_LCRA--LZ/v1/mgr1-0df7d55441c7fe4b7749878c5065dad755641a734decba6207ff716909fdedcb/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-abaac69a33753171b87a200c3a271fc034a42407016dac58ebb0cbf0945fda0c",
+            "identity": "LZ_NORTH--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_NORTH--LZ/v1/mgr1-abaac69a33753171b87a200c3a271fc034a42407016dac58ebb0cbf0945fda0c/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-6b2a04279d71d17251fddf12619f53a68619123876ac2f5a4d9c8d6c5b5e2f4e",
+            "identity": "LZ_RAYBN--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_RAYBN--LZ/v1/mgr1-6b2a04279d71d17251fddf12619f53a68619123876ac2f5a4d9c8d6c5b5e2f4e/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-46725407d93dfa7b92c7d70eb15b6d302d3e8b98ef2a671ce9e67437da40a410",
+            "identity": "LZ_SOUTH--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_SOUTH--LZ/v1/mgr1-46725407d93dfa7b92c7d70eb15b6d302d3e8b98ef2a671ce9e67437da40a410/1d/1790985600/native"
+          },
+          {
+            "content_version": "mgr1-397d351adeed7674466217d82195fc2535e75a2eed9e9a93e7798e42670aafcc",
+            "identity": "LZ_WEST--LZ",
+            "kind": "prices",
+            "lod": "native",
+            "tile_start": 1790985600,
+            "url": "/api/v2/market-geography/prices/LZ_WEST--LZ/v1/mgr1-397d351adeed7674466217d82195fc2535e75a2eed9e9a93e7798e42670aafcc/1d/1790985600/native"
+          }
+        ],
+        "schema_version": 1,
+        "settlement_interval": {
+          "coherence": "single_np6_905_publication_interval",
+          "missing": [],
+          "reference_prices": [
+            {
+              "delivery_hour": 23,
+              "delivery_interval": 3,
+              "raw_delivery_date": "10/03/2026",
+              "raw_dst_flag": "N",
+              "repeated_hour_flag": false,
+              "settlement_point": "HB_BUSAVG",
+              "settlement_point_type": "SH",
+              "target_ts": 1791085500,
+              "unit": "$/MWh",
+              "value": 59.79
+            },
+            {
+              "delivery_hour": 23,
+              "delivery_interval": 3,
+              "raw_delivery_date": "10/03/2026",
+              "raw_dst_flag": "N",
+              "repeated_hour_flag": false,
+              "settlement_point": "HB_HUBAVG",
+              "settlement_point_type": "AH",
+              "target_ts": 1791085500,
+              "unit": "$/MWh",
+              "value": 60.59
+            }
+          ],
+          "rows_coverage": {
+            "row_count": 13,
+            "first_target_or_observation": 1791085500,
+            "last_target_or_observation": 1791085500
+          },
+          "source": {
+            "content_key": "mgp1-0bb2c379473589b2c3d6e054b52bcb328ec1fc6b6caa7455547e8ce24ed7b6ea",
+            "document_id": "1282210463",
+            "issued_at": 1791085622,
+            "product_id": "NP6-905-CD",
+            "raw_publish_datetime": "2026-10-03T22:47:02-05:00",
+            "retrieved_at": 1791086215,
+            "source_id": "ercot_mis_np6_905"
+          },
+          "state": "available",
+          "target_ts": 1791085500
+        },
+        "source_health": [
+          {
+            "availability_status": "available",
+            "consecutive_failures": 0,
+            "data_age_seconds": 140,
+            "data_timestamp_ts": 1791086120,
+            "gap_count": 0,
+            "last_error": null,
+            "last_success_ts": 1791086215,
+            "source_id": "ercot_mis_np6_788",
+            "state": "healthy"
+          },
+          {
+            "availability_status": "available",
+            "consecutive_failures": 0,
+            "data_age_seconds": 3740,
+            "data_timestamp_ts": 1791082520,
+            "gap_count": 0,
+            "last_error": null,
+            "last_success_ts": 1791086215,
+            "source_id": "ercot_mis_np6_86",
+            "state": "stale"
+          },
+          {
+            "availability_status": "available",
+            "consecutive_failures": 0,
+            "data_age_seconds": 760,
+            "data_timestamp_ts": 1791085500,
+            "gap_count": 0,
+            "last_error": null,
+            "last_success_ts": 1791086215,
+            "source_id": "ercot_mis_np6_905",
+            "state": "healthy"
+          }
+        ],
+        "visualization_policy": "settlement_price_matrix_not_geographic_boundaries"
+      }
+    },
+    {
+      "family": "nws_weather",
+      "adapter": "ercot-collector/nws_weather_runner.ts",
+      "schema_reference": "ercot-collector/nws_weather_runner.ts",
+      "consumer": "Predictive Weather",
+      "units_and_basis": "NWS alerts and representative airport grid forecasts",
+      "code_capability": "supported",
+      "feature_flag": "NWS_WEATHER_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 300,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "isolated_live_source",
+      "local_rehearsal": {
+        "family": "nws",
+        "exit_code": 0,
+        "elapsed_seconds": 0.727,
+        "mode": "ISOLATED_LOCAL_LIVE_SOURCE",
+        "receiver": "loopback/new-tmpfs-db",
+        "production_delivery": false
+      },
+      "local_manifest_evidence": {
+        "alerts": {
+          "cache_fresh_until": 1791086272,
+          "collection_updated_at": 1791086170,
+          "content_version": "pw1-b2883026b89c92ad3f32f7ce0e461436348f120931a0e7193116ef986961b5cc",
+          "coverage": "texas_statewide_not_ercot_footprint",
+          "items_coverage": {
+            "row_count": 5,
+            "first_target_or_observation": null,
+            "last_target_or_observation": null
+          },
+          "retrieved_at": 1791086212,
+          "state": "available",
+          "truncated": false
+        },
+        "forecast": {
+          "content_version": "pw1-4ac0d8eea4e19f076ead22143006b547a03dad3e2d0119022724e640e30f780d",
+          "points": [
+            {
+              "cache_fresh_until": 1791087112,
+              "label": "Dallas/Fort Worth",
+              "latitude": 32.8974,
+              "layers": [
+                {
+                  "key": "temperature",
+                  "rows_coverage": {
+                    "row_count": 146,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "apparentTemperature",
+                  "rows_coverage": {
+                    "row_count": 140,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "heatIndex",
+                  "rows_coverage": {
+                    "row_count": 106,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windChill",
+                  "rows_coverage": {
+                    "row_count": 1,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windSpeed",
+                  "rows_coverage": {
+                    "row_count": 54,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                },
+                {
+                  "key": "windGust",
+                  "rows_coverage": {
+                    "row_count": 99,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                }
+              ],
+              "longitude": -97.022,
+              "mapping": {
+                "forecast_grid_data_url": "https://api.weather.gov/gridpoints/FWD/81,109",
+                "grid_id": "FWD",
+                "grid_x": 81,
+                "grid_y": 109,
+                "time_zone": "America/Chicago"
+              },
+              "point_id": "KDFW",
+              "retrieved_at": 1791086212,
+              "state": "available",
+              "update_time": 1791068794
+            },
+            {
+              "cache_fresh_until": 1791087112,
+              "label": "Austin",
+              "latitude": 30.1831,
+              "layers": [
+                {
+                  "key": "temperature",
+                  "rows_coverage": {
+                    "row_count": 146,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "apparentTemperature",
+                  "rows_coverage": {
+                    "row_count": 144,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "heatIndex",
+                  "rows_coverage": {
+                    "row_count": 116,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windChill",
+                  "rows_coverage": {
+                    "row_count": 1,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windSpeed",
+                  "rows_coverage": {
+                    "row_count": 100,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                },
+                {
+                  "key": "windGust",
+                  "rows_coverage": {
+                    "row_count": 130,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                }
+              ],
+              "longitude": -97.6806,
+              "mapping": {
+                "forecast_grid_data_url": "https://api.weather.gov/gridpoints/EWX/158,87",
+                "grid_id": "EWX",
+                "grid_x": 158,
+                "grid_y": 87,
+                "time_zone": "America/Chicago"
+              },
+              "point_id": "KAUS",
+              "retrieved_at": 1791086212,
+              "state": "available",
+              "update_time": 1791071065
+            },
+            {
+              "cache_fresh_until": 1791087112,
+              "label": "Houston Hobby",
+              "latitude": 29.6458,
+              "layers": [
+                {
+                  "key": "temperature",
+                  "rows_coverage": {
+                    "row_count": 140,
+                    "first_target_or_observation": 1791050400,
+                    "last_target_or_observation": 1791723600
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "apparentTemperature",
+                  "rows_coverage": {
+                    "row_count": 142,
+                    "first_target_or_observation": 1791050400,
+                    "last_target_or_observation": 1791723600
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "heatIndex",
+                  "rows_coverage": {
+                    "row_count": 142,
+                    "first_target_or_observation": 1791050400,
+                    "last_target_or_observation": 1791723600
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windChill",
+                  "rows_coverage": {
+                    "row_count": 1,
+                    "first_target_or_observation": 1791050400,
+                    "last_target_or_observation": 1791723600
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windSpeed",
+                  "rows_coverage": {
+                    "row_count": 67,
+                    "first_target_or_observation": 1791050400,
+                    "last_target_or_observation": 1791723600
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                },
+                {
+                  "key": "windGust",
+                  "rows_coverage": {
+                    "row_count": 90,
+                    "first_target_or_observation": 1791050400,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                }
+              ],
+              "longitude": -95.2821,
+              "mapping": {
+                "forecast_grid_data_url": "https://api.weather.gov/gridpoints/HGX/66,90",
+                "grid_id": "HGX",
+                "grid_x": 66,
+                "grid_y": 90,
+                "time_zone": "America/Chicago"
+              },
+              "point_id": "KHOU",
+              "retrieved_at": 1791086212,
+              "state": "available",
+              "update_time": 1791073229
+            },
+            {
+              "cache_fresh_until": 1791087112,
+              "label": "San Antonio",
+              "latitude": 29.5443,
+              "layers": [
+                {
+                  "key": "temperature",
+                  "rows_coverage": {
+                    "row_count": 126,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "apparentTemperature",
+                  "rows_coverage": {
+                    "row_count": 122,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "heatIndex",
+                  "rows_coverage": {
+                    "row_count": 111,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windChill",
+                  "rows_coverage": {
+                    "row_count": 1,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:degC"
+                },
+                {
+                  "key": "windSpeed",
+                  "rows_coverage": {
+                    "row_count": 69,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                },
+                {
+                  "key": "windGust",
+                  "rows_coverage": {
+                    "row_count": 105,
+                    "first_target_or_observation": 1791046800,
+                    "last_target_or_observation": 1791680400
+                  },
+                  "unit": "wmoUnit:km_h-1"
+                }
+              ],
+              "longitude": -98.4839,
+              "mapping": {
+                "forecast_grid_data_url": "https://api.weather.gov/gridpoints/EWX/127,60",
+                "grid_id": "EWX",
+                "grid_x": 127,
+                "grid_y": 60,
+                "time_zone": "America/Chicago"
+              },
+              "point_id": "KSAT",
+              "retrieved_at": 1791086212,
+              "state": "available",
+              "update_time": 1791071065
+            }
+          ],
+          "state": "available"
+        },
+        "generated_at": 1791086260,
+        "kind": "predictive_weather",
+        "policy": "representative_point_weather_context_not_grid_alert_or_load_causality",
+        "registry_version": "representative-airport-points-v1",
+        "schema": 1,
+        "source_health": [
+          {
+            "availability_status": "available",
+            "cache_fresh_until": 1791087112,
+            "consecutive_failures": 0,
+            "content_version": "pw1-4ac0d8eea4e19f076ead22143006b547a03dad3e2d0119022724e640e30f780d",
+            "last_attempt_ts": 1791086213,
+            "last_error": null,
+            "last_success_ts": 1791086213,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": 1791086213,
+              "state": "healthy"
+            },
+            "retrieved_at": 1791086212,
+            "source_id": "nws_grid_forecast",
+            "source_updated_at": 1791073229,
+            "state": "healthy"
+          },
+          {
+            "availability_status": "available",
+            "cache_fresh_until": 1791086272,
+            "consecutive_failures": 0,
+            "content_version": "pw1-b2883026b89c92ad3f32f7ce0e461436348f120931a0e7193116ef986961b5cc",
+            "last_attempt_ts": 1791086213,
+            "last_error": null,
+            "last_success_ts": 1791086213,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": 1791086213,
+              "state": "healthy"
+            },
+            "retrieved_at": 1791086212,
+            "source_id": "nws_alerts_tx",
+            "source_updated_at": 1791086170,
+            "state": "healthy"
+          }
+        ]
+      }
+    },
+    {
+      "family": "long_horizon",
+      "adapter": "ercot-collector/long_horizon_runner.ts",
+      "schema_reference": "ercot-collector/long_horizon_runner.ts",
+      "consumer": "Texas Grid planning",
+      "units_and_basis": "MW; planning snapshots, not committed capacity",
+      "code_capability": "supported",
+      "feature_flag": "ERCOT_LONG_HORIZON_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 21600,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "isolated_live_source",
+      "local_rehearsal": {
+        "family": "planning",
+        "exit_code": 0,
+        "elapsed_seconds": 1.207,
+        "mode": "ISOLATED_LOCAL_LIVE_SOURCE",
+        "receiver": "loopback/new-tmpfs-db",
+        "production_delivery": false
+      },
+      "local_manifest_evidence": {
+        "generated_at": 1791086260,
+        "generator_interconnection": {
+          "selected": {
+            "content_version": "tg1-04232352cc7d0f2b04fa1aa9babf5e4760b3e3575b7ceb003068f20638fb3e7d",
+            "published_at": 1790888908,
+            "retrieved_at": 1791086213,
+            "source_page_url": "https://www.ercot.com/mp/data-products/data-product-details?id=pg7-200-er",
+            "source_period": "2026-09",
+            "url": "/api/v2/texas-grid/gis/v1/tg1-04232352cc7d0f2b04fa1aa9babf5e4760b3e3575b7ceb003068f20638fb3e7d"
+          },
+          "state": "available"
+        },
+        "kind": "texas_grid_long_horizon",
+        "large_load": {
+          "reason": null,
+          "scope": "forecast_methodology_not_project_status",
+          "state": "available_context"
+        },
+        "long_term_load_forecast": {
+          "selected": {
+            "content_version": "tg1-5b4cbb3ea11d842cfc546cdea51464b21cb765da79df3f9c2c6d9c98b0a82e49",
+            "published_at": 1744070400,
+            "retrieved_at": 1791086213,
+            "source_page_url": "https://www.ercot.com/gridinfo/load/forecast/index.html",
+            "source_period": "2025-04",
+            "url": "/api/v2/texas-grid/long_term_load_forecast/v1/tg1-5b4cbb3ea11d842cfc546cdea51464b21cb765da79df3f9c2c6d9c98b0a82e49"
+          },
+          "state": "available"
+        },
+        "policy": "official_planning_snapshots_not_committed_capacity_or_realization_forecast",
+        "resource_capacity_trend": {
+          "selected": {
+            "content_version": "tg1-c590644bdf631e27c15eb5ef161f4847c0f11eb84b7aa065d9ff6d786fad3f1c",
+            "published_at": 1788825600,
+            "retrieved_at": 1791086213,
+            "source_page_url": "https://www.ercot.com/gridinfo/resource",
+            "source_period": "2026-08",
+            "url": "/api/v2/texas-grid/resource_capacity_trend/v1/tg1-c590644bdf631e27c15eb5ef161f4847c0f11eb84b7aa065d9ff6d786fad3f1c"
+          },
+          "state": "available"
+        },
+        "retirements": {
+          "reason": "no_verified_gross_retirement_source",
+          "state": "unavailable"
+        },
+        "schema": 1,
+        "source_health": [
+          {
+            "availability_status": "available",
+            "cache_fresh_until": 1794974213,
+            "consecutive_failures": 0,
+            "content_version": "tg1-04232352cc7d0f2b04fa1aa9babf5e4760b3e3575b7ceb003068f20638fb3e7d",
+            "last_attempt_ts": 1791086214,
+            "last_error": null,
+            "last_success_ts": 1791086214,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": 1791086214,
+              "state": "healthy"
+            },
+            "retrieved_at": 1791086213,
+            "source_id": "ercot_gis_report",
+            "source_updated_at": 1790888908,
+            "state": "healthy"
+          },
+          {
+            "availability_status": "available",
+            "cache_fresh_until": 1794974213,
+            "consecutive_failures": 0,
+            "content_version": "tg1-c590644bdf631e27c15eb5ef161f4847c0f11eb84b7aa065d9ff6d786fad3f1c",
+            "last_attempt_ts": 1791086214,
+            "last_error": null,
+            "last_success_ts": 1791086214,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": 1791086214,
+              "state": "healthy"
+            },
+            "retrieved_at": 1791086213,
+            "source_id": "ercot_resource_capacity_trend",
+            "source_updated_at": 1788825600,
+            "state": "healthy"
+          },
+          {
+            "availability_status": "available",
+            "cache_fresh_until": 1794974213,
+            "consecutive_failures": 0,
+            "content_version": "tg1-5b4cbb3ea11d842cfc546cdea51464b21cb765da79df3f9c2c6d9c98b0a82e49",
+            "last_attempt_ts": 1791086214,
+            "last_error": null,
+            "last_success_ts": 1791086214,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": 1791086214,
+              "state": "healthy"
+            },
+            "retrieved_at": 1791086213,
+            "source_id": "ercot_long_term_load_forecast",
+            "source_updated_at": 1744070400,
+            "state": "healthy"
+          }
+        ]
+      }
+    },
+    {
+      "family": "external_context",
+      "adapter": "ercot-collector/external_context_runner.ts",
+      "schema_reference": "ercot-collector/external_context_runner.ts",
+      "consumer": "External Context",
+      "units_and_basis": "annual eGRID ERCT retrospective rates; EIA hourly/daily context",
+      "code_capability": "supported",
+      "feature_flag": "EXTERNAL_CONTEXT_INGEST_ENABLED",
+      "default_enablement": false,
+      "poll_supervisor_seconds": 3600,
+      "publication_cadence": "product-specific; poll cadence is not publication cadence",
+      "configured_production_enablement": "unknown",
+      "production_collector_liveness": "unknown",
+      "production_receiver_destination": "unknown",
+      "production_last_attempt": null,
+      "production_last_success": null,
+      "production_upstream_result": "not_observed",
+      "production_receiver_delivery": "not_observed",
+      "production_publication": null,
+      "production_coverage": null,
+      "production_rendered_values": "separate browser observation; not proof of this collector",
+      "validation_mode": "isolated_live_source",
+      "local_rehearsal": {
+        "family": "egrid",
+        "exit_code": 0,
+        "elapsed_seconds": 0.564,
+        "mode": "ISOLATED_LOCAL_LIVE_SOURCE",
+        "receiver": "loopback/new-tmpfs-db",
+        "production_delivery": false
+      },
+      "local_manifest_evidence": {
+        "eia_930": {
+          "freshness": null,
+          "reason": "eia_api_key_not_configured",
+          "selected": null,
+          "state": "disabled"
+        },
+        "epa_camd": {
+          "reason": "ercot_footprint_and_coverage_methodology_not_frozen",
+          "state": "unavailable"
+        },
+        "epa_egrid": {
+          "freshness": "not_applicable",
+          "reason": null,
+          "selected": {
+            "artifact_url": "https://www.epa.gov/system/files/documents/2025-06/summary_tables_rev2.xlsx",
+            "content_version": "xc1-a9d30d39ecff9f10943e428913da069d65a22195731a24799693267eef6534d4",
+            "data_year": 2023,
+            "released_on": "2025-06-12",
+            "retrieved_at": 1791086214,
+            "revision": 2,
+            "source_page_url": "https://www.epa.gov/egrid/summary-data",
+            "subregion": "ERCT",
+            "subregion_name": "ERCOT All",
+            "url": "/api/v2/external-context/epa_egrid/v1/xc1-a9d30d39ecff9f10943e428913da069d65a22195731a24799693267eef6534d4"
+          },
+          "state": "available"
+        },
+        "generated_at": 1791086260,
+        "kind": "external_context",
+        "natural_gas": {
+          "freshness": null,
+          "reason": "eia_api_key_not_configured",
+          "selected": null,
+          "state": "disabled"
+        },
+        "policy": "external_context_not_ercot_operational_authority_or_live_emissions_measurement",
+        "schema": 1,
+        "source_health": [
+          {
+            "availability_status": "disabled",
+            "cache_fresh_until": null,
+            "consecutive_failures": 0,
+            "content_version": null,
+            "last_attempt_ts": null,
+            "last_error": null,
+            "last_success_ts": null,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": null,
+              "state": "unavailable"
+            },
+            "retrieved_at": null,
+            "source_id": "eia930_erco",
+            "source_updated_at": null,
+            "state": "disabled"
+          },
+          {
+            "availability_status": "disabled",
+            "cache_fresh_until": null,
+            "consecutive_failures": 0,
+            "content_version": null,
+            "last_attempt_ts": null,
+            "last_error": null,
+            "last_success_ts": null,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": null,
+              "state": "unavailable"
+            },
+            "retrieved_at": null,
+            "source_id": "eia_henry_hub",
+            "source_updated_at": null,
+            "state": "disabled"
+          },
+          {
+            "availability_status": "available",
+            "cache_fresh_until": null,
+            "consecutive_failures": 0,
+            "content_version": "xc1-a9d30d39ecff9f10943e428913da069d65a22195731a24799693267eef6534d4",
+            "last_attempt_ts": 1791086215,
+            "last_error": null,
+            "last_success_ts": 1791086215,
+            "materialization": {
+              "consecutive_failures": 0,
+              "last_error": null,
+              "last_success_ts": 1791086215,
+              "state": "healthy"
+            },
+            "retrieved_at": 1791086214,
+            "source_id": "epa_egrid_erct",
+            "source_updated_at": null,
+            "state": "healthy"
+          }
+        ]
+      }
+    }
+  ],
+  "excluded_capabilities": [
+    "resource SOC",
+    "current high-resolution ESR without source gate",
+    "complete TXANS history",
+    "unreviewed CAMD/retirement attribution",
+    "paid PowerOutage.us feed"
+  ]
+}
